@@ -8,6 +8,12 @@ import Home from "./pages/Home";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import Warranty from "./pages/Warranty";
+import Profile from "./pages/Profile";
+import CustomerDashboard from "./pages/CustomerDashboard";
+import VendorDashboard from "./pages/VendorDashboard";
+import AdminDashboard from "./pages/AdminDashboard";
+import AdminManagement from "./pages/AdminManagement";
+import ActivityLogs from "./pages/ActivityLogs";
 import Terms from "./pages/Terms";
 import NotFound from "./pages/NotFound";
 
@@ -25,6 +31,12 @@ const App = () => (
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
             <Route path="/warranty" element={<Warranty />} />
+            <Route path="/profile" element={<Profile />} />
+            <Route path="/dashboard/customer" element={<CustomerDashboard />} />
+            <Route path="/dashboard/vendor" element={<VendorDashboard />} />
+            <Route path="/dashboard/admin" element={<AdminDashboard />} />
+            <Route path="/admin/manage" element={<AdminManagement />} />
+            <Route path="/admin/activity-logs" element={<ActivityLogs />} />
             <Route path="/terms" element={<Terms />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />

@@ -8,5 +8,6 @@ router.post('/register', AuthController.register);
 router.post('/login', AuthController.login);
 router.post('/verify-otp', AuthController.verifyOTP);
 router.get('/me', authenticateToken, AuthController.getCurrentUser);
+router.put('/profile', authenticateToken, AuthController.updateProfile);
 
 export default router;

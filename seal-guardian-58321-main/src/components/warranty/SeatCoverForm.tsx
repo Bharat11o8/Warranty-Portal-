@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import api from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -7,13 +8,37 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { Upload } from "lucide-react";
-import { submitWarranty } from "@/lib/warrantyApi";
+import { submitWarranty, updateWarranty } from "@/lib/warrantyApi";
 
-const SeatCoverForm = () => {
+interface SeatCoverFormProps {
+  initialData?: any;
+  warrantyId?: string;
+  onSuccess?: () => void;
+}
+
+const SeatCoverForm = ({ initialData, warrantyId, onSuccess }: SeatCoverFormProps = {}) => {
   const { toast } = useToast();
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
-  const [formData, setFormData] = useState({
+  const [stores, setStores] = useState<any[]>([]);
+  const [manpowerList, setManpowerList] = useState<any[]>([]);
+  const [formData, setFormData] = useState(initialData ? {
+    uid: initialData.product_details?.uid || "",
+    customerName: initialData.customer_name || "",
+    customerEmail: initialData.customer_email || "",
+    customerMobile: initialData.customer_phone || "",
+    customerAddress: initialData.customer_address || "",
+    productName: initialData.product_details?.productName || "",
+    storeEmail: initialData.installer_contact || "",
+    purchaseDate: initialData.purchase_date || "",
+    storeName: initialData.installer_name || "",
+    manpowerId: initialData.manpower_id || "",
+    carMake: initialData.car_make || "",
+    carModel: initialData.car_model || "",
+    carYear: initialData.car_year || "",
+    warrantyType: initialData.warranty_type || "1 Year",
+    invoiceFile: null as File | null,
+  } : {
     uid: "",
     customerName: "",
     customerEmail: "",
@@ -22,13 +47,119 @@ const SeatCoverForm = () => {
     productName: "",
     storeEmail: "",
     purchaseDate: "",
-    storeName: "Aaradhya Car Accesssories",
+    storeName: "",
+    manpowerId: "",
     carMake: "",
     carModel: "",
     carYear: "",
-    registrationNumber: "",
+    warrantyType: "1 Year",
     invoiceFile: null as File | null,
   });
+
+  // Auto-fill customer details for logged-in customers
+  useEffect(() => {
+    if (user?.role === 'customer') {
+      setFormData(prev => ({
+        ...prev,
+        customerName: user.name || "",
+        customerEmail: user.email || "",
+        customerMobile: user.phoneNumber || "",
+      }));
+    }
+  }, [user]);
+
+  // Auto-fill vendor/store details for logged-in vendors
+  useEffect(() => {
+    const fetchVendorDetails = async () => {
+      if (user?.role === 'vendor') {
+        try {
+          // Fetch vendor's own store details
+          const response = await api.get('/vendor/profile');
+          if (response.data.success && response.data.vendorDetails) {
+            const vendorDetails = response.data.vendorDetails;
+            setFormData(prev => ({
+              ...prev,
+              storeName: vendorDetails.store_name || "",
+              storeEmail: vendorDetails.store_email || "",
+            }));
+
+            // Fetch vendor's manpower list
+            const manpowerResponse = await api.get('/vendor/manpower?active=true');
+            if (manpowerResponse.data.success) {
+              setManpowerList(manpowerResponse.data.manpower);
+            }
+          }
+        } catch (error) {
+          console.error("Failed to fetch vendor details", error);
+        }
+      }
+    };
+    fetchVendorDetails();
+  }, [user]);
+
+  // Fetch stores on mount
+  useEffect(() => {
+    const fetchStores = async () => {
+      try {
+        const response = await api.get('/public/stores');
+        if (response.data.success) {
+          setStores(response.data.stores);
+        }
+      } catch (error) {
+        console.error("Failed to fetch stores", error);
+      }
+    };
+    fetchStores();
+  }, []);
+
+  // Fetch manpower when store changes
+  useEffect(() => {
+    const fetchManpower = async () => {
+      const selectedStore = stores.find(s => s.store_name === formData.storeName);
+      if (selectedStore) {
+        // Auto-fill email
+        setFormData(prev => ({ ...prev, storeEmail: selectedStore.store_email, manpowerId: "" }));
+
+        try {
+          const response = await api.get(`/public/stores/${selectedStore.vendor_details_id}/manpower`);
+          if (response.data.success) {
+            setManpowerList(response.data.manpower);
+          }
+        } catch (error) {
+          console.error("Failed to fetch manpower", error);
+          setManpowerList([]);
+        }
+      } else {
+        setManpowerList([]);
+      }
+    };
+
+    if (formData.storeName) {
+      fetchManpower();
+    }
+  }, [formData.storeName, stores]);
+
+  // Auto-select warranty type based on product name
+  useEffect(() => {
+    let type = "1 Year";
+    switch (formData.productName) {
+      case "leather-seat-cover":
+        type = "2 Years";
+        break;
+      case "fabric-seat-cover":
+        type = "1 Year";
+        break;
+      case "premium-seat-cover":
+        type = "3 Years";
+        break;
+      case "custom-seat-cover":
+        type = "1 Year";
+        break;
+      default:
+        type = "1 Year";
+    }
+    setFormData(prev => ({ ...prev, warrantyType: type }));
+  }, [formData.productName]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -46,6 +177,10 @@ const SeatCoverForm = () => {
         return;
       }
 
+      // Find selected manpower name
+      const selectedManpower = manpowerList.find(mp => mp.id === formData.manpowerId);
+      const manpowerName = selectedManpower ? selectedManpower.name : "";
+
       // Prepare warranty data
       const warrantyData = {
         productType: "seat-cover",
@@ -56,26 +191,41 @@ const SeatCoverForm = () => {
         carMake: formData.carMake || "N/A",
         carModel: formData.carModel || "N/A",
         carYear: formData.carYear || new Date().getFullYear().toString(),
-        registrationNumber: formData.registrationNumber || formData.uid,
         purchaseDate: formData.purchaseDate,
+        warrantyType: formData.warrantyType,
         installerName: formData.storeName,
         installerContact: formData.storeEmail,
+        manpowerId: formData.manpowerId || null,
         productDetails: {
           uid: formData.uid,
           productName: formData.productName,
           storeName: formData.storeName,
           storeEmail: formData.storeEmail,
+          manpowerId: formData.manpowerId,
+          manpowerName: manpowerName,
+          customerAddress: formData.customerAddress, // Added to ensure it's saved in JSON
           invoiceFileName: formData.invoiceFile?.name || null,
+          invoiceFile: formData.invoiceFile, // Pass file object for API wrapper
         },
       };
 
-      // Submit warranty registration
-      const result = await submitWarranty(warrantyData);
+      // Submit or update warranty registration
+      const result = warrantyId
+        ? await updateWarranty(warrantyId, warrantyData)
+        : await submitWarranty(warrantyData);
 
       toast({
-        title: "Success!",
-        description: `Warranty registered successfully. Registration #: ${result.registrationNumber}`,
+        title: warrantyId ? "Warranty Updated" : "Warranty Registered",
+        description: warrantyId
+          ? "Warranty updated and resubmitted successfully!"
+          : `Warranty registered successfully. UID: ${formData.uid}`,
       });
+
+      // Call onSuccess callback if provided
+      if (onSuccess) {
+        onSuccess();
+        return; // Don't reset form if callback provided
+      }
 
       // Reset form
       setFormData({
@@ -87,17 +237,18 @@ const SeatCoverForm = () => {
         productName: "",
         storeEmail: "",
         purchaseDate: "",
-        storeName: "Aaradhya Car Accesssories",
+        storeName: "",
+        manpowerId: "",
         carMake: "",
         carModel: "",
         carYear: "",
-        registrationNumber: "",
+        warrantyType: "1 Year",
         invoiceFile: null,
       });
     } catch (error: any) {
       console.error("Warranty submission error:", error);
       toast({
-        title: "Error",
+        title: "Submission Failed",
         description: error.response?.data?.error || "Failed to submit warranty registration",
         variant: "destructive",
       });
@@ -114,7 +265,7 @@ const SeatCoverForm = () => {
     const file = e.target.files?.[0];
     if (file && file.size > 20 * 1024 * 1024) {
       toast({
-        title: "File too large",
+        title: "File Too Large",
         description: "Maximum file size is 20 MB",
         variant: "destructive",
       });
@@ -126,14 +277,102 @@ const SeatCoverForm = () => {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Seat Cover Warranty Registration</CardTitle>
+        <CardTitle>{warrantyId ? "Edit Seat Cover Warranty" : "Seat Cover Warranty Registration"}</CardTitle>
         <CardDescription>
-          Please fill in all required fields to register your seat cover warranty
+          {warrantyId
+            ? "Update the warranty details below and resubmit for approval"
+            : "Please fill in all required fields to register your seat cover warranty"}
         </CardDescription>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="grid md:grid-cols-2 gap-4">
+
+            {/* Store Selection - Auto-filled for vendors */}
+            <div className="space-y-2">
+              <Label htmlFor="storeName">
+                Store Name <span className="text-destructive">*</span>
+              </Label>
+              {user?.role === 'vendor' ? (
+                <Input
+                  id="storeName"
+                  value={formData.storeName}
+                  readOnly
+                  className="bg-muted"
+                  placeholder="Loading store name..."
+                />
+              ) : (
+                <Select
+                  value={formData.storeName}
+                  onValueChange={(value) => handleChange("storeName", value)}
+                  required
+                >
+                  <SelectTrigger id="storeName">
+                    <SelectValue placeholder="Select Store" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {stores.map((store) => (
+                      <SelectItem key={store.vendor_details_id} value={store.store_name}>
+                        {store.store_name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="storeEmail">
+                Store Email <span className="text-destructive">*</span>
+              </Label>
+              <Input
+                id="storeEmail"
+                type="email"
+                placeholder="store@example.com"
+                value={formData.storeEmail}
+                onChange={(e) => handleChange("storeEmail", e.target.value)}
+                required
+                readOnly
+                className="bg-muted"
+              />
+            </div>
+
+            {/* Manpower Selection */}
+            <div className="space-y-2">
+              <Label htmlFor="manpowerId">
+                Manpower (Installer)
+              </Label>
+              <Select
+                value={formData.manpowerId}
+                onValueChange={(value) => handleChange("manpowerId", value)}
+                disabled={!formData.storeName || manpowerList.length === 0}
+              >
+                <SelectTrigger id="manpowerId">
+                  <SelectValue placeholder={!formData.storeName ? "Select Store First" : manpowerList.length === 0 ? "No Manpower Found" : "Select Installer"} />
+                </SelectTrigger>
+                <SelectContent>
+                  {manpowerList.map((mp) => (
+                    <SelectItem key={mp.id} value={mp.id}>
+                      {mp.name} ({mp.applicator_type})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="purchaseDate">
+                Purchase Date <span className="text-destructive">*</span>
+              </Label>
+              <Input
+                id="purchaseDate"
+                type="date"
+                value={formData.purchaseDate}
+                onChange={(e) => handleChange("purchaseDate", e.target.value)}
+                required
+              />
+            </div>
+
             <div className="space-y-2 md:col-span-2">
               <Label htmlFor="uid">
                 UID <span className="text-destructive">*</span>
@@ -164,12 +403,17 @@ const SeatCoverForm = () => {
                 value={formData.customerName}
                 onChange={(e) => handleChange("customerName", e.target.value)}
                 required
+                readOnly={user?.role === 'customer'}
+                className={user?.role === 'customer' ? 'bg-muted cursor-not-allowed' : ''}
               />
+              {user?.role === 'customer' && (
+                <p className="text-xs text-muted-foreground">Auto-filled from your account</p>
+              )}
             </div>
 
             <div className="space-y-2">
               <Label htmlFor="customerEmail">
-                Customer Email <span className="text-destructive">*</span>
+                Customer Email {user?.role !== 'vendor' && <span className="text-destructive">*</span>}
               </Label>
               <Input
                 id="customerEmail"
@@ -177,8 +421,16 @@ const SeatCoverForm = () => {
                 placeholder="customer@example.com"
                 value={formData.customerEmail}
                 onChange={(e) => handleChange("customerEmail", e.target.value)}
-                required
+                required={user?.role !== 'vendor'}
+                readOnly={user?.role === 'customer'}
+                className={user?.role === 'customer' ? 'bg-muted cursor-not-allowed' : ''}
               />
+              {user?.role === 'customer' && (
+                <p className="text-xs text-muted-foreground">Auto-filled from your account</p>
+              )}
+              {user?.role === 'vendor' && (
+                <p className="text-xs text-muted-foreground">Optional - If not provided, customer won't receive email notifications</p>
+              )}
             </div>
 
             <div className="space-y-2">
@@ -192,7 +444,12 @@ const SeatCoverForm = () => {
                 value={formData.customerMobile}
                 onChange={(e) => handleChange("customerMobile", e.target.value)}
                 required
+                readOnly={user?.role === 'customer'}
+                className={user?.role === 'customer' ? 'bg-muted cursor-not-allowed' : ''}
               />
+              {user?.role === 'customer' && (
+                <p className="text-xs text-muted-foreground">Auto-filled from your account</p>
+              )}
             </div>
 
             <div className="space-y-2">
@@ -249,19 +506,6 @@ const SeatCoverForm = () => {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="registrationNumber">
-                Vehicle Registration Number
-              </Label>
-              <Input
-                id="registrationNumber"
-                type="text"
-                placeholder="e.g., DL01AB1234"
-                value={formData.registrationNumber}
-                onChange={(e) => handleChange("registrationNumber", e.target.value)}
-              />
-            </div>
-
-            <div className="space-y-2">
               <Label htmlFor="productName">
                 Product Name <span className="text-destructive">*</span>
               </Label>
@@ -283,49 +527,19 @@ const SeatCoverForm = () => {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="storeEmail">
-                Store Email <span className="text-destructive">*</span>
+              <Label htmlFor="warrantyType">
+                Warranty Type
               </Label>
               <Input
-                id="storeEmail"
-                type="email"
-                placeholder="store@example.com"
-                value={formData.storeEmail}
-                onChange={(e) => handleChange("storeEmail", e.target.value)}
-                required
+                id="warrantyType"
+                type="text"
+                value={formData.warrantyType}
+                readOnly
+                className="bg-muted"
               />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="purchaseDate">
-                Purchase Date <span className="text-destructive">*</span>
-              </Label>
-              <Input
-                id="purchaseDate"
-                type="date"
-                value={formData.purchaseDate}
-                onChange={(e) => handleChange("purchaseDate", e.target.value)}
-                required
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="storeName">
-                Store Name <span className="text-destructive">*</span>
-              </Label>
-              <Select
-                value={formData.storeName}
-                onValueChange={(value) => handleChange("storeName", value)}
-                required
-              >
-                <SelectTrigger id="storeName">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Aaradhya Car Accesssories">Aaradhya Car Accesssories</SelectItem>
-                  <SelectItem value="Other Store">Other Store</SelectItem>
-                </SelectContent>
-              </Select>
+              <p className="text-xs text-muted-foreground">
+                Auto-selected based on product
+              </p>
             </div>
 
             <div className="space-y-2 md:col-span-2">

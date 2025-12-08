@@ -1,0 +1,353 @@
+import db from '../config/database';
+import { EmailService } from '../services/email.service';
+export class WarrantyController {
+    static async submitWarranty(req, res) {
+        try {
+            if (!req.user) {
+                return res.status(401).json({ error: 'User not authenticated' });
+            }
+            // Handle FormData: req.body might need parsing if it came as JSON string in a field
+            // But usually with multer, non-file fields are in req.body
+            let warrantyData = req.body;
+            // If productDetails is a string (from FormData), parse it
+            if (typeof warrantyData.productDetails === 'string') {
+                try {
+                    warrantyData.productDetails = JSON.parse(warrantyData.productDetails);
+                }
+                catch (e) {
+                    console.error('Failed to parse productDetails string:', e);
+                    return res.status(400).json({ error: 'Invalid productDetails format' });
+                }
+            }
+            // Handle uploaded files
+            const files = req.files;
+            if (files && files.length > 0) {
+                // Map files to their respective fields in productDetails
+                files.forEach(file => {
+                    // Field name in form data should match the key in productDetails we want to set
+                    // e.g., "invoiceFile" -> productDetails.invoiceFileName
+                    // e.g., "lhsPhoto" -> productDetails.photos.lhs
+                    if (file.fieldname === 'invoiceFile') {
+                        warrantyData.productDetails.invoiceFileName = file.filename;
+                    }
+                    else if (['lhsPhoto', 'rhsPhoto', 'frontRegPhoto', 'backRegPhoto', 'warrantyPhoto'].includes(file.fieldname)) {
+                        if (!warrantyData.productDetails.photos) {
+                            warrantyData.productDetails.photos = {};
+                        }
+                        // Map fieldname to photo key
+                        const photoKey = file.fieldname.replace('Photo', ''); // lhs, rhs, warranty
+                        // Special case for Reg photos if naming differs, but let's assume standard mapping or adjust
+                        // Actually, EVProductsForm sends: lhsPhoto, rhsPhoto, frontRegPhoto, backRegPhoto, warrantyPhoto
+                        // And productDetails.photos expects: lhs, rhs, frontReg, backReg, warranty
+                        let key = photoKey;
+                        if (file.fieldname === 'frontRegPhoto')
+                            key = 'frontReg';
+                        if (file.fieldname === 'backRegPhoto')
+                            key = 'backReg';
+                        warrantyData.productDetails.photos[key] = file.filename;
+                    }
+                });
+            }
+            // Validate required fields
+            // Customer email is optional for vendors uploading on behalf of customers
+            if (!warrantyData.productType || !warrantyData.customerName ||
+                !warrantyData.customerPhone ||
+                !warrantyData.customerAddress || !warrantyData.carMake ||
+                !warrantyData.carModel || !warrantyData.carYear ||
+                !warrantyData.purchaseDate || !warrantyData.warrantyType) {
+                return res.status(400).json({ error: 'Missing required fields' });
+            }
+            // Customer email is required for customers, optional for vendors
+            if (req.user.role === 'customer' && !warrantyData.customerEmail) {
+                return res.status(400).json({ error: 'Customer email is required' });
+            }
+            // UID is only required for seat-cover products
+            if (warrantyData.productType === 'seat-cover' && !warrantyData.productDetails?.uid) {
+                return res.status(400).json({ error: 'UID is required for seat-cover products' });
+            }
+            // Role-based validation: Customers can only register warranties under their own email
+            if (req.user.role === 'customer') {
+                if (warrantyData.customerEmail.toLowerCase() !== req.user.email.toLowerCase()) {
+                    return res.status(403).json({
+                        error: 'Customers can only register warranties under their own account'
+                    });
+                }
+            }
+            const uid = warrantyData.productDetails.uid || null;
+            // Check if UID already exists (only for seat-cover products)
+            if (warrantyData.productType === 'seat-cover' && uid) {
+                const [existingWarranty] = await db.execute('SELECT uid FROM warranty_registrations WHERE uid = ?', [uid]);
+                if (existingWarranty.length > 0) {
+                    return res.status(400).json({
+                        error: 'This UID is already registered. Each seat cover can only be registered once.'
+                    });
+                }
+            }
+            // Insert warranty registration
+            await db.execute(`INSERT INTO warranty_registrations 
+        (uid, user_id, product_type, customer_name, customer_email, customer_phone, 
+         customer_address, car_make, car_model, car_year, 
+         purchase_date, installer_name, installer_contact, product_details, manpower_id, warranty_type) 
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [
+                uid,
+                req.user.id,
+                warrantyData.productType,
+                warrantyData.customerName,
+                warrantyData.customerEmail,
+                warrantyData.customerPhone,
+                warrantyData.customerAddress,
+                warrantyData.carMake,
+                warrantyData.carModel,
+                warrantyData.carYear,
+                warrantyData.purchaseDate,
+                warrantyData.installerName || null,
+                warrantyData.installerContact || null,
+                JSON.stringify(warrantyData.productDetails),
+                warrantyData.manpowerId || null,
+                warrantyData.warrantyType
+            ]);
+            // Send confirmation email to customer only if email is provided
+            if (warrantyData.customerEmail && warrantyData.customerEmail.trim()) {
+                await EmailService.sendWarrantyConfirmation(warrantyData.customerEmail, warrantyData.customerName, uid, warrantyData.productType, warrantyData.productDetails);
+            }
+            res.status(201).json({
+                success: true,
+                message: 'Warranty registration submitted successfully',
+                uid,
+                registrationNumber: uid
+            });
+        }
+        catch (error) {
+            console.error('Warranty submission error:', error);
+            res.status(500).json({ error: 'Failed to submit warranty registration' });
+        }
+    }
+    static async getWarranties(req, res) {
+        try {
+            if (!req.user) {
+                return res.status(401).json({ error: 'User not authenticated' });
+            }
+            let query = `
+        SELECT w.*, m.name as manpower_name_from_db 
+        FROM warranty_registrations w 
+        LEFT JOIN manpower m ON w.manpower_id = m.id
+      `;
+            let params = [];
+            // If customer, only show their warranties
+            if (req.user.role === 'customer') {
+                query += ' WHERE w.user_id = ?';
+                params = [req.user.id];
+            }
+            // If vendor, show warranties linked to their manpower OR submitted by them
+            else if (req.user.role === 'vendor') {
+                // First, get vendor's vendor_details_id
+                const [vendorDetails] = await db.execute('SELECT id FROM vendor_details WHERE user_id = ?', [req.user.id]);
+                if (vendorDetails.length > 0) {
+                    const vendorDetailsId = vendorDetails[0].id;
+                    // Get all manpower IDs for this vendor
+                    const [manpower] = await db.execute('SELECT id FROM manpower WHERE vendor_id = ?', [vendorDetailsId]);
+                    if (manpower.length > 0) {
+                        const manpowerIds = manpower.map((m) => m.id);
+                        // Show warranties where manpower_id matches OR user_id matches (vendor submitted)
+                        query += ` WHERE w.manpower_id IN (${manpowerIds.map(() => '?').join(',')}) OR w.user_id = ?`;
+                        params = [...manpowerIds, req.user.id];
+                    }
+                    else {
+                        // No manpower, just show warranties submitted by vendor
+                        query += ' WHERE w.user_id = ?';
+                        params = [req.user.id];
+                    }
+                }
+                else {
+                    // No vendor details, just show warranties submitted by vendor
+                    query += ' WHERE w.user_id = ?';
+                    params = [req.user.id];
+                }
+            }
+            query += ' ORDER BY w.created_at DESC';
+            const [warranties] = await db.execute(query, params);
+            // Parse JSON product_details
+            const formattedWarranties = warranties.map((warranty) => ({
+                ...warranty,
+                product_details: JSON.parse(warranty.product_details)
+            }));
+            res.json({
+                success: true,
+                warranties: formattedWarranties
+            });
+        }
+        catch (error) {
+            console.error('Get warranties error:', error);
+            res.status(500).json({ error: 'Failed to fetch warranties' });
+        }
+    }
+    static async getWarrantyById(req, res) {
+        try {
+            if (!req.user) {
+                return res.status(401).json({ error: 'User not authenticated' });
+            }
+            const { uid } = req.params;
+            let query = 'SELECT * FROM warranty_registrations WHERE uid = ?';
+            let params = [uid];
+            // If customer, ensure they own this warranty
+            if (req.user.role === 'customer') {
+                query += ' AND user_id = ?';
+                params.push(req.user.id);
+            }
+            const [warranties] = await db.execute(query, params);
+            if (warranties.length === 0) {
+                return res.status(404).json({ error: 'Warranty not found' });
+            }
+            const warranty = {
+                ...warranties[0],
+                product_details: JSON.parse(warranties[0].product_details)
+            };
+            res.json({
+                success: true,
+                warranty
+            });
+        }
+        catch (error) {
+            console.error('Get warranty by UID error:', error);
+            res.status(500).json({ error: 'Failed to fetch warranty' });
+        }
+    }
+    static async updateWarranty(req, res) {
+        try {
+            if (!req.user) {
+                return res.status(401).json({ error: 'User not authenticated' });
+            }
+            const { uid } = req.params;
+            // Handle FormData
+            let warrantyData = req.body;
+            if (typeof warrantyData.productDetails === 'string') {
+                try {
+                    warrantyData.productDetails = JSON.parse(warrantyData.productDetails);
+                }
+                catch (e) {
+                    console.error('Failed to parse productDetails string:', e);
+                    return res.status(400).json({ error: 'Invalid productDetails format' });
+                }
+            }
+            // Handle uploaded files
+            const files = req.files;
+            if (files && files.length > 0) {
+                files.forEach(file => {
+                    if (file.fieldname === 'invoiceFile') {
+                        warrantyData.productDetails.invoiceFileName = file.filename;
+                    }
+                    else if (['lhsPhoto', 'rhsPhoto', 'frontRegPhoto', 'backRegPhoto', 'warrantyPhoto'].includes(file.fieldname)) {
+                        if (!warrantyData.productDetails.photos) {
+                            warrantyData.productDetails.photos = {};
+                        }
+                        const photoKey = file.fieldname.replace('Photo', '');
+                        let key = photoKey;
+                        if (file.fieldname === 'frontRegPhoto')
+                            key = 'frontReg';
+                        if (file.fieldname === 'backRegPhoto')
+                            key = 'backReg';
+                        warrantyData.productDetails.photos[key] = file.filename;
+                    }
+                });
+            }
+            // Validate required fields (same as submit)
+            // Customer email is optional for vendors uploading on behalf of customers
+            if (!warrantyData.productType || !warrantyData.customerName ||
+                !warrantyData.customerPhone ||
+                !warrantyData.customerAddress || !warrantyData.carMake ||
+                !warrantyData.carModel || !warrantyData.carYear ||
+                !warrantyData.purchaseDate || !warrantyData.warrantyType) {
+                return res.status(400).json({ error: 'Missing required fields' });
+            }
+            // Customer email is required for customers, optional for vendors
+            if (req.user.role === 'customer' && !warrantyData.customerEmail) {
+                return res.status(400).json({ error: 'Customer email is required' });
+            }
+            // Check if warranty exists and belongs to user (or user is admin/vendor linked)
+            // For simplicity, we'll check ownership via user_id for now as per getWarrantyById logic
+            let checkQuery = 'SELECT uid, user_id, status, product_details FROM warranty_registrations WHERE uid = ?';
+            let checkParams = [uid];
+            const [warranties] = await db.execute(checkQuery, checkParams);
+            if (warranties.length === 0) {
+                return res.status(404).json({ error: 'Warranty not found' });
+            }
+            const warranty = warranties[0];
+            // Authorization check: Only allow update if user owns it or is admin (though admin usually uses different endpoint)
+            // Also allow vendors to update warranties they submitted
+            if (req.user.role !== 'admin' && warranty.user_id !== req.user.id) {
+                return res.status(403).json({ error: 'Not authorized to update this warranty' });
+            }
+            // Only allow updating if status is 'rejected' (or maybe 'pending' if we want to allow corrections before approval)
+            // For now, let's allow it for rejected and pending.
+            if (warranty.status === 'validated') {
+                return res.status(400).json({ error: 'Cannot update a validated warranty' });
+            }
+            // Merge existing product details with new ones to preserve existing photos if not re-uploaded
+            const existingProductDetails = JSON.parse(warranty.product_details || '{}');
+            // If new photos are uploaded, they are already in warrantyData.productDetails via the file handling above
+            // But if NOT uploaded, we want to keep existing ones.
+            // However, warrantyData.productDetails might be incomplete if we just parsed it from a partial update?
+            // Actually, the frontend usually sends the full object.
+            // But for files, they are null in the JSON if not re-uploaded.
+            if (warrantyData.productType === 'ev-products') {
+                if (!warrantyData.productDetails.photos)
+                    warrantyData.productDetails.photos = {};
+                // Helper to preserve existing photo if new one is not provided (which means it's null/undefined in the upload)
+                // But wait, if it's not in req.files, we didn't update it above.
+                // So we just need to make sure we don't overwrite with null if the frontend sent null for "no change"
+                const photoKeys = ['lhs', 'rhs', 'frontReg', 'backReg', 'warranty'];
+                photoKeys.forEach(key => {
+                    // If we didn't get a new file for this key (so it's not in warrantyData.productDetails.photos from the file loop)
+                    // AND the frontend didn't send a string value (which it shouldn't for files),
+                    // Then we should probably keep the old value.
+                    // But the frontend might send the OLD filename as a string if it's just passing data back?
+                    // Let's assume frontend sends null for no change, or the old filename.
+                    // If it's in the file loop, it's updated.
+                    // If not, check if we have it in existing.
+                    if (!warrantyData.productDetails.photos[key] && existingProductDetails.photos?.[key]) {
+                        warrantyData.productDetails.photos[key] = existingProductDetails.photos[key];
+                    }
+                });
+            }
+            else {
+                // Seat cover invoice
+                if (!warrantyData.productDetails.invoiceFileName && existingProductDetails.invoiceFileName) {
+                    warrantyData.productDetails.invoiceFileName = existingProductDetails.invoiceFileName;
+                }
+            }
+            // Update warranty details
+            // Reset status to 'pending' and clear rejection_reason
+            await db.execute(`UPDATE warranty_registrations SET
+         product_type = ?, customer_name = ?, customer_email = ?, customer_phone = ?,
+         customer_address = ?, car_make = ?, car_model = ?, car_year = ?,
+         purchase_date = ?, installer_name = ?,
+         installer_contact = ?, product_details = ?, manpower_id = ?, warranty_type = ?,
+         status = 'pending', rejection_reason = NULL
+         WHERE uid = ?`, [
+                warrantyData.productType,
+                warrantyData.customerName,
+                warrantyData.customerEmail,
+                warrantyData.customerPhone,
+                warrantyData.customerAddress,
+                warrantyData.carMake,
+                warrantyData.carModel,
+                warrantyData.carYear,
+                warrantyData.purchaseDate,
+                warrantyData.installerName || null,
+                warrantyData.installerContact || null,
+                JSON.stringify(warrantyData.productDetails),
+                warrantyData.manpowerId || null,
+                warrantyData.warrantyType,
+                uid
+            ]);
+            res.json({
+                success: true,
+                message: 'Warranty updated and resubmitted successfully'
+            });
+        }
+        catch (error) {
+            console.error('Update warranty error:', error);
+            res.status(500).json({ error: 'Failed to update warranty' });
+        }
+    }
+}

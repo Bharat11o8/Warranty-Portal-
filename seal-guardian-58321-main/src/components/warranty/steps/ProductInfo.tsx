@@ -20,7 +20,7 @@ const ProductInfo = ({ formData, updateFormData, onPrev, onSubmit, loading }: Pr
   const handleFileChange = (name: keyof EVFormData, file: File | null) => {
     if (file && file.size > 20 * 1024 * 1024) {
       toast({
-        title: "File too large",
+        title: "File Too Large",
         description: "Maximum file size is 20 MB",
         variant: "destructive",
       });
@@ -59,6 +59,22 @@ const ProductInfo = ({ formData, updateFormData, onPrev, onSubmit, loading }: Pr
               <SelectItem value="sun-protection">Sun Protection Films</SelectItem>
             </SelectContent>
           </Select>
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="warrantyType">
+            Warranty Type
+          </Label>
+          <Input
+            id="warrantyType"
+            type="text"
+            value={formData.warrantyType}
+            readOnly
+            className="bg-muted"
+          />
+          <p className="text-xs text-muted-foreground">
+            Default warranty period for EV products
+          </p>
         </div>
 
         <div className="space-y-2">
@@ -106,7 +122,7 @@ const ProductInfo = ({ formData, updateFormData, onPrev, onSubmit, loading }: Pr
 
       <div className="space-y-4 mt-8">
         <h4 className="text-lg font-semibold">📸 Photo Documentation</h4>
-        
+
         <div className="grid md:grid-cols-2 gap-4">
           <div className="space-y-2">
             <Label htmlFor="lhsPhoto">

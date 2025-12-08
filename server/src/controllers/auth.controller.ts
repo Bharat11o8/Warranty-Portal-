@@ -67,9 +67,9 @@ export class AuthController {
         const vendorDetailsId = uuidv4();
         await db.execute(
           `INSERT INTO vendor_details 
-           (id, user_id, store_name, address, state, city, pincode) 
-           VALUES (?, ?, ?, ?, ?, ?, ?)`,
-          [vendorDetailsId, userId, storeName, address, state, city, pincode]
+           (id, user_id, store_name, store_email, address, state, city, pincode) 
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+          [vendorDetailsId, userId, storeName, email, address, state, city, pincode]
         );
 
         // Insert manpower details
@@ -92,6 +92,9 @@ export class AuthController {
           userId,
           verificationToken
         );
+
+        // Send confirmation email to vendor
+        await EmailService.sendVendorRegistrationConfirmation(email, name);
       }
 
       // Generate OTP
@@ -112,10 +115,14 @@ export class AuthController {
 
   static async login(req: Request, res: Response) {
     try {
-      const { email } = req.body;
+      const { email, role } = req.body;
 
       if (!email) {
         return res.status(400).json({ error: 'Email is required' });
+      }
+
+      if (!role) {
+        return res.status(400).json({ error: 'Role is required' });
       }
 
       // Get user profile
@@ -141,6 +148,13 @@ export class AuthController {
       }
 
       const userRole = roles[0].role;
+
+      // Validate that the user's registered role matches the login role
+      if (userRole !== role) {
+        return res.status(403).json({
+          error: `This email is registered as a ${userRole}. Please use the ${userRole} login.`
+        });
+      }
 
       // Check vendor verification
       if (userRole === 'vendor') {
@@ -236,8 +250,8 @@ export class AuthController {
           email: user.email,
           role: userRole
         },
-        process.env.JWT_SECRET!,
-        { expiresIn: process.env.JWT_EXPIRES_IN }
+        process.env.JWT_SECRET as string,
+        { expiresIn: process.env.JWT_EXPIRES_IN || '24h' } as jwt.SignOptions
       );
 
       res.json({
@@ -312,6 +326,90 @@ export class AuthController {
     } catch (error: any) {
       console.error('Get current user error:', error);
       res.status(401).json({ error: 'Invalid token' });
+    }
+  }
+
+  static async updateProfile(req: Request, res: Response) {
+    try {
+      const userId = (req as any).user?.id;
+      const { name, email, phoneNumber } = req.body;
+
+      if (!userId) {
+        return res.status(401).json({ error: 'User not authenticated' });
+      }
+
+      if (!name || !email || !phoneNumber) {
+        return res.status(400).json({ error: 'All fields are required' });
+      }
+
+      // Check if email is being changed and if it's already taken
+      const [currentUser]: any = await db.execute(
+        'SELECT email FROM profiles WHERE id = ?',
+        [userId]
+      );
+
+      if (currentUser.length === 0) {
+        return res.status(404).json({ error: 'User not found' });
+      }
+
+      if (currentUser[0].email !== email) {
+        const [existingUsers]: any = await db.execute(
+          'SELECT id FROM profiles WHERE email = ? AND id != ?',
+          [email, userId]
+        );
+
+        if (existingUsers.length > 0) {
+          return res.status(400).json({ error: 'Email already in use by another account' });
+        }
+      }
+
+      // Update profile
+      await db.execute(
+        'UPDATE profiles SET name = ?, email = ?, phone_number = ? WHERE id = ?',
+        [name, email, phoneNumber, userId]
+      );
+
+      // Fetch updated user data to return
+      const [updatedUsers]: any = await db.execute(
+        'SELECT id, email, name, phone_number FROM profiles WHERE id = ?',
+        [userId]
+      );
+
+      const updatedUser = updatedUsers[0];
+
+      // Get user role
+      const [roles]: any = await db.execute(
+        'SELECT role FROM user_roles WHERE user_id = ?',
+        [userId]
+      );
+
+      const userRole = roles[0]?.role;
+
+      // Get verification status for vendors
+      let isValidated = userRole === 'customer';
+      if (userRole === 'vendor') {
+        const [verification]: any = await db.execute(
+          'SELECT is_verified FROM vendor_verification WHERE user_id = ?',
+          [userId]
+        );
+        isValidated = verification[0]?.is_verified || false;
+      }
+
+      res.json({
+        success: true,
+        message: 'Profile updated successfully',
+        user: {
+          id: updatedUser.id,
+          email: updatedUser.email,
+          name: updatedUser.name,
+          role: userRole,
+          phoneNumber: updatedUser.phone_number,
+          isValidated
+        }
+      });
+    } catch (error: any) {
+      console.error('Update profile error:', error);
+      res.status(500).json({ error: 'Failed to update profile' });
     }
   }
 }

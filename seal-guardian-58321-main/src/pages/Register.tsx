@@ -129,7 +129,7 @@ const Register = () => {
     } catch (error: any) {
       console.error("Registration error:", error);
       toast({
-        title: "Error",
+        title: "Registration Failed",
         description: error.response?.data?.error || error.message || "Registration failed.",
         variant: "destructive",
       });
@@ -148,14 +148,14 @@ const Register = () => {
       if (role === "customer") {
         if (result.token) {
           toast({
-            title: "Success",
+            title: "Registration Successful",
             description: "Registration complete! Welcome aboard!"
           });
           navigate("/", { replace: true });
         }
       } else {
         toast({
-          title: "Request Submitted",
+          title: "Registration Submitted",
           description: "Your vendor registration request has been submitted for approval. You'll be notified via email.",
           duration: 5000
         });
@@ -165,7 +165,7 @@ const Register = () => {
       }
     } catch (error: any) {
       toast({
-        title: "Error",
+        title: "Verification Failed",
         description: error.response?.data?.error || error.message || "Invalid OTP.",
         variant: "destructive",
       });

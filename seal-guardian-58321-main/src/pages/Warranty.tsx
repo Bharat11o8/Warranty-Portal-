@@ -15,13 +15,15 @@ const Warranty = () => {
   }
 
   if (!user) {
-    return <Navigate to="/login" replace />;
+    // Redirect to login with role parameter if available
+    const loginUrl = user?.role ? `/login?role=${user.role}` : '/login';
+    return <Navigate to={loginUrl} replace />;
   }
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-background to-muted/30">
       <Header />
-      
+
       <main className="container mx-auto px-4 py-8">
         <div className="text-center mb-8">
           <h1 className="text-4xl font-bold mb-2">Product Warranty Registration</h1>

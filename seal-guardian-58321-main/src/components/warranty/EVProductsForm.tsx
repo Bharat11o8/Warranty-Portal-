@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
+import api from "@/lib/api";
 import { Progress } from "@/components/ui/progress";
-import { submitWarranty } from "@/lib/warrantyApi";
+import { submitWarranty, updateWarranty } from "@/lib/warrantyApi";
 import InstallerDetails from "./steps/InstallerDetails";
 import CustomerDetails from "./steps/CustomerDetails";
 import CarDetails from "./steps/CarDetails";
@@ -12,8 +13,8 @@ import ProductInfo from "./steps/ProductInfo";
 
 export interface EVFormData {
   // Installer Details
-  dealerName: string;
-  dealerEmail: string;
+  storeName: string;
+  storeEmail: string;
   dealerMobile: string;
   dealerAddr1: string;
   dealerAddr2: string;
@@ -22,7 +23,8 @@ export interface EVFormData {
   dealerPostalCode: string;
   installerName: string;
   installerCode: string;
-  
+  manpowerId?: number | string;
+
   // Customer Details
   customerFname: string;
   customerLname: string;
@@ -33,16 +35,17 @@ export interface EVFormData {
   custState: string;
   custCity: string;
   custPostalCode: string;
-  
+
   // Car Details
   installationDate: string;
   carModel: string;
   carReg: string;
   carMake: string;
   carYear: string;
-  
+
   // Product Info
   product: string;
+  warrantyType: string;
   lotNumber: string;
   rollNumber: string;
   installArea: string;
@@ -54,15 +57,21 @@ export interface EVFormData {
   termsAccepted: boolean;
 }
 
-const EVProductsForm = () => {
+interface EVProductsFormProps {
+  initialData?: any;
+  warrantyId?: string;
+  onSuccess?: () => void;
+}
+
+const EVProductsForm = ({ initialData, warrantyId, onSuccess }: EVProductsFormProps) => {
   const { toast } = useToast();
   const { user } = useAuth();
   const [currentStep, setCurrentStep] = useState(1);
   const [loading, setLoading] = useState(false);
-  
+
   const [formData, setFormData] = useState<EVFormData>({
-    dealerName: "",
-    dealerEmail: "",
+    storeName: "",
+    storeEmail: "",
     dealerMobile: "",
     dealerAddr1: "",
     dealerAddr2: "",
@@ -84,6 +93,7 @@ const EVProductsForm = () => {
     carModel: "",
     carReg: "",
     product: "",
+    warrantyType: "1 Year",
     lotNumber: "",
     rollNumber: "",
     carMake: "",
@@ -96,6 +106,102 @@ const EVProductsForm = () => {
     warrantyPhoto: null,
     termsAccepted: false,
   });
+
+  // Auto-fill customer details for logged-in customers
+  // Auto-fill customer details for logged-in customers
+  useEffect(() => {
+    if (initialData) {
+      // Pre-fill form with initial data for editing
+      const pd = initialData.product_details || {};
+      const customerNameParts = initialData.customer_name?.split(' ') || [];
+      const dealerAddressParts = pd.dealerAddress?.split(',') || [];
+      const custAddressParts = initialData.customer_address?.split(',') || [];
+
+      setFormData({
+        storeName: initialData.installer_name || "",
+        storeEmail: initialData.installer_contact?.split('|')[0]?.trim() || "",
+        dealerMobile: initialData.installer_contact?.split('|')[1]?.trim() || "",
+        dealerAddr1: dealerAddressParts[0]?.trim() || "",
+        dealerAddr2: dealerAddressParts[1]?.trim() || "",
+        dealerCity: dealerAddressParts[2]?.trim() || "",
+        dealerState: dealerAddressParts[3]?.split('-')[0]?.trim() || "",
+        dealerPostalCode: dealerAddressParts[3]?.split('-')[1]?.trim() || "",
+
+        customerFname: customerNameParts[0] || "",
+        customerLname: customerNameParts.slice(1).join(' ') || "",
+        customerEmail: initialData.customer_email || "",
+        customerMobile: initialData.customer_phone || "",
+        custAddr1: custAddressParts[0]?.trim() || "",
+        custAddr2: custAddressParts[1]?.trim() || "",
+        custCity: custAddressParts[2]?.trim() || "",
+        custState: custAddressParts[3]?.split('-')[0]?.trim() || "",
+        custPostalCode: custAddressParts[3]?.split('-')[1]?.trim() || "",
+
+        installerName: initialData.installer_name || "",
+        installerCode: "", // Not stored in DB?
+        manpowerId: initialData.manpower_id || "",
+
+        installationDate: initialData.purchase_date ? new Date(initialData.purchase_date).toISOString().split('T')[0] : "",
+        carModel: initialData.car_model || "",
+        carReg: initialData.registration_number || "",
+        carMake: initialData.car_make || "",
+        carYear: initialData.car_year || "",
+
+        product: pd.product || "",
+        warrantyType: initialData.warranty_type || "1 Year",
+        lotNumber: pd.lotNumber || "",
+        rollNumber: pd.rollNumber || "",
+        installArea: pd.installArea || "",
+
+        // Photos are URLs in edit mode, need to handle this in ProductInfo or just show them
+        // For now, we keep them null as we can't convert URL to File easily here without fetching
+        // User will need to re-upload if they want to change, or we handle "existing photo" logic
+        lhsPhoto: null,
+        rhsPhoto: null,
+        frontRegPhoto: null,
+        backRegPhoto: null,
+        warrantyPhoto: null,
+
+        termsAccepted: true, // Assume accepted if editing
+      });
+    } else if (user?.role === 'customer') {
+      const nameParts = user.name?.split(' ') || [];
+      const firstName = nameParts[0] || "";
+      const lastName = nameParts.slice(1).join(' ') || "";
+
+      setFormData(prev => ({
+        ...prev,
+        customerFname: firstName,
+        customerLname: lastName,
+        customerEmail: user.email || "",
+        customerMobile: user.phoneNumber || "",
+      }));
+    } else if (user?.role === 'vendor') {
+      // Auto-fill vendor/store details for logged-in vendors
+      const fetchVendorDetails = async () => {
+        try {
+          const response = await api.get('/vendor/profile');
+          if (response.data.success && response.data.vendorDetails) {
+            const vendorDetails = response.data.vendorDetails;
+            setFormData(prev => ({
+              ...prev,
+              storeName: vendorDetails.store_name || "",
+              storeEmail: vendorDetails.store_email || "",
+              dealerMobile: vendorDetails.contact_number || "",
+              dealerAddr1: vendorDetails.address_line1 || "",
+              dealerAddr2: vendorDetails.address_line2 || "",
+              dealerCity: vendorDetails.city || "",
+              dealerState: vendorDetails.state || "",
+              dealerPostalCode: vendorDetails.postal_code || "",
+            }));
+          }
+        } catch (error) {
+          console.error("Failed to fetch vendor details", error);
+        }
+      };
+      fetchVendorDetails();
+    }
+  }, [user, initialData]);
 
   const steps = [
     { number: 1, label: "Installer Details" },
@@ -145,79 +251,100 @@ const EVProductsForm = () => {
         customerAddress: `${formData.custAddr1}, ${formData.custAddr2 ? formData.custAddr2 + ', ' : ''}${formData.custCity}, ${formData.custState} - ${formData.custPostalCode}`,
         carMake: carMake,
         carModel: carModelName,
-        carYear: new Date().getFullYear().toString(), // You might want to add a year field
-        registrationNumber: formData.carReg,
+        carYear: new Date().getFullYear().toString(),
         purchaseDate: formData.installationDate,
-        installerName: formData.dealerName,
-        installerContact: `${formData.dealerEmail} | ${formData.dealerMobile}`,
+        warrantyType: "1 Year", // Default warranty type for EV products
+        installerName: formData.storeName,
+        installerContact: `${formData.storeEmail} | ${formData.dealerMobile}`,
+        manpowerId: formData.manpowerId || null,
         productDetails: {
           product: formData.product,
           lotNumber: formData.lotNumber,
           rollNumber: formData.rollNumber,
           installArea: formData.installArea,
+          manpowerId: formData.manpowerId,
+          manpowerName: formData.installerName,
+          customerAddress: `${formData.custAddr1}, ${formData.custAddr2 ? formData.custAddr2 + ', ' : ''}${formData.custCity}, ${formData.custState} - ${formData.custPostalCode}`, // Added to ensure it's saved in JSON
+          carRegistration: formData.carReg,
           dealerAddress: `${formData.dealerAddr1}, ${formData.dealerAddr2 ? formData.dealerAddr2 + ', ' : ''}${formData.dealerCity}, ${formData.dealerState} - ${formData.dealerPostalCode}`,
           photos: {
-            lhs: formData.lhsPhoto?.name || null,
-            rhs: formData.rhsPhoto?.name || null,
-            frontReg: formData.frontRegPhoto?.name || null,
-            backReg: formData.backRegPhoto?.name || null,
-            warranty: formData.warrantyPhoto?.name || null,
+            lhs: formData.lhsPhoto, // Pass File object
+            rhs: formData.rhsPhoto,
+            frontReg: formData.frontRegPhoto,
+            backReg: formData.backRegPhoto,
+            warranty: formData.warrantyPhoto,
           },
           termsAccepted: formData.termsAccepted,
           installationDate: formData.installationDate,
         },
       };
 
-      // Submit warranty registration
-      const result = await submitWarranty(warrantyData);
+      // Submit or Update warranty registration
+      let result;
+      if (warrantyId) {
+        result = await updateWarranty(warrantyId, warrantyData);
+        toast({
+          title: "Warranty Updated",
+          description: "Warranty updated successfully.",
+        });
+      } else {
+        result = await submitWarranty(warrantyData);
+        toast({
+          title: "Warranty Registered",
+          description: `Success! Roll No: ${formData.rollNumber}, Lot No: ${formData.lotNumber}, Vehicle Reg: ${formData.carReg}`,
+        });
+      }
 
-      toast({
-        title: "Success!",
-        description: `EV product warranty registered successfully. Registration #: ${result.registrationNumber}`,
-      });
-
-      // Reset form
-      setCurrentStep(1);
-      setFormData({
-        dealerName: "",
-        dealerEmail: "",
-        dealerMobile: "",
-        dealerAddr1: "",
-        dealerAddr2: "",
-        dealerState: "",
-        dealerCity: "",
-        dealerPostalCode: "",
-        customerFname: "",
-        customerLname: "",
-        customerMobile: "",
-        customerEmail: "",
-        custAddr1: "",
-        custAddr2: "",
-        custState: "",
-        custCity: "",
-        installerName: "",
-        installerCode: "",
-        custPostalCode: "",
-        installationDate: "",
-        carModel: "",
-        carReg: "",
-        product: "",
-        lotNumber: "",
-        rollNumber: "",
-        installArea: "",
-        carMake: "",
-        carYear: "",
-        lhsPhoto: null,
-        rhsPhoto: null,
-        frontRegPhoto: null,
-        backRegPhoto: null,
-        warrantyPhoto: null,
-        termsAccepted: false,
-      });
+      if (onSuccess) {
+        onSuccess();
+      } else {
+        // Reset form only if not editing (or maybe redirect?)
+        if (!warrantyId) {
+          setCurrentStep(1);
+          setFormData({
+            storeName: "",
+            storeEmail: "",
+            dealerMobile: "",
+            dealerAddr1: "",
+            dealerAddr2: "",
+            dealerState: "",
+            dealerCity: "",
+            dealerPostalCode: "",
+            customerFname: "",
+            customerLname: "",
+            customerMobile: "",
+            customerEmail: "",
+            custAddr1: "",
+            custAddr2: "",
+            custState: "",
+            custCity: "",
+            installerName: "",
+            installerCode: "",
+            manpowerId: "",
+            custPostalCode: "",
+            installationDate: "",
+            carModel: "",
+            carReg: "",
+            product: "",
+            warrantyType: "1 Year",
+            lotNumber: "",
+            rollNumber: "",
+            installArea: "",
+            carMake: "",
+            carYear: "",
+            lhsPhoto: null,
+            rhsPhoto: null,
+            frontRegPhoto: null,
+            backRegPhoto: null,
+            warrantyPhoto: null,
+            termsAccepted: false,
+          });
+        }
+      }
     } catch (error: any) {
       console.error("Warranty submission error:", error);
       toast({
-        title: "Error",
+        title: "Submission Failed",
         description: error.response?.data?.error || "Failed to submit EV product warranty registration",
         variant: "destructive",
       });
@@ -235,9 +362,9 @@ const EVProductsForm = () => {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-3xl font-bold">EV Products Warranty Registration</CardTitle>
+        <CardTitle className="text-3xl font-bold">{warrantyId ? 'Edit Warranty Application' : 'EV Products Warranty Registration'}</CardTitle>
         <CardDescription className="text-base">
-          Please fill in all required fields to register your EV Products warranty
+          {warrantyId ? 'Update the details below to resubmit your application' : 'Please fill in all required fields to register your EV Products warranty'}
         </CardDescription>
       </CardHeader>
       <CardContent className="pt-6">
@@ -247,16 +374,14 @@ const EVProductsForm = () => {
             {steps.map((step) => (
               <div
                 key={step.number}
-                className={`flex flex-col items-center ${
-                  step.number <= currentStep ? "text-primary" : "text-muted-foreground"
-                }`}
+                className={`flex flex-col items-center ${step.number <= currentStep ? "text-primary" : "text-muted-foreground"
+                  }`}
               >
                 <div
-                  className={`w-10 h-10 rounded-full flex items-center justify-center font-semibold mb-2 ${
-                    step.number <= currentStep
-                      ? "bg-primary text-primary-foreground"
-                      : "bg-muted text-muted-foreground"
-                  }`}
+                  className={`w-10 h-10 rounded-full flex items-center justify-center font-semibold mb-2 ${step.number <= currentStep
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-muted text-muted-foreground"
+                    }`}
                 >
                   {step.number}
                 </div>
@@ -282,6 +407,8 @@ const EVProductsForm = () => {
             updateFormData={updateFormData}
             onNext={handleNext}
             onPrev={handlePrev}
+            isCustomer={user?.role === 'customer'}
+            isVendor={user?.role === 'vendor'}
           />
         )}
 

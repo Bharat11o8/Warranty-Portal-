@@ -90,6 +90,7 @@ CREATE TABLE IF NOT EXISTS warranty_registrations (
   installer_contact VARCHAR(20),
   product_details JSON NOT NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  status ENUM('pending', 'validated', 'rejected') DEFAULT 'pending',
   FOREIGN KEY (user_id) REFERENCES profiles(id) ON DELETE CASCADE,
   INDEX idx_user_id (user_id),
   INDEX idx_product_type (product_type)

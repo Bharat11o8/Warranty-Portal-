@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import db from '../config/database';
 import { EmailService } from '../services/email.service';
+import { v4 as uuidv4 } from 'uuid';
 
 export class VendorController {
   static async verifyVendor(req: Request, res: Response) {
@@ -348,6 +349,282 @@ export class VendorController {
         </body>
         </html>
       `);
+    }
+  }
+
+  static async getProfile(req: Request, res: Response) {
+    try {
+      const userId = (req as any).user?.id;
+
+      if (!userId) {
+        return res.status(401).json({ error: 'User not authenticated' });
+      }
+
+      // Get vendor details
+      const [vendorDetails]: any = await db.execute(
+        `SELECT 
+          vd.id,
+          vd.store_name,
+          vd.store_email,
+          vd.address,
+          vd.city,
+          vd.state,
+          vd.pincode as postal_code,
+          p.phone_number as contact_number
+        FROM vendor_details vd
+        JOIN profiles p ON vd.user_id = p.id
+        WHERE vd.user_id = ?`,
+        [userId]
+      );
+
+      if (vendorDetails.length === 0) {
+        return res.status(404).json({
+          success: false,
+          error: 'Vendor details not found'
+        });
+      }
+
+      // Map to expected format for frontend
+      const profile = vendorDetails[0];
+      res.json({
+        success: true,
+        vendorDetails: {
+          id: profile.id,
+          store_name: profile.store_name,
+          store_email: profile.store_email,
+          contact_number: profile.contact_number,
+          address_line1: profile.address || "",
+          address_line2: "",
+          city: profile.city,
+          state: profile.state,
+          postal_code: profile.postal_code
+        }
+      });
+    } catch (error: any) {
+      console.error('Get vendor profile error:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Failed to fetch vendor profile'
+      });
+    }
+  }
+
+  static async getManpower(req: Request, res: Response) {
+    try {
+      const userId = (req as any).user?.id;
+      const { active } = req.query; // 'true', 'false', or 'all'
+
+      if (!userId) {
+        return res.status(401).json({ error: 'User not authenticated' });
+      }
+
+      // Get vendor details id
+      const [vendorDetails]: any = await db.execute(
+        'SELECT id FROM vendor_details WHERE user_id = ?',
+        [userId]
+      );
+
+      if (vendorDetails.length === 0) {
+        return res.status(404).json({ error: 'Vendor details not found' });
+      }
+
+      const vendorId = vendorDetails[0].id;
+
+      // Build WHERE clause based on active filter
+      let whereClause = 'm.vendor_id = ?';
+      if (active === 'true') {
+        whereClause += ' AND m.is_active = TRUE';
+      } else if (active === 'false') {
+        whereClause += ' AND m.is_active = FALSE';
+      }
+      // If active === 'all', show both active and inactive
+
+      // Get manpower list with application count
+      const [manpower]: any = await db.execute(
+        `
+    SELECT
+      m.*,
+      (SELECT COUNT(*) FROM warranty_registrations w WHERE w.manpower_id = m.id AND w.status = 'validated') AS validated_count,
+      (SELECT COUNT(*) FROM warranty_registrations w WHERE w.manpower_id = m.id AND w.status = 'pending') AS pending_count,
+      (SELECT COUNT(*) FROM warranty_registrations w WHERE w.manpower_id = m.id AND w.status = 'rejected') AS rejected_count,
+      (SELECT COUNT(*) FROM warranty_registrations w WHERE w.manpower_id = m.id) AS total_count
+    FROM manpower m
+    WHERE ${whereClause}
+    ORDER BY m.is_active DESC, m.name ASC
+  `,
+        [vendorId]
+      );
+
+      res.json({
+        success: true,
+        manpower
+      });
+    } catch (error: any) {
+      console.error('Get manpower error:', error);
+      res.status(500).json({ error: 'Failed to fetch manpower list' });
+    }
+  }
+
+  static async addManpower(req: Request, res: Response) {
+    try {
+      const userId = (req as any).user?.id;
+      const { name, phoneNumber, manpowerId, applicatorType } = req.body;
+
+      if (!userId) {
+        return res.status(401).json({ error: 'User not authenticated' });
+      }
+
+      if (!name || !phoneNumber || !applicatorType) {
+        return res.status(400).json({ error: 'Name, phone number, and type are required' });
+      }
+
+      // Get vendor details id
+      const [vendorDetails]: any = await db.execute(
+        'SELECT id FROM vendor_details WHERE user_id = ?',
+        [userId]
+      );
+
+      if (vendorDetails.length === 0) {
+        return res.status(404).json({ error: 'Vendor details not found' });
+      }
+
+      const vendorId = vendorDetails[0].id;
+      const id = uuidv4();
+
+      // Generate manpower_id if not provided
+      let finalManpowerId = manpowerId;
+      if (!finalManpowerId && name && phoneNumber) {
+        const namePart = name.slice(0, 3).toUpperCase();
+        const phonePart = phoneNumber.slice(-4);
+        finalManpowerId = (namePart && phonePart) ? `${namePart}${phonePart} ` : `MP - ${Date.now()} `;
+      }
+
+      await db.execute(
+        `INSERT INTO manpower
+        (id, vendor_id, name, phone_number, manpower_id, applicator_type)
+      VALUES(?, ?, ?, ?, ?, ?)`,
+        [id, vendorId, name, phoneNumber, finalManpowerId, applicatorType]
+      );
+
+      res.status(201).json({
+        success: true,
+        message: 'Manpower added successfully',
+        manpower: {
+          id,
+          vendor_id: vendorId,
+          name,
+          phone_number: phoneNumber,
+          manpower_id: finalManpowerId,
+          applicator_type: applicatorType
+        }
+      });
+    } catch (error: any) {
+      console.error('Add manpower error:', error);
+      res.status(500).json({ error: 'Failed to add manpower' });
+    }
+  }
+
+  static async removeManpower(req: Request, res: Response) {
+    try {
+      const userId = (req as any).user?.id;
+      const { id } = req.params;
+      const { reason } = req.body; // Optional removal reason
+
+      if (!userId) {
+        return res.status(401).json({ error: 'User not authenticated' });
+      }
+
+      // Get vendor details id to ensure ownership
+      const [vendorDetails]: any = await db.execute(
+        'SELECT id FROM vendor_details WHERE user_id = ?',
+        [userId]
+      );
+
+      if (vendorDetails.length === 0) {
+        return res.status(404).json({ error: 'Vendor details not found' });
+      }
+
+      const vendorId = vendorDetails[0].id;
+
+      // Soft delete: Set is_active to FALSE and record removal timestamp
+      const [result]: any = await db.execute(
+        `UPDATE manpower 
+         SET is_active = FALSE, removed_at = NOW(), removed_reason = ?
+         WHERE id = ? AND vendor_id = ?`,
+        [reason || null, id, vendorId]
+      );
+
+      if (result.affectedRows === 0) {
+        return res.status(404).json({ error: 'Manpower entry not found or unauthorized' });
+      }
+
+      res.json({
+        success: true,
+        message: 'Manpower archived successfully'
+      });
+    } catch (error: any) {
+      console.error('Remove manpower error:', error);
+      res.status(500).json({ error: 'Failed to remove manpower' });
+    }
+  }
+
+  static async updateManpower(req: Request, res: Response) {
+    try {
+      const userId = (req as any).user?.id;
+      const { id } = req.params;
+      const { name, phoneNumber, applicatorType } = req.body;
+
+      if (!userId) {
+        return res.status(401).json({ error: 'User not authenticated' });
+      }
+
+      if (!name || !phoneNumber || !applicatorType) {
+        return res.status(400).json({ error: 'Name, phone number, and applicator type are required' });
+      }
+
+      // Get vendor details id to ensure ownership
+      const [vendorDetails]: any = await db.execute(
+        'SELECT id FROM vendor_details WHERE user_id = ?',
+        [userId]
+      );
+
+      if (vendorDetails.length === 0) {
+        return res.status(404).json({ error: 'Vendor details not found' });
+      }
+
+      const vendorId = vendorDetails[0].id;
+
+      // Generate manpower_id if name or phone changed
+      const namePart = name.slice(0, 3).toUpperCase();
+      const phonePart = phoneNumber.slice(-4);
+      const manpowerId = (namePart && phonePart) ? `${namePart}${phonePart} ` : `MP - ${Date.now()} `;
+
+      // Update manpower entry ensuring it belongs to this vendor
+      const [result]: any = await db.execute(
+        `UPDATE manpower 
+         SET name = ?, phone_number = ?, manpower_id = ?, applicator_type = ?
+        WHERE id = ? AND vendor_id = ? `,
+        [name, phoneNumber, manpowerId, applicatorType, id, vendorId]
+      );
+
+      if (result.affectedRows === 0) {
+        return res.status(404).json({ error: 'Manpower entry not found or unauthorized' });
+      }
+
+      // Fetch updated manpower entry
+      const [updated]: any = await db.execute(
+        'SELECT * FROM manpower WHERE id = ?',
+        [id]
+      );
+
+      res.json({
+        success: true,
+        message: 'Manpower updated successfully',
+        manpower: updated[0]
+      });
+    } catch (error: any) {
+      console.error('Update manpower error:', error);
+      res.status(500).json({ error: 'Failed to update manpower' });
     }
   }
 }

@@ -1,8 +1,11 @@
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { EVFormData } from "../EVProductsForm";
+import { useAuth } from "@/contexts/AuthContext";
+import api from "@/lib/api";
 
 interface InstallerDetailsProps {
   formData: EVFormData;
@@ -11,6 +14,60 @@ interface InstallerDetailsProps {
 }
 
 const InstallerDetails = ({ formData, updateFormData, onNext }: InstallerDetailsProps) => {
+  const { user } = useAuth();
+  const [stores, setStores] = useState<any[]>([]);
+  const [manpowerList, setManpowerList] = useState<any[]>([]);
+
+  // Fetch stores on mount
+  useEffect(() => {
+    const fetchStores = async () => {
+      try {
+        const response = await api.get('/public/stores');
+        if (response.data.success) {
+          setStores(response.data.stores);
+        }
+      } catch (error) {
+        console.error("Failed to fetch stores", error);
+      }
+    };
+    fetchStores();
+  }, []);
+
+  // Fetch manpower when store changes
+  useEffect(() => {
+    const fetchManpower = async () => {
+      const selectedStore = stores.find(s => s.store_name === formData.storeName);
+      if (selectedStore) {
+        // Auto-fill all store details
+        updateFormData({
+          storeEmail: selectedStore.store_email || '',
+          dealerMobile: selectedStore.phone || '',
+          dealerAddr1: selectedStore.address || '',
+          dealerAddr2: '', // Not stored in database
+          dealerCity: selectedStore.city || '',
+          dealerState: selectedStore.state || '',
+          dealerPostalCode: selectedStore.pincode || ''
+        });
+
+        try {
+          const response = await api.get(`/public/stores/${selectedStore.vendor_details_id}/manpower`);
+          if (response.data.success) {
+            setManpowerList(response.data.manpower);
+          }
+        } catch (error) {
+          console.error("Failed to fetch manpower", error);
+          setManpowerList([]);
+        }
+      } else {
+        setManpowerList([]);
+      }
+    };
+
+    if (formData.storeName) {
+      fetchManpower();
+    }
+  }, [formData.storeName, stores]);
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     onNext();
@@ -20,36 +77,70 @@ const InstallerDetails = ({ formData, updateFormData, onNext }: InstallerDetails
     <form onSubmit={handleSubmit} className="space-y-6">
       <div>
         <h3 className="text-2xl font-semibold mb-2">📋 Installer Information</h3>
-        <p className="text-muted-foreground mb-6">Please provide the dealer/installer details</p>
+        <p className="text-muted-foreground mb-6">Please provide the store/installer details</p>
       </div>
 
       <div className="grid md:grid-cols-2 gap-4">
         <div className="space-y-2 md:col-span-2">
-          <Label htmlFor="dealerName">
-            Dealer Name <span className="text-destructive">*</span>
+          <Label htmlFor="storeName">
+            Store Name <span className="text-destructive">*</span>
           </Label>
-          <Input
-            id="dealerName"
-            type="text"
-            placeholder="Enter dealer name"
-            value={formData.dealerName}
-            onChange={(e) => updateFormData({ dealerName: e.target.value })}
-            required
-          />
+          {user?.role === 'vendor' ? (
+            <Input
+              id="storeName"
+              value={formData.storeName}
+              readOnly
+              className="bg-muted"
+              placeholder="Loading store name..."
+            />
+          ) : (
+            <Select
+              value={formData.storeName}
+              onValueChange={(value) => updateFormData({ storeName: value })}
+              required
+            >
+              <SelectTrigger id="storeName">
+                <SelectValue placeholder="Select Store" />
+              </SelectTrigger>
+              <SelectContent>
+                {stores.map((store) => (
+                  <SelectItem key={store.vendor_details_id} value={store.store_name}>
+                    {store.store_name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
         </div>
 
         <div className="space-y-2">
           <Label htmlFor="installerName">
             Installer Name <span className="text-destructive">*</span>
           </Label>
-          <Input
-            id="installerName"
-            type="text"
-            placeholder="Enter installer name"
+          <Select
             value={formData.installerName}
-            onChange={(e) => updateFormData({ installerName: e.target.value })}
+            onValueChange={(value) => {
+              const selectedManpower = manpowerList.find(mp => mp.name === value);
+              updateFormData({
+                installerName: value,
+                installerCode: selectedManpower?.manpower_id || "",
+                manpowerId: selectedManpower?.id
+              });
+            }}
+            disabled={!formData.storeName || manpowerList.length === 0}
             required
-          />
+          >
+            <SelectTrigger id="installerName">
+              <SelectValue placeholder={!formData.storeName ? "Select Store First" : manpowerList.length === 0 ? "No Manpower Found" : "Select Installer"} />
+            </SelectTrigger>
+            <SelectContent>
+              {manpowerList.map((mp) => (
+                <SelectItem key={mp.id} value={mp.name}>
+                  {mp.name} ({mp.applicator_type})
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
 
         <div className="space-y-2">
@@ -63,20 +154,24 @@ const InstallerDetails = ({ formData, updateFormData, onNext }: InstallerDetails
             value={formData.installerCode}
             onChange={(e) => updateFormData({ installerCode: e.target.value })}
             required
+            readOnly
+            className="bg-muted"
           />
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="dealerEmail">
-            Email ID <span className="text-destructive">*</span>
+          <Label htmlFor="storeEmail">
+            Store Email <span className="text-destructive">*</span>
           </Label>
           <Input
-            id="dealerEmail"
+            id="storeEmail"
             type="email"
-            placeholder="dealer@example.com"
-            value={formData.dealerEmail}
-            onChange={(e) => updateFormData({ dealerEmail: e.target.value })}
+            placeholder="store@example.com"
+            value={formData.storeEmail}
+            onChange={(e) => updateFormData({ storeEmail: e.target.value })}
             required
+            readOnly
+            className="bg-muted"
           />
         </div>
 
@@ -91,6 +186,8 @@ const InstallerDetails = ({ formData, updateFormData, onNext }: InstallerDetails
             value={formData.dealerMobile}
             onChange={(e) => updateFormData({ dealerMobile: e.target.value })}
             required
+            readOnly
+            className="bg-muted"
           />
         </div>
 
@@ -105,6 +202,8 @@ const InstallerDetails = ({ formData, updateFormData, onNext }: InstallerDetails
             value={formData.dealerAddr1}
             onChange={(e) => updateFormData({ dealerAddr1: e.target.value })}
             required
+            readOnly
+            className="bg-muted"
           />
         </div>
 
@@ -116,6 +215,8 @@ const InstallerDetails = ({ formData, updateFormData, onNext }: InstallerDetails
             placeholder="Apartment, suite, unit, building, floor, etc."
             value={formData.dealerAddr2}
             onChange={(e) => updateFormData({ dealerAddr2: e.target.value })}
+            readOnly
+            className="bg-muted"
           />
         </div>
 
@@ -123,40 +224,32 @@ const InstallerDetails = ({ formData, updateFormData, onNext }: InstallerDetails
           <Label htmlFor="dealerState">
             State <span className="text-destructive">*</span>
           </Label>
-          <Select
+          <Input
+            id="dealerState"
+            type="text"
+            placeholder="State"
             value={formData.dealerState}
-            onValueChange={(value) => updateFormData({ dealerState: value })}
+            onChange={(e) => updateFormData({ dealerState: e.target.value })}
             required
-          >
-            <SelectTrigger id="dealerState">
-              <SelectValue placeholder="Select State" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="Delhi">Delhi</SelectItem>
-              <SelectItem value="Maharashtra">Maharashtra</SelectItem>
-              <SelectItem value="Uttar Pradesh">Uttar Pradesh</SelectItem>
-              <SelectItem value="Karnataka">Karnataka</SelectItem>
-            </SelectContent>
-          </Select>
+            readOnly
+            className="bg-muted"
+          />
         </div>
 
         <div className="space-y-2">
           <Label htmlFor="dealerCity">
             City <span className="text-destructive">*</span>
           </Label>
-          <Select
+          <Input
+            id="dealerCity"
+            type="text"
+            placeholder="City"
             value={formData.dealerCity}
-            onValueChange={(value) => updateFormData({ dealerCity: value })}
+            onChange={(e) => updateFormData({ dealerCity: e.target.value })}
             required
-          >
-            <SelectTrigger id="dealerCity">
-              <SelectValue placeholder="Select City" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="city1">City 1</SelectItem>
-              <SelectItem value="city2">City 2</SelectItem>
-            </SelectContent>
-          </Select>
+            readOnly
+            className="bg-muted"
+          />
         </div>
 
         <div className="space-y-2">
@@ -170,6 +263,8 @@ const InstallerDetails = ({ formData, updateFormData, onNext }: InstallerDetails
             value={formData.dealerPostalCode}
             onChange={(e) => updateFormData({ dealerPostalCode: e.target.value })}
             required
+            readOnly
+            className="bg-muted"
           />
         </div>
       </div>

@@ -41,7 +41,7 @@ const Login = () => {
 
     setLoading(true);
     try {
-      const result = await login(email);
+      const result = await login(email, role);
 
       if (result.requiresOTP && result.userId) {
         setUserId(result.userId);
@@ -53,7 +53,7 @@ const Login = () => {
       }
     } catch (error: any) {
       toast({
-        title: "Login Error",
+        title: "Login Failed",
         description: error.response?.data?.error || error.message || "Invalid credentials",
         variant: "destructive",
       });
@@ -70,19 +70,28 @@ const Login = () => {
     try {
       const result = await verifyOTP(userId, otp);
 
-      if (result && result.token) {
+      if (result && result.token && result.user) {
         toast({
           title: "Login Successful",
-          description: "Welcome back!",
+          description: `Welcome back, ${result.user.name}!`,
         });
-        navigate("/", { replace: true });
+
+        // Redirect to role-specific dashboard
+        const dashboardRoutes = {
+          customer: "/dashboard/customer",
+          vendor: "/dashboard/vendor",
+          admin: "/dashboard/admin",
+        };
+
+        const redirectPath = dashboardRoutes[result.user.role] || "/warranty";
+        navigate(redirectPath, { replace: true });
       } else {
         throw new Error("Invalid server response — no token found");
       }
     } catch (error: any) {
       console.error("❌ OTP verification error:", error);
       toast({
-        title: "OTP Error",
+        title: "Verification Failed",
         description: error.response?.data?.error || error.message || "Invalid OTP",
         variant: "destructive",
       });

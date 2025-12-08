@@ -17,8 +17,9 @@ interface AuthContextType {
   loading: boolean;
   register: (data: RegisterData) => Promise<{ userId: string; requiresOTP: boolean }>;
   verifyOTP: (userId: string, otp: string) => Promise<{ token?: string; user?: User }>;
-  login: (email: string) => Promise<{ userId: string; requiresOTP: boolean }>;
+  login: (email: string, role: UserRole) => Promise<{ userId: string; requiresOTP: boolean }>;
   logout: () => Promise<void>;
+  refreshUser: () => Promise<void>;
 }
 
 interface RegisterData {
@@ -84,8 +85,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   };
 
-  const login = async (email: string): Promise<{ userId: string; requiresOTP: boolean }> => {
-    const response = await api.post("/auth/login", { email });
+  const login = async (email: string, role: UserRole): Promise<{ userId: string; requiresOTP: boolean }> => {
+    const response = await api.post("/auth/login", { email, role });
 
     if (!response.data.success) {
       throw new Error(response.data.error || "Login failed");
@@ -103,7 +104,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, register, verifyOTP, login, logout }}>
+    <AuthContext.Provider value={{ user, loading, register, verifyOTP, login, logout, refreshUser: fetchCurrentUser }}>
       {children}
     </AuthContext.Provider>
   );

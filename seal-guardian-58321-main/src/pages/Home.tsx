@@ -1,12 +1,34 @@
-import { useState } from "react";
-import { Link } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Shield, User, Store, ShieldCheck, Lock } from "lucide-react";
 import Header from "@/components/Header";
+import { useAuth } from "@/contexts/AuthContext";
 
 const Home = () => {
+  const { user, loading } = useAuth();
+  const navigate = useNavigate();
+
+  // Redirect authenticated users to their role-specific dashboard
+  useEffect(() => {
+    if (!loading && user) {
+      const dashboardRoutes = {
+        customer: "/dashboard/customer",
+        vendor: "/dashboard/vendor",
+        admin: "/dashboard/admin",
+      };
+
+      const redirectPath = dashboardRoutes[user.role] || "/warranty";
+      navigate(redirectPath, { replace: true });
+    }
+  }, [user, loading, navigate]);
+
+  if (loading) {
+    return <div>Loading...</div>;
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-background to-muted/30">
       <Header />

@@ -9,9 +9,11 @@ interface CustomerDetailsProps {
   updateFormData: (updates: Partial<EVFormData>) => void;
   onNext: () => void;
   onPrev: () => void;
+  isCustomer?: boolean;
+  isVendor?: boolean;
 }
 
-const CustomerDetails = ({ formData, updateFormData, onNext, onPrev }: CustomerDetailsProps) => {
+const CustomerDetails = ({ formData, updateFormData, onNext, onPrev, isCustomer = false, isVendor = false }: CustomerDetailsProps) => {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     onNext();
@@ -36,7 +38,12 @@ const CustomerDetails = ({ formData, updateFormData, onNext, onPrev }: CustomerD
             value={formData.customerFname}
             onChange={(e) => updateFormData({ customerFname: e.target.value })}
             required
+            readOnly={isCustomer}
+            className={isCustomer ? 'bg-muted cursor-not-allowed' : ''}
           />
+          {isCustomer && (
+            <p className="text-xs text-muted-foreground">Auto-filled from your account</p>
+          )}
         </div>
 
         <div className="space-y-2">
@@ -47,7 +54,12 @@ const CustomerDetails = ({ formData, updateFormData, onNext, onPrev }: CustomerD
             placeholder="Last name"
             value={formData.customerLname}
             onChange={(e) => updateFormData({ customerLname: e.target.value })}
+            readOnly={isCustomer}
+            className={isCustomer ? 'bg-muted cursor-not-allowed' : ''}
           />
+          {isCustomer && (
+            <p className="text-xs text-muted-foreground">Auto-filled from your account</p>
+          )}
         </div>
 
         <div className="space-y-2">
@@ -61,12 +73,17 @@ const CustomerDetails = ({ formData, updateFormData, onNext, onPrev }: CustomerD
             value={formData.customerMobile}
             onChange={(e) => updateFormData({ customerMobile: e.target.value })}
             required
+            readOnly={isCustomer}
+            className={isCustomer ? 'bg-muted cursor-not-allowed' : ''}
           />
+          {isCustomer && (
+            <p className="text-xs text-muted-foreground">Auto-filled from your account</p>
+          )}
         </div>
 
         <div className="space-y-2">
           <Label htmlFor="customerEmail">
-            Email ID <span className="text-destructive">*</span>
+            Email ID {!isVendor && <span className="text-destructive">*</span>}
           </Label>
           <Input
             id="customerEmail"
@@ -74,8 +91,16 @@ const CustomerDetails = ({ formData, updateFormData, onNext, onPrev }: CustomerD
             placeholder="customer@example.com"
             value={formData.customerEmail}
             onChange={(e) => updateFormData({ customerEmail: e.target.value })}
-            required
+            required={!isVendor}
+            readOnly={isCustomer}
+            className={isCustomer ? 'bg-muted cursor-not-allowed' : ''}
           />
+          {isCustomer && (
+            <p className="text-xs text-muted-foreground">Auto-filled from your account</p>
+          )}
+          {isVendor && (
+            <p className="text-xs text-muted-foreground">Optional - If not provided, customer won't receive email notifications</p>
+          )}
         </div>
 
         <div className="space-y-2 md:col-span-2">
