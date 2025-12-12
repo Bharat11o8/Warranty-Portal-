@@ -127,7 +127,7 @@ const Profile = () => {
             case "vendor":
                 return {
                     icon: Store,
-                    label: "Vendor",
+                    label: "Franchise",
                     badgeVariant: "secondary" as const,
                     color: "from-secondary/20 to-secondary/10",
                 };

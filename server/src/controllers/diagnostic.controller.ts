@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import db from '../config/database';
+import db from '../config/database.js';
 
 export class DiagnosticController {
     static async checkVendorVerification(req: Request, res: Response) {

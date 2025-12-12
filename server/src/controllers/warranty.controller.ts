@@ -1,9 +1,9 @@
 import { Request, Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
-import db from '../config/database';
-import { EmailService } from '../services/email.service';
-import { AuthRequest } from '../middleware/auth';
-import { WarrantyData } from '../types/index';
+import db from '../config/database.js';
+import { EmailService } from '../services/email.service.js';
+import { AuthRequest } from '../middleware/auth.js';
+import { WarrantyData } from '../types/index.js';
 
 // Extending WarrantyData interface locally if not updated in types file yet
 interface ExtendedWarrantyData extends WarrantyData {
@@ -41,7 +41,7 @@ export class WarrantyController {
           // e.g., "lhsPhoto" -> productDetails.photos.lhs
 
           if (file.fieldname === 'invoiceFile') {
-            warrantyData.productDetails.invoiceFileName = file.filename;
+            warrantyData.productDetails.invoiceFileName = file.path;
           } else if (['lhsPhoto', 'rhsPhoto', 'frontRegPhoto', 'backRegPhoto', 'warrantyPhoto'].includes(file.fieldname)) {
             if (!warrantyData.productDetails.photos) {
               warrantyData.productDetails.photos = {};
@@ -56,7 +56,7 @@ export class WarrantyController {
             if (file.fieldname === 'frontRegPhoto') key = 'frontReg';
             if (file.fieldname === 'backRegPhoto') key = 'backReg';
 
-            (warrantyData.productDetails.photos as any)[key] = file.filename;
+            (warrantyData.productDetails.photos as any)[key] = file.path;
           }
         });
       }
@@ -162,17 +162,26 @@ export class WarrantyController {
         return res.status(401).json({ error: 'User not authenticated' });
       }
 
-      let query = `
+      // Pagination parameters
+      const page = parseInt(req.query.page as string) || 1;
+      const limit = parseInt(req.query.limit as string) || 30;
+      const offset = (page - 1) * limit;
+
+      let baseQuery = `
         SELECT w.*, m.name as manpower_name_from_db 
         FROM warranty_registrations w 
         LEFT JOIN manpower m ON w.manpower_id = m.id
       `;
+      let countQuery = `SELECT COUNT(*) as total FROM warranty_registrations w`;
       let params: any[] = [];
+      let countParams: any[] = [];
 
       // If customer, only show their warranties
       if (req.user.role === 'customer') {
-        query += ' WHERE w.user_id = ?';
+        baseQuery += ' WHERE w.user_id = ?';
+        countQuery += ' WHERE w.user_id = ?';
         params = [req.user.id];
+        countParams = [req.user.id];
       }
       // If vendor, show warranties linked to their manpower OR submitted by them
       else if (req.user.role === 'vendor') {
@@ -194,23 +203,37 @@ export class WarrantyController {
           if (manpower.length > 0) {
             const manpowerIds = manpower.map((m: any) => m.id);
             // Show warranties where manpower_id matches OR user_id matches (vendor submitted)
-            query += ` WHERE w.manpower_id IN (${manpowerIds.map(() => '?').join(',')}) OR w.user_id = ?`;
+            const inClause = manpowerIds.map(() => '?').join(',');
+            baseQuery += ` WHERE w.manpower_id IN (${inClause}) OR w.user_id = ?`;
+            countQuery += ` WHERE w.manpower_id IN (${inClause}) OR w.user_id = ?`;
             params = [...manpowerIds, req.user.id];
+            countParams = [...manpowerIds, req.user.id];
           } else {
             // No manpower, just show warranties submitted by vendor
-            query += ' WHERE w.user_id = ?';
+            baseQuery += ' WHERE w.user_id = ?';
+            countQuery += ' WHERE w.user_id = ?';
             params = [req.user.id];
+            countParams = [req.user.id];
           }
         } else {
           // No vendor details, just show warranties submitted by vendor
-          query += ' WHERE w.user_id = ?';
+          baseQuery += ' WHERE w.user_id = ?';
+          countQuery += ' WHERE w.user_id = ?';
           params = [req.user.id];
+          countParams = [req.user.id];
         }
       }
 
-      query += ' ORDER BY w.created_at DESC';
+      // Get total count
+      const [countResult]: any = await db.execute(countQuery, countParams);
+      const totalCount = countResult[0].total;
+      const totalPages = Math.ceil(totalCount / limit);
 
-      const [warranties]: any = await db.execute(query, params);
+      // Add ordering and pagination to main query
+      baseQuery += ' ORDER BY w.created_at DESC LIMIT ? OFFSET ?';
+      params.push(limit, offset);
+
+      const [warranties]: any = await db.execute(baseQuery, params);
 
       // Parse JSON product_details
       const formattedWarranties = warranties.map((warranty: any) => ({
@@ -220,7 +243,15 @@ export class WarrantyController {
 
       res.json({
         success: true,
-        warranties: formattedWarranties
+        warranties: formattedWarranties,
+        pagination: {
+          currentPage: page,
+          totalPages,
+          totalCount,
+          limit,
+          hasNextPage: page < totalPages,
+          hasPrevPage: page > 1
+        }
       });
     } catch (error: any) {
       console.error('Get warranties error:', error);
@@ -290,7 +321,7 @@ export class WarrantyController {
       if (files && files.length > 0) {
         files.forEach(file => {
           if (file.fieldname === 'invoiceFile') {
-            warrantyData.productDetails.invoiceFileName = file.filename;
+            warrantyData.productDetails.invoiceFileName = file.path;
           } else if (['lhsPhoto', 'rhsPhoto', 'frontRegPhoto', 'backRegPhoto', 'warrantyPhoto'].includes(file.fieldname)) {
             if (!warrantyData.productDetails.photos) {
               warrantyData.productDetails.photos = {};
@@ -300,7 +331,7 @@ export class WarrantyController {
             if (file.fieldname === 'frontRegPhoto') key = 'frontReg';
             if (file.fieldname === 'backRegPhoto') key = 'backReg';
 
-            (warrantyData.productDetails.photos as any)[key] = file.filename;
+            (warrantyData.productDetails.photos as any)[key] = file.path;
           }
         });
       }

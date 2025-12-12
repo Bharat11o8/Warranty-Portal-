@@ -156,7 +156,7 @@ const Register = () => {
       } else {
         toast({
           title: "Registration Submitted",
-          description: "Your vendor registration request has been submitted for approval. You'll be notified via email.",
+          description: "Your franchise registration request has been submitted for approval. You'll be notified via email.",
           duration: 5000
         });
         setTimeout(() => {
@@ -188,7 +188,7 @@ const Register = () => {
 
           <div className="mb-8 text-center md:text-left">
             <h1 className="text-3xl font-bold mb-2">
-              {role === "customer" ? "Customer" : "Vendor"} Registration
+              {role === "customer" ? "Customer" : "Franchise"} Registration
             </h1>
             <p className="text-muted-foreground">
               {showOTP
@@ -459,7 +459,7 @@ const Register = () => {
               )}
 
               <Button type="submit" className="w-full h-12 text-lg font-semibold" disabled={loading}>
-                {loading ? "Sending OTP..." : role === "vendor" ? "Request Vendor Registration" : "Send OTP"}
+                {loading ? "Sending OTP..." : role === "vendor" ? "Request Franchise Registration" : "Send OTP"}
               </Button>
 
               <p className="text-center text-sm text-muted-foreground">

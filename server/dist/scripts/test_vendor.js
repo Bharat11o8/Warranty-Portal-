@@ -1,4 +1,3 @@
-"use strict";
 async function testVendorRegistration() {
     const url = 'http://localhost:3000/api/auth/register';
     const data = {
@@ -35,3 +34,4 @@ async function testVendorRegistration() {
     }
 }
 testVendorRegistration();
+export {};

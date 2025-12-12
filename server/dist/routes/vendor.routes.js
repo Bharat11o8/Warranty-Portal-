@@ -1,6 +1,6 @@
 import { Router } from 'express';
-import { VendorController } from '../controllers/vendor.controller';
-import { authenticateToken, requireRole } from '../middleware/auth';
+import { VendorController } from '../controllers/vendor.controller.js';
+import { authenticateToken, requireRole } from '../middleware/auth.js';
 const router = Router();
 router.get('/verify', VendorController.verifyVendor);
 // Vendor profile route

@@ -1,7 +1,7 @@
 import { Router } from 'express';
-import { VendorController } from '../controllers/vendor.controller';
+import { VendorController } from '../controllers/vendor.controller.js';
 
-import { authenticateToken, requireRole } from '../middleware/auth';
+import { authenticateToken, requireRole } from '../middleware/auth.js';
 
 const router = Router();
 

@@ -2,10 +2,10 @@ import { Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { v4 as uuidv4 } from 'uuid';
-import db from '../config/database';
-import { EmailService } from '../services/email.service';
-import { OTPService } from '../services/otp.service';
-import { RegisterData } from '../types/index';
+import db from '../config/database.js';
+import { EmailService } from '../services/email.service.js';
+import { OTPService } from '../services/otp.service.js';
+import { RegisterData } from '../types/index.js';
 import dotenv from 'dotenv';
 
 dotenv.config();
@@ -269,6 +269,48 @@ export class AuthController {
     } catch (error: any) {
       console.error('OTP verification error:', error);
       res.status(500).json({ error: 'OTP verification failed' });
+    }
+  }
+
+  static async resendOTP(req: Request, res: Response) {
+    try {
+      const { userId } = req.body;
+
+      if (!userId) {
+        return res.status(400).json({ error: 'User ID is required' });
+      }
+
+      // Get user data
+      const [users]: any = await db.execute(
+        'SELECT id, email, name FROM profiles WHERE id = ?',
+        [userId]
+      );
+
+      if (users.length === 0) {
+        return res.status(404).json({ error: 'User not found' });
+      }
+
+      const user = users[0];
+
+      // Invalidate all existing unused OTPs for this user
+      await db.execute(
+        'UPDATE otp_codes SET is_used = TRUE WHERE user_id = ? AND is_used = FALSE',
+        [userId]
+      );
+
+      // Generate new OTP
+      const otp = await OTPService.createOTP(userId);
+
+      // Send OTP email
+      await EmailService.sendOTP(user.email, user.name, otp);
+
+      res.json({
+        success: true,
+        message: 'New OTP sent to your email'
+      });
+    } catch (error: any) {
+      console.error('Resend OTP error:', error);
+      res.status(500).json({ error: 'Failed to resend OTP' });
     }
   }
 

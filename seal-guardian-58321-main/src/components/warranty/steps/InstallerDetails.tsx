@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Combobox } from "@/components/ui/combobox";
 import { EVFormData } from "../EVProductsForm";
 import { useAuth } from "@/contexts/AuthContext";
 import api from "@/lib/api";
@@ -94,22 +95,14 @@ const InstallerDetails = ({ formData, updateFormData, onNext }: InstallerDetails
               placeholder="Loading store name..."
             />
           ) : (
-            <Select
+            <Combobox
+              options={stores.map(store => ({ value: store.store_name, label: store.store_name }))}
               value={formData.storeName}
-              onValueChange={(value) => updateFormData({ storeName: value })}
-              required
-            >
-              <SelectTrigger id="storeName">
-                <SelectValue placeholder="Select Store" />
-              </SelectTrigger>
-              <SelectContent>
-                {stores.map((store) => (
-                  <SelectItem key={store.vendor_details_id} value={store.store_name}>
-                    {store.store_name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              onChange={(value) => updateFormData({ storeName: value })}
+              placeholder="Select Store"
+              searchPlaceholder="Search store name..."
+              emptyMessage="No store found."
+            />
           )}
         </div>
 

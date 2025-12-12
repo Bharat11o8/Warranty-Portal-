@@ -15,6 +15,7 @@ import { downloadCSV } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import EVProductsForm from "@/components/warranty/EVProductsForm";
 import SeatCoverForm from "@/components/warranty/SeatCoverForm";
+import { Pagination } from "@/components/Pagination";
 
 // WarrantyList Component
 const WarrantyList = ({ items, showReason = false, user, onEditWarranty }: {
@@ -82,10 +83,10 @@ const WarrantyList = ({ items, showReason = false, user, onEditWarranty }: {
                                     warranty.status === 'validated' ? 'default' :
                                         warranty.status === 'rejected' ? 'destructive' : 'secondary'
                                 } className={warranty.status === 'validated' ? 'bg-green-600' : ''}>
-                                    {warranty.status}
+                                    {warranty.status === 'validated' ? 'Approved' : warranty.status === 'rejected' ? 'Disapproved' : warranty.status}
                                 </Badge>
                             </div>
-                            <div className={`grid grid-cols-2 ${warranty.product_type === 'ev-products' ? 'md:grid-cols-6' : warranty.product_type === 'seat-cover' ? 'md:grid-cols-5' : 'md:grid-cols-4'} gap-4 mt-4 pt-4 border-t`}>
+                            <div className={`grid grid-cols-2 ${warranty.product_type === 'ev-products' ? 'lg:grid-cols-6 md:grid-cols-3' : warranty.product_type === 'seat-cover' ? 'lg:grid-cols-5 md:grid-cols-3' : 'lg:grid-cols-4 md:grid-cols-2'} gap-4 mt-4 pt-4 border-t`}>
                                 {warranty.product_type === 'seat-cover' && (
                                     <>
                                         <div>
@@ -163,11 +164,14 @@ const WarrantyList = ({ items, showReason = false, user, onEditWarranty }: {
                                                         ? productDetails.photos?.warranty
                                                         : productDetails.invoiceFileName;
                                                     if (invoiceFile) {
+                                                        const imgSrc = typeof invoiceFile === 'string' && invoiceFile.startsWith('http')
+                                                            ? invoiceFile
+                                                            : `http://localhost:3000/uploads/${invoiceFile}`;
                                                         return (
                                                             <div className="space-y-4">
                                                                 <div className="border rounded-lg p-4 bg-muted/50">
                                                                     <img
-                                                                        src={`http://localhost:3000/uploads/${invoiceFile}`}
+                                                                        src={imgSrc}
                                                                         alt="Invoice"
                                                                         className="w-full h-auto rounded"
                                                                         onError={(e) => {
@@ -184,14 +188,13 @@ const WarrantyList = ({ items, showReason = false, user, onEditWarranty }: {
                                                                 <Button
                                                                     className="w-full"
                                                                     onClick={() => {
-                                                                        const fileUrl = `http://localhost:3000/uploads/${invoiceFile}`;
-                                                                        fetch(fileUrl)
+                                                                        fetch(imgSrc)
                                                                             .then(res => res.blob())
                                                                             .then(blob => {
                                                                                 const blobUrl = window.URL.createObjectURL(blob);
                                                                                 const link = document.createElement("a");
                                                                                 link.href = blobUrl;
-                                                                                link.download = invoiceFile;
+                                                                                link.download = typeof invoiceFile === 'string' ? invoiceFile : 'invoice';
                                                                                 document.body.appendChild(link);
                                                                                 link.click();
                                                                                 link.remove();
@@ -299,13 +302,13 @@ const WarrantyList = ({ items, showReason = false, user, onEditWarranty }: {
                                                                         <p className="text-sm font-medium text-muted-foreground">{labels[key] || key}</p>
                                                                         <div className="border rounded-lg overflow-hidden bg-muted/50 aspect-video relative group">
                                                                             <img
-                                                                                src={`http://localhost:3000/uploads/${filename}`}
+                                                                                src={typeof filename === 'string' && filename.startsWith('http') ? filename : `http://localhost:3000/uploads/${filename}`}
                                                                                 alt={labels[key]}
                                                                                 className="w-full h-full object-cover"
                                                                             />
                                                                             <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                                                                                 <a
-                                                                                    href={`http://localhost:3000/uploads/${filename}`}
+                                                                                    href={typeof filename === 'string' && filename.startsWith('http') ? filename : `http://localhost:3000/uploads/${filename}`}
                                                                                     target="_blank"
                                                                                     rel="noopener noreferrer"
                                                                                     className="text-white text-xs bg-black/50 px-2 py-1 rounded hover:bg-black/70"
@@ -328,13 +331,13 @@ const WarrantyList = ({ items, showReason = false, user, onEditWarranty }: {
                                                                 <p className="text-sm font-medium text-muted-foreground">Invoice / MRP Sticker</p>
                                                                 <div className="border rounded-lg overflow-hidden bg-muted/50 aspect-video relative group">
                                                                     <img
-                                                                        src={`http://localhost:3000/uploads/${productDetails.invoiceFileName}`}
+                                                                        src={typeof productDetails.invoiceFileName === 'string' && productDetails.invoiceFileName.startsWith('http') ? productDetails.invoiceFileName : `http://localhost:3000/uploads/${productDetails.invoiceFileName}`}
                                                                         alt="Invoice"
                                                                         className="w-full h-full object-cover"
                                                                     />
                                                                     <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                                                                         <a
-                                                                            href={`http://localhost:3000/uploads/${productDetails.invoiceFileName}`}
+                                                                            href={typeof productDetails.invoiceFileName === 'string' && productDetails.invoiceFileName.startsWith('http') ? productDetails.invoiceFileName : `http://localhost:3000/uploads/${productDetails.invoiceFileName}`}
                                                                             target="_blank"
                                                                             rel="noopener noreferrer"
                                                                             className="text-white text-xs bg-black/50 px-2 py-1 rounded hover:bg-black/70"
@@ -420,7 +423,7 @@ const WarrantyList = ({ items, showReason = false, user, onEditWarranty }: {
                                                             warranty.status === 'validated' ? 'default' :
                                                                 warranty.status === 'rejected' ? 'destructive' : 'secondary'
                                                         } className={warranty.status === 'validated' ? 'bg-green-600' : ''}>
-                                                            {warranty.status.toUpperCase()}
+                                                            {warranty.status === 'validated' ? 'APPROVED' : warranty.status === 'rejected' ? 'DISAPPROVED' : warranty.status.toUpperCase()}
                                                         </Badge>
                                                         {warranty.rejection_reason && (
                                                             <p className="text-sm text-destructive">Reason: {warranty.rejection_reason}</p>
@@ -462,6 +465,7 @@ const VendorDashboard = () => {
     const [warranties, setWarranties] = useState<any[]>([]);
     const [loadingWarranties, setLoadingWarranties] = useState(false);
     const [editingWarranty, setEditingWarranty] = useState<any>(null);
+    const [warrantyPagination, setWarrantyPagination] = useState({ currentPage: 1, totalPages: 1, totalCount: 0, limit: 30, hasNextPage: false, hasPrevPage: false });
 
     // Manpower state
     const [manpowerList, setManpowerList] = useState<any[]>([]); // Active manpower
@@ -573,12 +577,15 @@ const VendorDashboard = () => {
     };
 
     // Fetch warranties
-    async function fetchWarranties(background = false) {
+    async function fetchWarranties(page = 1, background = false) {
         if (!background) setLoadingWarranties(true);
         try {
-            const response = await api.get("/warranty");
+            const response = await api.get(`/warranty?page=${page}&limit=30`);
             if (response.data.success) {
                 setWarranties(response.data.warranties);
+                if (response.data.pagination) {
+                    setWarrantyPagination(response.data.pagination);
+                }
             }
         } catch (error) {
             console.error("Failed to fetch warranties", error);
@@ -765,7 +772,7 @@ const VendorDashboard = () => {
                         warrantyId={editingWarranty.id}
                         onSuccess={() => {
                             setEditingWarranty(null);
-                            fetchWarranties(true); // Background fetch to avoid loading state flash
+                            fetchWarranties(warrantyPagination.currentPage, true); // Background fetch to avoid loading state flash
                         }}
                     />
                 </main>
@@ -779,14 +786,14 @@ const VendorDashboard = () => {
             <Header />
             <main className="container mx-auto px-4 py-8">
                 <div className="mb-8">
-                    <h1 className="text-4xl font-bold mb-2">Vendor Dashboard</h1>
+                    <h1 className="text-4xl font-bold mb-2">Franchise Dashboard</h1>
                     <p className="text-muted-foreground">
                         Manage customer warranty registrations for your store
                     </p>
                 </div>
 
                 {/* Stats Cards */}
-                <div className="grid gap-4 md:grid-cols-3 mb-6">
+                <div className="grid gap-4 grid-cols-1 md:grid-cols-3 mb-6">
                     <Card>
                         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                             <CardTitle className="text-sm font-medium">Total Warranties</CardTitle>
@@ -811,7 +818,7 @@ const VendorDashboard = () => {
 
                     <Card>
                         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="text-sm font-medium">Validated</CardTitle>
+                            <CardTitle className="text-sm font-medium">Approved</CardTitle>
                             <CheckCircle className="h-4 w-4 text-muted-foreground" />
                         </CardHeader>
                         <CardContent>
@@ -829,7 +836,7 @@ const VendorDashboard = () => {
                                 <Plus className="mr-2 h-4 w-4" />
                                 Register Customer Product
                             </Button>
-                        </Link>  
+                        </Link>
 
                         {/* Search */}
                         <div className="flex-1 min-w-[200px] relative">
@@ -909,7 +916,7 @@ const VendorDashboard = () => {
 
                 {/* Warranty Entries with Tabs */}
                 <Tabs defaultValue="all" className="space-y-4">
-                    <TabsList>
+                    <TabsList className="flex flex-wrap h-auto gap-2 bg-transparent p-0">
                         <TabsTrigger value="all" className="relative">
                             All Warranties
                             <Badge variant="secondary" className="ml-2 px-1.5 py-0 h-5 text-xs">
@@ -1105,25 +1112,25 @@ const VendorDashboard = () => {
                                                                         </div>
                                                                         <div>
                                                                             <p className="font-medium">{member.name}</p>
-                                                                            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                                                            <div className="flex flex-col md:flex-row md:items-center gap-1 md:gap-2 text-sm text-muted-foreground">
                                                                                 <span>{member.phone_number}</span>
-                                                                                <span>•</span>
+                                                                                <span className="hidden md:inline">•</span>
                                                                                 <span className="font-mono text-xs bg-muted px-1 py-0.5 rounded">{member.manpower_id}</span>
-                                                                                <span>•</span>
+                                                                                <span className="hidden md:inline">•</span>
                                                                                 <Badge variant="outline" className="text-xs capitalize">
                                                                                     {member.applicator_type?.replace('_', ' ')} Applicator
                                                                                 </Badge>
-                                                                                <span>•</span>
+                                                                                <span className="hidden md:inline">•</span>
                                                                                 <span className="inline-flex items-center rounded-full bg-green-100 px-2 py-0.5 text-xs font-semibold text-green-800">
-                                                                                    {member.validated_count || 0} Validated
+                                                                                    {member.validated_count || 0} Approved
                                                                                 </span>
                                                                                 <span className="inline-flex items-center rounded-full bg-yellow-100 px-2 py-0.5 text-xs font-semibold text-yellow-800">
                                                                                     {member.pending_count || 0} Pending
                                                                                 </span>
                                                                                 <span className="inline-flex items-center rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-800">
-                                                                                    {member.rejected_count || 0} Rejected
+                                                                                    {member.rejected_count || 0} Disapproved
                                                                                 </span>
-                                                                                <span>•</span>
+                                                                                <span className="hidden md:inline">•</span>
                                                                                 <span className="font-medium text-muted-foreground">
                                                                                     {member.total_count || 0} Total
                                                                                 </span>
@@ -1179,31 +1186,31 @@ const VendorDashboard = () => {
                                                             </div>
                                                             <div>
                                                                 <p className="font-medium text-muted-foreground">{member.name}</p>
-                                                                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                                                <div className="flex flex-col md:flex-row md:items-center gap-1 md:gap-2 text-sm text-muted-foreground">
                                                                     <span>{member.phone_number}</span>
-                                                                    <span>•</span>
+                                                                    <span className="hidden md:inline">•</span>
                                                                     <span className="font-mono text-xs bg-muted px-1 py-0.5 rounded">{member.manpower_id}</span>
-                                                                    <span>•</span>
+                                                                    <span className="hidden md:inline">•</span>
                                                                     <Badge variant="outline" className="text-xs capitalize">
                                                                         {member.applicator_type?.replace('_', ' ')}
                                                                     </Badge>
-                                                                    <span>•</span>
+                                                                    <span className="hidden md:inline">•</span>
                                                                     <span className="inline-flex items-center rounded-full bg-green-100 px-2 py-0.5 text-xs font-semibold text-green-800">
-                                                                        {member.validated_count || 0} Validated
+                                                                        {member.validated_count || 0} Approved
                                                                     </span>
                                                                     <span className="inline-flex items-center rounded-full bg-yellow-100 px-2 py-0.5 text-xs font-semibold text-yellow-800">
                                                                         {member.pending_count || 0} Pending
                                                                     </span>
                                                                     <span className="inline-flex items-center rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-800">
-                                                                        {member.rejected_count || 0} Rejected
+                                                                        {member.rejected_count || 0} Disapproved
                                                                     </span>
-                                                                    <span>•</span>
+                                                                    <span className="hidden md:inline">•</span>
                                                                     {member.removed_at && (
                                                                         <>
                                                                             <span className="text-xs">
                                                                                 Removed: {new Date(member.removed_at).toLocaleDateString()}
                                                                             </span>
-                                                                            <span>•</span>
+                                                                            <span className="hidden md:inline">•</span>
                                                                         </>
                                                                     )}
                                                                     <span className="font-medium">

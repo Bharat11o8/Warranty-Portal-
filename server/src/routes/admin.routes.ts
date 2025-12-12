@@ -1,7 +1,8 @@
 import { Router } from 'express';
-import { AdminController } from '../controllers/admin.controller';
-import { DiagnosticController } from '../controllers/diagnostic.controller';
-import { authenticateToken, requireRole } from '../middleware/auth';
+import { AdminController } from '../controllers/admin.controller.js';
+import { DiagnosticController } from '../controllers/diagnostic.controller.js';
+import { ProductController } from '../controllers/product.controller.js';
+import { authenticateToken, requireRole } from '../middleware/auth.js';
 
 const router = Router();
 
@@ -15,6 +16,11 @@ router.get('/warranties', authenticateToken, requireRole('admin'), AdminControll
 router.get('/customers', authenticateToken, requireRole('admin'), AdminController.getCustomers);
 router.get('/customers/:email', authenticateToken, requireRole('admin'), AdminController.getCustomerDetails);
 router.delete('/customers/:email', authenticateToken, requireRole('admin'), AdminController.deleteCustomer);
+
+// Product Management
+router.post('/products', authenticateToken, requireRole('admin'), ProductController.addProduct);
+router.put('/products/:id', authenticateToken, requireRole('admin'), ProductController.updateProduct);
+router.delete('/products/:id', authenticateToken, requireRole('admin'), ProductController.deleteProduct);
 
 // Admin Management
 router.get('/admins', authenticateToken, requireRole('admin'), AdminController.getAllAdmins);

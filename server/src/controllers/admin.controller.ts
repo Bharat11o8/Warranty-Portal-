@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
-import db from '../config/database';
-import { EmailService } from '../services/email.service';
-import { ActivityLogService } from '../services/activity-log.service';
+import db from '../config/database.js';
+import { EmailService } from '../services/email.service.js';
+import { ActivityLogService } from '../services/activity-log.service.js';
 
 export class AdminController {
     static async getDashboardStats(req: Request, res: Response) {
@@ -306,21 +306,31 @@ export class AdminController {
                 return res.status(400).json({ error: 'Rejection reason is required when rejecting a warranty' });
             }
 
-            // Get warranty details for email
+            // Get warranty details for email (including store info)
             const [warranty]: any = await db.execute(
                 `SELECT 
-                    id,
-                    uid,
-                    customer_name, 
-                    customer_email, 
-                    customer_phone,
-                    product_type, 
-                    car_make, 
-                    car_model, 
-                    product_details,
-                    manpower_id
-                FROM warranty_registrations 
-                WHERE uid = ? OR id = ?`,
+                    wr.id,
+                    wr.uid,
+                    wr.customer_name, 
+                    wr.customer_email, 
+                    wr.customer_phone,
+                    wr.customer_address,
+                    wr.product_type,
+                    wr.warranty_type,
+                    wr.car_make, 
+                    wr.car_model, 
+                    wr.product_details,
+                    wr.manpower_id,
+                    vd.store_name,
+                    vd.store_email,
+                    vd.address as store_address,
+                    vd.city as store_city,
+                    vd.state as store_state,
+                    m.name as applicator_name
+                FROM warranty_registrations wr
+                LEFT JOIN manpower m ON wr.manpower_id = m.id
+                LEFT JOIN vendor_details vd ON m.vendor_id = vd.id
+                WHERE wr.uid = ? OR wr.id = ?`,
                 [uid, uid]
             );
 
@@ -348,6 +358,10 @@ export class AdminController {
             // Send email notification to customer only if email is provided
             if (warrantyData.customer_email && warrantyData.customer_email.trim()) {
                 try {
+                    // Prepare store address string
+                    const storeFullAddress = [warrantyData.store_address, warrantyData.store_city, warrantyData.store_state]
+                        .filter(Boolean).join(', ');
+
                     if (status === 'validated') {
                         // Send approval email to customer
                         await EmailService.sendWarrantyApprovalToCustomer(
@@ -357,7 +371,12 @@ export class AdminController {
                             warrantyData.product_type,
                             warrantyData.car_make,
                             warrantyData.car_model,
-                            productDetails
+                            productDetails,
+                            warrantyData.warranty_type,
+                            warrantyData.store_name,
+                            storeFullAddress,
+                            warrantyData.store_email,
+                            warrantyData.applicator_name
                         );
                         console.log(`✓ Warranty approval email sent to customer: ${warrantyData.customer_email}`);
                     } else {
@@ -370,7 +389,12 @@ export class AdminController {
                             warrantyData.car_make,
                             warrantyData.car_model,
                             rejectionReason,
-                            productDetails
+                            productDetails,
+                            warrantyData.warranty_type,
+                            warrantyData.store_name,
+                            storeFullAddress,
+                            warrantyData.store_email,
+                            warrantyData.applicator_name
                         );
                         console.log(`✓ Warranty rejection email sent to customer: ${warrantyData.customer_email}`);
                     }
@@ -412,7 +436,10 @@ export class AdminController {
                                 warrantyData.car_make,
                                 warrantyData.car_model,
                                 vendor.manpower_name,
-                                warrantyData.uid
+                                warrantyData.uid,
+                                productDetails,
+                                warrantyData.warranty_type,
+                                warrantyData.customer_address
                             );
                             console.log(`✓ Warranty approval email sent to vendor: ${vendor.vendor_email}`);
                         } else {
@@ -427,7 +454,10 @@ export class AdminController {
                                 warrantyData.car_model,
                                 vendor.manpower_name,
                                 warrantyData.uid,
-                                rejectionReason
+                                rejectionReason,
+                                productDetails,
+                                warrantyData.warranty_type,
+                                warrantyData.customer_address
                             );
                             console.log(`✓ Warranty rejection email sent to vendor: ${vendor.vendor_email}`);
                         }
@@ -467,7 +497,19 @@ export class AdminController {
 
     static async getAllWarranties(req: Request, res: Response) {
         try {
-            // Get all warranties with user details including role
+            // Pagination parameters
+            const page = parseInt(req.query.page as string) || 1;
+            const limit = parseInt(req.query.limit as string) || 30;
+            const offset = (page - 1) * limit;
+
+            // Get total count first
+            const [countResult]: any = await db.execute(`
+                SELECT COUNT(*) as total FROM warranty_registrations
+            `);
+            const totalCount = countResult[0].total;
+            const totalPages = Math.ceil(totalCount / limit);
+
+            // Get all warranties with user details including role (with pagination)
             const [warrantyList]: any = await db.execute(`
                 SELECT 
                     wr.*,
@@ -480,7 +522,8 @@ export class AdminController {
                 LEFT JOIN user_roles ur ON p.id = ur.user_id
                 LEFT JOIN manpower m ON wr.manpower_id = m.id
                 ORDER BY wr.created_at DESC
-            `);
+                LIMIT ? OFFSET ?
+            `, [limit, offset]);
 
             // Parse JSON product_details
             const formattedWarranties = warrantyList.map((warranty: any) => ({
@@ -490,7 +533,15 @@ export class AdminController {
 
             res.json({
                 success: true,
-                warranties: formattedWarranties
+                warranties: formattedWarranties,
+                pagination: {
+                    currentPage: page,
+                    totalPages,
+                    totalCount,
+                    limit,
+                    hasNextPage: page < totalPages,
+                    hasPrevPage: page > 1
+                }
             });
         } catch (error: any) {
             console.error('Get all warranties error:', error);
@@ -741,8 +792,9 @@ export class AdminController {
 
     static async getActivityLogs(req: Request, res: Response) {
         try {
-            const limit = parseInt(req.query.limit as string) || 50;
-            const offset = parseInt(req.query.offset as string) || 0;
+            const page = parseInt(req.query.page as string) || 1;
+            const limit = parseInt(req.query.limit as string) || 30;
+            const offset = (page - 1) * limit;
             const adminId = req.query.adminId as string;
             const actionType = req.query.actionType as string;
 
@@ -753,12 +805,19 @@ export class AdminController {
                 actionType
             });
 
+            const totalPages = Math.ceil(result.total / limit);
+
             res.json({
                 success: true,
                 logs: result.logs,
-                total: result.total,
-                limit,
-                offset
+                pagination: {
+                    currentPage: page,
+                    totalPages,
+                    totalCount: result.total,
+                    limit,
+                    hasNextPage: page < totalPages,
+                    hasPrevPage: page > 1
+                }
             });
         } catch (error: any) {
             console.error('Get activity logs error:', error);

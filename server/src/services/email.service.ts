@@ -1,4 +1,4 @@
-import { transporter } from '../config/email';
+import { transporter } from '../config/email.js';
 import dotenv from 'dotenv';
 
 dotenv.config();
@@ -42,10 +42,10 @@ export class EmailService {
               
               <p>If you didn't request this OTP, please ignore this email or contact our support team.</p>
               
-              <p>Best regards,<br>Warranty Portal Team</p>
+              <p>Best regards,<br>Autoform India Team</p>
             </div>
             <div class="footer">
-              <p>© 2025 Warranty Portal. All rights reserved.</p>
+              <p>© 2025 Autoform India. All rights reserved.</p>
             </div>
           </div>
         </body>
@@ -230,7 +230,7 @@ export class EmailService {
               <div class="success-box">
                 <div class="success-icon">🎉</div>
                 <h3>Your vendor account has been verified and approved!</h3>
-                <p style="color: #155724; margin: 5px 0 0 0;">Welcome to the Warranty Portal</p>
+                <p style="color: #155724; margin: 5px 0 0 0;">Welcome to Autoform India</p>
               </div>
               
               <p>Congratulations! Your vendor registration has been reviewed and approved by our team. You now have full access to all vendor features on the Warranty Portal.</p>
@@ -257,10 +257,10 @@ export class EmailService {
               
               <p style="margin-top: 20px;">We're excited to have you onboard!</p>
               
-              <p>Best regards,<br><strong>Warranty Portal Team</strong></p>
+              <p>Best regards,<br><strong>Autoform India Team</strong></p>
               
               <div class="footer">
-                <p>© 2025 Warranty Portal. All rights reserved.</p>
+                <p>© 2025 Autoform India. All rights reserved.</p>
                 <p style="margin-top: 10px; color: #999;">
                   This email was sent to ${vendorEmail}
                 </p>
@@ -373,7 +373,7 @@ export class EmailService {
               
               <div class="notice-box">
                 <h3>📋 Vendor Application Status</h3>
-                <p style="margin: 5px 0 0 0;">Thank you for your interest in becoming a vendor partner with Seal Guardian Warranty Portal.</p>
+                <p style="margin: 5px 0 0 0;">Thank you for your interest in becoming a vendor partner with Autoform India Warranty Portal.</p>
               </div>
               
               <p>After careful review of your application, we regret to inform you that we are unable to approve your vendor account at this time.</p>
@@ -402,10 +402,10 @@ export class EmailService {
               
               <p style="margin-top: 30px;">We appreciate your interest in partnering with us and wish you all the best in your business endeavors.</p>
               
-              <p>Best regards,<br><strong>Seal Guardian Team</strong></p>
+              <p>Best regards,<br><strong>Autoform India Team</strong></p>
               
               <div class="footer">
-                <p>© 2025 Seal Guardian Warranty Portal. All rights reserved.</p>
+                <p>© 2025 Autoform India. All rights reserved.</p>
                 <p style="margin-top: 10px; color: #999;">
                   This email was sent to ${vendorEmail}
                 </p>
@@ -466,7 +466,7 @@ export class EmailService {
               
               <p>Thank you for choosing our products!</p>
               
-              <p>Best regards,<br>Warranty Portal Team</p>
+              <p>Best regards,<br>Autoform India Team</p>
             </div>
           </div>
         </body>
@@ -484,7 +484,12 @@ export class EmailService {
     productType: string,
     carMake: string,
     carModel: string,
-    productDetails?: any
+    productDetails?: any,
+    warrantyType?: string,
+    storeName?: string,
+    storeAddress?: string,
+    storePhone?: string,
+    applicatorName?: string
   ): Promise<void> {
     const productName = productDetails?.product || productDetails?.productName || productType;
     const mailOptions = {
@@ -597,10 +602,21 @@ export class EmailService {
                 ` : ''}
                 <p><strong>Product:</strong> ${productName.replace(/-/g, ' ').toUpperCase()}</p>
                 <p><strong>Product Type:</strong> ${productType}</p>
+                <p><strong>Warranty Type:</strong> ${warrantyType || '1 Year'}</p>
                 <p><strong>Vehicle:</strong> ${carMake} ${carModel}</p>
                 <p><strong>Approval Date:</strong> ${new Date().toLocaleDateString()}</p>
                 <p><strong>Status:</strong> <span style="color: #28a745; font-weight: bold;">ACTIVE</span></p>
               </div>
+              
+              ${storeName ? `
+              <div class="info-box" style="margin-top: 15px;">
+                <p style="margin: 0 0 10px 0; font-weight: bold; color: #4facfe;">🏪 Store Details:</p>
+                <p><strong>Store Name:</strong> ${storeName}</p>
+                ${storeAddress ? `<p><strong>Address:</strong> ${storeAddress}</p>` : ''}
+                ${storePhone ? `<p><strong>Phone:</strong> ${storePhone}</p>` : ''}
+                ${applicatorName ? `<p><strong>Applicator:</strong> ${applicatorName}</p>` : ''}
+              </div>
+              ` : ''}
 
               <div class="important-note">
                 <p style="margin: 0 0 10px 0;"><strong>📌 Important Information:</strong></p>
@@ -614,12 +630,12 @@ export class EmailService {
               
               <p style="margin-top: 30px;">If you have any questions about your warranty coverage, please don't hesitate to contact our support team at <a href="mailto:${process.env.EMAIL_FROM}" style="color: #4facfe;">${process.env.EMAIL_FROM}</a>.</p>
               
-              <p>Thank you for choosing Seal Guardian!</p>
+              <p>Thank you for choosing Autoform India!</p>
               
-              <p>Best regards,<br><strong>Seal Guardian Team</strong></p>
+              <p>Best regards,<br><strong>Autoform India Team</strong></p>
               
               <div class="footer">
-                <p>© 2025 Seal Guardian Warranty Portal. All rights reserved.</p>
+                <p>© 2025 Autoform India. All rights reserved.</p>
                 <p style="margin-top: 10px; color: #999;">
                   This email was sent to ${customerEmail}
                 </p>
@@ -642,7 +658,12 @@ export class EmailService {
     carMake: string,
     carModel: string,
     rejectionReason: string,
-    productDetails?: any
+    productDetails?: any,
+    warrantyType?: string,
+    storeName?: string,
+    storeAddress?: string,
+    storePhone?: string,
+    applicatorName?: string
   ): Promise<void> {
     const productName = productDetails?.product || productDetails?.productName || productType;
     const mailOptions = {
@@ -767,9 +788,20 @@ export class EmailService {
                   <p><strong>Vehicle Registration:</strong> ${productDetails.carRegistration || 'N/A'}</p>
                 ` : ''}
                 <p><strong>Product Type:</strong> ${productType}</p>
+                <p><strong>Warranty Type:</strong> ${warrantyType || '1 Year'}</p>
                 <p><strong>Vehicle:</strong> ${carMake} ${carModel}</p>
                 <p><strong>Review Date:</strong> ${new Date().toLocaleDateString()}</p>
               </div>
+              
+              ${storeName ? `
+              <div class="info-box" style="margin-top: 15px;">
+                <p style="margin: 0 0 10px 0; font-weight: bold; color: #ff6b6b;">🏪 Store Details:</p>
+                <p><strong>Store Name:</strong> ${storeName}</p>
+                ${storeAddress ? `<p><strong>Address:</strong> ${storeAddress}</p>` : ''}
+                ${storePhone ? `<p><strong>Phone:</strong> ${storePhone}</p>` : ''}
+                ${applicatorName ? `<p><strong>Applicator:</strong> ${applicatorName}</p>` : ''}
+              </div>
+              ` : ''}
 
               <div class="reason-box">
                 <h4>🔍 Reason for Decision:</h4>
@@ -790,10 +822,10 @@ export class EmailService {
               
               <p>We're here to help you get your warranty approved and would be happy to assist you with the resubmission process.</p>
               
-              <p>Best regards,<br><strong>Seal Guardian Team</strong></p>
+              <p>Best regards,<br><strong>Autoform India Team</strong></p>
               
               <div class="footer">
-                <p>© 2025 Seal Guardian Warranty Portal. All rights reserved.</p>
+                <p>© 2025 Autoform India. All rights reserved.</p>
                 <p style="margin-top: 10px; color: #999;">
                   This email was sent to ${customerEmail}
                 </p>
@@ -817,8 +849,24 @@ export class EmailService {
     carMake: string,
     carModel: string,
     manpowerName: string,
-    registrationNumber: string
+    uid: string,
+    productDetails?: any,
+    warrantyType?: string,
+    customerAddress?: string
   ): Promise<void> {
+    // Get product name from productDetails
+    const productNameMapping: Record<string, string> = {
+      'paint-protection': 'Paint Protection Films',
+      'sun-protection': 'Sun Protection Films',
+      'seat-cover': 'Seat Cover',
+      'ev-products': 'EV Products'
+    };
+    const rawProductName = productDetails?.product || productDetails?.productName || productType;
+    const productName = productNameMapping[rawProductName] || rawProductName;
+
+    // Determine the label for UID based on product type
+    const idLabel = productType === 'seat-cover' ? 'UID' : 'Registration Number';
+
     const mailOptions = {
       from: process.env.EMAIL_FROM,
       to: vendorEmail,
@@ -927,9 +975,12 @@ export class EmailService {
                 <p style="margin: 0 0 10px 0; font-weight: bold; color: #11998e;">📋 Customer Details:</p>
                 <p><strong>Customer Name:</strong> ${customerName}</p>
                 <p><strong>Phone:</strong> ${customerPhone}</p>
+                ${customerAddress ? `<p><strong>Address:</strong> ${customerAddress}</p>` : ''}
+                <p><strong>Product Name:</strong> ${productName}</p>
                 <p><strong>Product Type:</strong> ${productType}</p>
+                <p><strong>Warranty Type:</strong> ${warrantyType || '1 Year'}</p>
                 <p><strong>Vehicle:</strong> ${carMake} ${carModel}</p>
-                <p><strong>Registration Number:</strong> ${registrationNumber}</p>
+                <p><strong>${idLabel}:</strong> ${uid}</p>
               </div>
               
               <div class="highlight-box">
@@ -942,10 +993,10 @@ export class EmailService {
               
               <p>If you have any questions, please contact our support team at <a href="mailto:${process.env.EMAIL_FROM}" style="color: #11998e;">${process.env.EMAIL_FROM}</a>.</p>
               
-              <p>Best regards,<br><strong>Seal Guardian Team</strong></p>
+              <p>Best regards,<br><strong>Autoform India Team</strong></p>
               
               <div class="footer">
-                <p>© 2025 Seal Guardian Warranty Portal. All rights reserved.</p>
+                <p>© 2025 Autoform India. All rights reserved.</p>
                 <p style="margin-top: 10px; color: #999;">
                   This email was sent to ${vendorEmail}
                 </p>
@@ -969,9 +1020,25 @@ export class EmailService {
     carMake: string,
     carModel: string,
     manpowerName: string,
-    registrationNumber: string,
-    rejectionReason: string
+    uid: string,
+    rejectionReason: string,
+    productDetails?: any,
+    warrantyType?: string,
+    customerAddress?: string
   ): Promise<void> {
+    // Get product name from productDetails
+    const productNameMapping: Record<string, string> = {
+      'paint-protection': 'Paint Protection Films',
+      'sun-protection': 'Sun Protection Films',
+      'seat-cover': 'Seat Cover',
+      'ev-products': 'EV Products'
+    };
+    const rawProductName = productDetails?.product || productDetails?.productName || productType;
+    const productName = productNameMapping[rawProductName] || rawProductName;
+
+    // Determine the label for UID based on product type
+    const idLabel = productType === 'seat-cover' ? 'UID' : 'Registration Number';
+
     const mailOptions = {
       from: process.env.EMAIL_FROM,
       to: vendorEmail,
@@ -1088,9 +1155,12 @@ export class EmailService {
                 <p style="margin: 0 0 10px 0; font-weight: bold; color: #ff9800;">Customer Details:</p>
                 <p><strong>Customer Name:</strong> ${customerName}</p>
                 <p><strong>Phone:</strong> ${customerPhone}</p>
+                ${customerAddress ? `<p><strong>Address:</strong> ${customerAddress}</p>` : ''}
+                <p><strong>Product Name:</strong> ${productName}</p>
                 <p><strong>Product Type:</strong> ${productType}</p>
+                <p><strong>Warranty Type:</strong> ${warrantyType || '1 Year'}</p>
                 <p><strong>Vehicle:</strong> ${carMake} ${carModel}</p>
-                <p><strong>Registration Number:</strong> ${registrationNumber}</p>
+                <p><strong>${idLabel}:</strong> ${uid}</p>
                 <p><strong>Installer:</strong> ${manpowerName}</p>
               </div>
               
@@ -1114,10 +1184,10 @@ export class EmailService {
               
               <p>We appreciate your cooperation and look forward to successful warranty registrations in the future.</p>
               
-              <p>Best regards,<br><strong>Seal Guardian Team</strong></p>
+              <p>Best regards,<br><strong>Autoform India Team</strong></p>
               
               <div class="footer">
-                <p>© 2025 Seal Guardian Warranty Portal. All rights reserved.</p>
+                <p>© 2025 Autoform India. All rights reserved.</p>
                 <p style="margin-top: 10px; color: #999;">
                   This email was sent to ${vendorEmail}
                 </p>
@@ -1270,10 +1340,10 @@ export class EmailService {
               
               <p>If you have any urgent questions about your application, please contact our support team at <a href="mailto:${process.env.EMAIL_FROM}" style="color: #667eea;">${process.env.EMAIL_FROM}</a>.</p>
               
-              <p>Best regards,<br><strong>Seal Guardian Team</strong></p>
+              <p>Best regards,<br><strong>Autoform India Team</strong></p>
               
               <div class="footer">
-                <p>© 2025 Seal Guardian Warranty Portal. All rights reserved.</p>
+                <p>© 2025 Autoform India. All rights reserved.</p>
                 <p style="margin-top: 10px; color: #999;">
                   This email was sent to ${vendorEmail}
                 </p>
@@ -1298,7 +1368,7 @@ export class EmailService {
     const mailOptions = {
       from: process.env.EMAIL_FROM,
       to: adminEmail,
-      subject: '🎉 You\'ve Been Invited as an Administrator - Seal Guardian Warranty Portal',
+      subject: '🎉 You\'ve Been Invited as an Administrator - Autoform India Warranty Portal',
       html: `
         <!DOCTYPE html>
         <html>
@@ -1442,7 +1512,7 @@ export class EmailService {
                 <p style="color: #1e3a5f; margin: 5px 0 0 0;">You have been invited as an Administrator by ${invitedByName}</p>
               </div>
               
-              <p>Congratulations! You've been granted administrative access to the Seal Guardian Warranty Portal. As an administrator, you'll have full control over warranty management, vendor verification, and customer oversight.</p>
+              <p>Congratulations! You've been granted administrative access to the Autoform India Warranty Portal. As an administrator, you'll have full control over warranty management, vendor verification, and customer oversight.</p>
               
               <div class="info-box">
                 <p style="margin: 0 0 10px 0; font-weight: bold; color: #2d5a87;">📧 Your Login Credentials:</p>
@@ -1494,10 +1564,10 @@ export class EmailService {
               
               <p>If you have any questions or need assistance, please contact the support team at <a href="mailto:${process.env.EMAIL_FROM}" style="color: #2d5a87;">${process.env.EMAIL_FROM}</a>.</p>
               
-              <p>Best regards,<br><strong>Seal Guardian Team</strong></p>
+              <p>Best regards,<br><strong>Autoform India Team</strong></p>
               
               <div class="footer">
-                <p>© 2025 Seal Guardian Warranty Portal. All rights reserved.</p>
+                <p>© 2025 Autoform India. All rights reserved.</p>
                 <p style="margin-top: 10px; color: #999;">
                   This email was sent to ${adminEmail}
                 </p>

@@ -29,15 +29,7 @@ const pool = mysql.createPool({
   keepAliveInitialDelay: 0
 });
 
-// Test connection
-pool.getConnection()
-  .then(connection => {
-    console.log('✓ MySQL Database connected successfully');
-    connection.release();
-  })
-  .catch(err => {
-    console.error('✗ MySQL connection error:', err.message);
-    console.error('Full error:', err);
-  });
+// Connection test removed for serverless performance
+// pool.getConnection()...
 
 export default pool;

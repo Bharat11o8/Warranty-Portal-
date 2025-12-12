@@ -1,5 +1,5 @@
 import { v4 as uuidv4 } from "uuid";
-import db from "../config/database";
+import db from "../config/database.js";
 import nodemailer from "nodemailer"; // if you want to send via email
 
 export class OTPService {

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate, useSearchParams, Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,6 +17,8 @@ const Login = () => {
   const [userId, setUserId] = useState<string>("");
   const [showOTP, setShowOTP] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [resendTimer, setResendTimer] = useState(0);
+  const [resendLoading, setResendLoading] = useState(false);
 
   const navigate = useNavigate();
   const { login, verifyOTP } = useAuth();
@@ -24,6 +26,14 @@ const Login = () => {
 
   // Admin email whitelist
   const ADMIN_EMAIL = "prabhat@autoformindia.com";
+
+  // Countdown timer effect
+  useEffect(() => {
+    if (resendTimer > 0) {
+      const timer = setTimeout(() => setResendTimer(resendTimer - 1), 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [resendTimer]);
 
   // Step 1: Email login (no password)
   const handleLogin = async (e: React.FormEvent) => {
@@ -46,6 +56,7 @@ const Login = () => {
       if (result.requiresOTP && result.userId) {
         setUserId(result.userId);
         setShowOTP(true);
+        setResendTimer(30); // Start 30 second countdown
         toast({
           title: "OTP Sent",
           description: "Please check your email for the OTP code.",
@@ -100,6 +111,41 @@ const Login = () => {
     }
   };
 
+  // Resend OTP handler
+  const handleResendOTP = async () => {
+    if (resendTimer > 0 || resendLoading) return;
+
+    setResendLoading(true);
+    try {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/auth/resend-otp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId })
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        setResendTimer(30); // Reset countdown
+        setOtp(""); // Clear old OTP input
+        toast({
+          title: "OTP Resent",
+          description: "A new OTP has been sent to your email.",
+        });
+      } else {
+        throw new Error(data.error || "Failed to resend OTP");
+      }
+    } catch (error: any) {
+      toast({
+        title: "Resend Failed",
+        description: error.message || "Failed to resend OTP. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setResendLoading(false);
+    }
+  };
+
   // Get role-specific text and icons
   const getRoleConfig = () => {
     switch (role) {
@@ -117,7 +163,7 @@ const Login = () => {
         };
       case "vendor":
         return {
-          title: "Vendor Login",
+          title: "Franchise Login",
           subtitle: showOTP
             ? "Enter the OTP sent to your email"
             : "Enter your store email to continue",
@@ -244,10 +290,28 @@ const Login = () => {
                   setShowOTP(false);
                   setOtp("");
                   setUserId("");
+                  setResendTimer(0);
                 }}
               >
                 Back to Login
               </Button>
+
+              <div className="text-center">
+                <button
+                  type="button"
+                  onClick={handleResendOTP}
+                  disabled={resendTimer > 0 || resendLoading}
+                  className={`text-sm ${resendTimer > 0 || resendLoading ? 'text-muted-foreground cursor-not-allowed' : 'text-primary hover:underline cursor-pointer'}`}
+                >
+                  {resendLoading ? (
+                    "Sending..."
+                  ) : resendTimer > 0 ? (
+                    `Resend OTP in ${resendTimer}s`
+                  ) : (
+                    "Didn't receive OTP? Resend"
+                  )}
+                </button>
+              </div>
             </form>
           )}
         </div>

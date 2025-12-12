@@ -1,32 +1,62 @@
-import { useEffect, useState } from "react";
-import { Navigate } from "react-router-dom";
-import api from "@/lib/api";
+import { useState, useEffect } from "react";
+import { useNavigate, Navigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
-import Header from "@/components/Header";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useToast } from "@/hooks/use-toast";
 import {
-    Package,
-    Search,
-    Filter,
+    LogOut,
     Users,
-    User,
-    Store,
+    FileCheck,
     ShieldCheck,
     AlertCircle,
-    TrendingUp,
+    CheckCircle2,
+    XCircle,
+    Clock,
+    Search,
+    Filter,
+    Download,
+    Eye,
     Trash2,
+    MoreVertical,
+    UserPlus,
+    Package,
     Check,
     X,
     FileText,
-    Eye,
-    Download
+    User,
+    Store,
+    TrendingUp,
+    Mail,
+    Phone,
+    MapPin
 } from "lucide-react";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useToast } from "@/hooks/use-toast";
+import api from "@/lib/api";
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+    DialogTrigger,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { ProductManagement } from "@/components/admin/ProductManagement";
 import { downloadCSV } from "@/lib/utils";
+import Header from "@/components/Header";
+import { Pagination } from "@/components/Pagination";
 
 const AdminWarrantyList = ({
     items,
@@ -91,13 +121,13 @@ const AdminWarrantyList = ({
                                     warranty.status === 'validated' ? 'default' :
                                         warranty.status === 'rejected' ? 'destructive' : 'secondary'
                                 } className={warranty.status === 'validated' ? 'bg-green-600' : ''}>
-                                    {warranty.status}
+                                    {warranty.status === 'validated' ? 'Approved' : warranty.status === 'rejected' ? 'Disapproved' : warranty.status}
                                 </Badge>
                             </div>
 
                             <div className={`grid grid-cols-2 ${warranty.product_type === 'ev-products'
-                                ? (showRejectionReason ? 'md:grid-cols-9' : 'md:grid-cols-8')
-                                : (showRejectionReason ? 'md:grid-cols-8' : 'md:grid-cols-7')
+                                ? (showRejectionReason ? 'lg:grid-cols-9 md:grid-cols-4' : 'lg:grid-cols-8 md:grid-cols-4')
+                                : (showRejectionReason ? 'lg:grid-cols-8 md:grid-cols-4' : 'lg:grid-cols-7 md:grid-cols-3')
                                 } gap-4 mt-4 pt-4 border-t`}>
 
                                 <div>
@@ -191,7 +221,7 @@ const AdminWarrantyList = ({
                                                             <div className="space-y-4">
                                                                 <div className="border rounded-lg p-4 bg-muted/50">
                                                                     <img
-                                                                        src={`http://localhost:3000/uploads/${invoiceFile}`}
+                                                                        src={(typeof invoiceFile === 'string' && invoiceFile.startsWith('http')) ? invoiceFile : `http://localhost:3000/uploads/${invoiceFile}`}
                                                                         alt="Invoice"
                                                                         className="w-full h-auto rounded"
                                                                         onError={(e) => {
@@ -208,7 +238,7 @@ const AdminWarrantyList = ({
                                                                 <Button
                                                                     className="w-full"
                                                                     onClick={() => {
-                                                                        const fileUrl = `http://localhost:3000/uploads/${invoiceFile}`;
+                                                                        const fileUrl = (typeof invoiceFile === 'string' && invoiceFile.startsWith('http')) ? invoiceFile : `http://localhost:3000/uploads/${invoiceFile}`;
                                                                         fetch(fileUrl)
                                                                             .then(res => res.blob())
                                                                             .then(blob => {
@@ -324,13 +354,13 @@ const AdminWarrantyList = ({
                                                                         <p className="text-sm font-medium text-muted-foreground">{labels[key] || key}</p>
                                                                         <div className="border rounded-lg overflow-hidden bg-muted/50 aspect-video relative group">
                                                                             <img
-                                                                                src={`http://localhost:3000/uploads/${filename}`}
+                                                                                src={(typeof filename === 'string' && filename.startsWith('http')) ? filename : `http://localhost:3000/uploads/${filename}`}
                                                                                 alt={labels[key]}
                                                                                 className="w-full h-full object-cover"
                                                                             />
                                                                             <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                                                                                 <a
-                                                                                    href={`http://localhost:3000/uploads/${filename}`}
+                                                                                    href={(typeof filename === 'string' && filename.startsWith('http')) ? filename : `http://localhost:3000/uploads/${filename}`}
                                                                                     target="_blank"
                                                                                     rel="noopener noreferrer"
                                                                                     className="text-white text-xs bg-black/50 px-2 py-1 rounded hover:bg-black/70"
@@ -353,13 +383,13 @@ const AdminWarrantyList = ({
                                                                 <p className="text-sm font-medium text-muted-foreground">Invoice / MRP Sticker</p>
                                                                 <div className="border rounded-lg overflow-hidden bg-muted/50 aspect-video relative group">
                                                                     <img
-                                                                        src={`http://localhost:3000/uploads/${productDetails.invoiceFileName}`}
+                                                                        src={(typeof productDetails.invoiceFileName === 'string' && productDetails.invoiceFileName.startsWith('http')) ? productDetails.invoiceFileName : `http://localhost:3000/uploads/${productDetails.invoiceFileName}`}
                                                                         alt="Invoice"
                                                                         className="w-full h-full object-cover"
                                                                     />
                                                                     <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                                                                         <a
-                                                                            href={`http://localhost:3000/uploads/${productDetails.invoiceFileName}`}
+                                                                            href={(typeof productDetails.invoiceFileName === 'string' && productDetails.invoiceFileName.startsWith('http')) ? productDetails.invoiceFileName : `http://localhost:3000/uploads/${productDetails.invoiceFileName}`}
                                                                             target="_blank"
                                                                             rel="noopener noreferrer"
                                                                             className="text-white text-xs bg-black/50 px-2 py-1 rounded hover:bg-black/70"
@@ -462,7 +492,7 @@ const AdminWarrantyList = ({
                                                             warranty.status === 'validated' ? 'default' :
                                                                 warranty.status === 'rejected' ? 'destructive' : 'secondary'
                                                         } className={warranty.status === 'validated' ? 'bg-green-600' : ''}>
-                                                            {warranty.status.toUpperCase()}
+                                                            {warranty.status === 'validated' ? 'APPROVED' : warranty.status === 'rejected' ? 'DISAPPROVED' : warranty.status.toUpperCase()}
                                                         </Badge>
                                                         {warranty.rejection_reason && (
                                                             <p className="text-sm text-destructive">Reason: {warranty.rejection_reason}</p>
@@ -558,6 +588,8 @@ const AdminDashboard = () => {
     const [warranties, setWarranties] = useState<any[]>([]);
     const [loadingWarranties, setLoadingWarranties] = useState(false);
     const [processingWarranty, setProcessingWarranty] = useState<string | null>(null);
+    const [warrantyPagination, setWarrantyPagination] = useState({ currentPage: 1, totalPages: 1, totalCount: 0, limit: 30, hasNextPage: false, hasPrevPage: false });
+    const [activityLogPagination, setActivityLogPagination] = useState({ currentPage: 1, totalPages: 1, totalCount: 0, limit: 30, hasNextPage: false, hasPrevPage: false });
     const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
     const [rejectReason, setRejectReason] = useState("");
     const [selectedWarrantyId, setSelectedWarrantyId] = useState<string | null>(null);
@@ -759,9 +791,9 @@ const AdminDashboard = () => {
             'Address': v.full_address || v.address || 'N/A',
             'Pincode': v.pincode || 'N/A',
             'Status': v.is_verified ? 'Approved' : (v.verified_at ? 'Disapproved' : 'Pending'),
-            'Validated Warranties': v.validated_warranties || 0,
+            'Approved Warranties': v.validated_warranties || 0,
             'Pending Warranties': v.pending_warranties || 0,
-            'Rejected Warranties': v.rejected_warranties || 0,
+            'Disapproved Warranties': v.rejected_warranties || 0,
             'Total Warranties': v.total_warranties || 0,
             'Joined Date': new Date(v.created_at).toLocaleDateString()
         }));
@@ -816,8 +848,8 @@ const AdminDashboard = () => {
             'Email': c.customer_email,
             'Phone': c.customer_phone,
             'Address': c.customer_address || 'N/A',
-            'Validated Warranties': c.validated_warranties || 0,
-            'Rejected Warranties': c.rejected_warranties || 0,
+            'Approved Warranties': c.validated_warranties || 0,
+            'Disapproved Warranties': c.rejected_warranties || 0,
             'Pending Warranties': c.pending_warranties || 0,
             'Total Warranties': c.total_warranties || 0,
             'Registered Date': new Date(c.created_at).toLocaleDateString()
@@ -857,9 +889,9 @@ const AdminDashboard = () => {
             'Manpower ID': m.manpower_id,
             'Role': m.applicator_type.replace('_', ' ').toUpperCase(),
             'Status': m.is_active ? 'Active' : 'Inactive',
-            'Validated Points': m.points || 0,
+            'Approved Points': m.points || 0,
             'Pending Points': m.pending_points || 0,
-            'Rejected Points': m.rejected_points || 0,
+            'Disapproved Points': m.rejected_points || 0,
             'Total Applications': m.total_applications || 0,
             'Joined Date': new Date(m.created_at).toLocaleDateString()
         }));
@@ -900,7 +932,7 @@ const AdminDashboard = () => {
         } else if (activeTab === "customers" && !viewingCustomer) {
             fetchCustomers(customers.length > 0);
         } else if (activeTab === "warranties") {
-            fetchWarranties(warranties.length > 0);
+            fetchWarranties(warrantyPagination.currentPage, warranties.length > 0);
         } else if (activeTab === "admins") {
             fetchAdmins();
         } else if (activeTab === "activity-logs") {
@@ -960,12 +992,15 @@ const AdminDashboard = () => {
         }
     };
 
-    const fetchActivityLogs = async () => {
+    const fetchActivityLogs = async (page = 1) => {
         setLoadingLogs(true);
         try {
-            const response = await api.get("/admin/activity-logs?limit=100");
+            const response = await api.get(`/admin/activity-logs?page=${page}&limit=30`);
             if (response.data.success) {
                 setActivityLogs(response.data.logs);
+                if (response.data.pagination) {
+                    setActivityLogPagination(response.data.pagination);
+                }
             }
         } catch (error) {
             console.error("Failed to fetch activity logs:", error);
@@ -995,12 +1030,15 @@ const AdminDashboard = () => {
         }
     };
 
-    const fetchWarranties = async (background = false) => {
+    const fetchWarranties = async (page = 1, background = false) => {
         if (!background) setLoadingWarranties(true);
         try {
-            const response = await api.get("/admin/warranties");
+            const response = await api.get(`/admin/warranties?page=${page}&limit=30`);
             if (response.data.success) {
                 setWarranties(response.data.warranties);
+                if (response.data.pagination) {
+                    setWarrantyPagination(response.data.pagination);
+                }
             }
         } catch (error) {
             console.error("Failed to fetch warranties", error);
@@ -1024,8 +1062,8 @@ const AdminDashboard = () => {
         } catch (error) {
             console.error("Failed to fetch vendors:", error);
             toast({
-                title: "Vendor Fetch Failed",
-                description: "Failed to fetch vendors",
+                title: "Franchise Fetch Failed",
+                description: "Failed to fetch franchises",
                 variant: "destructive"
             });
         } finally {
@@ -1062,7 +1100,7 @@ const AdminDashboard = () => {
 
             if (response.data.success) {
                 toast({
-                    title: `Warranty ${status === 'validated' ? 'Approved' : 'Rejected'}`,
+                    title: `Warranty ${status === 'validated' ? 'Approved' : 'Disapproved'}`,
                     description: response.data.message,
                     variant: status === 'validated' ? "default" : "destructive"
                 });
@@ -1099,7 +1137,7 @@ const AdminDashboard = () => {
 
                 // Refresh main list in background if needed (to ensure consistency)
                 if (activeTab === "warranties") {
-                    fetchWarranties(true);
+                    fetchWarranties(warrantyPagination.currentPage, true);
                 }
 
                 // Refresh related lists in background
@@ -1144,8 +1182,8 @@ const AdminDashboard = () => {
         } catch (error) {
             console.error("Failed to fetch vendor details:", error);
             toast({
-                title: "Vendor Details Fetch Failed",
-                description: "Failed to fetch vendor details",
+                title: "Franchise Details Fetch Failed",
+                description: "Failed to fetch franchise details",
                 variant: "destructive"
             });
         }
@@ -1161,7 +1199,7 @@ const AdminDashboard = () => {
 
             if (response.data.success) {
                 toast({
-                    title: isVerified ? "Vendor Approved" : "Vendor Rejected",
+                    title: isVerified ? "Franchise Approved" : "Franchise Disapproved",
                     description: response.data.message,
                     variant: isVerified ? "default" : "destructive"
                 });
@@ -1192,8 +1230,8 @@ const AdminDashboard = () => {
             const response = await api.delete(`/admin/vendors/${vendorId}`);
             if (response.data.success) {
                 toast({
-                    title: "Vendor Deleted",
-                    description: "Vendor deleted successfully",
+                    title: "Franchise Deleted",
+                    description: "Franchise deleted successfully",
                 });
                 setVendors(vendors.filter(v => v.id !== vendorId));
                 fetchStats();
@@ -1237,7 +1275,7 @@ const AdminDashboard = () => {
                         </CardHeader>
                         <CardContent>
                             <Tabs value={customerWarrantyFilter} onValueChange={(value: any) => setCustomerWarrantyFilter(value)} className="mb-4">
-                                <TabsList>
+                                <TabsList className="grid w-full grid-cols-2 h-auto md:inline-flex md:w-auto md:h-10">
                                     <TabsTrigger value="all">All ({selectedCustomer.warranties?.length || 0})</TabsTrigger>
                                     <TabsTrigger value="validated">Approved ({selectedCustomer.warranties?.filter((w: any) => w.status === 'validated').length || 0})</TabsTrigger>
                                     <TabsTrigger value="rejected">Disapproved ({selectedCustomer.warranties?.filter((w: any) => w.status === 'rejected').length || 0})</TabsTrigger>
@@ -1575,7 +1613,7 @@ const AdminDashboard = () => {
                     </div>
 
                     <Tabs defaultValue="warranties" className="space-y-4">
-                        <TabsList>
+                        <TabsList className="grid w-full grid-cols-2 h-auto">
                             <TabsTrigger value="warranties">Warranties ({selectedVendor.warranties?.length || 0})</TabsTrigger>
                             <TabsTrigger value="manpower">Manpower ({selectedVendor.manpower?.length || 0})</TabsTrigger>
                         </TabsList>
@@ -1587,7 +1625,7 @@ const AdminDashboard = () => {
                                 </CardHeader>
                                 <CardContent>
                                     <Tabs value={vendorWarrantyFilter} onValueChange={(value: any) => setVendorWarrantyFilter(value)} className="mb-4">
-                                        <TabsList>
+                                        <TabsList className="grid w-full grid-cols-2 h-auto md:inline-flex md:w-auto md:h-10">
                                             <TabsTrigger value="all">All ({selectedVendor.warranties?.length || 0})</TabsTrigger>
                                             <TabsTrigger value="validated">Approved ({selectedVendor.warranties?.filter((w: any) => w.status === 'validated').length || 0})</TabsTrigger>
                                             <TabsTrigger value="rejected">Disapproved ({selectedVendor.warranties?.filter((w: any) => w.status === 'rejected').length || 0})</TabsTrigger>
@@ -1901,7 +1939,7 @@ const AdminDashboard = () => {
 
                                                                     <div>
                                                                         <p className="font-medium">{member.name}</p>
-                                                                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                                                        <div className="flex items-center gap-2 text-sm text-muted-foreground flex-wrap">
                                                                             <span>{member.phone_number}</span>
                                                                             <span>•</span>
                                                                             <span className="font-mono text-xs bg-muted px-1 py-0.5 rounded">{member.manpower_id}</span>
@@ -1910,7 +1948,7 @@ const AdminDashboard = () => {
                                                                             <span>•</span>
 
                                                                             <span className="inline-flex items-center rounded-full bg-green-100 px-2 py-0.5 text-xs font-semibold text-green-800">
-                                                                                {member.points || 0} Validated
+                                                                                {member.points || 0} Approved
                                                                             </span>
 
                                                                             <span className="inline-flex items-center rounded-full bg-yellow-100 px-2 py-0.5 text-xs font-semibold text-yellow-800">
@@ -1918,7 +1956,7 @@ const AdminDashboard = () => {
                                                                             </span>
 
                                                                             <span className="inline-flex items-center rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-800">
-                                                                                {member.rejected_points || 0} Rejected
+                                                                                {member.rejected_points || 0} Disapproved
                                                                             </span>
 
                                                                             <span>•</span>
@@ -1969,7 +2007,7 @@ const AdminDashboard = () => {
 
                                                                     <div>
                                                                         <p className="font-medium text-muted-foreground">{member.name}</p>
-                                                                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                                                        <div className="flex items-center gap-2 text-sm text-muted-foreground flex-wrap">
                                                                             <span>{member.phone_number}</span>
                                                                             <span>•</span>
                                                                             <span className="font-mono text-xs bg-muted px-1 py-0.5 rounded">{member.manpower_id}</span>
@@ -1978,7 +2016,7 @@ const AdminDashboard = () => {
                                                                             <span>•</span>
 
                                                                             <span className="inline-flex items-center rounded-full bg-green-100 px-2 py-0.5 text-xs font-semibold text-green-800">
-                                                                                {member.points || 0} Validated
+                                                                                {member.points || 0} Approved
                                                                             </span>
 
                                                                             <span className="inline-flex items-center rounded-full bg-yellow-100 px-2 py-0.5 text-xs font-semibold text-yellow-800">
@@ -1986,7 +2024,7 @@ const AdminDashboard = () => {
                                                                             </span>
 
                                                                             <span className="inline-flex items-center rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-800">
-                                                                                {member.rejected_points || 0} Rejected
+                                                                                {member.rejected_points || 0} Disapproved
                                                                             </span>
 
                                                                             <span>•</span>
@@ -2060,7 +2098,7 @@ const AdminDashboard = () => {
                 </div>
 
                 {/* Stats Cards - Dynamic based on active tab */}
-                <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-4 mb-6">
+                <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-4 mb-6">
                     {/* Warranties Tab Cards */}
                     {activeTab === 'warranties' && (
                         <>
@@ -2088,7 +2126,7 @@ const AdminDashboard = () => {
                                 </CardHeader>
                                 <CardContent>
                                     <div className="text-2xl font-bold text-green-700">{stats.validatedWarranties}</div>
-                                    <p className="text-xs text-green-600">Validated warranties</p>
+                                    <p className="text-xs text-green-600">Approved warranties</p>
                                 </CardContent>
                             </Card>
 
@@ -2102,7 +2140,7 @@ const AdminDashboard = () => {
                                 </CardHeader>
                                 <CardContent>
                                     <div className="text-2xl font-bold text-red-700">{stats.rejectedWarranties}</div>
-                                    <p className="text-xs text-red-600">Rejected warranties</p>
+                                    <p className="text-xs text-red-600">Disapproved warranties</p>
                                 </CardContent>
                             </Card>
 
@@ -2130,7 +2168,7 @@ const AdminDashboard = () => {
                                 onClick={() => setVendorFilter('all')}
                             >
                                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                                    <CardTitle className="text-sm font-medium">Total Vendors</CardTitle>
+                                    <CardTitle className="text-sm font-medium">Total Franchises</CardTitle>
                                     <Store className="h-4 w-4 text-muted-foreground" />
                                 </CardHeader>
                                 <CardContent>
@@ -2149,7 +2187,7 @@ const AdminDashboard = () => {
                                 </CardHeader>
                                 <CardContent>
                                     <div className="text-2xl font-bold text-green-700">{approvedVendorsCount}</div>
-                                    <p className="text-xs text-green-600">Verified vendors</p>
+                                    <p className="text-xs text-green-600">Verified franchises</p>
                                 </CardContent>
                             </Card>
 
@@ -2163,7 +2201,7 @@ const AdminDashboard = () => {
                                 </CardHeader>
                                 <CardContent>
                                     <div className="text-2xl font-bold text-red-700">{disapprovedVendorsCount}</div>
-                                    <p className="text-xs text-red-600">Rejected vendors</p>
+                                    <p className="text-xs text-red-600">Disapproved franchises</p>
                                 </CardContent>
                             </Card>
 
@@ -2215,7 +2253,7 @@ const AdminDashboard = () => {
                                 </CardHeader>
                                 <CardContent>
                                     <div className="text-2xl font-bold text-green-700">{stats.validatedWarranties}</div>
-                                    <p className="text-xs text-green-600">Validated warranties</p>
+                                    <p className="text-xs text-green-600">Approved warranties</p>
                                 </CardContent>
                             </Card>
 
@@ -2226,7 +2264,7 @@ const AdminDashboard = () => {
                                 </CardHeader>
                                 <CardContent>
                                     <div className="text-2xl font-bold text-red-700">{stats.rejectedWarranties}</div>
-                                    <p className="text-xs text-red-600">Rejected warranties</p>
+                                    <p className="text-xs text-red-600">Disapproved warranties</p>
                                 </CardContent>
                             </Card>
                         </>
@@ -2254,7 +2292,7 @@ const AdminDashboard = () => {
                                 onClick={() => setActiveTab('vendors')}
                             >
                                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                                    <CardTitle className="text-sm font-medium">Vendors</CardTitle>
+                                    <CardTitle className="text-sm font-medium">Franchises</CardTitle>
                                     <Store className="h-4 w-4 text-muted-foreground" />
                                 </CardHeader>
                                 <CardContent>
@@ -2292,11 +2330,12 @@ const AdminDashboard = () => {
                 </div>
 
                 <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-                    <TabsList className="grid grid-cols-4 mb-8">
+                    <TabsList className="grid grid-cols-2 md:grid-cols-4 mb-8 h-auto">
                         <TabsTrigger value="overview">Overview</TabsTrigger>
                         <TabsTrigger value="warranties">Warranties</TabsTrigger>
-                        <TabsTrigger value="vendors">Vendors</TabsTrigger>
+                        <TabsTrigger value="vendors">Franchises</TabsTrigger>
                         <TabsTrigger value="customers">Customers</TabsTrigger>
+                        {/* <TabsTrigger value="products">Products</TabsTrigger> */}
                     </TabsList>
 
                     <TabsContent value="overview" className="space-y-4">
@@ -2308,6 +2347,10 @@ const AdminDashboard = () => {
                                 </CardDescription>
                             </CardHeader>
                         </Card>
+                    </TabsContent>
+
+                    <TabsContent value="products" className="space-y-4">
+                        <ProductManagement />
                     </TabsContent>
 
                     <TabsContent value="warranties" className="space-y-4">
@@ -2323,7 +2366,7 @@ const AdminDashboard = () => {
                             <CardContent>
                                 {/* Filter Tabs */}
                                 <Tabs value={warrantyFilter} onValueChange={(value: any) => setWarrantyFilter(value)} className="mb-4">
-                                    <TabsList>
+                                    <TabsList className="grid w-full grid-cols-2 h-auto md:inline-flex md:w-auto md:h-10">
                                         <TabsTrigger value="all">All ({stats.totalWarranties})</TabsTrigger>
                                         <TabsTrigger value="validated">Approved ({stats.validatedWarranties})</TabsTrigger>
                                         <TabsTrigger value="rejected">Disapproved ({stats.rejectedWarranties})</TabsTrigger>
@@ -2489,8 +2532,8 @@ const AdminDashboard = () => {
                             <CardHeader>
                                 <div className="flex items-center justify-between">
                                     <div>
-                                        <CardTitle>Vendor Management</CardTitle>
-                                        <CardDescription>Manage registered vendors and their data</CardDescription>
+                                        <CardTitle>Franchise Management</CardTitle>
+                                        <CardDescription>Manage registered franchises and their data</CardDescription>
                                     </div>
                                     <div className="flex gap-2">
                                         <Button variant="outline" size="sm">
@@ -2503,7 +2546,7 @@ const AdminDashboard = () => {
                             <CardContent>
                                 {/* Vendor Filter Tabs */}
                                 <Tabs value={vendorFilter} onValueChange={(value: any) => setVendorFilter(value)} className="mb-4">
-                                    <TabsList>
+                                    <TabsList className="grid w-full grid-cols-2 h-auto md:inline-flex md:w-auto md:h-10">
                                         <TabsTrigger value="all">All ({vendors.length})</TabsTrigger>
                                         <TabsTrigger value="approved">Approved ({approvedVendorsCount})</TabsTrigger>
                                         <TabsTrigger value="disapproved">Disapproved ({disapprovedVendorsCount})</TabsTrigger>
@@ -2599,222 +2642,327 @@ const AdminDashboard = () => {
                                 ) : filteredVendors.length === 0 ? (
                                     <div className="text-center py-8 text-muted-foreground">No vendors found.</div>
                                 ) : (
-                                    <div className="relative w-full overflow-auto">
-                                        <table className="w-full caption-bottom text-sm">
-                                            <thead className="[&_tr]:border-b">
-                                                <tr className="border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted">
-                                                    {vendorFilter === 'pending' || vendorFilter === 'disapproved' || vendorFilter === 'all' ? (
-                                                        <>
-                                                            <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">S.No</th>
-                                                            <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Store Name</th>
-                                                            <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Contact Person</th>
-                                                            <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Store Email</th>
-                                                            {vendorFilter === 'all' && (
-                                                                <th className="h-12 px-4 text-center align-middle font-medium text-muted-foreground">Status</th>
+                                    <>
+                                        {/* Mobile View - Cards */}
+                                        <div className="md:hidden space-y-4">
+                                            {filteredVendors.map((vendor) => (
+                                                <Card key={vendor.id} className="overflow-hidden">
+                                                    <CardContent className="p-4">
+                                                        <div className="flex justify-between items-start mb-3">
+                                                            <div>
+                                                                <div className="font-semibold text-lg">{vendor.store_name || 'N/A'}</div>
+                                                                <div className="text-sm text-muted-foreground">{vendor.contact_name}</div>
+                                                            </div>
+                                                            {filteredVendors.length > 0 && (
+                                                                <div>
+                                                                    {vendor.is_verified ? (
+                                                                        <Badge className="bg-green-100 text-green-800 hover:bg-green-100">Approved</Badge>
+                                                                    ) : vendor.verified_at ? (
+                                                                        <Badge className="bg-red-100 text-red-800 hover:bg-red-100">Disapproved</Badge>
+                                                                    ) : (
+                                                                        <Badge className="bg-yellow-100 text-yellow-800 hover:bg-yellow-100">Pending</Badge>
+                                                                    )}
+                                                                </div>
                                                             )}
-                                                            <th className="h-12 px-4 text-center align-middle font-medium text-muted-foreground">Manpower</th>
-                                                            <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Location</th>
-                                                            <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Address</th>
-                                                            <th className="h-12 px-4 text-right align-middle font-medium text-muted-foreground">Actions</th>
-                                                        </>
-                                                    ) : (
-                                                        <>
-                                                            <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">S.No</th>
-                                                            <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Store Name</th>
-                                                            <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Contact Person</th>
-                                                            <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Store Email</th>
-                                                            <th className="h-12 px-4 text-center align-middle font-medium text-muted-foreground">Manpower</th>
-                                                            <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Location</th>
-                                                            <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Address</th>
-                                                            <th className="h-12 px-4 text-center align-middle font-medium text-muted-foreground">Validated</th>
-                                                            <th className="h-12 px-4 text-center align-middle font-medium text-muted-foreground">Pending</th>
-                                                            <th className="h-12 px-4 text-center align-middle font-medium text-muted-foreground">Rejected</th>
-                                                            <th className="h-12 px-4 text-center align-middle font-medium text-muted-foreground">Total</th>
-                                                            <th className="h-12 px-4 text-right align-middle font-medium text-muted-foreground">Actions</th>
-                                                        </>
-                                                    )}
-                                                </tr>
-                                            </thead>
-                                            <tbody className="[&_tr:last-child]:border-0">
-                                                {filteredVendors.map((vendor, index) => (
-                                                    <tr key={vendor.id} className="border-b transition-colors hover:bg-muted/50">
+                                                        </div>
+
+                                                        <div className="grid gap-2 text-sm mb-4">
+                                                            <div className="flex items-center gap-2">
+                                                                <Mail className="h-4 w-4 text-muted-foreground" />
+                                                                <span className="truncate">{vendor.store_email || 'N/A'}</span>
+                                                            </div>
+                                                            <div className="flex items-center gap-2">
+                                                                <Phone className="h-4 w-4 text-muted-foreground" />
+                                                                <span>{vendor.phone_number}</span>
+                                                            </div>
+                                                            <div className="flex items-center gap-2">
+                                                                <MapPin className="h-4 w-4 text-muted-foreground" />
+                                                                <span className="truncate">{vendor.city}, {vendor.state}</span>
+                                                            </div>
+                                                            <div className="flex items-center gap-2">
+                                                                <Users className="h-4 w-4 text-muted-foreground" />
+                                                                <span>{vendor.manpower_count} Manpower</span>
+                                                            </div>
+                                                        </div>
+
+                                                        <div className="flex flex-wrap gap-2 pt-2 border-t">
+                                                            {vendorFilter === 'pending' ? (
+                                                                <>
+                                                                    <Button
+                                                                        size="sm"
+                                                                        className="flex-1 bg-green-600 hover:bg-green-700"
+                                                                        onClick={() => handleVendorVerification(vendor.id, true)}
+                                                                        disabled={processingVendor === vendor.id}
+                                                                    >
+                                                                        <Check className="h-4 w-4 mr-1" /> Approve
+                                                                    </Button>
+                                                                    <Button
+                                                                        size="sm"
+                                                                        variant="destructive"
+                                                                        className="flex-1"
+                                                                        onClick={() => {
+                                                                            setSelectedVendor(vendor);
+                                                                            setVendorRejectDialogOpen(true);
+                                                                        }}
+                                                                        disabled={processingVendor === vendor.id}
+                                                                    >
+                                                                        <X className="h-4 w-4 mr-1" /> Reject
+                                                                    </Button>
+                                                                </>
+                                                            ) : (
+                                                                <>
+                                                                    <Button
+                                                                        variant="outline"
+                                                                        size="sm"
+                                                                        className="flex-1"
+                                                                        onClick={() => handleViewVendor(vendor.id)}
+                                                                    >
+                                                                        <Eye className="h-4 w-4 mr-2" /> View Details
+                                                                    </Button>
+                                                                    {vendorFilter === 'disapproved' && (
+                                                                        <Button
+                                                                            size="sm"
+                                                                            className="flex-1 bg-green-600 hover:bg-green-700"
+                                                                            onClick={() => handleVendorVerification(vendor.id, true)}
+                                                                            disabled={processingVendor === vendor.id}
+                                                                        >
+                                                                            <Check className="h-4 w-4 mr-1" /> Re-approve
+                                                                        </Button>
+                                                                    )}
+                                                                    <Button
+                                                                        variant="outline"
+                                                                        size="sm"
+                                                                        className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                                                                        onClick={() => handleDeleteVendor(vendor.id)}
+                                                                    >
+                                                                        <Trash2 className="h-4 w-4" />
+                                                                    </Button>
+                                                                </>
+                                                            )}
+                                                        </div>
+                                                    </CardContent>
+                                                </Card>
+                                            ))}
+                                        </div>
+
+                                        {/* Desktop View - Table */}
+                                        <div className="hidden md:block relative w-full overflow-auto">
+                                            <table className="w-full caption-bottom text-sm">
+                                                <thead className="[&_tr]:border-b">
+                                                    <tr className="border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted">
                                                         {vendorFilter === 'pending' || vendorFilter === 'disapproved' || vendorFilter === 'all' ? (
                                                             <>
-                                                                <td className="p-4 align-middle">{index + 1}</td>
-                                                                <td className="p-4 align-middle font-medium">{vendor.store_name || 'N/A'}</td>
-                                                                <td className="p-4 align-middle">
-                                                                    <div>{vendor.contact_name}</div>
-                                                                    <div className="text-xs text-muted-foreground">{vendor.phone_number}</div>
-                                                                </td>
-                                                                <td className="p-4 align-middle">{vendor.store_email || 'N/A'}</td>
+                                                                <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">S.No</th>
+                                                                <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Store Name</th>
+                                                                <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Contact Person</th>
+                                                                <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Store Email</th>
                                                                 {vendorFilter === 'all' && (
-                                                                    <td className="p-4 align-middle text-center">
-                                                                        {vendor.is_verified ? (
-                                                                            <span className="inline-flex items-center rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-semibold text-green-800">
-                                                                                Approved
-                                                                            </span>
-                                                                        ) : vendor.verified_at ? (
-                                                                            <span className="inline-flex items-center rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-semibold text-red-800">
-                                                                                Disapproved
-                                                                            </span>
-                                                                        ) : (
-                                                                            <span className="inline-flex items-center rounded-full bg-yellow-100 px-2.5 py-0.5 text-xs font-semibold text-yellow-800">
-                                                                                Pending
-                                                                            </span>
-                                                                        )}
-                                                                    </td>
+                                                                    <th className="h-12 px-4 text-center align-middle font-medium text-muted-foreground">Status</th>
                                                                 )}
-                                                                <td className="p-4 align-middle text-center">
-                                                                    <div>{vendor.manpower_count}</div>
-                                                                    <div className="text-xs text-muted-foreground">{vendor.manpower_names || 'No manpower'}</div>
-                                                                </td>
-                                                                <td className="p-4 align-middle">
-                                                                    <div>{vendor.city}</div>
-                                                                    <div className="text-xs text-muted-foreground">{vendor.state}</div>
-                                                                </td>
-                                                                <td className="p-4 align-middle">
-                                                                    <div className="max-w-[200px] truncate" title={vendor.full_address}>
-                                                                        {vendor.full_address || 'N/A'}
-                                                                    </div>
-                                                                    <div className="text-xs text-muted-foreground">{vendor.pincode}</div>
-                                                                </td>
-                                                                <td className="p-4 align-middle text-right">
-                                                                    <div className="flex justify-end gap-2">
-                                                                        {vendorFilter === 'pending' ? (
-                                                                            <>
-                                                                                <Button
-                                                                                    size="sm"
-                                                                                    className="bg-green-600 hover:bg-green-700 h-8 px-2"
-                                                                                    onClick={() => handleVendorVerification(vendor.id, true)}
-                                                                                    disabled={processingVendor === vendor.id}
-                                                                                >
-                                                                                    <Check className="h-4 w-4 mr-1" /> Approve
-                                                                                </Button>
-                                                                                <Button
-                                                                                    size="sm"
-                                                                                    variant="destructive"
-                                                                                    className="h-8 px-2"
-                                                                                    onClick={() => {
-                                                                                        setSelectedVendor(vendor);
-                                                                                        setVendorRejectDialogOpen(true);
-                                                                                    }}
-                                                                                    disabled={processingVendor === vendor.id}
-                                                                                >
-                                                                                    <X className="h-4 w-4 mr-1" /> Reject
-                                                                                </Button>
-                                                                            </>
-                                                                        ) : vendorFilter === 'disapproved' ? (
-                                                                            <>
-                                                                                <Button
-                                                                                    size="sm"
-                                                                                    className="bg-green-600 hover:bg-green-700 h-8 px-2"
-                                                                                    onClick={() => handleVendorVerification(vendor.id, true)}
-                                                                                    disabled={processingVendor === vendor.id}
-                                                                                >
-                                                                                    <Check className="h-4 w-4 mr-1" /> Re-approve
-                                                                                </Button>
-                                                                                <Button
-                                                                                    variant="ghost"
-                                                                                    size="icon"
-                                                                                    className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                                                                                    onClick={() => handleDeleteVendor(vendor.id)}
-                                                                                    title="Delete Vendor"
-                                                                                >
-                                                                                    <Trash2 className="h-4 w-4" />
-                                                                                </Button>
-                                                                            </>
-                                                                        ) : (
-                                                                            <>
-                                                                                <Button
-                                                                                    variant="ghost"
-                                                                                    size="icon"
-                                                                                    onClick={() => handleViewVendor(vendor.id)}
-                                                                                    title="View Details"
-                                                                                >
-                                                                                    <Users className="h-4 w-4" />
-                                                                                </Button>
-                                                                                <Button
-                                                                                    variant="ghost"
-                                                                                    size="icon"
-                                                                                    className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                                                                                    onClick={() => handleDeleteVendor(vendor.id)}
-                                                                                    title="Delete Vendor"
-                                                                                >
-                                                                                    <Trash2 className="h-4 w-4" />
-                                                                                </Button>
-                                                                            </>
-                                                                        )}
-                                                                    </div>
-                                                                </td>
+                                                                <th className="h-12 px-4 text-center align-middle font-medium text-muted-foreground">Manpower</th>
+                                                                <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Location</th>
+                                                                <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Address</th>
+                                                                <th className="h-12 px-4 text-right align-middle font-medium text-muted-foreground">Actions</th>
                                                             </>
                                                         ) : (
                                                             <>
-                                                                <td className="p-4 align-middle">{index + 1}</td>
-                                                                <td className="p-4 align-middle font-medium">{vendor.store_name || 'N/A'}</td>
-                                                                <td className="p-4 align-middle">
-                                                                    <div>{vendor.contact_name}</div>
-                                                                    <div className="text-xs text-muted-foreground">{vendor.phone_number}</div>
-                                                                </td>
-                                                                <td className="p-4 align-middle">{vendor.store_email || 'N/A'}</td>
-                                                                <td className="p-4 align-middle text-center">
-                                                                    <div>{vendor.manpower_count}</div>
-                                                                    <div className="text-xs text-muted-foreground">{vendor.manpower_names || 'No manpower'}</div>
-                                                                </td>
-                                                                <td className="p-4 align-middle">
-                                                                    <div>{vendor.city}</div>
-                                                                    <div className="text-xs text-muted-foreground">{vendor.state}</div>
-                                                                </td>
-                                                                <td className="p-4 align-middle">
-                                                                    <div className="max-w-[200px] truncate" title={vendor.full_address}>
-                                                                        {vendor.full_address || 'N/A'}
-                                                                    </div>
-                                                                    <div className="text-xs text-muted-foreground">{vendor.pincode}</div>
-                                                                </td>
-                                                                <td className="p-4 align-middle text-center text-green-600 font-medium">{vendor.validated_warranties}</td>
-                                                                <td className="p-4 align-middle text-center text-yellow-600 font-medium">{vendor.pending_warranties}</td>
-                                                                <td className="p-4 align-middle text-center text-red-600 font-medium">{vendor.rejected_warranties || 0}</td>
-                                                                <td className="p-4 align-middle text-center font-bold">{vendor.total_warranties}</td>
-                                                                <td className="p-4 align-middle text-right">
-                                                                    <div className="flex justify-end gap-2">
-                                                                        <Button
-                                                                            variant="ghost"
-                                                                            size="icon"
-                                                                            onClick={() => handleViewVendor(vendor.id)}
-                                                                            title="View Details"
-                                                                        >
-                                                                            <Users className="h-4 w-4" />
-                                                                        </Button>
-                                                                        <Button
-                                                                            size="sm"
-                                                                            variant="destructive"
-                                                                            className="h-8 px-2"
-                                                                            onClick={() => {
-                                                                                setSelectedVendor(vendor);
-                                                                                setVendorRejectDialogOpen(true);
-                                                                            }}
-                                                                            disabled={processingVendor === vendor.id}
-                                                                            title="Reject Vendor"
-                                                                        >
-                                                                            <X className="h-4 w-4 mr-1" /> Reject
-                                                                        </Button>
-                                                                        <Button
-                                                                            variant="ghost"
-                                                                            size="icon"
-                                                                            className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                                                                            onClick={() => handleDeleteVendor(vendor.id)}
-                                                                            title="Delete Vendor"
-                                                                        >
-                                                                            <Trash2 className="h-4 w-4" />
-                                                                        </Button>
-                                                                    </div>
-                                                                </td>
+                                                                <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">S.No</th>
+                                                                <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Store Name</th>
+                                                                <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Contact Person</th>
+                                                                <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Store Email</th>
+                                                                <th className="h-12 px-4 text-center align-middle font-medium text-muted-foreground">Manpower</th>
+                                                                <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Location</th>
+                                                                <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Address</th>
+                                                                <th className="h-12 px-4 text-center align-middle font-medium text-muted-foreground">Approved</th>
+                                                                <th className="h-12 px-4 text-center align-middle font-medium text-muted-foreground">Pending</th>
+                                                                <th className="h-12 px-4 text-center align-middle font-medium text-muted-foreground">Disapproved</th>
+                                                                <th className="h-12 px-4 text-center align-middle font-medium text-muted-foreground">Total</th>
+                                                                <th className="h-12 px-4 text-right align-middle font-medium text-muted-foreground">Actions</th>
                                                             </>
                                                         )}
                                                     </tr>
-                                                ))}
-                                            </tbody>
-                                        </table>
-                                    </div>
+                                                </thead>
+                                                <tbody className="[&_tr:last-child]:border-0">
+                                                    {filteredVendors.map((vendor, index) => (
+                                                        <tr key={vendor.id} className="border-b transition-colors hover:bg-muted/50">
+                                                            {vendorFilter === 'pending' || vendorFilter === 'disapproved' || vendorFilter === 'all' ? (
+                                                                <>
+                                                                    <td className="p-4 align-middle">{index + 1}</td>
+                                                                    <td className="p-4 align-middle font-medium">{vendor.store_name || 'N/A'}</td>
+                                                                    <td className="p-4 align-middle">
+                                                                        <div>{vendor.contact_name}</div>
+                                                                        <div className="text-xs text-muted-foreground">{vendor.phone_number}</div>
+                                                                    </td>
+                                                                    <td className="p-4 align-middle">{vendor.store_email || 'N/A'}</td>
+                                                                    {vendorFilter === 'all' && (
+                                                                        <td className="p-4 align-middle text-center">
+                                                                            {vendor.is_verified ? (
+                                                                                <span className="inline-flex items-center rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-semibold text-green-800">
+                                                                                    Approved
+                                                                                </span>
+                                                                            ) : vendor.verified_at ? (
+                                                                                <span className="inline-flex items-center rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-semibold text-red-800">
+                                                                                    Disapproved
+                                                                                </span>
+                                                                            ) : (
+                                                                                <span className="inline-flex items-center rounded-full bg-yellow-100 px-2.5 py-0.5 text-xs font-semibold text-yellow-800">
+                                                                                    Pending
+                                                                                </span>
+                                                                            )}
+                                                                        </td>
+                                                                    )}
+                                                                    <td className="p-4 align-middle text-center">
+                                                                        <div>{vendor.manpower_count}</div>
+                                                                        <div className="text-xs text-muted-foreground">{vendor.manpower_names || 'No manpower'}</div>
+                                                                    </td>
+                                                                    <td className="p-4 align-middle">
+                                                                        <div>{vendor.city}</div>
+                                                                        <div className="text-xs text-muted-foreground">{vendor.state}</div>
+                                                                    </td>
+                                                                    <td className="p-4 align-middle">
+                                                                        <div className="max-w-[200px] truncate" title={vendor.full_address}>
+                                                                            {vendor.full_address || 'N/A'}
+                                                                        </div>
+                                                                        <div className="text-xs text-muted-foreground">{vendor.pincode}</div>
+                                                                    </td>
+                                                                    <td className="p-4 align-middle text-right">
+                                                                        <div className="flex justify-end gap-2">
+                                                                            {vendorFilter === 'pending' ? (
+                                                                                <>
+                                                                                    <Button
+                                                                                        size="sm"
+                                                                                        className="bg-green-600 hover:bg-green-700 h-8 px-2"
+                                                                                        onClick={() => handleVendorVerification(vendor.id, true)}
+                                                                                        disabled={processingVendor === vendor.id}
+                                                                                    >
+                                                                                        <Check className="h-4 w-4 mr-1" /> Approve
+                                                                                    </Button>
+                                                                                    <Button
+                                                                                        size="sm"
+                                                                                        variant="destructive"
+                                                                                        className="h-8 px-2"
+                                                                                        onClick={() => {
+                                                                                            setSelectedVendor(vendor);
+                                                                                            setVendorRejectDialogOpen(true);
+                                                                                        }}
+                                                                                        disabled={processingVendor === vendor.id}
+                                                                                    >
+                                                                                        <X className="h-4 w-4 mr-1" /> Reject
+                                                                                    </Button>
+                                                                                </>
+                                                                            ) : vendorFilter === 'disapproved' ? (
+                                                                                <>
+                                                                                    <Button
+                                                                                        size="sm"
+                                                                                        className="bg-green-600 hover:bg-green-700 h-8 px-2"
+                                                                                        onClick={() => handleVendorVerification(vendor.id, true)}
+                                                                                        disabled={processingVendor === vendor.id}
+                                                                                    >
+                                                                                        <Check className="h-4 w-4 mr-1" /> Re-approve
+                                                                                    </Button>
+                                                                                    <Button
+                                                                                        variant="ghost"
+                                                                                        size="icon"
+                                                                                        className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                                                                                        onClick={() => handleDeleteVendor(vendor.id)}
+                                                                                        title="Delete Vendor"
+                                                                                    >
+                                                                                        <Trash2 className="h-4 w-4" />
+                                                                                    </Button>
+                                                                                </>
+                                                                            ) : (
+                                                                                <>
+                                                                                    <Button
+                                                                                        variant="ghost"
+                                                                                        size="icon"
+                                                                                        onClick={() => handleViewVendor(vendor.id)}
+                                                                                        title="View Details"
+                                                                                    >
+                                                                                        <Users className="h-4 w-4" />
+                                                                                    </Button>
+                                                                                    <Button
+                                                                                        variant="ghost"
+                                                                                        size="icon"
+                                                                                        className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                                                                                        onClick={() => handleDeleteVendor(vendor.id)}
+                                                                                        title="Delete Vendor"
+                                                                                    >
+                                                                                        <Trash2 className="h-4 w-4" />
+                                                                                    </Button>
+                                                                                </>
+                                                                            )}
+                                                                        </div>
+                                                                    </td>
+                                                                </>
+                                                            ) : (
+                                                                <>
+                                                                    <td className="p-4 align-middle">{index + 1}</td>
+                                                                    <td className="p-4 align-middle font-medium">{vendor.store_name || 'N/A'}</td>
+                                                                    <td className="p-4 align-middle">
+                                                                        <div>{vendor.contact_name}</div>
+                                                                        <div className="text-xs text-muted-foreground">{vendor.phone_number}</div>
+                                                                    </td>
+                                                                    <td className="p-4 align-middle">{vendor.store_email || 'N/A'}</td>
+                                                                    <td className="p-4 align-middle text-center">
+                                                                        <div>{vendor.manpower_count}</div>
+                                                                        <div className="text-xs text-muted-foreground">{vendor.manpower_names || 'No manpower'}</div>
+                                                                    </td>
+                                                                    <td className="p-4 align-middle">
+                                                                        <div>{vendor.city}</div>
+                                                                        <div className="text-xs text-muted-foreground">{vendor.state}</div>
+                                                                    </td>
+                                                                    <td className="p-4 align-middle">
+                                                                        <div className="max-w-[200px] truncate" title={vendor.full_address}>
+                                                                            {vendor.full_address || 'N/A'}
+                                                                        </div>
+                                                                        <div className="text-xs text-muted-foreground">{vendor.pincode}</div>
+                                                                    </td>
+                                                                    <td className="p-4 align-middle text-center text-green-600 font-medium">{vendor.validated_warranties}</td>
+                                                                    <td className="p-4 align-middle text-center text-yellow-600 font-medium">{vendor.pending_warranties}</td>
+                                                                    <td className="p-4 align-middle text-center text-red-600 font-medium">{vendor.rejected_warranties || 0}</td>
+                                                                    <td className="p-4 align-middle text-center font-bold">{vendor.total_warranties}</td>
+                                                                    <td className="p-4 align-middle text-right">
+                                                                        <div className="flex justify-end gap-2">
+                                                                            <Button
+                                                                                variant="ghost"
+                                                                                size="icon"
+                                                                                onClick={() => handleViewVendor(vendor.id)}
+                                                                                title="View Details"
+                                                                            >
+                                                                                <Users className="h-4 w-4" />
+                                                                            </Button>
+                                                                            <Button
+                                                                                size="sm"
+                                                                                variant="destructive"
+                                                                                className="h-8 px-2"
+                                                                                onClick={() => {
+                                                                                    setSelectedVendor(vendor);
+                                                                                    setVendorRejectDialogOpen(true);
+                                                                                }}
+                                                                                disabled={processingVendor === vendor.id}
+                                                                                title="Reject Vendor"
+                                                                            >
+                                                                                <X className="h-4 w-4 mr-1" /> Reject
+                                                                            </Button>
+                                                                            <Button
+                                                                                variant="ghost"
+                                                                                size="icon"
+                                                                                className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                                                                                onClick={() => handleDeleteVendor(vendor.id)}
+                                                                                title="Delete Vendor"
+                                                                            >
+                                                                                <Trash2 className="h-4 w-4" />
+                                                                            </Button>
+                                                                        </div>
+                                                                    </td>
+                                                                </>
+                                                            )}
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </>
                                 )}
                             </CardContent>
                         </Card>
@@ -2945,113 +3093,208 @@ const AdminDashboard = () => {
                                     }).length === 0 ? (
                                     <div className="text-center py-8 text-muted-foreground">No customers found.</div>
                                 ) : (
-                                    <div className="relative w-full overflow-auto">
-                                        <table className="w-full caption-bottom text-sm">
-                                            <thead className="[&_tr]:border-b">
-                                                <tr className="border-b transition-colors hover:bg-muted/50">
-                                                    <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">S.No</th>
-                                                    <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Customer Name</th>
-                                                    <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Email</th>
-                                                    <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Phone</th>
-                                                    <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Address</th>
-                                                    <th className="h-12 px-4 text-center align-middle font-medium text-muted-foreground">Validated</th>
-                                                    <th className="h-12 px-4 text-center align-middle font-medium text-muted-foreground">Rejected</th>
-                                                    <th className="h-12 px-4 text-center align-middle font-medium text-muted-foreground">Pending</th>
-                                                    <th className="h-12 px-4 text-center align-middle font-medium text-muted-foreground">Total</th>
-                                                    <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Registered</th>
-                                                    <th className="h-12 px-4 text-right align-middle font-medium text-muted-foreground">Actions</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody className="[&_tr:last-child]:border-0">
-                                                {customers
-                                                    .filter((customer: any) => {
-                                                        if (!customerSearch) return true;
-                                                        const search = customerSearch.toLowerCase();
-                                                        return (
-                                                            customer.customer_name?.toLowerCase().includes(search) ||
-                                                            customer.customer_email?.toLowerCase().includes(search) ||
-                                                            customer.customer_phone?.includes(search)
-                                                        );
-                                                    })
-                                                    .sort((a: any, b: any) => {
-                                                        let aVal = a[customerSortField];
-                                                        let bVal = b[customerSortField];
-                                                        if (customerSortField === 'created_at') {
-                                                            aVal = new Date(aVal).getTime();
-                                                            bVal = new Date(bVal).getTime();
-                                                        } else if (customerSortField === 'warranty_count') {
-                                                            aVal = Number(aVal) || 0;
-                                                            bVal = Number(bVal) || 0;
-                                                        } else {
-                                                            aVal = (aVal || '').toString().toLowerCase();
-                                                            bVal = (bVal || '').toString().toLowerCase();
-                                                        }
-                                                        return customerSortOrder === 'asc' ? (aVal > bVal ? 1 : -1) : (aVal < bVal ? 1 : -1);
-                                                    })
-                                                    .map((customer: any, index: number) => (
-                                                        <tr key={customer.customer_email} className="border-b transition-colors hover:bg-muted/50">
-                                                            <td className="p-4 align-middle font-medium">{index + 1}</td>
-                                                            <td className="p-4 align-middle">{customer.customer_name}</td>
-                                                            <td className="p-4 align-middle">
-                                                                <div className="text-sm">{customer.customer_email}</div>
-                                                            </td>
-                                                            <td className="p-4 align-middle">{customer.customer_phone}</td>
-                                                            <td className="p-4 align-middle">
-                                                                <div className="text-sm max-w-[200px] truncate" title={customer.customer_address}>
-                                                                    {customer.customer_address || 'N/A'}
-                                                                </div>
-                                                            </td>
-                                                            <td className="p-4 align-middle text-center">
-                                                                <span className="inline-flex items-center justify-center rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-semibold text-green-800">
-                                                                    {customer.validated_warranties || 0}
-                                                                </span>
-                                                            </td>
-                                                            <td className="p-4 align-middle text-center">
-                                                                <span className="inline-flex items-center justify-center rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-semibold text-red-800">
-                                                                    {customer.rejected_warranties || 0}
-                                                                </span>
-                                                            </td>
-                                                            <td className="p-4 align-middle text-center">
-                                                                <span className="inline-flex items-center justify-center rounded-full bg-yellow-100 px-2.5 py-0.5 text-xs font-semibold text-yellow-800">
-                                                                    {customer.pending_warranties || 0}
-                                                                </span>
-                                                            </td>
-                                                            <td className="p-4 align-middle text-center">
-                                                                <span className="inline-flex items-center justify-center rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-semibold text-blue-800">
-                                                                    {customer.total_warranties || 0}
-                                                                </span>
-                                                            </td>
-                                                            <td className="p-4 align-middle">
-                                                                <div className="text-sm">
-                                                                    {customer.first_warranty_date ? new Date(customer.first_warranty_date).toLocaleDateString() : 'N/A'}
+                                    <>
+                                        {/* Mobile View - Cards */}
+                                        <div className="md:hidden space-y-4">
+                                            {customers
+                                                .filter((customer: any) => {
+                                                    if (!customerSearch) return true;
+                                                    const search = customerSearch.toLowerCase();
+                                                    return (
+                                                        customer.customer_name?.toLowerCase().includes(search) ||
+                                                        customer.customer_email?.toLowerCase().includes(search) ||
+                                                        customer.customer_phone?.includes(search)
+                                                    );
+                                                })
+                                                .sort((a: any, b: any) => {
+                                                    let aVal = a[customerSortField];
+                                                    let bVal = b[customerSortField];
+                                                    if (customerSortField === 'created_at') {
+                                                        aVal = new Date(aVal).getTime();
+                                                        bVal = new Date(bVal).getTime();
+                                                    } else if (customerSortField === 'warranty_count') {
+                                                        aVal = Number(aVal) || 0;
+                                                        bVal = Number(bVal) || 0;
+                                                    } else {
+                                                        aVal = (aVal || '').toString().toLowerCase();
+                                                        bVal = (bVal || '').toString().toLowerCase();
+                                                    }
+                                                    return customerSortOrder === 'asc' ? (aVal > bVal ? 1 : -1) : (aVal < bVal ? 1 : -1);
+                                                })
+                                                .map((customer: any) => (
+                                                    <Card key={customer.customer_email} className="overflow-hidden">
+                                                        <CardContent className="p-4">
+                                                            <div className="flex justify-between items-start mb-3">
+                                                                <div>
+                                                                    <div className="font-semibold text-lg">{customer.customer_name}</div>
+                                                                    <div className="text-sm text-muted-foreground">{customer.customer_email}</div>
                                                                 </div>
                                                                 <div className="text-xs text-muted-foreground">
-                                                                    {customer.first_warranty_date ? new Date(customer.first_warranty_date).toLocaleTimeString() : ''}
+                                                                    {customer.first_warranty_date ? new Date(customer.first_warranty_date).toLocaleDateString() : 'N/A'}
                                                                 </div>
-                                                            </td>
-                                                            <td className="p-4 align-middle text-right">
-                                                                <div className="flex justify-end gap-2">
-                                                                    <Button
-                                                                        size="sm"
-                                                                        variant="outline"
-                                                                        onClick={() => handleViewCustomer(customer.customer_email)}
-                                                                    >
-                                                                        View
-                                                                    </Button>
-                                                                    <Button
-                                                                        size="sm"
-                                                                        variant="destructive"
-                                                                        onClick={() => handleDeleteCustomer(customer.customer_email)}
-                                                                    >
-                                                                        <Trash2 className="h-4 w-4" />
-                                                                    </Button>
+                                                            </div>
+
+                                                            <div className="grid gap-2 text-sm mb-4">
+                                                                <div className="flex items-center gap-2">
+                                                                    <Phone className="h-4 w-4 text-muted-foreground" />
+                                                                    <span>{customer.customer_phone}</span>
                                                                 </div>
-                                                            </td>
-                                                        </tr>
-                                                    ))}
-                                            </tbody>
-                                        </table>
-                                    </div>
+                                                                <div className="flex items-center gap-2">
+                                                                    <MapPin className="h-4 w-4 text-muted-foreground" />
+                                                                    <span className="truncate">{customer.customer_address || 'N/A'}</span>
+                                                                </div>
+                                                            </div>
+
+                                                            {/* Stats Grid */}
+                                                            <div className="grid grid-cols-4 gap-2 mb-4 text-center">
+                                                                <div className="bg-green-50 p-1 rounded">
+                                                                    <div className="font-bold text-green-700">{customer.validated_warranties || 0}</div>
+                                                                    <div className="text-[10px] text-green-800">Appr</div>
+                                                                </div>
+                                                                <div className="bg-red-50 p-1 rounded">
+                                                                    <div className="font-bold text-red-700">{customer.rejected_warranties || 0}</div>
+                                                                    <div className="text-[10px] text-red-800">Rej</div>
+                                                                </div>
+                                                                <div className="bg-yellow-50 p-1 rounded">
+                                                                    <div className="font-bold text-yellow-700">{customer.pending_warranties || 0}</div>
+                                                                    <div className="text-[10px] text-yellow-800">Pend</div>
+                                                                </div>
+                                                                <div className="bg-blue-50 p-1 rounded">
+                                                                    <div className="font-bold text-blue-700">{customer.total_warranties || 0}</div>
+                                                                    <div className="text-[10px] text-blue-800">Tot</div>
+                                                                </div>
+                                                            </div>
+
+                                                            <div className="flex gap-2">
+                                                                <Button
+                                                                    size="sm"
+                                                                    variant="outline"
+                                                                    className="flex-1"
+                                                                    onClick={() => handleViewCustomer(customer.customer_email)}
+                                                                >
+                                                                    <Eye className="h-4 w-4 mr-2" /> View
+                                                                </Button>
+                                                                <Button
+                                                                    size="sm"
+                                                                    variant="destructive"
+                                                                    className="flex-1"
+                                                                    onClick={() => handleDeleteCustomer(customer.customer_email)}
+                                                                >
+                                                                    <Trash2 className="h-4 w-4 mr-2" /> Delete
+                                                                </Button>
+                                                            </div>
+                                                        </CardContent>
+                                                    </Card>
+                                                ))}
+                                        </div>
+                                        <div className="hidden md:block relative w-full overflow-auto">
+                                            <table className="w-full caption-bottom text-sm">
+                                                <thead className="[&_tr]:border-b">
+                                                    <tr className="border-b transition-colors hover:bg-muted/50">
+                                                        <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">S.No</th>
+                                                        <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Customer Name</th>
+                                                        <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Email</th>
+                                                        <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Phone</th>
+                                                        <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Address</th>
+                                                        <th className="h-12 px-4 text-center align-middle font-medium text-muted-foreground">Approved</th>
+                                                        <th className="h-12 px-4 text-center align-middle font-medium text-muted-foreground">Disapproved</th>
+                                                        <th className="h-12 px-4 text-center align-middle font-medium text-muted-foreground">Pending</th>
+                                                        <th className="h-12 px-4 text-center align-middle font-medium text-muted-foreground">Total</th>
+                                                        <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Registered</th>
+                                                        <th className="h-12 px-4 text-right align-middle font-medium text-muted-foreground">Actions</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody className="[&_tr:last-child]:border-0">
+                                                    {customers
+                                                        .filter((customer: any) => {
+                                                            if (!customerSearch) return true;
+                                                            const search = customerSearch.toLowerCase();
+                                                            return (
+                                                                customer.customer_name?.toLowerCase().includes(search) ||
+                                                                customer.customer_email?.toLowerCase().includes(search) ||
+                                                                customer.customer_phone?.includes(search)
+                                                            );
+                                                        })
+                                                        .sort((a: any, b: any) => {
+                                                            let aVal = a[customerSortField];
+                                                            let bVal = b[customerSortField];
+                                                            if (customerSortField === 'created_at') {
+                                                                aVal = new Date(aVal).getTime();
+                                                                bVal = new Date(bVal).getTime();
+                                                            } else if (customerSortField === 'warranty_count') {
+                                                                aVal = Number(aVal) || 0;
+                                                                bVal = Number(bVal) || 0;
+                                                            } else {
+                                                                aVal = (aVal || '').toString().toLowerCase();
+                                                                bVal = (bVal || '').toString().toLowerCase();
+                                                            }
+                                                            return customerSortOrder === 'asc' ? (aVal > bVal ? 1 : -1) : (aVal < bVal ? 1 : -1);
+                                                        })
+                                                        .map((customer: any, index: number) => (
+                                                            <tr key={customer.customer_email} className="border-b transition-colors hover:bg-muted/50">
+                                                                <td className="p-4 align-middle font-medium">{index + 1}</td>
+                                                                <td className="p-4 align-middle">{customer.customer_name}</td>
+                                                                <td className="p-4 align-middle">
+                                                                    <div className="text-sm">{customer.customer_email}</div>
+                                                                </td>
+                                                                <td className="p-4 align-middle">{customer.customer_phone}</td>
+                                                                <td className="p-4 align-middle">
+                                                                    <div className="text-sm max-w-[200px] truncate" title={customer.customer_address}>
+                                                                        {customer.customer_address || 'N/A'}
+                                                                    </div>
+                                                                </td>
+                                                                <td className="p-4 align-middle text-center">
+                                                                    <span className="inline-flex items-center justify-center rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-semibold text-green-800">
+                                                                        {customer.validated_warranties || 0}
+                                                                    </span>
+                                                                </td>
+                                                                <td className="p-4 align-middle text-center">
+                                                                    <span className="inline-flex items-center justify-center rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-semibold text-red-800">
+                                                                        {customer.rejected_warranties || 0}
+                                                                    </span>
+                                                                </td>
+                                                                <td className="p-4 align-middle text-center">
+                                                                    <span className="inline-flex items-center justify-center rounded-full bg-yellow-100 px-2.5 py-0.5 text-xs font-semibold text-yellow-800">
+                                                                        {customer.pending_warranties || 0}
+                                                                    </span>
+                                                                </td>
+                                                                <td className="p-4 align-middle text-center">
+                                                                    <span className="inline-flex items-center justify-center rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-semibold text-blue-800">
+                                                                        {customer.total_warranties || 0}
+                                                                    </span>
+                                                                </td>
+                                                                <td className="p-4 align-middle">
+                                                                    <div className="text-sm">
+                                                                        {customer.first_warranty_date ? new Date(customer.first_warranty_date).toLocaleDateString() : 'N/A'}
+                                                                    </div>
+                                                                    <div className="text-xs text-muted-foreground">
+                                                                        {customer.first_warranty_date ? new Date(customer.first_warranty_date).toLocaleTimeString() : ''}
+                                                                    </div>
+                                                                </td>
+                                                                <td className="p-4 align-middle text-right">
+                                                                    <div className="flex justify-end gap-2">
+                                                                        <Button
+                                                                            size="sm"
+                                                                            variant="outline"
+                                                                            onClick={() => handleViewCustomer(customer.customer_email)}
+                                                                        >
+                                                                            View
+                                                                        </Button>
+                                                                        <Button
+                                                                            size="sm"
+                                                                            variant="destructive"
+                                                                            onClick={() => handleDeleteCustomer(customer.customer_email)}
+                                                                        >
+                                                                            <Trash2 className="h-4 w-4" />
+                                                                        </Button>
+                                                                    </div>
+                                                                </td>
+                                                            </tr>
+                                                        ))}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </>
                                 )}
                             </CardContent>
                         </Card>
@@ -3125,7 +3368,7 @@ const AdminDashboard = () => {
                                     ) : (
                                         <div className="space-y-4">
                                             {admins.map((admin: any, index: number) => (
-                                                <div key={admin.id} className="flex items-center justify-between p-4 rounded-lg border bg-card">
+                                                <div key={admin.id} className="flex flex-col md:flex-row md:items-center justify-between p-4 rounded-lg border bg-card gap-4 md:gap-0">
                                                     <div className="flex items-center gap-3">
                                                         <div className="flex items-center justify-center w-10 h-10 rounded-full bg-primary/10 text-primary font-semibold">
                                                             {admin.name?.charAt(0)?.toUpperCase() || 'A'}
@@ -3175,29 +3418,18 @@ const AdminDashboard = () => {
                                 ) : activityLogs.length === 0 ? (
                                     <div className="text-center py-8 text-muted-foreground">No activity logs found.</div>
                                 ) : (
-                                    <div className="relative w-full overflow-auto">
-                                        <table className="w-full caption-bottom text-sm">
-                                            <thead className="[&_tr]:border-b">
-                                                <tr className="border-b transition-colors hover:bg-muted/50">
-                                                    <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Date & Time</th>
-                                                    <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Admin</th>
-                                                    <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Action</th>
-                                                    <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Target</th>
-                                                    <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Details</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody className="[&_tr:last-child]:border-0">
-                                                {activityLogs.map((log: any) => (
-                                                    <tr key={log.id} className="border-b transition-colors hover:bg-muted/50">
-                                                        <td className="p-4 align-middle">
-                                                            <div className="text-sm">{new Date(log.created_at).toLocaleDateString()}</div>
-                                                            <div className="text-xs text-muted-foreground">{new Date(log.created_at).toLocaleTimeString()}</div>
-                                                        </td>
-                                                        <td className="p-4 align-middle">
-                                                            <div className="font-medium">{log.admin_name || 'Unknown'}</div>
-                                                            <div className="text-xs text-muted-foreground">{log.admin_email}</div>
-                                                        </td>
-                                                        <td className="p-4 align-middle">
+                                    <>
+                                        <div className="md:hidden space-y-4">
+                                            {activityLogs.map((log: any) => (
+                                                <Card key={log.id} className="overflow-hidden">
+                                                    <CardContent className="p-4">
+                                                        <div className="flex justify-between items-start mb-2">
+                                                            <div className="text-sm font-semibold">{log.admin_name || 'Unknown'}</div>
+                                                            <div className="text-xs text-muted-foreground">{new Date(log.created_at).toLocaleDateString()}</div>
+                                                        </div>
+                                                        <div className="text-xs text-muted-foreground mb-3">{log.admin_email}</div>
+
+                                                        <div className="flex items-center gap-2 mb-3">
                                                             <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${log.action_type.includes('APPROVED') || log.action_type.includes('CREATED')
                                                                 ? 'bg-green-100 text-green-800'
                                                                 : log.action_type.includes('REJECTED')
@@ -3208,25 +3440,77 @@ const AdminDashboard = () => {
                                                                 }`}>
                                                                 {log.action_type.replace(/_/g, ' ')}
                                                             </span>
-                                                        </td>
-                                                        <td className="p-4 align-middle">
-                                                            <div className="text-sm">{log.target_type}</div>
-                                                            <div className="text-xs text-muted-foreground">{log.target_name || log.target_id || 'N/A'}</div>
-                                                        </td>
-                                                        <td className="p-4 align-middle">
-                                                            {log.details && typeof log.details === 'object' ? (
-                                                                <div className="text-xs text-muted-foreground max-w-[200px] truncate">
-                                                                    {log.details.rejection_reason || log.details.product_type || JSON.stringify(log.details)}
-                                                                </div>
-                                                            ) : (
-                                                                <span className="text-muted-foreground">-</span>
-                                                            )}
-                                                        </td>
+                                                        </div>
+
+                                                        <div className="text-sm">
+                                                            <span className="font-medium text-muted-foreground">Target: </span>
+                                                            <span>{log.target_name || log.target_id || 'N/A'}</span>
+                                                        </div>
+                                                        <div className="text-sm mt-1">
+                                                            <span className="font-medium text-muted-foreground">Details: </span>
+                                                            <span className="text-xs text-muted-foreground block mt-1 bg-muted p-2 rounded">
+                                                                {log.details && typeof log.details === 'object'
+                                                                    ? (log.details.rejection_reason || log.details.product_type || JSON.stringify(log.details))
+                                                                    : '-'}
+                                                            </span>
+                                                        </div>
+                                                    </CardContent>
+                                                </Card>
+                                            ))}
+                                        </div>
+                                        <div className="hidden md:block relative w-full overflow-auto">
+                                            <table className="w-full caption-bottom text-sm">
+                                                <thead className="[&_tr]:border-b">
+                                                    <tr className="border-b transition-colors hover:bg-muted/50">
+                                                        <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Date & Time</th>
+                                                        <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Admin</th>
+                                                        <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Action</th>
+                                                        <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Target</th>
+                                                        <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Details</th>
                                                     </tr>
-                                                ))}
-                                            </tbody>
-                                        </table>
-                                    </div>
+                                                </thead>
+                                                <tbody className="[&_tr:last-child]:border-0">
+                                                    {activityLogs.map((log: any) => (
+                                                        <tr key={log.id} className="border-b transition-colors hover:bg-muted/50">
+                                                            <td className="p-4 align-middle">
+                                                                <div className="text-sm">{new Date(log.created_at).toLocaleDateString()}</div>
+                                                                <div className="text-xs text-muted-foreground">{new Date(log.created_at).toLocaleTimeString()}</div>
+                                                            </td>
+                                                            <td className="p-4 align-middle">
+                                                                <div className="font-medium">{log.admin_name || 'Unknown'}</div>
+                                                                <div className="text-xs text-muted-foreground">{log.admin_email}</div>
+                                                            </td>
+                                                            <td className="p-4 align-middle">
+                                                                <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${log.action_type.includes('APPROVED') || log.action_type.includes('CREATED')
+                                                                    ? 'bg-green-100 text-green-800'
+                                                                    : log.action_type.includes('REJECTED')
+                                                                        ? 'bg-red-100 text-red-800'
+                                                                        : log.action_type.includes('DELETED')
+                                                                            ? 'bg-gray-100 text-gray-800'
+                                                                            : 'bg-blue-100 text-blue-800'
+                                                                    }`}>
+                                                                    {log.action_type.replace(/_/g, ' ')}
+                                                                </span>
+                                                            </td>
+                                                            <td className="p-4 align-middle">
+                                                                <div className="text-sm">{log.target_type}</div>
+                                                                <div className="text-xs text-muted-foreground">{log.target_name || log.target_id || 'N/A'}</div>
+                                                            </td>
+                                                            <td className="p-4 align-middle">
+                                                                {log.details && typeof log.details === 'object' ? (
+                                                                    <div className="text-xs text-muted-foreground max-w-[200px] truncate">
+                                                                        {log.details.rejection_reason || log.details.product_type || JSON.stringify(log.details)}
+                                                                    </div>
+                                                                ) : (
+                                                                    <span className="text-muted-foreground">-</span>
+                                                                )}
+                                                            </td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </>
                                 )}
                             </CardContent>
                         </Card>

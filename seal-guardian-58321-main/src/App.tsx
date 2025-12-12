@@ -13,6 +13,7 @@ import CustomerDashboard from "./pages/CustomerDashboard";
 import VendorDashboard from "./pages/VendorDashboard";
 import AdminDashboard from "./pages/AdminDashboard";
 import AdminManagement from "./pages/AdminManagement";
+import AdminProducts from "./pages/AdminProducts";
 import ActivityLogs from "./pages/ActivityLogs";
 import Terms from "./pages/Terms";
 import NotFound from "./pages/NotFound";
@@ -36,6 +37,7 @@ const App = () => (
             <Route path="/dashboard/vendor" element={<VendorDashboard />} />
             <Route path="/dashboard/admin" element={<AdminDashboard />} />
             <Route path="/admin/manage" element={<AdminManagement />} />
+            <Route path="/admin/products" element={<AdminProducts />} />
             <Route path="/admin/activity-logs" element={<ActivityLogs />} />
             <Route path="/terms" element={<Terms />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}

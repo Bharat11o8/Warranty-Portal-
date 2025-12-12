@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
-import db from '../config/database';
-import { EmailService } from '../services/email.service';
+import db from '../config/database.js';
+import { EmailService } from '../services/email.service.js';
 import { v4 as uuidv4 } from 'uuid';
 
 export class VendorController {

@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Combobox } from "@/components/ui/combobox";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { Upload } from "lucide-react";
@@ -21,6 +22,7 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess }: SeatCoverFormProp
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [stores, setStores] = useState<any[]>([]);
+  const [products, setProducts] = useState<any[]>([]);
   const [manpowerList, setManpowerList] = useState<any[]>([]);
   const [formData, setFormData] = useState(initialData ? {
     uid: initialData.product_details?.uid || "",
@@ -109,7 +111,20 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess }: SeatCoverFormProp
         console.error("Failed to fetch stores", error);
       }
     };
+
+    const fetchProducts = async () => {
+      try {
+        const response = await api.get('/public/products');
+        if (response.data.success) {
+          setProducts(response.data.products.filter((p: any) => p.type === 'seat_cover'));
+        }
+      } catch (error) {
+        console.error("Failed to fetch products", error);
+      }
+    };
+
     fetchStores();
+    fetchProducts();
   }, []);
 
   // Fetch manpower when store changes
@@ -140,26 +155,17 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess }: SeatCoverFormProp
   }, [formData.storeName, stores]);
 
   // Auto-select warranty type based on product name
+  // Auto-select warranty type based on product name
   useEffect(() => {
-    let type = "1 Year";
-    switch (formData.productName) {
-      case "leather-seat-cover":
-        type = "2 Years";
-        break;
-      case "fabric-seat-cover":
-        type = "1 Year";
-        break;
-      case "premium-seat-cover":
-        type = "3 Years";
-        break;
-      case "custom-seat-cover":
-        type = "1 Year";
-        break;
-      default:
-        type = "1 Year";
+    const selectedProduct = products.find(p => p.name === formData.productName);
+    if (selectedProduct) {
+      setFormData(prev => ({
+        ...prev,
+        warrantyType: selectedProduct.warranty_years,
+      }));
     }
-    setFormData(prev => ({ ...prev, warrantyType: type }));
-  }, [formData.productName]);
+  }, [formData.productName, products]);
+
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -302,22 +308,14 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess }: SeatCoverFormProp
                   placeholder="Loading store name..."
                 />
               ) : (
-                <Select
+                <Combobox
+                  options={stores.map(store => ({ value: store.store_name, label: store.store_name }))}
                   value={formData.storeName}
-                  onValueChange={(value) => handleChange("storeName", value)}
-                  required
-                >
-                  <SelectTrigger id="storeName">
-                    <SelectValue placeholder="Select Store" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {stores.map((store) => (
-                      <SelectItem key={store.vendor_details_id} value={store.store_name}>
-                        {store.store_name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  onChange={(value) => handleChange("storeName", value)}
+                  placeholder="Select Store"
+                  searchPlaceholder="Search store name..."
+                  emptyMessage="No store found."
+                />
               )}
             </div>
 
@@ -509,21 +507,14 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess }: SeatCoverFormProp
               <Label htmlFor="productName">
                 Product Name <span className="text-destructive">*</span>
               </Label>
-              <Select
+              <Combobox
+                options={products.map(product => ({ value: product.name, label: product.name }))}
                 value={formData.productName}
-                onValueChange={(value) => handleChange("productName", value)}
-                required
-              >
-                <SelectTrigger id="productName">
-                  <SelectValue placeholder="Select Product Name" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="leather-seat-cover">Leather Seat Cover</SelectItem>
-                  <SelectItem value="fabric-seat-cover">Fabric Seat Cover</SelectItem>
-                  <SelectItem value="premium-seat-cover">Premium Seat Cover</SelectItem>
-                  <SelectItem value="custom-seat-cover">Custom Seat Cover</SelectItem>
-                </SelectContent>
-              </Select>
+                onChange={(value) => handleChange("productName", value)}
+                placeholder="Select Product Name"
+                searchPlaceholder="Search product..."
+                emptyMessage="No product found."
+              />
             </div>
 
             <div className="space-y-2">

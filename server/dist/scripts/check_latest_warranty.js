@@ -1,4 +1,4 @@
-import db from '../config/database';
+import db from '../config/database.js';
 async function checkLatestWarranty() {
     try {
         const [rows] = await db.execute('SELECT * FROM warranty_registrations ORDER BY created_at DESC LIMIT 1');

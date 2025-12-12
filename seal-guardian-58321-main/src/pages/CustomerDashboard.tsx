@@ -12,12 +12,14 @@ import { useState, useEffect } from "react";
 import api from "@/lib/api";
 import EVProductsForm from "@/components/warranty/EVProductsForm";
 import SeatCoverForm from "@/components/warranty/SeatCoverForm";
+import { Pagination } from "@/components/Pagination";
 
 const CustomerDashboard = () => {
     const { user, loading } = useAuth();
     const [warranties, setWarranties] = useState<any[]>([]);
     const [loadingWarranties, setLoadingWarranties] = useState(false);
     const [editingWarranty, setEditingWarranty] = useState<any>(null);
+    const [warrantyPagination, setWarrantyPagination] = useState({ currentPage: 1, totalPages: 1, totalCount: 0, limit: 30, hasNextPage: false, hasPrevPage: false });
 
     // Search & Sort State
     const [warrantySearch, setWarrantySearch] = useState('');
@@ -32,12 +34,15 @@ const CustomerDashboard = () => {
         }
     }, [user]);
 
-    const fetchWarranties = async () => {
+    const fetchWarranties = async (page = 1) => {
         setLoadingWarranties(true);
         try {
-            const response = await api.get("/warranty");
+            const response = await api.get(`/warranty?page=${page}&limit=30`);
             if (response.data.success) {
                 setWarranties(response.data.warranties);
+                if (response.data.pagination) {
+                    setWarrantyPagination(response.data.pagination);
+                }
             }
         } catch (error) {
             console.error("Failed to fetch warranties", error);
@@ -210,7 +215,7 @@ const CustomerDashboard = () => {
                                         warranty.status === 'validated' ? 'default' :
                                             warranty.status === 'rejected' ? 'destructive' : 'secondary'
                                     } className={warranty.status === 'validated' ? 'bg-green-600' : ''}>
-                                        {warranty.status}
+                                        {warranty.status === 'validated' ? 'Approved' : warranty.status === 'rejected' ? 'Disapproved' : warranty.status}
                                     </Badge>
                                 </div>
 
@@ -289,7 +294,7 @@ const CustomerDashboard = () => {
                                                                 <div className="space-y-4">
                                                                     <div className="border rounded-lg p-4 bg-muted/50">
                                                                         <img
-                                                                            src={`http://localhost:3000/uploads/${invoiceFile}`}
+                                                                            src={(invoiceFile as string).startsWith('http') ? invoiceFile : `http://localhost:3000/uploads/${invoiceFile}`}
                                                                             alt="Invoice"
                                                                             className="w-full h-auto rounded"
                                                                             onError={(e) => {
@@ -306,7 +311,7 @@ const CustomerDashboard = () => {
                                                                     <Button
                                                                         className="w-full"
                                                                         onClick={() => {
-                                                                            const fileUrl = `http://localhost:3000/uploads/${invoiceFile}`;
+                                                                            const fileUrl = (invoiceFile as string).startsWith('http') ? invoiceFile : `http://localhost:3000/uploads/${invoiceFile}`;
 
                                                                             fetch(fileUrl)
                                                                                 .then(res => res.blob())
@@ -414,7 +419,7 @@ const CustomerDashboard = () => {
                                                         <div>
                                                             <h3 className="text-lg font-semibold mb-3 pb-2 border-b">Photo Documentation</h3>
                                                             <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                                                                {Object.entries(productDetails.photos).map(([key, filename]) => {
+                                                                {Object.entries(productDetails.photos as Record<string, string>).map(([key, filename]) => {
                                                                     const labels: Record<string, string> = {
                                                                         lhs: 'Left Hand Side',
                                                                         rhs: 'Right Hand Side',
@@ -423,18 +428,19 @@ const CustomerDashboard = () => {
                                                                         warranty: 'Warranty Card'
                                                                     };
                                                                     if (!filename) return null;
+                                                                    const imgSrc = filename.startsWith('http') ? filename : `http://localhost:3000/uploads/${filename}`;
                                                                     return (
                                                                         <div key={key} className="space-y-2">
                                                                             <p className="text-sm font-medium text-muted-foreground">{labels[key] || key}</p>
                                                                             <div className="border rounded-lg overflow-hidden bg-muted/50 aspect-video relative group">
                                                                                 <img
-                                                                                    src={`http://localhost:3000/uploads/${filename}`}
+                                                                                    src={imgSrc}
                                                                                     alt={labels[key]}
                                                                                     className="w-full h-full object-cover"
                                                                                 />
                                                                                 <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                                                                                     <a
-                                                                                        href={`http://localhost:3000/uploads/${filename}`}
+                                                                                        href={imgSrc}
                                                                                         target="_blank"
                                                                                         rel="noopener noreferrer"
                                                                                         className="text-white text-xs bg-black/50 px-2 py-1 rounded hover:bg-black/70"
@@ -459,13 +465,13 @@ const CustomerDashboard = () => {
                                                                     <p className="text-sm font-medium text-muted-foreground">Invoice / MRP Sticker</p>
                                                                     <div className="border rounded-lg overflow-hidden bg-muted/50 aspect-video relative group">
                                                                         <img
-                                                                            src={`http://localhost:3000/uploads/${productDetails.invoiceFileName}`}
+                                                                            src={(productDetails.invoiceFileName as string).startsWith('http') ? productDetails.invoiceFileName : `http://localhost:3000/uploads/${productDetails.invoiceFileName}`}
                                                                             alt="Invoice"
                                                                             className="w-full h-full object-cover"
                                                                         />
                                                                         <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                                                                             <a
-                                                                                href={`http://localhost:3000/uploads/${productDetails.invoiceFileName}`}
+                                                                                href={(productDetails.invoiceFileName as string).startsWith('http') ? productDetails.invoiceFileName : `http://localhost:3000/uploads/${productDetails.invoiceFileName}`}
                                                                                 target="_blank"
                                                                                 rel="noopener noreferrer"
                                                                                 className="text-white text-xs bg-black/50 px-2 py-1 rounded hover:bg-black/70"
@@ -559,7 +565,7 @@ const CustomerDashboard = () => {
                                                                 warranty.status === 'validated' ? 'default' :
                                                                     warranty.status === 'rejected' ? 'destructive' : 'secondary'
                                                             } className={warranty.status === 'validated' ? 'bg-green-600' : ''}>
-                                                                {warranty.status.toUpperCase()}
+                                                                {warranty.status === 'validated' ? 'APPROVED' : warranty.status === 'rejected' ? 'DISAPPROVED' : warranty.status.toUpperCase()}
                                                             </Badge>
                                                             {warranty.rejection_reason && (
                                                                 <p className="text-sm text-destructive">Reason: {warranty.rejection_reason}</p>
@@ -696,7 +702,7 @@ const CustomerDashboard = () => {
                 </div>
 
                 <Tabs defaultValue="all" className="space-y-4">
-                    <TabsList>
+                    <TabsList className="grid w-full grid-cols-2 h-auto md:inline-flex md:w-auto md:h-10">
                         <TabsTrigger value="all" className="relative">
                             All Warranties
                             <Badge variant="secondary" className="ml-2 px-1.5 py-0 h-5 text-xs">
@@ -736,6 +742,17 @@ const CustomerDashboard = () => {
                         <WarrantyList items={filterAndSortWarranties(pendingWarranties)} />
                     </TabsContent>
                 </Tabs>
+
+                {/* Pagination */}
+                <div className="mt-8">
+                    <Pagination
+                        currentPage={warrantyPagination.currentPage}
+                        totalPages={warrantyPagination.totalPages}
+                        totalCount={warrantyPagination.totalCount}
+                        limit={warrantyPagination.limit}
+                        onPageChange={(page) => fetchWarranties(page)}
+                    />
+                </div>
             </main>
         </div>
     );

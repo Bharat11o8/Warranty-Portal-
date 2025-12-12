@@ -1,4 +1,4 @@
-import db from '../config/database';
+import db from '../config/database.js';
 export class PublicController {
     static async getStores(req, res) {
         try {

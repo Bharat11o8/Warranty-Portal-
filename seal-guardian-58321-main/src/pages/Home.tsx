@@ -88,7 +88,7 @@ const Home = () => {
                     <div className="mx-auto mb-4 w-16 h-16 rounded-full bg-secondary/10 flex items-center justify-center">
                       <Store className="h-8 w-8 text-secondary" />
                     </div>
-                    <CardTitle className="text-xl">Vendor</CardTitle>
+                    <CardTitle className="text-xl">Franchise</CardTitle>
                     <CardDescription>
                       Manage products and customer warranty registrations
                     </CardDescription>
@@ -96,7 +96,7 @@ const Home = () => {
                   <CardContent>
                     <Link to="/login?role=vendor">
                       <Button className="w-full h-11" size="lg" variant="secondary">
-                        Login as Vendor
+                        Login as Franchise
                       </Button>
                     </Link>
                   </CardContent>
@@ -156,7 +156,7 @@ const Home = () => {
                     <div className="mx-auto mb-4 w-16 h-16 rounded-full bg-secondary/10 flex items-center justify-center">
                       <Store className="h-8 w-8 text-secondary" />
                     </div>
-                    <CardTitle className="text-xl">New Vendor</CardTitle>
+                    <CardTitle className="text-xl">New Franchise</CardTitle>
                     <CardDescription>
                       Register your business to manage warranties
                     </CardDescription>
@@ -164,7 +164,7 @@ const Home = () => {
                   <CardContent className="space-y-3">
                     <Link to="/register?role=vendor">
                       <Button className="w-full h-11" size="lg" variant="secondary">
-                        Register as Vendor
+                        Register as Franchise
                       </Button>
                     </Link>
                     <p className="text-xs text-center text-muted-foreground">

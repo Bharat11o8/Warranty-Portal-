@@ -1,7 +1,10 @@
+import { useState, useEffect } from "react";
+import api from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Combobox } from "@/components/ui/combobox";
 import { Checkbox } from "@/components/ui/checkbox";
 import { EVFormData } from "../EVProductsForm";
 import { useToast } from "@/hooks/use-toast";
@@ -16,6 +19,29 @@ interface ProductInfoProps {
 
 const ProductInfo = ({ formData, updateFormData, onPrev, onSubmit, loading }: ProductInfoProps) => {
   const { toast } = useToast();
+  const [products, setProducts] = useState<any[]>([]);
+
+  useEffect(() => {
+    const fetchProducts = async () => {
+      try {
+        const response = await api.get('/public/products');
+        if (response.data.success) {
+          setProducts(response.data.products.filter((p: any) => p.type === 'ev_product'));
+        }
+      } catch (error) {
+        console.error("Failed to fetch products", error);
+      }
+    };
+    fetchProducts();
+  }, []);
+
+  // Auto-select warranty type based on product name
+  useEffect(() => {
+    const selectedProduct = products.find(p => p.name === formData.product);
+    if (selectedProduct) {
+      updateFormData({ warrantyType: selectedProduct.warranty_years });
+    }
+  }, [formData.product, products]);
 
   const handleFileChange = (name: keyof EVFormData, file: File | null) => {
     if (file && file.size > 20 * 1024 * 1024) {
@@ -46,19 +72,14 @@ const ProductInfo = ({ formData, updateFormData, onPrev, onSubmit, loading }: Pr
           <Label htmlFor="product">
             Select Product <span className="text-destructive">*</span>
           </Label>
-          <Select
+          <Combobox
+            options={products.map(product => ({ value: product.name, label: product.name }))}
             value={formData.product}
-            onValueChange={(value) => updateFormData({ product: value })}
-            required
-          >
-            <SelectTrigger id="product">
-              <SelectValue placeholder="Select Product" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="paint-protection">Paint Protection Films</SelectItem>
-              <SelectItem value="sun-protection">Sun Protection Films</SelectItem>
-            </SelectContent>
-          </Select>
+            onChange={(value) => updateFormData({ product: value })}
+            placeholder="Select Product"
+            searchPlaceholder="Search product..."
+            emptyMessage="No product found."
+          />
         </div>
 
         <div className="space-y-2">

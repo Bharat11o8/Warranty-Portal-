@@ -29,7 +29,7 @@ const ProfilePopover = () => {
             case "vendor":
                 return {
                     icon: Store,
-                    label: "Vendor",
+                    label: "Franchise",
                     badgeVariant: "secondary" as const,
                     color: "text-secondary",
                 };
