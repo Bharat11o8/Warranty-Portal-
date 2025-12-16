@@ -28,15 +28,17 @@ const Header = () => {
 
       {user ? (
         <>
-          <Link to="/warranty" onClick={() => mobile && setIsOpen(false)}>
-            <Button
-              variant={isActive("/warranty") ? "secondary" : "ghost"}
-              size="sm"
-              className="w-full justify-start"
-            >
-              Warranty
-            </Button>
-          </Link>
+          {user.role !== 'vendor' && (
+            <Link to="/warranty" onClick={() => mobile && setIsOpen(false)}>
+              <Button
+                variant={isActive("/warranty") ? "secondary" : "ghost"}
+                size="sm"
+                className="w-full justify-start"
+              >
+                Warranty
+              </Button>
+            </Link>
+          )}
           <Link to="/terms" onClick={() => mobile && setIsOpen(false)}>
             <Button
               variant={isActive("/terms") ? "secondary" : "ghost"}
@@ -124,11 +126,13 @@ const Header = () => {
 
           {user ? (
             <>
-              <Link to="/warranty">
-                <Button variant={isActive("/warranty") ? "secondary" : "ghost"} size="sm">
-                  Warranty
-                </Button>
-              </Link>
+              {user.role !== 'vendor' && (
+                <Link to="/warranty">
+                  <Button variant={isActive("/warranty") ? "secondary" : "ghost"} size="sm">
+                    Warranty
+                  </Button>
+                </Link>
+              )}
               <Link to="/terms">
                 <Button variant={isActive("/terms") ? "secondary" : "ghost"} size="sm">
                   T&C
