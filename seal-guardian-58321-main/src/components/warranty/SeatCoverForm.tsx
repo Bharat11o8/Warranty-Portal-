@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import api from "@/lib/api";
 import {
   validateIndianMobile,
@@ -26,6 +27,7 @@ interface SeatCoverFormProps {
 const SeatCoverForm = ({ initialData, warrantyId, onSuccess }: SeatCoverFormProps = {}) => {
   const { toast } = useToast();
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [stores, setStores] = useState<any[]>([]);
   const [products, setProducts] = useState<any[]>([]);
@@ -38,7 +40,7 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess }: SeatCoverFormProp
     customerAddress: initialData.customer_address || "",
     productName: initialData.product_details?.productName || "",
     storeEmail: initialData.installer_contact || "",
-    purchaseDate: initialData.purchase_date || "",
+    purchaseDate: initialData.purchase_date ? new Date(initialData.purchase_date).toISOString().split('T')[0] : "",
     storeName: initialData.installer_name || "",
     manpowerId: initialData.manpower_id || "",
     carMake: initialData.car_make || "",
@@ -280,6 +282,15 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess }: SeatCoverFormProp
         warrantyType: "1 Year",
         invoiceFile: null,
       });
+
+      // Redirect to appropriate dashboard based on role
+      const dashboardRoutes: Record<string, string> = {
+        customer: "/dashboard/customer",
+        vendor: "/dashboard/vendor",
+        admin: "/dashboard/admin",
+      };
+      const redirectPath = user?.role ? dashboardRoutes[user.role] : "/warranty";
+      navigate(redirectPath, { replace: true });
     } catch (error: any) {
       console.error("Warranty submission error:", error);
       toast({
@@ -584,7 +595,7 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess }: SeatCoverFormProp
                   type="file"
                   accept="image/*"
                   onChange={handleFileChange}
-                  required
+                  required={!warrantyId}
                   disabled={loading}
                   className="cursor-pointer"
                 />

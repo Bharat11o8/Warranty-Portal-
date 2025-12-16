@@ -31,12 +31,7 @@ const WarrantyList = ({ items, showReason = false, user, onEditWarranty }: {
                 <h3 className="text-lg font-medium mb-2">No Warranties Found</h3>
                 <p className="text-muted-foreground mb-4">No warranties in this category</p>
                 {items.length === 0 && (
-                    <Link to="/warranty">
-                        <Button>
-                            <Plus className="h-4 w-4 mr-2" />
-                            Register Customer Product
-                        </Button>
-                    </Link>
+                    <p className="text-sm text-muted-foreground mt-2">Waiting for customer registrations</p>
                 )}
             </div>
         );
@@ -44,7 +39,7 @@ const WarrantyList = ({ items, showReason = false, user, onEditWarranty }: {
 
     return (
         <div className="grid gap-4">
-            {items.map((warranty) => {
+            {items.map((warranty, index) => {
                 const productDetails = typeof warranty.product_details === 'string'
                     ? JSON.parse(warranty.product_details)
                     : warranty.product_details || {};
@@ -58,7 +53,7 @@ const WarrantyList = ({ items, showReason = false, user, onEditWarranty }: {
                 const canEdit = warranty.user_id === user?.id;
 
                 return (
-                    <Card key={warranty.uid || warranty.id} className="hover:shadow-md transition-shadow">
+                    <Card key={warranty.id || warranty.uid || `warranty-${index}`} className="hover:shadow-md transition-shadow">
                         <CardContent className="pt-6">
                             <div className="flex justify-between items-start mb-4">
                                 <div className="flex-1">
@@ -441,8 +436,8 @@ const WarrantyList = ({ items, showReason = false, user, onEditWarranty }: {
                                     <p className="text-sm">{warranty.rejection_reason}</p>
                                 </div>
                             )}
-                            {/* KEY CHANGE: Edit button only shows if vendor uploaded it themselves AND it's rejected */}
-                            {showReason && warranty.rejection_reason && canEdit && warranty.status === 'rejected' && (
+                            {/* Edit button shows for rejected warranties in the disapproved tab */}
+                            {showReason && warranty.status === 'rejected' && (
                                 <Button
                                     onClick={() => onEditWarranty(warranty)}
                                     variant="outline"
@@ -485,6 +480,19 @@ const VendorDashboard = () => {
     const [editType, setEditType] = useState("");
     const [updatingManpower, setUpdatingManpower] = useState(false);
 
+    // Manpower Warranty Details Dialog
+    const [manpowerWarrantyDialogOpen, setManpowerWarrantyDialogOpen] = useState(false);
+    const [manpowerWarrantyDialogData, setManpowerWarrantyDialogData] = useState<{ member: any; status: 'validated' | 'pending' | 'rejected'; warranties: any[] }>({ member: null, status: 'validated', warranties: [] });
+
+    // Helper to show manpower warranties dialog
+    const showManpowerWarranties = (member: any, status: 'validated' | 'pending' | 'rejected') => {
+        // Filter warranties for this manpower by status
+        const manpowerWarranties = warranties.filter((w: any) =>
+            w.manpower_id === member.id && w.status === status
+        );
+        setManpowerWarrantyDialogData({ member, status, warranties: manpowerWarranties });
+        setManpowerWarrantyDialogOpen(true);
+    };
     // Warranty stats
     const pendingWarranties = warranties.filter(w => w.status === 'pending');
     const approvedWarranties = warranties.filter(w => w.status === 'validated');
@@ -769,7 +777,7 @@ const VendorDashboard = () => {
                     </Button>
                     <FormComponent
                         initialData={editingWarranty}
-                        warrantyId={editingWarranty.id}
+                        warrantyId={editingWarranty.uid || editingWarranty.id}
                         onSuccess={() => {
                             setEditingWarranty(null);
                             fetchWarranties(warrantyPagination.currentPage, true); // Background fetch to avoid loading state flash
@@ -842,12 +850,7 @@ const VendorDashboard = () => {
                 {/* Action Bar & Filters */}
                 <div className="flex flex-col gap-4 mb-6">
                     <div className="flex flex-col sm:flex-row gap-4">
-                        <Link to="/warranty" className="flex-1 sm:flex-initial">
-                            <Button className="w-full sm:w-auto">
-                                <Plus className="mr-2 h-4 w-4" />
-                                Register Customer Product
-                            </Button>
-                        </Link>
+
 
                         {/* Search */}
                         <div className="flex-1 min-w-[200px] relative">
@@ -1132,15 +1135,24 @@ const VendorDashboard = () => {
                                                                                     {member.applicator_type?.replace('_', ' ')} Applicator
                                                                                 </Badge>
                                                                                 <span className="hidden md:inline">•</span>
-                                                                                <span className="inline-flex items-center rounded-full bg-green-100 px-2 py-0.5 text-xs font-semibold text-green-800">
+                                                                                <button
+                                                                                    onClick={() => showManpowerWarranties(member, 'validated')}
+                                                                                    className="inline-flex items-center rounded-full bg-green-100 px-2 py-0.5 text-xs font-semibold text-green-800 hover:bg-green-200 cursor-pointer transition-colors"
+                                                                                >
                                                                                     {member.validated_count || 0} Approved
-                                                                                </span>
-                                                                                <span className="inline-flex items-center rounded-full bg-yellow-100 px-2 py-0.5 text-xs font-semibold text-yellow-800">
+                                                                                </button>
+                                                                                <button
+                                                                                    onClick={() => showManpowerWarranties(member, 'pending')}
+                                                                                    className="inline-flex items-center rounded-full bg-yellow-100 px-2 py-0.5 text-xs font-semibold text-yellow-800 hover:bg-yellow-200 cursor-pointer transition-colors"
+                                                                                >
                                                                                     {member.pending_count || 0} Pending
-                                                                                </span>
-                                                                                <span className="inline-flex items-center rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-800">
+                                                                                </button>
+                                                                                <button
+                                                                                    onClick={() => showManpowerWarranties(member, 'rejected')}
+                                                                                    className="inline-flex items-center rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-800 hover:bg-red-200 cursor-pointer transition-colors"
+                                                                                >
                                                                                     {member.rejected_count || 0} Disapproved
-                                                                                </span>
+                                                                                </button>
                                                                                 <span className="hidden md:inline">•</span>
                                                                                 <span className="font-medium text-muted-foreground">
                                                                                     {member.total_count || 0} Total
@@ -1245,6 +1257,69 @@ const VendorDashboard = () => {
                         </Card>
                     </TabsContent>
                 </Tabs>
+
+                {/* Manpower Warranty Details Dialog */}
+                <Dialog open={manpowerWarrantyDialogOpen} onOpenChange={setManpowerWarrantyDialogOpen}>
+                    <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+                        <DialogHeader>
+                            <DialogTitle>
+                                {manpowerWarrantyDialogData.member?.name} - {manpowerWarrantyDialogData.status === 'validated' ? 'Approved' : manpowerWarrantyDialogData.status === 'rejected' ? 'Disapproved' : 'Pending'} Warranties
+                            </DialogTitle>
+                            <DialogDescription>
+                                {manpowerWarrantyDialogData.warranties.length} warranty registrations
+                            </DialogDescription>
+                        </DialogHeader>
+                        <div className="mt-4 space-y-3">
+                            {manpowerWarrantyDialogData.warranties.length === 0 ? (
+                                <p className="text-center py-8 text-muted-foreground">No warranties found</p>
+                            ) : (
+                                manpowerWarrantyDialogData.warranties.map((w: any, index: number) => {
+                                    const pd = typeof w.product_details === 'string' ? JSON.parse(w.product_details) : w.product_details || {};
+                                    const productNameMapping: Record<string, string> = {
+                                        'paint-protection': 'PPF',
+                                        'sun-protection': 'Tint',
+                                        'seat-cover': 'Seat Cover',
+                                        'ev-products': 'EV Product'
+                                    };
+                                    return (
+                                        <div key={w.id || index} className="p-3 border rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors">
+                                            <div className="flex justify-between items-start mb-2">
+                                                <div>
+                                                    <p className="font-medium">{w.customer_name}</p>
+                                                    <p className="text-xs text-muted-foreground">{w.customer_phone}</p>
+                                                </div>
+                                                <Badge variant={
+                                                    w.status === 'validated' ? 'default' :
+                                                        w.status === 'rejected' ? 'destructive' : 'secondary'
+                                                } className={w.status === 'validated' ? 'bg-green-600' : ''}>
+                                                    {productNameMapping[w.product_type] || w.product_type}
+                                                </Badge>
+                                            </div>
+                                            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-sm">
+                                                <div>
+                                                    <p className="text-xs text-muted-foreground">Vehicle</p>
+                                                    <p>{w.car_make} {w.car_model}</p>
+                                                </div>
+                                                <div>
+                                                    <p className="text-xs text-muted-foreground">Product</p>
+                                                    <p>{pd.productName || pd.product || w.product_type}</p>
+                                                </div>
+                                                <div>
+                                                    <p className="text-xs text-muted-foreground">UID/Lot</p>
+                                                    <p className="font-mono text-xs">{w.uid || pd.lotNumber || 'N/A'}</p>
+                                                </div>
+                                                <div>
+                                                    <p className="text-xs text-muted-foreground">Registered</p>
+                                                    <p>{new Date(w.created_at).toLocaleDateString()}</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    );
+                                })
+                            )}
+                        </div>
+                    </DialogContent>
+                </Dialog>
             </main>
         </div>
     );

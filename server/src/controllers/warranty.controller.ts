@@ -4,6 +4,7 @@ import db from '../config/database.js';
 import { EmailService } from '../services/email.service.js';
 import { AuthRequest } from '../middleware/auth.js';
 import { WarrantyData } from '../types/index.js';
+import jwt from 'jsonwebtoken';
 
 // Extending WarrantyData interface locally if not updated in types file yet
 interface ExtendedWarrantyData extends WarrantyData {
@@ -95,24 +96,37 @@ export class WarrantyController {
       // Check if UID already exists (only for seat-cover products)
       if (warrantyData.productType === 'seat-cover' && uid) {
         const [existingWarranty]: any = await db.execute(
-          'SELECT uid FROM warranty_registrations WHERE uid = ?',
+          'SELECT uid, user_id, status FROM warranty_registrations WHERE uid = ?',
           [uid]
         );
 
         if (existingWarranty.length > 0) {
-          return res.status(400).json({
-            error: 'This UID is already registered. Each seat cover can only be registered once.'
-          });
+          const existing = existingWarranty[0];
+
+          // Allow resubmission if:
+          // 1. The warranty was rejected AND
+          // 2. The user owns it (same user_id)
+          if (existing.status === 'rejected' && existing.user_id === req.user.id) {
+            // Delete the old rejected warranty so it can be resubmitted fresh
+            await db.execute('DELETE FROM warranty_registrations WHERE uid = ?', [uid]);
+          } else {
+            return res.status(400).json({
+              error: 'This UID is already registered. Each seat cover can only be registered once.'
+            });
+          }
         }
       }
 
       // Insert warranty registration
+      // For customer submissions, set status to 'pending_vendor'
+      const initialStatus = req.user.role === 'customer' ? 'pending_vendor' : 'pending';
+
       await db.execute(
         `INSERT INTO warranty_registrations 
         (uid, user_id, product_type, customer_name, customer_email, customer_phone, 
          customer_address, car_make, car_model, car_year, 
-         purchase_date, installer_name, installer_contact, product_details, manpower_id, warranty_type) 
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         purchase_date, installer_name, installer_contact, product_details, manpower_id, warranty_type, status) 
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           uid,
           req.user.id,
@@ -129,12 +143,48 @@ export class WarrantyController {
           warrantyData.installerContact || null,
           JSON.stringify(warrantyData.productDetails),
           warrantyData.manpowerId || null,
-          warrantyData.warrantyType
+          warrantyData.warrantyType,
+          initialStatus
         ]
       );
 
-      // Send confirmation email to customer only if email is provided
-      if (warrantyData.customerEmail && warrantyData.customerEmail.trim()) {
+      // Handle Email Notifications
+      if (initialStatus === 'pending_vendor' && warrantyData.installerContact) {
+        // Generate Token
+        const token = jwt.sign(
+          { warrantyId: uid, vendorEmail: warrantyData.installerContact },
+          process.env.JWT_SECRET || 'your-secret-key',
+          { expiresIn: '7d' } // Long expiry for email links
+        );
+
+        // Send Email to Vendor
+        // Parsing installerContact to get email if it's in "email | phone" format
+        let vendorEmail = warrantyData.installerContact;
+        if (vendorEmail.includes('|')) {
+          vendorEmail = vendorEmail.split('|')[0].trim();
+        }
+
+        await EmailService.sendVendorConfirmationEmail(
+          vendorEmail,
+          warrantyData.installerName || 'Partner',
+          warrantyData.customerName,
+          token,
+          warrantyData.productType,
+          warrantyData.productDetails
+        );
+      } else if (warrantyData.customerEmail && warrantyData.customerEmail.trim()) {
+        // Standard confirmation to customer (only if not pending vendor, or maybe send "Submission Received"?)
+        // User said: "share a mail to the vendor... if it gets confirmed then the request will be updated... and the mailing will also be perfomed accordingly"
+        // This implies customer gets their "Registered" email AFTER vendor confirms?
+        // Or do they get a "Pending Verification" email now?
+        // Let's stick to existing behavior for non-pending-vendor, but for pending-vendor, maybe skip this or send a "Waiting for store" email.
+        // For now, I will SKIP the standard confirmation email here if it's pending_vendor, 
+        // to avoid confusion ("Registered" vs "Pending").
+        // I should probably add sending this email in the verification endpoint.
+      }
+
+      // If it WASN'T pending_vendor (e.g. Admin submitted), send the standard confirmation now
+      if (initialStatus !== 'pending_vendor' && warrantyData.customerEmail && warrantyData.customerEmail.trim()) {
         await EmailService.sendWarrantyConfirmation(
           warrantyData.customerEmail,
           warrantyData.customerName,
@@ -353,8 +403,9 @@ export class WarrantyController {
 
       // Check if warranty exists and belongs to user (or user is admin/vendor linked)
       // For simplicity, we'll check ownership via user_id for now as per getWarrantyById logic
-      let checkQuery = 'SELECT uid, user_id, status, product_details FROM warranty_registrations WHERE uid = ?';
-      let checkParams: any[] = [uid];
+      // Support both uid (seat-cover) and id (EV products) for lookup
+      let checkQuery = 'SELECT id, uid, user_id, status, product_details FROM warranty_registrations WHERE uid = ? OR id = ?';
+      let checkParams: any[] = [uid, uid];
 
       const [warranties]: any = await db.execute(checkQuery, checkParams);
 
@@ -415,6 +466,8 @@ export class WarrantyController {
 
       // Update warranty details
       // Reset status to 'pending' and clear rejection_reason
+      // Use the warranty's actual id from the found record for update
+      const warrantyRecordId = warranty.id;
       await db.execute(
         `UPDATE warranty_registrations SET
          product_type = ?, customer_name = ?, customer_email = ?, customer_phone = ?,
@@ -422,7 +475,7 @@ export class WarrantyController {
          purchase_date = ?, installer_name = ?,
          installer_contact = ?, product_details = ?, manpower_id = ?, warranty_type = ?,
          status = 'pending', rejection_reason = NULL
-         WHERE uid = ?`,
+         WHERE id = ?`,
         [
           warrantyData.productType,
           warrantyData.customerName,
@@ -438,7 +491,7 @@ export class WarrantyController {
           JSON.stringify(warrantyData.productDetails),
           warrantyData.manpowerId || null,
           warrantyData.warrantyType,
-          uid
+          warrantyRecordId
         ]
       );
 

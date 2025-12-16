@@ -1581,4 +1581,71 @@ export class EmailService {
 
     await transporter.sendMail(mailOptions);
   }
+
+  static async sendVendorConfirmationEmail(
+    vendorEmail: string,
+    vendorName: string,
+    customerName: string,
+    token: string,
+    productType: string,
+    productDetails?: any
+  ): Promise<void> {
+    const verificationLink = `${process.env.APP_URL || 'http://localhost:5173'}/verify-warranty?token=${token}`;
+    const productName = productDetails?.product || productDetails?.productName || productType;
+
+    const mailOptions = {
+      from: process.env.EMAIL_FROM,
+      to: vendorEmail,
+      subject: 'Action Required: Confirm Customer Warranty Registration',
+      html: `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <style>
+            body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+            .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+            .header { background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
+            .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px; }
+            .info-box { background: white; border-left: 4px solid #f5576c; padding: 15px; margin: 20px 0; }
+            .button { display: inline-block; background: #f5576c; color: white; padding: 15px 30px; text-decoration: none; border-radius: 5px; margin: 20px 0; }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="header">
+              <h1>🛡️ Warranty Verification Required</h1>
+            </div>
+            <div class="content">
+              <h2>Hello ${vendorName},</h2>
+              <p>A customer has registered a warranty for a product installed at your store. Please verify specific details to proceed.</p>
+              
+              <div class="info-box">
+                <p><strong>Customer Name:</strong> ${customerName}</p>
+                <p><strong>Product:</strong> ${productName.replace(/-/g, ' ').toUpperCase()}</p>
+                ${productType === 'seat-cover' ? `<p><strong>UID:</strong> ${productDetails?.uid || 'N/A'}</p>` : ''}
+                ${productType === 'ev-products' ? `
+                  <p><strong>Lot Number:</strong> ${productDetails?.lotNumber || 'N/A'}</p>
+                  <p><strong>Roll Number:</strong> ${productDetails?.rollNumber || 'N/A'}</p>
+                  <p><strong>Vehicle:</strong> ${productDetails?.carRegistration || 'N/A'}</p>
+                ` : ''}
+                <p><strong>Date:</strong> ${new Date().toLocaleDateString()}</p>
+              </div>
+              
+              <p>Please click the button below to confirm this installation was performed at your store:</p>
+              
+              <div style="text-align: center;">
+                <a href="${verificationLink}" class="button">✓ Confirm Installation</a>
+              </div>
+              
+              <p style="color: #666; font-size: 14px;">Or copy this link: ${verificationLink}</p>
+            </div>
+          </div>
+        </body>
+        </html>
+      `,
+    };
+
+    await transporter.sendMail(mailOptions);
+  }
 }
+

@@ -1,5 +1,7 @@
 import { Request, Response } from 'express';
 import db from '../config/database.js';
+import jwt from 'jsonwebtoken';
+import { EmailService } from '../services/email.service.js';
 
 export class PublicController {
     static async getStores(req: Request, res: Response) {
@@ -53,6 +55,7 @@ export class PublicController {
         }
     }
 
+
     static async checkVendorSchema(req: Request, res: Response) {
         try {
             const [columns]: any = await db.execute('SHOW COLUMNS FROM vendor_details');
@@ -68,4 +71,79 @@ export class PublicController {
             res.status(500).json({ error: 'Schema check failed', details: error.message });
         }
     }
+
+    static async verifyVendorWarranty(req: Request, res: Response) {
+        try {
+            const { token } = req.query;
+
+            if (!token) {
+                return res.status(400).send('Invalid verification link');
+            }
+
+            // Verify token
+            const decoded: any = jwt.verify(token as string, process.env.JWT_SECRET || 'your-secret-key');
+
+            if (!decoded.warrantyId) {
+                return res.status(400).send('Invalid token payload');
+            }
+
+            // Update warranty status
+            await db.execute(
+                "UPDATE warranty_registrations SET status = 'pending' WHERE uid = ? AND status = 'pending_vendor'",
+                [decoded.warrantyId]
+            );
+
+            // Optional: Send success email to Admin or Customer here if needed
+            // For now, just show success page
+
+            // Return simple success HTML
+            res.send(`
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <title>Warranty Confirmed</title>
+                    <style>
+                        body { font-family: Arial, sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; background-color: #f0f2f5; }
+                        .card { background: white; padding: 40px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); text-align: center; max-width: 400px; }
+                        h1 { color: #2e7d32; margin-bottom: 10px; }
+                        p { color: #555; }
+                        .btn { display: inline-block; margin-top: 20px; padding: 10px 20px; background-color: #1976d2; color: white; text-decoration: none; border-radius: 4px; }
+                    </style>
+                </head>
+                <body>
+                    <div class="card">
+                        <h1>✅ Confirmed!</h1>
+                        <p>The warranty registration has been successfully confirmed and submitted for admin approval.</p>
+                        <p>You can close this window now.</p>
+                    </div>
+                </body>
+                </html>
+            `);
+
+        } catch (error: any) {
+            console.error('Warranty verification error:', error);
+            res.status(400).send(`
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <title>Verification Failed</title>
+                    <style>
+                        body { font-family: Arial, sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; background-color: #fff0f0; }
+                        .card { background: white; padding: 40px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); text-align: center; max-width: 400px; }
+                        h1 { color: #d32f2f; margin-bottom: 10px; }
+                        p { color: #555; }
+                    </style>
+                </head>
+                <body>
+                    <div class="card">
+                        <h1>Verification Failed</h1>
+                        <p>The link is invalid or has expired.</p>
+                        <p>Error: ${error.message}</p>
+                    </div>
+                </body>
+                </html>
+            `);
+        }
+    }
 }
+

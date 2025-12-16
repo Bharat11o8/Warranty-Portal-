@@ -11,5 +11,6 @@ router.get('/stores/:vendorDetailsId/manpower', PublicController.getStoreManpowe
 router.get('/products', ProductController.getAllProducts); // Added route for fetching all products
 router.get('/migrate', DiagnosticController.runMigration);
 router.get('/check-vendor-schema', PublicController.checkVendorSchema);
+router.get('/verify-warranty', PublicController.verifyVendorWarranty);
 
 export default router;
