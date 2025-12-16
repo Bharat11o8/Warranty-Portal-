@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
@@ -66,6 +67,7 @@ interface EVProductsFormProps {
 const EVProductsForm = ({ initialData, warrantyId, onSuccess }: EVProductsFormProps) => {
   const { toast } = useToast();
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [currentStep, setCurrentStep] = useState(1);
   const [loading, setLoading] = useState(false);
 
@@ -339,6 +341,15 @@ const EVProductsForm = ({ initialData, warrantyId, onSuccess }: EVProductsFormPr
             warrantyPhoto: null,
             termsAccepted: false,
           });
+
+          // Redirect to appropriate dashboard based on role
+          const dashboardRoutes: Record<string, string> = {
+            customer: "/dashboard/customer",
+            vendor: "/dashboard/vendor",
+            admin: "/dashboard/admin",
+          };
+          const redirectPath = user?.role ? dashboardRoutes[user.role] : "/warranty";
+          navigate(redirectPath, { replace: true });
         }
       }
     } catch (error: any) {

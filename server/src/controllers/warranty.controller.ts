@@ -95,14 +95,24 @@ export class WarrantyController {
       // Check if UID already exists (only for seat-cover products)
       if (warrantyData.productType === 'seat-cover' && uid) {
         const [existingWarranty]: any = await db.execute(
-          'SELECT uid FROM warranty_registrations WHERE uid = ?',
+          'SELECT uid, user_id, status FROM warranty_registrations WHERE uid = ?',
           [uid]
         );
 
         if (existingWarranty.length > 0) {
-          return res.status(400).json({
-            error: 'This UID is already registered. Each seat cover can only be registered once.'
-          });
+          const existing = existingWarranty[0];
+
+          // Allow resubmission if:
+          // 1. The warranty was rejected AND
+          // 2. The user owns it (same user_id)
+          if (existing.status === 'rejected' && existing.user_id === req.user.id) {
+            // Delete the old rejected warranty so it can be resubmitted fresh
+            await db.execute('DELETE FROM warranty_registrations WHERE uid = ?', [uid]);
+          } else {
+            return res.status(400).json({
+              error: 'This UID is already registered. Each seat cover can only be registered once.'
+            });
+          }
         }
       }
 
@@ -353,8 +363,9 @@ export class WarrantyController {
 
       // Check if warranty exists and belongs to user (or user is admin/vendor linked)
       // For simplicity, we'll check ownership via user_id for now as per getWarrantyById logic
-      let checkQuery = 'SELECT uid, user_id, status, product_details FROM warranty_registrations WHERE uid = ?';
-      let checkParams: any[] = [uid];
+      // Support both uid (seat-cover) and id (EV products) for lookup
+      let checkQuery = 'SELECT id, uid, user_id, status, product_details FROM warranty_registrations WHERE uid = ? OR id = ?';
+      let checkParams: any[] = [uid, uid];
 
       const [warranties]: any = await db.execute(checkQuery, checkParams);
 
@@ -415,6 +426,8 @@ export class WarrantyController {
 
       // Update warranty details
       // Reset status to 'pending' and clear rejection_reason
+      // Use the warranty's actual id from the found record for update
+      const warrantyRecordId = warranty.id;
       await db.execute(
         `UPDATE warranty_registrations SET
          product_type = ?, customer_name = ?, customer_email = ?, customer_phone = ?,
@@ -422,7 +435,7 @@ export class WarrantyController {
          purchase_date = ?, installer_name = ?,
          installer_contact = ?, product_details = ?, manpower_id = ?, warranty_type = ?,
          status = 'pending', rejection_reason = NULL
-         WHERE uid = ?`,
+         WHERE id = ?`,
         [
           warrantyData.productType,
           warrantyData.customerName,
@@ -438,7 +451,7 @@ export class WarrantyController {
           JSON.stringify(warrantyData.productDetails),
           warrantyData.manpowerId || null,
           warrantyData.warrantyType,
-          uid
+          warrantyRecordId
         ]
       );
 
