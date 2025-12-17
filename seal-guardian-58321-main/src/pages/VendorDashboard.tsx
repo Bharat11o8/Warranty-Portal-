@@ -11,18 +11,21 @@ import { Link } from "react-router-dom";
 import { useState, useEffect } from "react";
 import api from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
-import { downloadCSV } from "@/lib/utils";
+import { downloadCSV, getWarrantyExpiration, cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import EVProductsForm from "@/components/warranty/EVProductsForm";
 import SeatCoverForm from "@/components/warranty/SeatCoverForm";
 import { Pagination } from "@/components/Pagination";
 
 // WarrantyList Component
-const WarrantyList = ({ items, showReason = false, user, onEditWarranty }: {
+const WarrantyList = ({ items, showReason = false, user, onEditWarranty, onVerify, onReject, isPendingVerification = false }: {
     items: any[],
     showReason?: boolean,
     user: any,
-    onEditWarranty: (warranty: any) => void
+    onEditWarranty?: (warranty: any) => void,
+    onVerify?: (warranty: any) => void,
+    onReject?: (warranty: any) => void,
+    isPendingVerification?: boolean
 }) => {
     if (items.length === 0) {
         return (
@@ -52,6 +55,9 @@ const WarrantyList = ({ items, showReason = false, user, onEditWarranty }: {
                 // Check if this warranty was uploaded by the current vendor
                 const canEdit = warranty.user_id === user?.id;
 
+                // Calculate warranty expiration
+                const { expirationDate, daysLeft, isExpired } = getWarrantyExpiration(warranty.created_at);
+
                 return (
                     <Card key={warranty.id || warranty.uid || `warranty-${index}`} className="hover:shadow-md transition-shadow">
                         <CardContent className="pt-6">
@@ -73,14 +79,47 @@ const WarrantyList = ({ items, showReason = false, user, onEditWarranty }: {
                                             day: 'numeric'
                                         })}
                                     </p>
+                                    {warranty.status === 'validated' && expirationDate && (
+                                        <p className="text-sm text-muted-foreground mt-0.5">
+                                            Expires on {expirationDate.toLocaleDateString('en-US', {
+                                                year: 'numeric',
+                                                month: 'long',
+                                                day: 'numeric'
+                                            })}
+                                        </p>
+                                    )}
                                 </div>
-                                <Badge variant={
-                                    warranty.status === 'validated' ? 'default' :
-                                        warranty.status === 'rejected' ? 'destructive' : 'secondary'
-                                } className={warranty.status === 'validated' ? 'bg-green-600' : ''}>
-                                    {warranty.status === 'validated' ? 'Approved' : warranty.status === 'rejected' ? 'Disapproved' : warranty.status}
-                                </Badge>
+                                <div className="flex items-center gap-2">
+                                    {warranty.status === 'validated' && expirationDate && (
+                                        <span className={cn("text-sm font-medium", isExpired ? "text-destructive" : "text-green-600")}>
+                                            {isExpired ? "Expired" : `${daysLeft} days left`}
+                                        </span>
+                                    )}
+                                    <Badge variant={
+                                        warranty.status === 'validated' ? 'default' :
+                                            warranty.status === 'rejected' ? 'destructive' : 'secondary'
+                                    } className={warranty.status === 'validated' ? 'bg-green-600' : ''}>
+                                        {warranty.status === 'validated' ? 'Approved' : warranty.status === 'rejected' ? 'Disapproved' : warranty.status}
+                                    </Badge>
+                                </div>
                             </div>
+                            {isPendingVerification && (
+                                <div className="flex gap-2 mb-4">
+                                    <Button
+                                        className="bg-green-600 hover:bg-green-700 text-white flex-1"
+                                        onClick={() => onVerify && onVerify(warranty)}
+                                    >
+                                        <CheckCircle className="mr-2 h-4 w-4" /> Approve Installation
+                                    </Button>
+                                    <Button
+                                        variant="destructive"
+                                        className="flex-1"
+                                        onClick={() => onReject && onReject(warranty)}
+                                    >
+                                        <XCircle className="mr-2 h-4 w-4" /> Reject
+                                    </Button>
+                                </div>
+                            )}
                             <div className={`grid grid-cols-2 ${warranty.product_type === 'ev-products' ? 'lg:grid-cols-6 md:grid-cols-3' : warranty.product_type === 'seat-cover' ? 'lg:grid-cols-5 md:grid-cols-3' : 'lg:grid-cols-4 md:grid-cols-2'} gap-4 mt-4 pt-4 border-t`}>
                                 {warranty.product_type === 'seat-cover' && (
                                     <>
@@ -480,6 +519,53 @@ const VendorDashboard = () => {
     const [editType, setEditType] = useState("");
     const [updatingManpower, setUpdatingManpower] = useState(false);
 
+    // Verify/Reject Handlers
+    const handleVerifyWarranty = async (warranty: any) => {
+        try {
+            const response = await api.post(`/vendor/warranty/${warranty.uid}/approve`);
+            if (response.data.success) {
+                toast({
+                    title: "Warranty Approved",
+                    description: "Installation status updated to Pending Admin Approval.",
+                });
+                fetchWarranties(); // Refresh list
+            }
+        } catch (error: any) {
+            console.error("Verification failed", error);
+            toast({
+                title: "Action Failed",
+                description: error.response?.data?.error || "Could not approve warranty",
+                variant: "destructive",
+            });
+        }
+    };
+
+    const handleRejectWarranty = async (warranty: any) => {
+        // Prompt for reason? For now simple prompt or we can add a Dialog. 
+        // Let's use a simple prompt for speed, or better, a reason dialog state.
+        const reason = prompt("Please enter the reason for rejection:");
+        if (!reason) return;
+
+        try {
+            const response = await api.post(`/vendor/warranty/${warranty.uid}/reject`, { reason });
+            if (response.data.success) {
+                toast({
+                    title: "Warranty Rejected",
+                    description: "Status updated to Rejected.",
+                    variant: "destructive"
+                });
+                fetchWarranties();
+            }
+        } catch (error: any) {
+            console.error("Rejection failed", error);
+            toast({
+                title: "Action Failed",
+                description: error.response?.data?.error || "Could not reject warranty",
+                variant: "destructive",
+            });
+        }
+    };
+
     // Manpower Warranty Details Dialog
     const [manpowerWarrantyDialogOpen, setManpowerWarrantyDialogOpen] = useState(false);
     const [manpowerWarrantyDialogData, setManpowerWarrantyDialogData] = useState<{ member: any; status: 'validated' | 'pending' | 'rejected'; warranties: any[] }>({ member: null, status: 'validated', warranties: [] });
@@ -494,6 +580,7 @@ const VendorDashboard = () => {
         setManpowerWarrantyDialogOpen(true);
     };
     // Warranty stats
+    const pendingVendorWarranties = warranties.filter(w => w.status === 'pending_vendor');
     const pendingWarranties = warranties.filter(w => w.status === 'pending');
     const approvedWarranties = warranties.filter(w => w.status === 'validated');
     const rejectedWarranties = warranties.filter(w => w.status === 'rejected');
@@ -929,8 +1016,14 @@ const VendorDashboard = () => {
                 </div>
 
                 {/* Warranty Entries with Tabs */}
-                <Tabs defaultValue="all" className="space-y-4">
+                <Tabs defaultValue="pending_verification" className="space-y-4">
                     <TabsList className="flex flex-wrap h-auto gap-2 bg-transparent p-0">
+                        <TabsTrigger value="pending_verification" className="relative">
+                            Pending Verification
+                            <Badge variant="secondary" className="ml-2 px-1.5 py-0 h-5 text-xs bg-orange-600/10 text-orange-700 hover:bg-orange-600/20">
+                                {pendingVendorWarranties.length}
+                            </Badge>
+                        </TabsTrigger>
                         <TabsTrigger value="all" className="relative">
                             All Warranties
                             <Badge variant="secondary" className="ml-2 px-1.5 py-0 h-5 text-xs">
@@ -950,7 +1043,7 @@ const VendorDashboard = () => {
                             </Badge>
                         </TabsTrigger>
                         <TabsTrigger value="pending" className="relative">
-                            Pending
+                            Pending Admin
                             <Badge variant="secondary" className="ml-2 px-1.5 py-0 h-5 text-xs bg-yellow-600/10 text-yellow-700 hover:bg-yellow-600/20">
                                 {pendingWarranties.length}
                             </Badge>
@@ -962,6 +1055,17 @@ const VendorDashboard = () => {
                             </Badge>
                         </TabsTrigger>
                     </TabsList>
+
+                    <TabsContent value="pending_verification" className="space-y-4">
+                        <WarrantyList
+                            items={filterAndSortWarranties(pendingVendorWarranties)}
+                            user={user}
+                            onEditWarranty={() => { }}
+                            onVerify={handleVerifyWarranty}
+                            onReject={handleRejectWarranty}
+                            isPendingVerification={true}
+                        />
+                    </TabsContent>
 
                     <TabsContent value="all" className="space-y-4">
                         {loadingWarranties ? (

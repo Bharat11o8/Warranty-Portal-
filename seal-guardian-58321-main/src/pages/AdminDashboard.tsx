@@ -54,7 +54,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { ProductManagement } from "@/components/admin/ProductManagement";
-import { downloadCSV } from "@/lib/utils";
+import { downloadCSV, getWarrantyExpiration, cn } from "@/lib/utils";
 import Header from "@/components/Header";
 import { Pagination } from "@/components/Pagination";
 
@@ -96,6 +96,9 @@ const AdminWarrantyList = ({
                 const rawProductName = productDetails.product || productDetails.productName || warranty.product_type;
                 const productName = productNameMapping[rawProductName] || rawProductName;
 
+                // Calculate warranty expiration
+                const { expirationDate, daysLeft, isExpired } = getWarrantyExpiration(warranty.created_at);
+
                 return (
                     <Card key={warranty.uid || warranty.id} className="hover:shadow-md transition-shadow">
                         <CardContent className="pt-6">
@@ -116,13 +119,36 @@ const AdminWarrantyList = ({
                                             day: 'numeric'
                                         })}
                                     </p>
+                                    {warranty.status === 'validated' && expirationDate && (
+                                        <p className="text-sm text-muted-foreground mt-0.5">
+                                            Expires on {expirationDate.toLocaleDateString('en-US', {
+                                                year: 'numeric',
+                                                month: 'long',
+                                                day: 'numeric'
+                                            })}
+                                        </p>
+                                    )}
                                 </div>
-                                <Badge variant={
-                                    warranty.status === 'validated' ? 'default' :
-                                        warranty.status === 'rejected' ? 'destructive' : 'secondary'
-                                } className={warranty.status === 'validated' ? 'bg-green-600' : ''}>
-                                    {warranty.status === 'validated' ? 'Approved' : warranty.status === 'rejected' ? 'Disapproved' : warranty.status}
-                                </Badge>
+                                <div className="flex items-center gap-2">
+                                    {warranty.status === 'validated' && expirationDate && (
+                                        <span className={cn("text-sm font-medium", isExpired ? "text-destructive" : "text-green-600")}>
+                                            {isExpired ? "Expired" : `${daysLeft} days left`}
+                                        </span>
+                                    )}
+                                    <Badge variant={
+                                        warranty.status === 'validated' ? 'default' :
+                                            warranty.status === 'rejected' ? 'destructive' : 'secondary'
+                                    } className={cn(
+                                        warranty.status === 'validated' && "bg-green-600 hover:bg-green-700",
+                                        warranty.status === 'rejected' && "bg-red-600 hover:bg-red-700",
+                                        warranty.status === 'pending' && "bg-yellow-600 hover:bg-yellow-700 text-white",
+                                        warranty.status === 'pending_vendor' && "bg-orange-600 hover:bg-orange-700 text-white"
+                                    )}>
+                                        {warranty.status === 'validated' ? 'Approved' :
+                                            warranty.status === 'rejected' ? 'Disapproved' :
+                                                warranty.status === 'pending_vendor' ? 'Waiting for Vendor' : 'Pending Admin'}
+                                    </Badge>
+                                </div>
                             </div>
 
                             <div className={`grid grid-cols-2 ${warranty.product_type === 'ev-products'
@@ -568,11 +594,12 @@ const AdminDashboard = () => {
         totalVendors: 0,
         totalCustomers: 0,
         pendingApprovals: 0,
+        pendingVendorApprovals: 0,
         validatedWarranties: 0,
         rejectedWarranties: 0,
     });
     const [activeTab, setActiveTab] = useState("overview");
-    const [warrantyFilter, setWarrantyFilter] = useState<'all' | 'validated' | 'rejected' | 'pending'>('all');
+    const [warrantyFilter, setWarrantyFilter] = useState<'all' | 'validated' | 'rejected' | 'pending' | 'pending_vendor'>('all');
     const [vendorFilter, setVendorFilter] = useState<'all' | 'approved' | 'disapproved' | 'pending'>('all');
     const [vendors, setVendors] = useState<any[]>([]);
     const [loadingVendors, setLoadingVendors] = useState(false);
@@ -2229,16 +2256,30 @@ const AdminDashboard = () => {
                             </Card>
 
                             <Card
+                                className={`cursor-pointer transition-colors ${warrantyFilter === 'pending_vendor' ? 'border-orange-500 bg-orange-50' : 'hover:bg-accent/50'}`}
+                                onClick={() => setWarrantyFilter('pending_vendor')}
+                            >
+                                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                                    <CardTitle className="text-sm font-medium text-orange-700">Waiting for Vendor</CardTitle>
+                                    <Clock className="h-4 w-4 text-orange-600" />
+                                </CardHeader>
+                                <CardContent>
+                                    <div className="text-2xl font-bold text-orange-700">{stats.pendingVendorApprovals}</div>
+                                    <p className="text-xs text-orange-600">Vendor verification pending</p>
+                                </CardContent>
+                            </Card>
+
+                            <Card
                                 className={`cursor-pointer transition-colors ${warrantyFilter === 'pending' ? 'border-yellow-500 bg-yellow-50' : 'hover:bg-accent/50'}`}
                                 onClick={() => setWarrantyFilter('pending')}
                             >
                                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                                    <CardTitle className="text-sm font-medium text-yellow-700">Pending</CardTitle>
+                                    <CardTitle className="text-sm font-medium text-yellow-700">Pending Admin</CardTitle>
                                     <AlertCircle className="h-4 w-4 text-yellow-600" />
                                 </CardHeader>
                                 <CardContent>
                                     <div className="text-2xl font-bold text-yellow-700">{stats.pendingApprovals}</div>
-                                    <p className="text-xs text-yellow-600">Awaiting approval</p>
+                                    <p className="text-xs text-yellow-600">Admin approval needed</p>
                                 </CardContent>
                             </Card>
                         </>
@@ -2399,9 +2440,9 @@ const AdminDashboard = () => {
                                 </CardContent>
                             </Card>
 
-                            <Card className="hover:bg-accent/50">
+                            <Card className="hover:bg-accent/50" onClick={() => { setActiveTab('warranties'); setWarrantyFilter('pending'); }}>
                                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                                    <CardTitle className="text-sm font-medium text-yellow-700">Pending</CardTitle>
+                                    <CardTitle className="text-sm font-medium text-yellow-700">Pending Approvals</CardTitle>
                                     <AlertCircle className="h-4 w-4 text-yellow-600" />
                                 </CardHeader>
                                 <CardContent>
@@ -2454,7 +2495,8 @@ const AdminDashboard = () => {
                                         <TabsTrigger value="all">All ({stats.totalWarranties})</TabsTrigger>
                                         <TabsTrigger value="validated">Approved ({stats.validatedWarranties})</TabsTrigger>
                                         <TabsTrigger value="rejected">Disapproved ({stats.rejectedWarranties})</TabsTrigger>
-                                        <TabsTrigger value="pending">Pending ({stats.pendingApprovals})</TabsTrigger>
+                                        <TabsTrigger value="pending">Pending Admin ({stats.pendingApprovals})</TabsTrigger>
+                                        <TabsTrigger value="pending_vendor">Waiting Vendor ({stats.pendingVendorApprovals})</TabsTrigger>
                                     </TabsList>
                                 </Tabs>
 

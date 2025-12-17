@@ -12,5 +12,6 @@ router.get('/products', ProductController.getAllProducts); // Added route for fe
 router.get('/migrate', DiagnosticController.runMigration);
 router.get('/check-vendor-schema', PublicController.checkVendorSchema);
 router.get('/verify-warranty', PublicController.verifyVendorWarranty);
+router.get('/reject-warranty', PublicController.rejectVendorWarranty);
 
 export default router;

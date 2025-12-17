@@ -45,3 +45,21 @@ export function downloadCSV(data: any[], filename: string = 'export.csv') {
     URL.revokeObjectURL(url);
   }
 }
+
+export function getWarrantyExpiration(createdAt: string | Date | null | undefined) {
+  if (!createdAt) return { expirationDate: null, daysLeft: 0, isExpired: false };
+
+  const registeredDate = new Date(createdAt);
+  const expirationDate = new Date(registeredDate);
+  expirationDate.setFullYear(expirationDate.getFullYear() + 2); // 2 years warranty
+
+  const today = new Date();
+  const timeDiff = expirationDate.getTime() - today.getTime();
+  const daysLeft = Math.ceil(timeDiff / (1000 * 3600 * 24));
+
+  return {
+    expirationDate,
+    daysLeft: daysLeft > 0 ? daysLeft : 0,
+    isExpired: daysLeft <= 0
+  };
+}

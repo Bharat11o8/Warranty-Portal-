@@ -18,15 +18,19 @@ export class AdminController {
             const [customers]: any = await db.execute("SELECT COUNT(*) as count FROM user_roles WHERE role = 'customer'");
             const totalCustomers = customers[0].count;
 
-            // 4. Pending Approvals (Pending Warranties)
+            // 4. Pending Approvals (Pending Warranties - Second Stage)
             const [pending]: any = await db.execute("SELECT COUNT(*) as count FROM warranty_registrations WHERE status = 'pending'");
             const pendingApprovals = pending[0].count;
 
-            // 5. Validated Warranties
+            // 5. Pending Vendor Approvals (Pending Vendor - First Stage)
+            const [pendingVendor]: any = await db.execute("SELECT COUNT(*) as count FROM warranty_registrations WHERE status = 'pending_vendor'");
+            const pendingVendorApprovals = pendingVendor[0].count;
+
+            // 6. Validated Warranties
             const [validated]: any = await db.execute("SELECT COUNT(*) as count FROM warranty_registrations WHERE status = 'validated'");
             const validatedWarranties = validated[0].count;
 
-            // 6. Rejected Warranties
+            // 7. Rejected Warranties
             const [rejected]: any = await db.execute("SELECT COUNT(*) as count FROM warranty_registrations WHERE status = 'rejected'");
             const rejectedWarranties = rejected[0].count;
 
@@ -37,6 +41,7 @@ export class AdminController {
                     totalVendors,
                     totalCustomers,
                     pendingApprovals,
+                    pendingVendorApprovals,
                     validatedWarranties,
                     rejectedWarranties
                 }
