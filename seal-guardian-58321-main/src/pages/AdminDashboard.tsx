@@ -736,6 +736,10 @@ const AdminDashboard = () => {
         });
 
         downloadCSV(exportData, `warranties_export_${new Date().toISOString().split('T')[0]}.csv`);
+        toast({
+            title: "Export Successful",
+            description: `${exportData.length} warranties exported to CSV.`,
+        });
     };
 
     const handleExportVendors = () => {
@@ -810,6 +814,10 @@ const AdminDashboard = () => {
         }));
 
         downloadCSV(exportData, `vendors_export_${new Date().toISOString().split('T')[0]}.csv`);
+        toast({
+            title: "Export Successful",
+            description: `${exportData.length} vendors exported to CSV.`,
+        });
     };
 
     const handleExportCustomers = () => {
@@ -867,6 +875,10 @@ const AdminDashboard = () => {
         }));
 
         downloadCSV(exportData, `customers_export_${new Date().toISOString().split('T')[0]}.csv`);
+        toast({
+            title: "Export Successful",
+            description: `${exportData.length} customers exported to CSV.`,
+        });
     };
 
     const handleExportVendorDetailWarranties = (filteredWarranties: any[]) => {
@@ -891,6 +903,10 @@ const AdminDashboard = () => {
             };
         });
         downloadCSV(exportData, `vendor_warranties_export_${new Date().toISOString().split('T')[0]}.csv`);
+        toast({
+            title: "Export Successful",
+            description: `${exportData.length} warranties exported to CSV.`,
+        });
     };
 
     const handleExportVendorDetailManpower = (filteredManpower: any[]) => {
@@ -907,6 +923,10 @@ const AdminDashboard = () => {
             'Joined Date': new Date(m.created_at).toLocaleDateString()
         }));
         downloadCSV(exportData, `vendor_manpower_export_${new Date().toISOString().split('T')[0]}.csv`);
+        toast({
+            title: "Export Successful",
+            description: `${exportData.length} manpower records exported to CSV.`,
+        });
     };
 
     const handleExportCustomerDetailWarranties = (filteredWarranties: any[]) => {
@@ -929,6 +949,10 @@ const AdminDashboard = () => {
             };
         });
         downloadCSV(exportData, `customer_warranties_export_${new Date().toISOString().split('T')[0]}.csv`);
+        toast({
+            title: "Export Successful",
+            description: `${exportData.length} warranties exported to CSV.`,
+        });
     };
 
     useEffect(() => {

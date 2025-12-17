@@ -15,7 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Combobox } from "@/components/ui/combobox";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
-import { Upload } from "lucide-react";
+import { Upload, Loader2 } from "lucide-react";
 import { submitWarranty, updateWarranty } from "@/lib/warrantyApi";
 
 interface SeatCoverFormProps {
@@ -596,7 +596,12 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess }: SeatCoverFormProp
           </div>
 
           <Button type="submit" size="lg" className="w-full" disabled={loading}>
-            {loading ? "Submitting..." : "SUBMIT"}
+            {loading ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Submitting...
+              </>
+            ) : "SUBMIT"}
           </Button>
         </form>
       </CardContent>

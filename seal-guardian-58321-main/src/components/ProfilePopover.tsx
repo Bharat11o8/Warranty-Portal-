@@ -11,9 +11,11 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useAuth, UserRole } from "@/contexts/AuthContext";
+import { useToast } from "@/hooks/use-toast";
 
 const ProfilePopover = () => {
     const { user, logout } = useAuth();
+    const { toast } = useToast();
 
     if (!user) return null;
 
@@ -47,6 +49,11 @@ const ProfilePopover = () => {
     const RoleIcon = roleConfig.icon;
 
     const handleLogout = async () => {
+        toast({
+            title: "Logged Out",
+            description: "You have been successfully logged out. See you next time!",
+            duration: 5000,
+        });
         await logout();
         window.location.href = "/";
     };

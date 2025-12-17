@@ -582,6 +582,10 @@ const VendorDashboard = () => {
             };
         });
         downloadCSV(exportData, `my_warranties_export_${new Date().toISOString().split('T')[0]}.csv`);
+        toast({
+            title: "Export Successful",
+            description: `${exportData.length} warranties exported to CSV.`,
+        });
     };
 
     // Fetch warranties

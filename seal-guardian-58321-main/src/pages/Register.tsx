@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAuth, UserRole } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
-import { User, Mail, Phone, ShieldCheck, AlertCircle, KeyRound, Store, MapPin, Plus, Trash2, Users } from "lucide-react";
+import { User, Mail, Phone, ShieldCheck, AlertCircle, KeyRound, Store, MapPin, Plus, Trash2, Users, Loader2 } from "lucide-react";
 import authHero from "@/assets/auth-hero.jpg";
 import {
   validateIndianMobile,
@@ -601,7 +601,12 @@ const Register = () => {
               )}
 
               <Button type="submit" className="w-full h-12 text-lg font-semibold" disabled={loading}>
-                {loading ? "Sending OTP..." : role === "vendor" ? "Request Franchise Registration" : "Send OTP"}
+                {loading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Sending OTP...
+                  </>
+                ) : role === "vendor" ? "Request Franchise Registration" : "Send OTP"}
               </Button>
 
               <p className="text-center text-sm text-muted-foreground">
@@ -641,7 +646,12 @@ const Register = () => {
                 className="w-full h-12"
                 disabled={loading || otp.length !== 6}
               >
-                {loading ? "Verifying..." : "Verify & Submit Request"}
+                {loading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Verifying...
+                  </>
+                ) : "Verify & Submit Request"}
               </Button>
 
               <Button

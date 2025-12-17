@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuth, UserRole } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
-import { Mail, ShieldCheck, KeyRound, Store, Shield, AlertCircle } from "lucide-react";
+import { Mail, ShieldCheck, KeyRound, Store, Shield, AlertCircle, Loader2 } from "lucide-react";
 import authHero from "@/assets/auth-hero.jpg";
 import { validateEmail, getEmailError } from "@/lib/validation";
 
@@ -291,7 +291,12 @@ const Login = () => {
               </div>
 
               <Button type="submit" className="w-full h-12" disabled={loading}>
-                {loading ? "Sending OTP..." : "Send OTP"}
+                {loading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Sending OTP...
+                  </>
+                ) : "Send OTP"}
               </Button>
 
               {role !== "admin" && (
@@ -327,7 +332,12 @@ const Login = () => {
               </div>
 
               <Button type="submit" className="w-full h-12" disabled={loading || otp.length !== 6}>
-                {loading ? "Verifying..." : "Verify & Login"}
+                {loading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Verifying...
+                  </>
+                ) : "Verify & Login"}
               </Button>
 
               <Button
