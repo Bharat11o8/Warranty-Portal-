@@ -41,7 +41,7 @@ export class PublicController {
             }
 
             const [manpower]: any = await db.execute(
-                'SELECT id, name, manpower_id, applicator_type FROM manpower WHERE vendor_id = ? ORDER BY name ASC',
+                'SELECT id, name, manpower_id, applicator_type FROM manpower WHERE vendor_id = ? AND is_active = TRUE ORDER BY name ASC',
                 [vendorDetailsId]
             );
 
@@ -143,6 +143,86 @@ export class PublicController {
                 </body>
                 </html>
             `);
+        }
+    }
+
+    static async rejectVendorWarranty(req: Request, res: Response) {
+        try {
+            const { token } = req.query;
+
+            if (!token) {
+                return res.status(400).send('Invalid rejection link');
+            }
+
+            // Verify token
+            const decoded: any = jwt.verify(token as string, process.env.JWT_SECRET || 'your-secret-key');
+
+            if (!decoded.warrantyId) {
+                return res.status(400).send('Invalid token payload');
+            }
+
+            // Update warranty status to rejected
+            // We'll use a specific rejection reason
+            const rejectionReason = "Installation rejected by Vendor/Franchise via email verification.";
+
+            await db.execute(
+                "UPDATE warranty_registrations SET status = 'rejected', rejection_reason = ? WHERE uid = ? AND status = 'pending_vendor'",
+                [rejectionReason, decoded.warrantyId]
+            );
+
+            // Fetch warranty details to send rejection email to customer
+            const [warranty]: any = await db.execute(
+                'SELECT * FROM warranty_registrations WHERE uid = ?',
+                [decoded.warrantyId]
+            );
+
+            if (warranty.length > 0) {
+                const w = warranty[0];
+                const productDetails = JSON.parse(w.product_details || '{}');
+
+                // Send rejection email to customer
+                await EmailService.sendWarrantyRejectionToCustomer(
+                    w.customer_email,
+                    w.customer_name,
+                    w.uid,
+                    w.product_type,
+                    w.car_make,
+                    w.car_model,
+                    rejectionReason,
+                    productDetails,
+                    w.warranty_type,
+                    w.installer_name,
+                    w.installer_address, // These might be in w.installer_contact or need fetching from vendor_details if linked
+                    w.installer_contact
+                );
+            }
+
+            res.send(`
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <title>Warranty Rejected</title>
+                    <style>
+                        body { font-family: Arial, sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; background-color: #f0f2f5; }
+                        .card { background: white; padding: 40px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); text-align: center; max-width: 400px; }
+                        h1 { color: #d32f2f; margin-bottom: 10px; }
+                        p { color: #555; }
+                    </style>
+                </head>
+                <body>
+                    <div class="card">
+                        <h1>❌ Rejection Confirmed</h1>
+                        <p>The warranty registration has been rejected.</p>
+                        <p>The customer will be notified.</p>
+                        <p>You can close this window now.</p>
+                    </div>
+                </body>
+                </html>
+            `);
+
+        } catch (error: any) {
+            console.error('Warranty rejection error:', error);
+            res.status(400).send('Rejection failed or token invalid.');
         }
     }
 }

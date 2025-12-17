@@ -93,7 +93,6 @@ export class EmailService {
               </div>
               
               <p>Please review this vendor registration and click the button below to approve:</p>
-              
               <div style="text-align: center;">
                 <a href="${verificationLink}" class="button">✓ Verify & Approve Vendor</a>
               </div>
@@ -1590,7 +1589,14 @@ export class EmailService {
     productType: string,
     productDetails?: any
   ): Promise<void> {
-    const verificationLink = `${process.env.APP_URL || 'http://localhost:5173'}/verify-warranty?token=${token}`;
+    const appUrl = process.env.APP_URL || process.env.FRONTEND_URL || 'http://localhost:5173';
+    // Clean up URL if it has trailing slash
+    const baseUrl = appUrl.endsWith('/') ? appUrl.slice(0, -1) : appUrl;
+
+    // Links for actions
+    const verificationLink = `${baseUrl}/verify-warranty?token=${token}`;
+    const rejectionLink = `${baseUrl}/reject-warranty?token=${token}`;
+
     const productName = productDetails?.product || productDetails?.productName || productType;
 
     const mailOptions = {
@@ -1631,13 +1637,16 @@ export class EmailService {
                 <p><strong>Date:</strong> ${new Date().toLocaleDateString()}</p>
               </div>
               
-              <p>Please click the button below to confirm this installation was performed at your store:</p>
-              
-              <div style="text-align: center;">
-                <a href="${verificationLink}" class="button">✓ Confirm Installation</a>
+              <div style="text-align: center; margin: 30px 0;">
+                <a href="${verificationLink}" class="button" style="margin-right: 15px;">✓ Confirm Installation</a>
+                
+                <p style="margin-top: 20px; font-size: 14px;">
+                  Is there an issue with this registration?
+                  <a href="${rejectionLink}" style="color: #dc3545;">Reject Claim</a>
+                </p>
               </div>
               
-              <p style="color: #666; font-size: 14px;">Or copy this link: ${verificationLink}</p>
+              <p style="color: #666; font-size: 12px; text-align: center;">can't click the button? Copy this link: ${verificationLink}</p>
             </div>
           </div>
         </body>

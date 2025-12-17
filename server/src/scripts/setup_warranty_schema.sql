@@ -16,7 +16,7 @@ CREATE TABLE IF NOT EXISTS warranty_registrations (
     product_details JSON NOT NULL,
     manpower_id VARCHAR(36) DEFAULT NULL,
     warranty_type VARCHAR(50) NOT NULL,
-    status ENUM('pending', 'validated', 'rejected') DEFAULT 'pending',
+    status ENUM('pending', 'pending_vendor', 'validated', 'rejected') DEFAULT 'pending',
     rejection_reason TEXT DEFAULT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES profiles(id) ON DELETE CASCADE,

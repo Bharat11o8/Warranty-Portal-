@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useState, useEffect } from "react";
 import api from "@/lib/api";
+import { getWarrantyExpiration, cn } from "@/lib/utils";
 import EVProductsForm from "@/components/warranty/EVProductsForm";
 import SeatCoverForm from "@/components/warranty/SeatCoverForm";
 import { Pagination } from "@/components/Pagination";
@@ -92,7 +93,7 @@ const CustomerDashboard = () => {
         );
     }
 
-    const pendingWarranties = warranties.filter(w => w.status === 'pending');
+    const pendingWarranties = warranties.filter(w => ['pending', 'pending_vendor'].includes(w.status));
     const approvedWarranties = warranties.filter(w => w.status === 'validated');
     const rejectedWarranties = warranties.filter(w => w.status === 'rejected');
 
@@ -185,6 +186,9 @@ const CustomerDashboard = () => {
                     const rawProductName = productDetails.product || productDetails.productName || warranty.product_type;
                     const productName = productNameMapping[rawProductName] || rawProductName;
 
+                    // Calculate warranty expiration
+                    const { expirationDate, daysLeft, isExpired } = getWarrantyExpiration(warranty.created_at);
+
                     return (
                         <Card key={warranty.uid || warranty.id} className="hover:shadow-md transition-shadow">
                             <CardContent className="pt-6">
@@ -208,15 +212,35 @@ const CustomerDashboard = () => {
                                                 day: 'numeric'
                                             })}
                                         </p>
+                                        {warranty.status === 'validated' && expirationDate && (
+                                            <p className="text-sm text-muted-foreground mt-0.5">
+                                                Expires on {expirationDate.toLocaleDateString('en-US', {
+                                                    year: 'numeric',
+                                                    month: 'long',
+                                                    day: 'numeric'
+                                                })}
+                                            </p>
+                                        )}
                                     </div>
 
                                     {/* Status Badge */}
-                                    <Badge variant={
-                                        warranty.status === 'validated' ? 'default' :
-                                            warranty.status === 'rejected' ? 'destructive' : 'secondary'
-                                    } className={warranty.status === 'validated' ? 'bg-green-600' : ''}>
-                                        {warranty.status === 'validated' ? 'Approved' : warranty.status === 'rejected' ? 'Disapproved' : warranty.status}
-                                    </Badge>
+                                    <div className="flex items-center gap-2">
+                                        {warranty.status === 'validated' && expirationDate && (
+                                            <span className={cn("text-sm font-medium", isExpired ? "text-destructive" : "text-green-600")}>
+                                                {isExpired ? "Expired" : `${daysLeft} Days Left`}
+                                            </span>
+                                        )}
+                                        <Badge variant={
+                                            warranty.status === 'validated' ? 'default' :
+                                                warranty.status === 'rejected' ? 'destructive' : 'secondary'
+                                        } className={warranty.status === 'validated' ? 'bg-green-600' : ''}>
+                                            {warranty.status === 'validated' ? 'Approved' :
+                                                warranty.status === 'rejected' ? 'Disapproved' :
+                                                    warranty.status === 'pending_vendor' ? 'Waiting for Installer' :
+                                                        warranty.status === 'pending' ? 'Pending Approval' :
+                                                            warranty.status}
+                                        </Badge>
+                                    </div>
                                 </div>
 
                                 {/* Warranty Details Grid */}
@@ -565,7 +589,11 @@ const CustomerDashboard = () => {
                                                                 warranty.status === 'validated' ? 'default' :
                                                                     warranty.status === 'rejected' ? 'destructive' : 'secondary'
                                                             } className={warranty.status === 'validated' ? 'bg-green-600' : ''}>
-                                                                {warranty.status === 'validated' ? 'APPROVED' : warranty.status === 'rejected' ? 'DISAPPROVED' : warranty.status.toUpperCase()}
+                                                                {warranty.status === 'validated' ? 'APPROVED' :
+                                                                    warranty.status === 'rejected' ? 'DISAPPROVED' :
+                                                                        warranty.status === 'pending_vendor' ? 'WAITING FOR INSTALLER' :
+                                                                            warranty.status === 'pending' ? 'PENDING APPROVAL' :
+                                                                                warranty.status.toUpperCase()}
                                                             </Badge>
                                                             {warranty.rejection_reason && (
                                                                 <p className="text-sm text-destructive">Reason: {warranty.rejection_reason}</p>
