@@ -1,5 +1,6 @@
 import db from '../config/database.js';
 import { EmailService } from '../services/email.service.js';
+import jwt from 'jsonwebtoken';
 export class WarrantyController {
     static async submitWarranty(req, res) {
         try {
@@ -94,11 +95,13 @@ export class WarrantyController {
                 }
             }
             // Insert warranty registration
+            // For customer submissions, set status to 'pending_vendor'
+            const initialStatus = req.user.role === 'customer' ? 'pending_vendor' : 'pending';
             await db.execute(`INSERT INTO warranty_registrations 
         (uid, user_id, product_type, customer_name, customer_email, customer_phone, 
          customer_address, car_make, car_model, car_year, 
-         purchase_date, installer_name, installer_contact, product_details, manpower_id, warranty_type) 
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [
+         purchase_date, installer_name, installer_contact, product_details, manpower_id, warranty_type, status) 
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [
                 uid,
                 req.user.id,
                 warrantyData.productType,
@@ -114,10 +117,34 @@ export class WarrantyController {
                 warrantyData.installerContact || null,
                 JSON.stringify(warrantyData.productDetails),
                 warrantyData.manpowerId || null,
-                warrantyData.warrantyType
+                warrantyData.warrantyType,
+                initialStatus
             ]);
-            // Send confirmation email to customer only if email is provided
-            if (warrantyData.customerEmail && warrantyData.customerEmail.trim()) {
+            // Handle Email Notifications
+            if (initialStatus === 'pending_vendor' && warrantyData.installerContact) {
+                // Generate Token
+                const token = jwt.sign({ warrantyId: uid, vendorEmail: warrantyData.installerContact }, process.env.JWT_SECRET || 'your-secret-key', { expiresIn: '7d' } // Long expiry for email links
+                );
+                // Send Email to Vendor
+                // Parsing installerContact to get email if it's in "email | phone" format
+                let vendorEmail = warrantyData.installerContact;
+                if (vendorEmail.includes('|')) {
+                    vendorEmail = vendorEmail.split('|')[0].trim();
+                }
+                await EmailService.sendVendorConfirmationEmail(vendorEmail, warrantyData.installerName || 'Partner', warrantyData.customerName, token, warrantyData.productType, warrantyData.productDetails);
+            }
+            else if (warrantyData.customerEmail && warrantyData.customerEmail.trim()) {
+                // Standard confirmation to customer (only if not pending vendor, or maybe send "Submission Received"?)
+                // User said: "share a mail to the vendor... if it gets confirmed then the request will be updated... and the mailing will also be perfomed accordingly"
+                // This implies customer gets their "Registered" email AFTER vendor confirms?
+                // Or do they get a "Pending Verification" email now?
+                // Let's stick to existing behavior for non-pending-vendor, but for pending-vendor, maybe skip this or send a "Waiting for store" email.
+                // For now, I will SKIP the standard confirmation email here if it's pending_vendor, 
+                // to avoid confusion ("Registered" vs "Pending").
+                // I should probably add sending this email in the verification endpoint.
+            }
+            // If it WASN'T pending_vendor (e.g. Admin submitted), send the standard confirmation now
+            if (initialStatus !== 'pending_vendor' && warrantyData.customerEmail && warrantyData.customerEmail.trim()) {
                 await EmailService.sendWarrantyConfirmation(warrantyData.customerEmail, warrantyData.customerName, uid, warrantyData.productType, warrantyData.productDetails);
             }
             res.status(201).json({
@@ -305,7 +332,7 @@ export class WarrantyController {
             // Check if warranty exists and belongs to user (or user is admin/vendor linked)
             // For simplicity, we'll check ownership via user_id for now as per getWarrantyById logic
             // Support both uid (seat-cover) and id (EV products) for lookup
-            let checkQuery = 'SELECT id, uid, user_id, status, product_details FROM warranty_registrations WHERE uid = ? OR id = ?';
+            let checkQuery = 'SELECT id, uid, user_id, status, product_details, manpower_id FROM warranty_registrations WHERE uid = ? OR id = ?';
             let checkParams = [uid, uid];
             const [warranties] = await db.execute(checkQuery, checkParams);
             if (warranties.length === 0) {
@@ -378,7 +405,7 @@ export class WarrantyController {
                 warrantyData.installerName || null,
                 warrantyData.installerContact || null,
                 JSON.stringify(warrantyData.productDetails),
-                warrantyData.manpowerId || null,
+                warrantyData.manpowerId || warranty.manpower_id || null,
                 warrantyData.warrantyType,
                 warrantyRecordId
             ]);

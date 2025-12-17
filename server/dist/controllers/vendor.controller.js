@@ -447,8 +447,8 @@ export class VendorController {
                 finalManpowerId = (namePart && phonePart) ? `${namePart}${phonePart} ` : `MP - ${Date.now()} `;
             }
             await db.execute(`INSERT INTO manpower
-        (id, vendor_id, name, phone_number, manpower_id, applicator_type)
-      VALUES(?, ?, ?, ?, ?, ?)`, [id, vendorId, name, phoneNumber, finalManpowerId, applicatorType]);
+        (id, vendor_id, name, phone_number, manpower_id, applicator_type, is_active)
+      VALUES(?, ?, ?, ?, ?, ?, TRUE)`, [id, vendorId, name, phoneNumber, finalManpowerId, applicatorType]);
             res.status(201).json({
                 success: true,
                 message: 'Manpower added successfully',
@@ -537,6 +537,40 @@ export class VendorController {
         catch (error) {
             console.error('Update manpower error:', error);
             res.status(500).json({ error: 'Failed to update manpower' });
+        }
+    }
+    static async approveWarranty(req, res) {
+        try {
+            const { uid } = req.params;
+            // Check pending_vendor status and update to pending
+            await db.execute("UPDATE warranty_registrations SET status = 'pending' WHERE uid = ? AND status = 'pending_vendor'", [uid]);
+            res.json({ success: true, message: 'Warranty approved successfully' });
+        }
+        catch (error) {
+            console.error('Approve warranty error:', error);
+            res.status(500).json({ error: 'Failed to approve warranty' });
+        }
+    }
+    static async rejectWarranty(req, res) {
+        try {
+            const { uid } = req.params;
+            const { reason } = req.body;
+            if (!reason) {
+                return res.status(400).json({ error: 'Rejection reason is required' });
+            }
+            await db.execute("UPDATE warranty_registrations SET status = 'rejected', rejection_reason = ? WHERE uid = ? AND status = 'pending_vendor'", [reason, uid]);
+            // Fetch details and send email to Customer
+            const [warranty] = await db.execute('SELECT * FROM warranty_registrations WHERE uid = ?', [uid]);
+            if (warranty.length > 0) {
+                const w = warranty[0];
+                const productDetails = JSON.parse(w.product_details || '{}');
+                await EmailService.sendWarrantyRejectionToCustomer(w.customer_email, w.customer_name, w.uid, w.product_type, w.car_make, w.car_model, reason, productDetails, w.warranty_type, w.installer_name, w.installer_address, w.installer_contact);
+            }
+            res.json({ success: true, message: 'Warranty rejected successfully' });
+        }
+        catch (error) {
+            console.error('Reject warranty error:', error);
+            res.status(500).json({ error: 'Failed to reject warranty' });
         }
     }
 }

@@ -13,13 +13,16 @@ export class AdminController {
             // 3. Total Customers
             const [customers] = await db.execute("SELECT COUNT(*) as count FROM user_roles WHERE role = 'customer'");
             const totalCustomers = customers[0].count;
-            // 4. Pending Approvals (Pending Warranties)
+            // 4. Pending Approvals (Pending Warranties - Second Stage)
             const [pending] = await db.execute("SELECT COUNT(*) as count FROM warranty_registrations WHERE status = 'pending'");
             const pendingApprovals = pending[0].count;
-            // 5. Validated Warranties
+            // 5. Pending Vendor Approvals (Pending Vendor - First Stage)
+            const [pendingVendor] = await db.execute("SELECT COUNT(*) as count FROM warranty_registrations WHERE status = 'pending_vendor'");
+            const pendingVendorApprovals = pendingVendor[0].count;
+            // 6. Validated Warranties
             const [validated] = await db.execute("SELECT COUNT(*) as count FROM warranty_registrations WHERE status = 'validated'");
             const validatedWarranties = validated[0].count;
-            // 6. Rejected Warranties
+            // 7. Rejected Warranties
             const [rejected] = await db.execute("SELECT COUNT(*) as count FROM warranty_registrations WHERE status = 'rejected'");
             const rejectedWarranties = rejected[0].count;
             res.json({
@@ -29,6 +32,7 @@ export class AdminController {
                     totalVendors,
                     totalCustomers,
                     pendingApprovals,
+                    pendingVendorApprovals,
                     validatedWarranties,
                     rejectedWarranties
                 }
@@ -299,8 +303,14 @@ export class AdminController {
                 console.error("Error parsing product_details:", e);
                 productDetails = {};
             }
-            // Update status using the actual record ID to be safe
-            await db.execute('UPDATE warranty_registrations SET status = ?, rejection_reason = ? WHERE id = ?', [status, status === 'rejected' ? rejectionReason : null, warrantyData.id]);
+            // Update status using the UID (actual primary key)
+            // CRITICAL: Ensure we have a valid UID before updating
+            if (!warrantyData.uid) {
+                console.error('CRITICAL: warrantyData.uid is null/undefined! Aborting update to prevent mass update.');
+                return res.status(500).json({ error: 'Internal error: Warranty UID not found' });
+            }
+            console.log(`Updating warranty: uid=${uid}, resolved_uid=${warrantyData.uid}, new_status=${status}`);
+            await db.execute('UPDATE warranty_registrations SET status = ?, rejection_reason = ? WHERE uid = ?', [status, status === 'rejected' ? rejectionReason : null, warrantyData.uid]);
             // Send email notification to customer only if email is provided
             if (warrantyData.customer_email && warrantyData.customer_email.trim()) {
                 try {

@@ -354,10 +354,18 @@ export class AdminController {
                 productDetails = {};
             }
 
-            // Update status using the actual record ID to be safe
+            // Update status using the UID (actual primary key)
+            // CRITICAL: Ensure we have a valid UID before updating
+            if (!warrantyData.uid) {
+                console.error('CRITICAL: warrantyData.uid is null/undefined! Aborting update to prevent mass update.');
+                return res.status(500).json({ error: 'Internal error: Warranty UID not found' });
+            }
+
+            console.log(`Updating warranty: uid=${uid}, resolved_uid=${warrantyData.uid}, new_status=${status}`);
+
             await db.execute(
-                'UPDATE warranty_registrations SET status = ?, rejection_reason = ? WHERE id = ?',
-                [status, status === 'rejected' ? rejectionReason : null, warrantyData.id]
+                'UPDATE warranty_registrations SET status = ?, rejection_reason = ? WHERE uid = ?',
+                [status, status === 'rejected' ? rejectionReason : null, warrantyData.uid]
             );
 
             // Send email notification to customer only if email is provided

@@ -1,8 +1,9 @@
 import axios from 'axios';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
+const isDev = import.meta.env.DEV;
 
-console.log('API Base URL:', API_URL); // Debug log
+if (isDev) console.log('API Base URL:', API_URL);
 
 const api = axios.create({
   baseURL: API_URL,
@@ -17,18 +18,18 @@ api.interceptors.request.use((config) => {
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
-  console.log('API Request:', config.method?.toUpperCase(), config.url); // Debug log
+  if (isDev) console.log('API Request:', config.method?.toUpperCase(), config.url);
   return config;
 });
 
 // Handle token expiration
 api.interceptors.response.use(
   (response) => {
-    console.log('API Response:', response.status, response.config.url); // Debug log
+    if (isDev) console.log('API Response:', response.status, response.config.url);
     return response;
   },
   (error) => {
-    console.error('API Error:', error.response?.status, error.config?.url, error.response?.data); // Debug log
+    if (isDev) console.error('API Error:', error.response?.status, error.config?.url, error.response?.data);
 
     const isAuthRequest = error.config?.url?.includes('/auth/login') || error.config?.url?.includes('/auth/verify-otp');
 

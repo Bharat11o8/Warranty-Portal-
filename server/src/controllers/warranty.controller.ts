@@ -404,7 +404,7 @@ export class WarrantyController {
       // Check if warranty exists and belongs to user (or user is admin/vendor linked)
       // For simplicity, we'll check ownership via user_id for now as per getWarrantyById logic
       // Support both uid (seat-cover) and id (EV products) for lookup
-      let checkQuery = 'SELECT id, uid, user_id, status, product_details FROM warranty_registrations WHERE uid = ? OR id = ?';
+      let checkQuery = 'SELECT id, uid, user_id, status, product_details, manpower_id FROM warranty_registrations WHERE uid = ? OR id = ?';
       let checkParams: any[] = [uid, uid];
 
       const [warranties]: any = await db.execute(checkQuery, checkParams);
@@ -489,7 +489,7 @@ export class WarrantyController {
           warrantyData.installerName || null,
           warrantyData.installerContact || null,
           JSON.stringify(warrantyData.productDetails),
-          warrantyData.manpowerId || null,
+          warrantyData.manpowerId || warranty.manpower_id || null,
           warrantyData.warrantyType,
           warrantyRecordId
         ]

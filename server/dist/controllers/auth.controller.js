@@ -43,6 +43,11 @@ export class AuthController {
             if (existingUsers.length > 0) {
                 return res.status(400).json({ error: 'Email already registered' });
             }
+            // Check if phone number already exists
+            const [existingPhones] = await db.execute('SELECT id FROM profiles WHERE phone_number = ?', [cleanedPhone]);
+            if (existingPhones.length > 0) {
+                return res.status(400).json({ error: 'Phone number already registered' });
+            }
             // Delete any existing pending registration with this email (allows re-registration)
             await db.execute('DELETE FROM pending_registrations WHERE email = ?', [email]);
             const pendingId = uuidv4();

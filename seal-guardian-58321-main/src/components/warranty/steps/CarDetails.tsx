@@ -34,6 +34,7 @@ const CarDetails = ({ formData, updateFormData, onNext, onPrev }: CarDetailsProp
             value={formData.installationDate}
             onChange={(e) => updateFormData({ installationDate: e.target.value })}
             required
+            max={new Date().toISOString().split('T')[0]}
           />
         </div>
 

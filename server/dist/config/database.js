@@ -19,10 +19,12 @@ const pool = mysql.createPool({
     database: process.env.DB_NAME,
     port: parseInt(process.env.DB_PORT || '3306'),
     waitForConnections: true,
-    connectionLimit: 10,
+    connectionLimit: 5, // Reduced for serverless
     queueLimit: 0,
     enableKeepAlive: true,
-    keepAliveInitialDelay: 0
+    keepAliveInitialDelay: 10000, // Send keep-alive after 10 seconds idle
+    connectTimeout: 60000, // 60 seconds to establish connection
+    idleTimeout: 60000, // Close idle connections after 60 seconds
 });
 // Connection test removed for serverless performance
 // pool.getConnection()...

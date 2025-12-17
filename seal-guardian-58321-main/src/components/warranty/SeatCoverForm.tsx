@@ -411,6 +411,7 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess }: SeatCoverFormProp
                 onChange={(e) => handleChange("purchaseDate", e.target.value)}
                 required
                 disabled={loading}
+                max={new Date().toISOString().split('T')[0]}
               />
             </div>
 
