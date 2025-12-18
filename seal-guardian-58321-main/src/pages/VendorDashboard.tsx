@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Package, Plus, Search, Filter, CheckCircle, Clock, XCircle, Users, User, Trash2, Edit2, X, Check, ArrowLeft, Edit, FileText, Eye, Download } from "lucide-react";
+import { Package, Plus, Search, Filter, CheckCircle, Clock, XCircle, Users, User, Trash2, Edit2, X, Check, ArrowLeft, Edit, FileText, Eye, Download, Loader2 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useState, useEffect } from "react";
 import api from "@/lib/api";
@@ -22,7 +22,6 @@ const WarrantyList = ({ items, showReason = false, user, onEditWarranty, onVerif
     items: any[],
     showReason?: boolean,
     user: any,
-    onEditWarranty?: (warranty: any) => void,
     onVerify?: (warranty: any) => void,
     onReject?: (warranty: any) => void,
     isPendingVerification?: boolean
@@ -52,8 +51,7 @@ const WarrantyList = ({ items, showReason = false, user, onEditWarranty, onVerif
                 };
                 const rawProductName = productDetails.product || productDetails.productName || warranty.product_type;
                 const productName = productNameMapping[rawProductName] || rawProductName;
-                // Check if this warranty was uploaded by the current vendor
-                const canEdit = warranty.user_id === user?.id;
+
 
                 // Calculate warranty expiration
                 const { expirationDate, daysLeft, isExpired } = getWarrantyExpiration(warranty.created_at);
@@ -475,15 +473,10 @@ const WarrantyList = ({ items, showReason = false, user, onEditWarranty, onVerif
                                     <p className="text-sm">{warranty.rejection_reason}</p>
                                 </div>
                             )}
-                            {/* Edit button shows for rejected warranties in the disapproved tab */}
                             {showReason && warranty.status === 'rejected' && (
-                                <Button
-                                    onClick={() => onEditWarranty(warranty)}
-                                    variant="outline"
-                                    className="w-full mt-4"
-                                >
-                                    <Edit className="mr-2 h-4 w-4" /> Edit & Resubmit
-                                </Button>
+                                <div className="mt-4 text-xs text-muted-foreground text-center italic">
+                                    Contact support or customer to correct this registration.
+                                </div>
                             )}
                         </CardContent>
                     </Card>
@@ -498,7 +491,6 @@ const VendorDashboard = () => {
     const { toast } = useToast();
     const [warranties, setWarranties] = useState<any[]>([]);
     const [loadingWarranties, setLoadingWarranties] = useState(false);
-    const [editingWarranty, setEditingWarranty] = useState<any>(null);
     const [warrantyPagination, setWarrantyPagination] = useState({ currentPage: 1, totalPages: 1, totalCount: 0, limit: 30, hasNextPage: false, hasPrevPage: false });
 
     // Manpower state
@@ -851,33 +843,7 @@ const VendorDashboard = () => {
         return <Navigate to="/" />;
     }
 
-    // Edit warranty view
-    if (editingWarranty) {
-        const FormComponent = editingWarranty.product_type === "seat-cover" ? SeatCoverForm : EVProductsForm;
 
-        return (
-            <div className="min-h-screen bg-gradient-to-b from-background to-muted/30">
-                <Header />
-                <main className="container mx-auto px-4 py-8">
-                    <Button
-                        variant="ghost"
-                        onClick={() => setEditingWarranty(null)}
-                        className="mb-6"
-                    >
-                        <ArrowLeft className="mr-2 h-4 w-4" /> Back to Dashboard
-                    </Button>
-                    <FormComponent
-                        initialData={editingWarranty}
-                        warrantyId={editingWarranty.uid || editingWarranty.id}
-                        onSuccess={() => {
-                            setEditingWarranty(null);
-                            fetchWarranties(warrantyPagination.currentPage, true); // Background fetch to avoid loading state flash
-                        }}
-                    />
-                </main>
-            </div>
-        );
-    }
 
     // Main dashboard view
     return (
@@ -1063,8 +1029,8 @@ const VendorDashboard = () => {
                     <TabsContent value="pending_verification" className="space-y-4">
                         <WarrantyList
                             items={filterAndSortWarranties(pendingVendorWarranties)}
+                            items={filterAndSortWarranties(pendingVendorWarranties)}
                             user={user}
-                            onEditWarranty={() => { }}
                             onVerify={handleVerifyWarranty}
                             onReject={handleRejectWarranty}
                             isPendingVerification={true}
@@ -1077,8 +1043,8 @@ const VendorDashboard = () => {
                         ) : (
                             <WarrantyList
                                 items={filterAndSortWarranties(warranties)}
+                                items={filterAndSortWarranties(warranties)}
                                 user={user}
-                                onEditWarranty={setEditingWarranty}
                             />
                         )}
                     </TabsContent>
@@ -1086,8 +1052,8 @@ const VendorDashboard = () => {
                     <TabsContent value="approved" className="space-y-4">
                         <WarrantyList
                             items={filterAndSortWarranties(approvedWarranties)}
+                            items={filterAndSortWarranties(approvedWarranties)}
                             user={user}
-                            onEditWarranty={setEditingWarranty}
                         />
                     </TabsContent>
 
@@ -1095,16 +1061,16 @@ const VendorDashboard = () => {
                         <WarrantyList
                             items={filterAndSortWarranties(rejectedWarranties)}
                             showReason={true}
+                            showReason={true}
                             user={user}
-                            onEditWarranty={setEditingWarranty}
                         />
                     </TabsContent>
 
                     <TabsContent value="pending" className="space-y-4">
                         <WarrantyList
                             items={filterAndSortWarranties(pendingWarranties)}
+                            items={filterAndSortWarranties(pendingWarranties)}
                             user={user}
-                            onEditWarranty={setEditingWarranty}
                         />
                     </TabsContent>
 
@@ -1168,7 +1134,11 @@ const VendorDashboard = () => {
                                                         <option value="ev">EV Applicator</option>
                                                     </select>
                                                     <Button type="submit" size="icon" disabled={addingManpower}>
-                                                        <Plus className="h-4 w-4" />
+                                                        {addingManpower ? (
+                                                            <Loader2 className="h-4 w-4 animate-spin" />
+                                                        ) : (
+                                                            <Plus className="h-4 w-4" />
+                                                        )}
                                                     </Button>
                                                 </div>
                                             </div>
@@ -1214,7 +1184,12 @@ const VendorDashboard = () => {
                                                                             onClick={() => handleUpdateManpower(member.id)}
                                                                             disabled={updatingManpower}
                                                                         >
-                                                                            <Check className="h-4 w-4 mr-1" /> Save
+                                                                            {updatingManpower ? (
+                                                                                <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                                                                            ) : (
+                                                                                <Check className="h-4 w-4 mr-1" />
+                                                                            )}
+                                                                            Save
                                                                         </Button>
                                                                         <Button
                                                                             size="sm"
