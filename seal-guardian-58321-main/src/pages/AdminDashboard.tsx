@@ -30,7 +30,8 @@ import {
     TrendingUp,
     Mail,
     Phone,
-    MapPin
+    MapPin,
+    Loader2
 } from "lucide-react";
 import api from "@/lib/api";
 import {
@@ -546,7 +547,11 @@ const AdminWarrantyList = ({
                                                         onClick={() => onApprove(warranty.uid || warranty.id)}
                                                         disabled={processingWarranty === (warranty.uid || warranty.id)}
                                                     >
-                                                        <Check className="h-3 w-3" />
+                                                        {processingWarranty === (warranty.uid || warranty.id) ? (
+                                                            <Loader2 className="h-3 w-3 animate-spin" />
+                                                        ) : (
+                                                            <Check className="h-3 w-3" />
+                                                        )}
                                                     </Button>
                                                     <Button
                                                         size="sm"
@@ -555,7 +560,11 @@ const AdminWarrantyList = ({
                                                         onClick={() => onReject(warranty.uid || warranty.id)}
                                                         disabled={processingWarranty === (warranty.uid || warranty.id)}
                                                     >
-                                                        <X className="h-3 w-3" />
+                                                        {processingWarranty === (warranty.uid || warranty.id) ? (
+                                                            <Loader2 className="h-3 w-3 animate-spin" />
+                                                        ) : (
+                                                            <X className="h-3 w-3" />
+                                                        )}
                                                     </Button>
                                                 </>
                                             )}
@@ -567,7 +576,11 @@ const AdminWarrantyList = ({
                                                     onClick={() => onReject(warranty.uid || warranty.id)}
                                                     disabled={processingWarranty === (warranty.uid || warranty.id)}
                                                 >
-                                                    <X className="h-3 w-3 mr-1" />
+                                                    {processingWarranty === (warranty.uid || warranty.id) ? (
+                                                        <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                                                    ) : (
+                                                        <X className="h-3 w-3 mr-1" />
+                                                    )}
                                                     Reject
                                                 </Button>
                                             )}
@@ -624,6 +637,10 @@ const AdminDashboard = () => {
     const [processingVendor, setProcessingVendor] = useState<string | null>(null);
     const [vendorWarrantyFilter, setVendorWarrantyFilter] = useState<'all' | 'validated' | 'rejected' | 'pending'>('all');
     const [customerWarrantyFilter, setCustomerWarrantyFilter] = useState<'all' | 'validated' | 'rejected' | 'pending'>('all');
+
+    // View Details Loading States
+    const [loadingVendorDetails, setLoadingVendorDetails] = useState<string | null>(null);
+    const [loadingCustomerDetails, setLoadingCustomerDetails] = useState<string | null>(null);
 
     // Admin Management State
     const [admins, setAdmins] = useState<any[]>([]);
@@ -763,10 +780,6 @@ const AdminDashboard = () => {
         });
 
         downloadCSV(exportData, `warranties_export_${new Date().toISOString().split('T')[0]}.csv`);
-        toast({
-            title: "Export Successful",
-            description: `${exportData.length} warranties exported to CSV.`,
-        });
     };
 
     const handleExportVendors = () => {
@@ -841,10 +854,6 @@ const AdminDashboard = () => {
         }));
 
         downloadCSV(exportData, `vendors_export_${new Date().toISOString().split('T')[0]}.csv`);
-        toast({
-            title: "Export Successful",
-            description: `${exportData.length} vendors exported to CSV.`,
-        });
     };
 
     const handleExportCustomers = () => {
@@ -902,10 +911,6 @@ const AdminDashboard = () => {
         }));
 
         downloadCSV(exportData, `customers_export_${new Date().toISOString().split('T')[0]}.csv`);
-        toast({
-            title: "Export Successful",
-            description: `${exportData.length} customers exported to CSV.`,
-        });
     };
 
     const handleExportVendorDetailWarranties = (filteredWarranties: any[]) => {
@@ -930,10 +935,6 @@ const AdminDashboard = () => {
             };
         });
         downloadCSV(exportData, `vendor_warranties_export_${new Date().toISOString().split('T')[0]}.csv`);
-        toast({
-            title: "Export Successful",
-            description: `${exportData.length} warranties exported to CSV.`,
-        });
     };
 
     const handleExportVendorDetailManpower = (filteredManpower: any[]) => {
@@ -950,10 +951,6 @@ const AdminDashboard = () => {
             'Joined Date': new Date(m.created_at).toLocaleDateString()
         }));
         downloadCSV(exportData, `vendor_manpower_export_${new Date().toISOString().split('T')[0]}.csv`);
-        toast({
-            title: "Export Successful",
-            description: `${exportData.length} manpower records exported to CSV.`,
-        });
     };
 
     const handleExportCustomerDetailWarranties = (filteredWarranties: any[]) => {
@@ -976,10 +973,6 @@ const AdminDashboard = () => {
             };
         });
         downloadCSV(exportData, `customer_warranties_export_${new Date().toISOString().split('T')[0]}.csv`);
-        toast({
-            title: "Export Successful",
-            description: `${exportData.length} warranties exported to CSV.`,
-        });
     };
 
     useEffect(() => {
@@ -1231,6 +1224,7 @@ const AdminDashboard = () => {
     };
 
     const handleViewVendor = async (vendorId: string) => {
+        setLoadingVendorDetails(vendorId);
         try {
             const response = await api.get(`/admin/vendors/${vendorId}`);
             if (response.data.success) {
@@ -1248,6 +1242,8 @@ const AdminDashboard = () => {
                 description: "Failed to fetch franchise details",
                 variant: "destructive"
             });
+        } finally {
+            setLoadingVendorDetails(null);
         }
     };
 
@@ -1524,6 +1520,7 @@ const AdminDashboard = () => {
     }
 
     const handleViewCustomer = async (email: string) => {
+        setLoadingCustomerDetails(email);
         try {
             const response = await api.get(`/admin/customers/${encodeURIComponent(email)}`);
             if (response.data.success) {
@@ -1540,6 +1537,8 @@ const AdminDashboard = () => {
                 description: "Failed to fetch customer details",
                 variant: "destructive"
             });
+        } finally {
+            setLoadingCustomerDetails(null);
         }
     };
 
@@ -2136,17 +2135,26 @@ const AdminDashboard = () => {
                                     placeholder="Reason for rejection..."
                                     value={rejectReason}
                                     onChange={(e) => setRejectReason(e.target.value)}
+                                    disabled={processingWarranty === selectedWarrantyId}
                                 />
                                 <div className="flex justify-end gap-2 mt-4">
-                                    <Button variant="outline" onClick={() => setRejectDialogOpen(false)}>
+                                    <Button
+                                        variant="outline"
+                                        onClick={() => setRejectDialogOpen(false)}
+                                        disabled={processingWarranty === selectedWarrantyId}
+                                    >
                                         Cancel
                                     </Button>
                                     <Button
                                         variant="destructive"
                                         onClick={() => selectedWarrantyId && handleUpdateStatus(selectedWarrantyId, 'rejected', rejectReason)}
-                                        disabled={!rejectReason.trim()}
+                                        disabled={!rejectReason.trim() || processingWarranty === selectedWarrantyId}
                                     >
-                                        Reject Warranty
+                                        {processingWarranty === selectedWarrantyId ? (
+                                            <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Rejecting...</>
+                                        ) : (
+                                            'Reject Warranty'
+                                        )}
                                     </Button>
                                 </div>
                             </div>
@@ -2844,7 +2852,12 @@ const AdminDashboard = () => {
                                                                         onClick={() => handleVendorVerification(vendor.id, true)}
                                                                         disabled={processingVendor === vendor.id}
                                                                     >
-                                                                        <Check className="h-4 w-4 mr-1" /> Approve
+                                                                        {processingVendor === vendor.id ? (
+                                                                            <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                                                                        ) : (
+                                                                            <Check className="h-4 w-4 mr-1" />
+                                                                        )}
+                                                                        Approve
                                                                     </Button>
                                                                     <Button
                                                                         size="sm"
@@ -2856,7 +2869,12 @@ const AdminDashboard = () => {
                                                                         }}
                                                                         disabled={processingVendor === vendor.id}
                                                                     >
-                                                                        <X className="h-4 w-4 mr-1" /> Reject
+                                                                        {processingVendor === vendor.id ? (
+                                                                            <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                                                                        ) : (
+                                                                            <X className="h-4 w-4 mr-1" />
+                                                                        )}
+                                                                        Reject
                                                                     </Button>
                                                                 </>
                                                             ) : (
@@ -2866,8 +2884,14 @@ const AdminDashboard = () => {
                                                                         size="sm"
                                                                         className="flex-1"
                                                                         onClick={() => handleViewVendor(vendor.id)}
+                                                                        disabled={loadingVendorDetails === vendor.id}
                                                                     >
-                                                                        <Eye className="h-4 w-4 mr-2" /> View Details
+                                                                        {loadingVendorDetails === vendor.id ? (
+                                                                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                                                        ) : (
+                                                                            <Eye className="h-4 w-4 mr-2" />
+                                                                        )}
+                                                                        {loadingVendorDetails === vendor.id ? 'Loading...' : 'View Details'}
                                                                     </Button>
                                                                     {vendorFilter === 'disapproved' && (
                                                                         <Button
@@ -2876,7 +2900,12 @@ const AdminDashboard = () => {
                                                                             onClick={() => handleVendorVerification(vendor.id, true)}
                                                                             disabled={processingVendor === vendor.id}
                                                                         >
-                                                                            <Check className="h-4 w-4 mr-1" /> Re-approve
+                                                                            {processingVendor === vendor.id ? (
+                                                                                <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                                                                            ) : (
+                                                                                <Check className="h-4 w-4 mr-1" />
+                                                                            )}
+                                                                            Re-approve
                                                                         </Button>
                                                                     )}
                                                                     <Button
@@ -2985,7 +3014,12 @@ const AdminDashboard = () => {
                                                                                         onClick={() => handleVendorVerification(vendor.id, true)}
                                                                                         disabled={processingVendor === vendor.id}
                                                                                     >
-                                                                                        <Check className="h-4 w-4 mr-1" /> Approve
+                                                                                        {processingVendor === vendor.id ? (
+                                                                                            <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                                                                                        ) : (
+                                                                                            <Check className="h-4 w-4 mr-1" />
+                                                                                        )}
+                                                                                        Approve
                                                                                     </Button>
                                                                                     <Button
                                                                                         size="sm"
@@ -2997,7 +3031,12 @@ const AdminDashboard = () => {
                                                                                         }}
                                                                                         disabled={processingVendor === vendor.id}
                                                                                     >
-                                                                                        <X className="h-4 w-4 mr-1" /> Reject
+                                                                                        {processingVendor === vendor.id ? (
+                                                                                            <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                                                                                        ) : (
+                                                                                            <X className="h-4 w-4 mr-1" />
+                                                                                        )}
+                                                                                        Reject
                                                                                     </Button>
                                                                                 </>
                                                                             ) : vendorFilter === 'disapproved' ? (
@@ -3008,7 +3047,12 @@ const AdminDashboard = () => {
                                                                                         onClick={() => handleVendorVerification(vendor.id, true)}
                                                                                         disabled={processingVendor === vendor.id}
                                                                                     >
-                                                                                        <Check className="h-4 w-4 mr-1" /> Re-approve
+                                                                                        {processingVendor === vendor.id ? (
+                                                                                            <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                                                                                        ) : (
+                                                                                            <Check className="h-4 w-4 mr-1" />
+                                                                                        )}
+                                                                                        Re-approve
                                                                                     </Button>
                                                                                     <Button
                                                                                         variant="ghost"
@@ -3027,8 +3071,13 @@ const AdminDashboard = () => {
                                                                                         size="icon"
                                                                                         onClick={() => handleViewVendor(vendor.id)}
                                                                                         title="View Details"
+                                                                                        disabled={loadingVendorDetails === vendor.id}
                                                                                     >
-                                                                                        <Users className="h-4 w-4" />
+                                                                                        {loadingVendorDetails === vendor.id ? (
+                                                                                            <Loader2 className="h-4 w-4 animate-spin" />
+                                                                                        ) : (
+                                                                                            <Users className="h-4 w-4" />
+                                                                                        )}
                                                                                     </Button>
                                                                                     <Button
                                                                                         variant="ghost"
@@ -3078,8 +3127,13 @@ const AdminDashboard = () => {
                                                                                 size="icon"
                                                                                 onClick={() => handleViewVendor(vendor.id)}
                                                                                 title="View Details"
+                                                                                disabled={loadingVendorDetails === vendor.id}
                                                                             >
-                                                                                <Users className="h-4 w-4" />
+                                                                                {loadingVendorDetails === vendor.id ? (
+                                                                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                                                                ) : (
+                                                                                    <Users className="h-4 w-4" />
+                                                                                )}
                                                                             </Button>
                                                                             <Button
                                                                                 size="sm"
@@ -3092,7 +3146,12 @@ const AdminDashboard = () => {
                                                                                 disabled={processingVendor === vendor.id}
                                                                                 title="Reject Vendor"
                                                                             >
-                                                                                <X className="h-4 w-4 mr-1" /> Reject
+                                                                                {processingVendor === vendor.id ? (
+                                                                                    <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                                                                                ) : (
+                                                                                    <X className="h-4 w-4 mr-1" />
+                                                                                )}
+                                                                                Reject
                                                                             </Button>
                                                                             <Button
                                                                                 variant="ghost"
@@ -3289,10 +3348,7 @@ const AdminDashboard = () => {
                                                                     <Phone className="h-4 w-4 text-muted-foreground" />
                                                                     <span>{customer.customer_phone}</span>
                                                                 </div>
-                                                                <div className="flex items-center gap-2">
-                                                                    <MapPin className="h-4 w-4 text-muted-foreground" />
-                                                                    <span className="truncate">{customer.customer_address || 'N/A'}</span>
-                                                                </div>
+
                                                             </div>
 
                                                             {/* Stats Grid */}
@@ -3321,8 +3377,14 @@ const AdminDashboard = () => {
                                                                     variant="outline"
                                                                     className="flex-1"
                                                                     onClick={() => handleViewCustomer(customer.customer_email)}
+                                                                    disabled={loadingCustomerDetails === customer.customer_email}
                                                                 >
-                                                                    <Eye className="h-4 w-4 mr-2" /> View
+                                                                    {loadingCustomerDetails === customer.customer_email ? (
+                                                                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                                                    ) : (
+                                                                        <Eye className="h-4 w-4 mr-2" />
+                                                                    )}
+                                                                    {loadingCustomerDetails === customer.customer_email ? 'Loading...' : 'View'}
                                                                 </Button>
                                                                 <Button
                                                                     size="sm"
@@ -3345,7 +3407,7 @@ const AdminDashboard = () => {
                                                         <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Customer Name</th>
                                                         <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Email</th>
                                                         <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Phone</th>
-                                                        <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Address</th>
+
                                                         <th className="h-12 px-4 text-center align-middle font-medium text-muted-foreground">Approved</th>
                                                         <th className="h-12 px-4 text-center align-middle font-medium text-muted-foreground">Disapproved</th>
                                                         <th className="h-12 px-4 text-center align-middle font-medium text-muted-foreground">Pending</th>
@@ -3388,11 +3450,7 @@ const AdminDashboard = () => {
                                                                     <div className="text-sm">{customer.customer_email}</div>
                                                                 </td>
                                                                 <td className="p-4 align-middle">{customer.customer_phone}</td>
-                                                                <td className="p-4 align-middle">
-                                                                    <div className="text-sm max-w-[200px] truncate" title={customer.customer_address}>
-                                                                        {customer.customer_address || 'N/A'}
-                                                                    </div>
-                                                                </td>
+
                                                                 <td className="p-4 align-middle text-center">
                                                                     <span className="inline-flex items-center justify-center rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-semibold text-green-800">
                                                                         {customer.validated_warranties || 0}
@@ -3427,8 +3485,12 @@ const AdminDashboard = () => {
                                                                             size="sm"
                                                                             variant="outline"
                                                                             onClick={() => handleViewCustomer(customer.customer_email)}
+                                                                            disabled={loadingCustomerDetails === customer.customer_email}
                                                                         >
-                                                                            View
+                                                                            {loadingCustomerDetails === customer.customer_email ? (
+                                                                                <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                                                                            ) : null}
+                                                                            {loadingCustomerDetails === customer.customer_email ? 'Loading...' : 'View'}
                                                                         </Button>
                                                                         <Button
                                                                             size="sm"
@@ -3681,17 +3743,26 @@ const AdminDashboard = () => {
                                     placeholder="Reason for rejection..."
                                     value={rejectReason}
                                     onChange={(e) => setRejectReason(e.target.value)}
+                                    disabled={processingWarranty === selectedWarrantyId}
                                 />
                                 <div className="flex justify-end gap-2 mt-4">
-                                    <Button variant="outline" onClick={() => setRejectDialogOpen(false)}>
+                                    <Button
+                                        variant="outline"
+                                        onClick={() => setRejectDialogOpen(false)}
+                                        disabled={processingWarranty === selectedWarrantyId}
+                                    >
                                         Cancel
                                     </Button>
                                     <Button
                                         variant="destructive"
                                         onClick={() => selectedWarrantyId && handleWarrantyAction(selectedWarrantyId, 'rejected', rejectReason)}
-                                        disabled={!rejectReason.trim()}
+                                        disabled={!rejectReason.trim() || processingWarranty === selectedWarrantyId}
                                     >
-                                        Reject Warranty
+                                        {processingWarranty === selectedWarrantyId ? (
+                                            <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Rejecting...</>
+                                        ) : (
+                                            'Reject Warranty'
+                                        )}
                                     </Button>
                                 </div>
                             </div>
@@ -3712,9 +3783,14 @@ const AdminDashboard = () => {
                                     placeholder="Reason for rejection..."
                                     value={vendorRejectReason}
                                     onChange={(e) => setVendorRejectReason(e.target.value)}
+                                    disabled={processingVendor === selectedVendor?.id}
                                 />
                                 <div className="flex justify-end gap-2 mt-4">
-                                    <Button variant="outline" onClick={() => setVendorRejectDialogOpen(false)}>
+                                    <Button
+                                        variant="outline"
+                                        onClick={() => setVendorRejectDialogOpen(false)}
+                                        disabled={processingVendor === selectedVendor?.id}
+                                    >
                                         Cancel
                                     </Button>
                                     <Button
@@ -3722,7 +3798,11 @@ const AdminDashboard = () => {
                                         onClick={() => selectedVendor && handleVendorVerification(selectedVendor.id, false, vendorRejectReason)}
                                         disabled={!vendorRejectReason.trim() || processingVendor === selectedVendor?.id}
                                     >
-                                        Reject Application
+                                        {processingVendor === selectedVendor?.id ? (
+                                            <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Rejecting...</>
+                                        ) : (
+                                            'Reject Application'
+                                        )}
                                     </Button>
                                 </div>
                             </div>
