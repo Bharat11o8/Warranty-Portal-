@@ -3,7 +3,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import Header from "@/components/Header";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Package, Plus, ArrowLeft, Edit, FileText, Eye, Download, Search } from "lucide-react";
+import { Package, Plus, ArrowLeft, Edit, FileText, Eye, Download, Search, Shield, Armchair } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
@@ -20,6 +20,7 @@ const CustomerDashboard = () => {
     const [warranties, setWarranties] = useState<any[]>([]);
     const [loadingWarranties, setLoadingWarranties] = useState(false);
     const [editingWarranty, setEditingWarranty] = useState<any>(null);
+    const [creatingWarranty, setCreatingWarranty] = useState<'seat-cover' | 'ppf' | null>(null);
     const [warrantyPagination, setWarrantyPagination] = useState({ currentPage: 1, totalPages: 1, totalCount: 0, limit: 30, hasNextPage: false, hasPrevPage: false });
 
     // Search & Sort State
@@ -64,8 +65,13 @@ const CustomerDashboard = () => {
         return <Navigate to="/warranty" replace />;
     }
 
-    if (editingWarranty) {
-        const FormComponent = editingWarranty.product_type === "seat-cover"
+    if (editingWarranty || creatingWarranty) {
+        const isEditing = !!editingWarranty;
+        const productType = isEditing
+            ? editingWarranty.product_type
+            : (creatingWarranty === 'ppf' ? 'ev-products' : 'seat-cover');
+
+        const FormComponent = productType === "seat-cover"
             ? SeatCoverForm
             : EVProductsForm;
 
@@ -75,16 +81,20 @@ const CustomerDashboard = () => {
                 <main className="container mx-auto px-4 py-8">
                     <Button
                         variant="ghost"
-                        onClick={() => setEditingWarranty(null)}
+                        onClick={() => {
+                            setEditingWarranty(null);
+                            setCreatingWarranty(null);
+                        }}
                         className="mb-6"
                     >
                         <ArrowLeft className="mr-2 h-4 w-4" /> Back to Dashboard
                     </Button>
                     <FormComponent
                         initialData={editingWarranty}
-                        warrantyId={editingWarranty.id}
+                        warrantyId={editingWarranty?.id}
                         onSuccess={() => {
                             setEditingWarranty(null);
+                            setCreatingWarranty(null);
                             fetchWarranties();
                         }}
                     />
@@ -637,23 +647,59 @@ const CustomerDashboard = () => {
             <Header />
 
             <main className="container mx-auto px-4 py-8">
+                {/* New Warranty Registration Cards */}
+                <div className="mb-10">
+                    <h2 className="text-2xl font-bold mb-6">Register New Warranty</h2>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl">
+                        {/* Seat Cover Card */}
+                        <Card
+                            className="group hover:shadow-lg transition-all cursor-pointer border-2 hover:border-primary/50 relative overflow-hidden"
+                            onClick={() => setCreatingWarranty('seat-cover')}
+                        >
+                            <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                            <CardContent className="p-6 flex items-center gap-6">
+                                <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center group-hover:scale-110 transition-transform">
+                                    <Armchair className="h-8 w-8 text-primary" />
+                                </div>
+                                <div>
+                                    <h3 className="text-xl font-bold mb-2">Seat Cover</h3>
+                                    <p className="text-muted-foreground text-sm">
+                                        Register warranty for premium seat covers and upholstery
+                                    </p>
+                                </div>
+                            </CardContent>
+                        </Card>
+
+                        {/* PPF Card */}
+                        <Card
+                            className="group hover:shadow-lg transition-all cursor-pointer border-2 hover:border-primary/50 relative overflow-hidden"
+                            onClick={() => setCreatingWarranty('ppf')}
+                        >
+                            <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                            <CardContent className="p-6 flex items-center gap-6">
+                                <div className="h-16 w-16 rounded-full bg-blue-500/10 flex items-center justify-center group-hover:scale-110 transition-transform">
+                                    <Shield className="h-8 w-8 text-blue-600" />
+                                </div>
+                                <div>
+                                    <h3 className="text-xl font-bold mb-2">Paint Protection Film (PPF)</h3>
+                                    <p className="text-muted-foreground text-sm">
+                                        Register warranty for PPF and other protection films
+                                    </p>
+                                </div>
+                            </CardContent>
+                        </Card>
+                    </div>
+                </div>
+
                 {/* Page Header */}
                 <div className="mb-8">
-                    <h1 className="text-4xl font-bold mb-2">My Warranties</h1>
+                    <h1 className="text-3xl font-bold mb-2">My Warranties</h1>
                     <p className="text-muted-foreground">
                         View and manage your registered product warranties
                     </p>
                 </div>
 
-                {/* Action Bar */}
-                <div className="flex flex-col sm:flex-row gap-4 mb-6">
-                    <Link to="/warranty" className="flex-1 sm:flex-initial">
-                        <Button className="w-full sm:w-auto">
-                            <Plus className="mr-2 h-4 w-4" />
-                            Register New Product
-                        </Button>
-                    </Link>
-                </div>
+
 
                 {/* Search & Sort Controls */}
                 <div className="flex flex-wrap gap-4 mb-6">
