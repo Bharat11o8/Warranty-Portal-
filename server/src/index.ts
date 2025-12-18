@@ -26,6 +26,9 @@ dotenv.config({ path: join(__dirname, '../.env') });
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Enable trust proxy for rate limiting behind load balancers/proxies
+app.set('trust proxy', 1);
+
 // ===========================================
 // SECURITY MIDDLEWARE (Applied First)
 // ===========================================

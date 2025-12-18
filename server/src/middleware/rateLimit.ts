@@ -16,10 +16,7 @@ export const authRateLimiter = rateLimit({
     },
     standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
     legacyHeaders: false, // Disable the `X-RateLimit-*` headers
-    keyGenerator: (req) => {
-        // Use IP address as the key, with fallback
-        return req.ip || req.socket?.remoteAddress || 'unknown';
-    },
+    // keyGenerator removed to use default IP-based limiting with proper IPv6 support
     skip: (req) => {
         // Skip rate limiting in test environment
         return process.env.NODE_ENV === 'test';
@@ -42,9 +39,7 @@ export const otpResendLimiter = rateLimit({
     },
     standardHeaders: true,
     legacyHeaders: false,
-    keyGenerator: (req) => {
-        return req.ip || req.socket?.remoteAddress || 'unknown';
-    }
+    // keyGenerator removed to use default IP-based limiting
 });
 
 /**
