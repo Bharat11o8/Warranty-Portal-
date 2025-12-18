@@ -46,7 +46,12 @@ app.use(enhancedLogger);
 // Parse allowed origins from environment
 const allowedOrigins = process.env.ALLOWED_ORIGINS
   ? process.env.ALLOWED_ORIGINS.split(',').map(origin => origin.trim())
-  : ['http://localhost:5173', 'http://localhost:3000'];
+  : [
+    'http://localhost:5173',
+    'http://localhost:3000',
+    'https://warranty.emporiobyautoform.in',
+    'https://server-bharat-maheshwaris-projects.vercel.app'
+  ];
 
 app.use(cors({
   origin: (origin, callback) => {
@@ -56,6 +61,7 @@ app.use(cors({
     if (allowedOrigins.includes(origin) || allowedOrigins.includes('*')) {
       callback(null, true);
     } else {
+      // Log the blocked origin for debugging
       console.warn(`[CORS] Blocked request from origin: ${origin}`);
       callback(null, false);
     }
