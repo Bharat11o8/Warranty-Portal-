@@ -360,9 +360,9 @@ const EVProductsForm = ({ initialData, warrantyId, onSuccess }: EVProductsFormPr
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-3xl font-bold">{warrantyId ? 'Edit Warranty Application' : 'EV Products Warranty Registration'}</CardTitle>
+        <CardTitle className="text-3xl font-bold">{warrantyId ? 'Edit Warranty Application' : 'PPF Warranty Registration'}</CardTitle>
         <CardDescription className="text-base">
-          {warrantyId ? 'Update the details below to resubmit your application' : 'Please fill in all required fields to register your EV Products warranty'}
+          {warrantyId ? 'Update the details below to resubmit your application' : 'Please fill in all required fields to register your Paint Protection Film (PPF) warranty'}
         </CardDescription>
       </CardHeader>
       <CardContent className="pt-6">
