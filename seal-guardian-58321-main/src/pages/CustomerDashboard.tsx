@@ -3,7 +3,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import Header from "@/components/Header";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Package, Plus, ArrowLeft, Edit, FileText, Eye, Download, Search, Shield, Armchair } from "lucide-react";
+import { Package, Plus, ArrowLeft, Edit, FileText, Eye, Download, Search } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
@@ -658,8 +658,12 @@ const CustomerDashboard = () => {
                         >
                             <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
                             <CardContent className="p-6 flex items-center gap-6">
-                                <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center group-hover:scale-110 transition-transform">
-                                    <Armchair className="h-8 w-8 text-primary" />
+                                <div className="h-16 w-16 rounded-full bg-white flex items-center justify-center group-hover:scale-110 transition-transform overflow-hidden p-3 border">
+                                    <img
+                                        src="/icons/seat-cover.png"
+                                        alt="Seat Cover"
+                                        className="w-full h-full object-contain"
+                                    />
                                 </div>
                                 <div>
                                     <h3 className="text-xl font-bold mb-2">Seat Cover</h3>
@@ -677,8 +681,12 @@ const CustomerDashboard = () => {
                         >
                             <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
                             <CardContent className="p-6 flex items-center gap-6">
-                                <div className="h-16 w-16 rounded-full bg-blue-500/10 flex items-center justify-center group-hover:scale-110 transition-transform">
-                                    <Shield className="h-8 w-8 text-blue-600" />
+                                <div className="h-16 w-16 rounded-full bg-white flex items-center justify-center group-hover:scale-110 transition-transform overflow-hidden p-2 border">
+                                    <img
+                                        src="/icons/ppf.png"
+                                        alt="PPF"
+                                        className="w-full h-full object-contain"
+                                    />
                                 </div>
                                 <div>
                                     <h3 className="text-xl font-bold mb-2">Paint Protection Film (PPF)</h3>
