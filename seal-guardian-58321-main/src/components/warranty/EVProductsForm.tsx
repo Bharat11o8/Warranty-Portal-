@@ -59,9 +59,11 @@ interface EVProductsFormProps {
   initialData?: any;
   warrantyId?: string;
   onSuccess?: () => void;
+  isUniversal?: boolean;
+  isEditing?: boolean;
 }
 
-const EVProductsForm = ({ initialData, warrantyId, onSuccess }: EVProductsFormProps) => {
+const EVProductsForm = ({ initialData, warrantyId, onSuccess, isUniversal, isEditing }: EVProductsFormProps) => {
   const { toast } = useToast();
   const { user } = useAuth();
   const navigate = useNavigate();

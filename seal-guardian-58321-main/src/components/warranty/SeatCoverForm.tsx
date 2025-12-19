@@ -22,9 +22,10 @@ interface SeatCoverFormProps {
   initialData?: any;
   warrantyId?: string;
   onSuccess?: () => void;
+  isEditing?: boolean;
 }
 
-const SeatCoverForm = ({ initialData, warrantyId, onSuccess }: SeatCoverFormProps = {}) => {
+const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing }: SeatCoverFormProps = {}) => {
   const { toast } = useToast();
   const { user } = useAuth();
   const navigate = useNavigate();

@@ -2,40 +2,51 @@ import { useState, useEffect } from "react";
 import { useNavigate, useSearchParams, Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { useAuth, UserRole } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
-import { Mail, ShieldCheck, KeyRound, Store, Shield, AlertCircle, Loader2 } from "lucide-react";
-import authHero from "@/assets/auth-hero.jpg";
-import { validateEmail, getEmailError } from "@/lib/validation";
+import { User, Building, Loader2 } from "lucide-react";
+import { getEmailError } from "@/lib/validation";
+import RoleCard from "@/components/ui/RoleCard";
+import OTPInput from "@/components/ui/OTPInput";
 
 const Login = () => {
-  const [searchParams] = useSearchParams();
-  const role = (searchParams.get("role") as UserRole) || "customer";
+  const [searchParams, setSearchParams] = useSearchParams();
+  const initialRole = searchParams.get("role") as UserRole;
 
+  // State
+  const [selectedRole, setSelectedRole] = useState<'customer' | 'vendor' | 'admin'>(
+    (initialRole === 'vendor' || initialRole === 'admin') ? initialRole : 'customer'
+  );
+  const [step, setStep] = useState<'email' | 'otp'>('email');
   const [email, setEmail] = useState("");
   const [emailError, setEmailError] = useState("");
-  const [otp, setOtp] = useState("");
+  const [otp, setOtp] = useState<string[]>(Array(6).fill(''));
   const [userId, setUserId] = useState<string>("");
-  const [showOTP, setShowOTP] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [resendTimer, setResendTimer] = useState(0);
+  const [countdown, setCountdown] = useState(0);
   const [resendLoading, setResendLoading] = useState(false);
 
   const navigate = useNavigate();
   const { login, verifyOTP } = useAuth();
   const { toast } = useToast();
 
-  // Admin email whitelist
-  const ADMIN_EMAIL = "prabhat@autoformindia.com";
+  // Sync role from URL
+  useEffect(() => {
+    if (initialRole === 'admin' || initialRole === 'vendor' || initialRole === 'customer') {
+      setSelectedRole(initialRole);
+      setStep('email');
+      setOtp(Array(6).fill(''));
+      setCountdown(0);
+    }
+  }, [initialRole]);
 
   // Countdown timer effect
   useEffect(() => {
-    if (resendTimer > 0) {
-      const timer = setTimeout(() => setResendTimer(resendTimer - 1), 1000);
+    if (countdown > 0) {
+      const timer = setTimeout(() => setCountdown(countdown - 1), 1000);
       return () => clearTimeout(timer);
     }
-  }, [resendTimer]);
+  }, [countdown]);
 
   // Handle email change with validation
   const handleEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -44,11 +55,13 @@ const Login = () => {
     setEmailError(getEmailError(value));
   };
 
-  // Step 1: Email login (no password)
-  const handleLogin = async (e: React.FormEvent) => {
+  // Check if OTP is complete
+  const isOTPComplete = otp.every((digit) => digit !== '');
+
+  // Step 1: Send OTP
+  const handleSendOTP = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Validate email format
     const error = getEmailError(email);
     if (error) {
       setEmailError(error);
@@ -60,47 +73,41 @@ const Login = () => {
       return;
     }
 
-    // Validate admin email
-    if (role === "admin" && email.toLowerCase() !== ADMIN_EMAIL.toLowerCase()) {
-      toast({
-        title: "Access Denied",
-        description: "This email is not authorized for admin access. Only invited administrators can login.",
-        variant: "destructive",
-      });
-      return;
-    }
-
     setLoading(true);
     try {
-      const result = await login(email, role);
+      const result = await login(email, selectedRole);
 
       if (result.requiresOTP && result.userId) {
         setUserId(result.userId);
-        setShowOTP(true);
-        setResendTimer(30); // Start 30 second countdown
+        setStep('otp');
+        setCountdown(30);
         toast({
           title: "OTP Sent",
-          description: "Please check your email for the OTP code.",
+          description: "Please check your email for the verification code.",
         });
       }
     } catch (error: any) {
-      const errorMessage = error.response?.data?.error || error.message || "Invalid credentials";
+      let errorMessage = "Login failed";
+      if (typeof error.response?.data?.error === 'string') {
+        errorMessage = error.response.data.error;
+      } else if (error.response?.data?.error?.message) {
+        errorMessage = error.response.data.error.message;
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
 
-      // Check if user is not registered - redirect to register page
-      // Matches backend error: "User not found. Please register first."
-      if (errorMessage.toLowerCase().includes("not found") ||
+      // Redirect to register if user not found (only for non-admins)
+      if (selectedRole !== 'admin' && (
+        errorMessage.toLowerCase().includes("not found") ||
         errorMessage.toLowerCase().includes("register first") ||
-        errorMessage.toLowerCase().includes("not registered")) {
-
+        errorMessage.toLowerCase().includes("not registered"))) {
         toast({
           title: "Account Not Found",
-          description: "You don't have an account yet. Redirecting to registration...",
+          description: "Redirecting to registration...",
           variant: "destructive",
-          duration: 3000,
+          duration: 2000,
         });
-
-        // Redirect immediately to register page
-        navigate(`/register?role=${role}`, { replace: true });
+        navigate(`/register?role=${selectedRole}`, { replace: true });
         return;
       }
 
@@ -114,13 +121,15 @@ const Login = () => {
     }
   };
 
-  // Step 2: OTP verification
+  // Step 2: Verify OTP
   const handleVerifyOTP = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
+    if (!isOTPComplete) return;
 
+    setLoading(true);
     try {
-      const result = await verifyOTP(userId, otp);
+      const otpString = otp.join('');
+      const result = await verifyOTP(userId, otpString);
 
       if (result && result.token && result.user) {
         toast({
@@ -128,7 +137,6 @@ const Login = () => {
           description: `Welcome back, ${result.user.name}!`,
         });
 
-        // Redirect to role-specific dashboard
         const dashboardRoutes = {
           customer: "/dashboard/customer",
           vendor: "/dashboard/vendor",
@@ -138,10 +146,9 @@ const Login = () => {
         const redirectPath = dashboardRoutes[result.user.role] || "/warranty";
         navigate(redirectPath, { replace: true });
       } else {
-        throw new Error("Invalid server response — no token found");
+        throw new Error("Invalid server response");
       }
     } catch (error: any) {
-      console.error("❌ OTP verification error:", error);
       toast({
         title: "Verification Failed",
         description: error.response?.data?.error || error.message || "Invalid OTP",
@@ -152,9 +159,9 @@ const Login = () => {
     }
   };
 
-  // Resend OTP handler
+  // Resend OTP
   const handleResendOTP = async () => {
-    if (resendTimer > 0 || resendLoading) return;
+    if (countdown > 0 || resendLoading) return;
 
     setResendLoading(true);
     try {
@@ -167,11 +174,11 @@ const Login = () => {
       const data = await response.json();
 
       if (data.success) {
-        setResendTimer(30); // Reset countdown
-        setOtp(""); // Clear old OTP input
+        setCountdown(30);
+        setOtp(Array(6).fill(''));
         toast({
           title: "OTP Resent",
-          description: "A new OTP has been sent to your email.",
+          description: "A new code has been sent to your email.",
         });
       } else {
         throw new Error(data.error || "Failed to resend OTP");
@@ -179,7 +186,7 @@ const Login = () => {
     } catch (error: any) {
       toast({
         title: "Resend Failed",
-        description: error.message || "Failed to resend OTP. Please try again.",
+        description: error.message,
         variant: "destructive",
       });
     } finally {
@@ -187,205 +194,200 @@ const Login = () => {
     }
   };
 
-  // Get role-specific text and icons
-  const getRoleConfig = () => {
-    switch (role) {
-      case "admin":
-        return {
-          title: "Administrator Login",
-          subtitle: showOTP
-            ? "Enter the OTP sent to your email"
-            : "Enter your admin email to continue",
-          emailLabel: "Admin Email",
-          emailPlaceholder: "admin@autoformindia.com",
-          icon: Shield,
-          heroTitle: "Admin Portal",
-          heroDescription: "Manage users, verify vendors, and oversee warranty registrations with full system access.",
-        };
-      case "vendor":
-        return {
-          title: "Franchise Login",
-          subtitle: showOTP
-            ? "Enter the OTP sent to your email"
-            : "Enter your store email to continue",
-          emailLabel: "Store Email",
-          emailPlaceholder: "store@example.com",
-          icon: Store,
-          heroTitle: "Welcome Back",
-          heroDescription: "Manage your store's warranty registrations efficiently and securely.",
-        };
-      default:
-        return {
-          title: "Customer Login",
-          subtitle: showOTP
-            ? "Enter the OTP sent to your email"
-            : "Enter your email to continue",
-          emailLabel: "Email Address",
-          emailPlaceholder: "your.email@example.com",
-          icon: Mail,
-          heroTitle: "Welcome Back",
-          heroDescription: "Access your product warranties with ease. Secure and reliable warranty management.",
-        };
-    }
+  const handleBackToEmail = () => {
+    setStep('email');
+    setOtp(Array(6).fill(''));
+    setCountdown(0);
   };
 
-  const config = getRoleConfig();
-  const IconComponent = config.icon;
+  const getRoleDisplayName = () => {
+    if (selectedRole === 'admin') return 'Administrator';
+    return selectedRole === 'vendor' ? 'Franchise' : 'Customer';
+  };
 
   return (
-    <div className="min-h-screen flex">
-      {/* Left Side - Form */}
-      <div className="flex-1 flex items-center justify-center px-8 py-12 bg-background">
-        <div className="w-full max-w-md">
-          {/* Logo */}
-          <div className="mb-8">
-            <Link to="/" className="inline-flex items-center gap-2 text-primary mb-2">
-              <ShieldCheck className="h-8 w-8" />
-              <span className="text-2xl font-bold">Warranty Portal</span>
-            </Link>
-            <p className="text-muted-foreground text-sm mt-2">
-              Secure warranty registration system
-            </p>
-          </div>
-
-          {/* Header */}
-          <div className="mb-8">
-            <h1 className="text-3xl font-bold mb-2">
-              {config.title}
-            </h1>
-            <p className="text-muted-foreground">
-              {config.subtitle}
-            </p>
-          </div>
-
-          {/* Forms */}
-          {!showOTP ? (
-            <form onSubmit={handleLogin} className="space-y-6">
-              <div className="space-y-2">
-                <Label htmlFor="email">
-                  {config.emailLabel}
-                </Label>
-                <div className="relative">
-                  <IconComponent className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-                  <Input
-                    id="email"
-                    type="email"
-                    placeholder={config.emailPlaceholder}
-                    value={email}
-                    onChange={handleEmailChange}
-                    required
-                    disabled={loading}
-                    className={`pl-11 h-12 ${emailError ? 'border-red-500 focus:ring-red-500' : ''}`}
-                  />
-                </div>
-                {emailError && (
-                  <p className="text-sm text-red-500 flex items-center gap-1">
-                    <AlertCircle className="h-3 w-3" /> {emailError}
-                  </p>
-                )}
-                {role === "admin" && (
-                  <p className="text-xs text-muted-foreground">
-                    Only authorized admin emails can access this portal
-                  </p>
-                )}
-              </div>
-
-              <Button type="submit" className="w-full h-12" disabled={loading}>
-                {loading ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Sending OTP...
-                  </>
-                ) : "Send OTP"}
-              </Button>
-
-              {role !== "admin" && (
-                <p className="text-center text-sm text-muted-foreground">
-                  Don't have an account?{" "}
-                  <Link to={`/register?role=${role}`} className="text-primary font-medium hover:underline">
-                    Register here
-                  </Link>
-                </p>
-              )}
-            </form>
-          ) : (
-            <form onSubmit={handleVerifyOTP} className="space-y-6">
-              <div className="space-y-2">
-                <Label htmlFor="otp">One-Time Password (OTP)</Label>
-                <div className="relative">
-                  <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-                  <Input
-                    id="otp"
-                    type="text"
-                    placeholder="Enter 6-digit OTP"
-                    value={otp}
-                    onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                    required
-                    maxLength={6}
-                    disabled={loading}
-                    className="pl-11 h-12 text-center text-2xl tracking-widest"
-                  />
-                </div>
-                <p className="text-xs text-muted-foreground text-center">
-                  Check your email ({email}) for the OTP
-                </p>
-              </div>
-
-              <Button type="submit" className="w-full h-12" disabled={loading || otp.length !== 6}>
-                {loading ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Verifying...
-                  </>
-                ) : "Verify & Login"}
-              </Button>
-
-              <Button
-                type="button"
-                variant="outline"
-                className="w-full h-12"
-                onClick={() => {
-                  setShowOTP(false);
-                  setOtp("");
-                  setUserId("");
-                  setResendTimer(0);
-                }}
-              >
-                Back to Login
-              </Button>
-
-              <div className="text-center">
-                <button
-                  type="button"
-                  onClick={handleResendOTP}
-                  disabled={resendTimer > 0 || resendLoading}
-                  className={`text-sm ${resendTimer > 0 || resendLoading ? 'text-muted-foreground cursor-not-allowed' : 'text-primary hover:underline cursor-pointer'}`}
-                >
-                  {resendLoading ? (
-                    "Sending..."
-                  ) : resendTimer > 0 ? (
-                    `Resend OTP in ${resendTimer}s`
-                  ) : (
-                    "Didn't receive OTP? Resend"
-                  )}
-                </button>
-              </div>
-            </form>
-          )}
-        </div>
+    <div className="min-h-screen w-full relative flex items-center justify-center p-4 overflow-hidden">
+      {/* Background Image */}
+      <div className="absolute inset-0 z-0">
+        <img
+          src="/images/seat-cover-hero.jpg"
+          alt="Background"
+          className="w-full h-full object-cover"
+        />
+        <div className="absolute inset-0 bg-black/30 backdrop-blur-[2px]" />
       </div>
 
-      {/* Right Side - Image */}
-      <div className="hidden lg:flex flex-1 relative bg-muted">
-        <img src={authHero} alt="Warranty Registration" className="absolute inset-0 w-full h-full object-cover" />
-        <div className="absolute inset-0 bg-gradient-to-br from-primary/90 to-secondary/90 mix-blend-multiply" />
-        <div className="relative z-10 flex items-center justify-center p-12 text-white">
-          <div className="max-w-md">
-            <h2 className="text-4xl font-bold mb-4">{config.heroTitle}</h2>
-            <p className="text-lg text-white/90">
-              {config.heroDescription}
-            </p>
+      {/* Glassmorphism Card */}
+      <div className="relative z-10 w-full max-w-[480px] bg-white/10 backdrop-blur-xl border border-white/20 shadow-2xl rounded-3xl p-6 sm:p-10 animate-in fade-in zoom-in duration-500">
+        {/* Logo */}
+        <div className="flex flex-col items-center mb-8 text-center mx-auto">
+          <img
+            src="/autoform-logo.png"
+            alt="AutoForm"
+            className="h-24 w-auto object-contain brightness-0 invert drop-shadow-lg"
+          />
+          <p className="text-white/80 text-xs font-bold tracking-[0.3em] uppercase mt-2 drop-shadow-md">
+            Warranty Portal
+          </p>
+        </div>
+
+        {/* Form Content */}
+        {selectedRole !== 'admin' ? (
+          <div className="mb-8">
+            <label className="text-xs font-bold uppercase tracking-widest text-white/80 mb-3 block">
+              Continue as
+            </label>
+            <div className="grid grid-cols-2 gap-4">
+              <RoleCard
+                icon={User}
+                title="Customer"
+                selected={selectedRole === 'customer'}
+                onClick={() => {
+                  setSelectedRole('customer');
+                  setSearchParams({ role: 'customer' });
+                }}
+              />
+              <RoleCard
+                icon={Building}
+                title="Franchise"
+                selected={selectedRole === 'vendor'}
+                onClick={() => {
+                  setSelectedRole('vendor');
+                  setSearchParams({ role: 'vendor' });
+                }}
+              />
+            </div>
           </div>
+        ) : (
+          <div className="mb-8 text-center">
+            <h2 className="text-xl font-bold text-white uppercase tracking-widest bg-white/10 py-3 rounded-xl border border-white/20">
+              Admin Login
+            </h2>
+          </div>
+        )}
+
+        {/* Email Step */}
+        {step === 'email' && (
+          <form onSubmit={handleSendOTP} className="space-y-6">
+            <div>
+              <label htmlFor="email" className="text-xs font-bold uppercase tracking-widest text-white/80 block mb-2">
+                Email Address
+              </label>
+              <Input
+                id="email"
+                type="email"
+                placeholder="Enter your Email"
+                value={email}
+                onChange={handleEmailChange}
+                required
+                disabled={loading}
+                className={`h-14 px-4 rounded-xl border-2 bg-white/10 border-white/10 text-white placeholder:text-white/40 focus:border-blue-400 focus:ring-2 focus:ring-blue-400/20 text-lg transition-all ${emailError ? 'border-red-400' : ''}`}
+              />
+              {emailError && (
+                <p className="text-sm text-red-300 mt-1 font-medium bg-red-500/10 p-1 rounded px-2 inline-block">{emailError}</p>
+              )}
+            </div>
+
+            <Button
+              type="submit"
+              disabled={loading}
+              className="w-full h-14 rounded-xl font-bold text-lg bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-600/30 transition-all uppercase tracking-wide border border-blue-400/20"
+            >
+              {loading ? (
+                <>
+                  <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                  Requesting...
+                </>
+              ) : "Request OTP"}
+            </Button>
+
+            {selectedRole !== 'admin' && (
+              <p className="text-center text-sm text-white/60">
+                New here?{" "}
+                <Link
+                  to={`/register?role=${selectedRole}`}
+                  className="font-semibold text-white hover:text-blue-300 hover:underline transition-colors"
+                >
+                  Register as {getRoleDisplayName()}
+                </Link>
+              </p>
+            )}
+          </form>
+        )}
+
+        {/* OTP Step */}
+        {step === 'otp' && (
+          <form onSubmit={handleVerifyOTP} className="space-y-7">
+            <div>
+              <label className="text-xs font-bold uppercase tracking-widest text-white/80 block mb-2">
+                Verification Code
+              </label>
+              <p className="text-sm text-white/60 mt-1 mb-4">
+                sent to <span className="text-white font-medium">{email}</span>
+              </p>
+              <div className="[&_input]:bg-white/10 [&_input]:border-white/20 [&_input]:text-white">
+                <OTPInput value={otp} onChange={setOtp} />
+              </div>
+            </div>
+
+            <Button
+              type="submit"
+              disabled={loading || !isOTPComplete}
+              className="w-full h-14 rounded-xl font-semibold text-base bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-600/30 transition-all disabled:opacity-70 disabled:shadow-none border border-blue-400/20"
+            >
+              {loading ? (
+                <>
+                  <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                  Verifying...
+                </>
+              ) : "Verify & Continue"}
+            </Button>
+
+            <div className="flex items-center justify-between text-sm">
+              <button
+                type="button"
+                onClick={handleBackToEmail}
+                className="text-white/60 hover:text-white hover:underline transition-colors"
+              >
+                Change email
+              </button>
+              <button
+                type="button"
+                onClick={handleResendOTP}
+                disabled={countdown > 0 || resendLoading}
+                className={`${countdown > 0 || resendLoading ? 'text-white/40 cursor-not-allowed' : 'text-blue-300 hover:text-blue-200 hover:underline'}`}
+              >
+                {resendLoading ? "Sending..." : countdown > 0 ? `Resend OTP (${countdown}s)` : "Resend OTP"}
+              </button>
+            </div>
+          </form>
+        )}
+
+        {/* Footer */}
+        <div className="mt-8 pt-6 border-t border-white/10 text-center">
+          {selectedRole === 'admin' ? (
+            <Link
+              to="/login?role=customer"
+              className="text-xs font-medium text-white/40 hover:text-white transition-colors uppercase tracking-widest"
+              onClick={() => {
+                setSelectedRole('customer');
+                setSearchParams({ role: 'customer' });
+              }}
+            >
+              Back to User Login
+            </Link>
+          ) : (
+            <Link
+              to="/login?role=admin"
+              className="text-xs font-medium text-white/40 hover:text-white transition-colors uppercase tracking-widest"
+              onClick={() => {
+                setSelectedRole('admin');
+                setSearchParams({ role: 'admin' });
+              }}
+            >
+              Admin Access
+            </Link>
+          )}
         </div>
       </div>
     </div>
