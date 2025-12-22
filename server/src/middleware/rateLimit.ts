@@ -1,4 +1,5 @@
 import rateLimit from 'express-rate-limit';
+import { Request } from 'express';
 
 /**
  * Rate limiter for authentication endpoints (login, register, OTP)
@@ -17,7 +18,7 @@ export const authRateLimiter = rateLimit({
     standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
     legacyHeaders: false, // Disable the `X-RateLimit-*` headers
     // keyGenerator removed to use default IP-based limiting with proper IPv6 support
-    skip: (req) => {
+    skip: (req: Request) => {
         // Skip rate limiting in test environment
         return process.env.NODE_ENV === 'test';
     }
@@ -58,7 +59,7 @@ export const generalApiLimiter = rateLimit({
     },
     standardHeaders: true,
     legacyHeaders: false,
-    skip: (req) => {
+    skip: (req: Request) => {
         return process.env.NODE_ENV === 'test';
     }
 });
