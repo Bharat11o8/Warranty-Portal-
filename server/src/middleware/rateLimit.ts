@@ -19,8 +19,9 @@ export const authRateLimiter = rateLimit({
     legacyHeaders: false, // Disable the `X-RateLimit-*` headers
     // keyGenerator removed to use default IP-based limiting with proper IPv6 support
     skip: (req: Request) => {
-        // Skip rate limiting in test environment
-        return process.env.NODE_ENV === 'test';
+        // TEMPORARY: Disable all rate limits to resolve user blocker
+        return true;
+        // return process.env.NODE_ENV === 'test';
     }
 });
 
@@ -60,6 +61,8 @@ export const generalApiLimiter = rateLimit({
     standardHeaders: true,
     legacyHeaders: false,
     skip: (req: Request) => {
-        return process.env.NODE_ENV === 'test';
+        // TEMPORARY: Disable all rate limits
+        return true;
+        // return process.env.NODE_ENV === 'test';
     }
 });
