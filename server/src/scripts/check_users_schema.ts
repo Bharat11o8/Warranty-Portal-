@@ -26,8 +26,8 @@ async function checkSchema() {
 
         for (const table of tables) {
             console.log(`\n--- Structure of ${table} ---`);
-            const [columns] = await connection.execute(`SHOW COLUMNS FROM ${table}`);
-            columns.forEach(col => {
+            const [columns] = await connection.execute(`SHOW COLUMNS FROM ${table}`) as [any[], any];
+            columns.forEach((col: any) => {
                 console.log(`${col.Field} (${col.Type}) Key:${col.Key} Extra:${col.Extra}`);
             });
         }
