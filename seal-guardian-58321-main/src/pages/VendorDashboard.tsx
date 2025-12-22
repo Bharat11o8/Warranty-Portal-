@@ -55,7 +55,7 @@ const WarrantyList = ({ items, showReason = false, user, onEditWarranty, onVerif
 
 
                 // Calculate warranty expiration
-                const { expirationDate, daysLeft, isExpired } = getWarrantyExpiration(warranty.created_at);
+                const { expirationDate, daysLeft, isExpired } = getWarrantyExpiration(warranty.created_at, warranty.warranty_type);
 
                 return (
                     <Card key={warranty.id || warranty.uid || `warranty-${index}`} className="hover:shadow-md transition-shadow">
@@ -830,8 +830,11 @@ const VendorDashboard = () => {
     // Loading and auth checks
     if (loading) {
         return (
-            <div className="min-h-screen flex items-center justify-center">
-                <p>Loading...</p>
+            <div className="flex items-center justify-center min-h-screen bg-gray-50">
+                <div className="flex flex-col items-center gap-4">
+                    <Loader2 className="h-12 w-12 text-primary animate-spin" />
+                    <p className="text-muted-foreground font-medium animate-pulse">Loading dashboard...</p>
+                </div>
             </div>
         );
     }

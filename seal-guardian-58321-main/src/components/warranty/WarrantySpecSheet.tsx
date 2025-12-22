@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Download, FileText, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
+import { cn, getWarrantyExpiration } from "@/lib/utils";
 
 interface WarrantySpecSheetProps {
     isOpen: boolean;
@@ -97,7 +97,7 @@ export const WarrantySpecSheet = ({ isOpen, onClose, warranty }: WarrantySpecShe
                                 <div className="flex justify-between items-center py-3 px-2 rounded-sm bg-green-500/5 mt-1 border border-green-500/10">
                                     <span className="text-sm text-green-700 font-medium">Days Remaining</span>
                                     <span className="text-sm text-green-700 font-bold">
-                                        {Math.max(0, Math.ceil((new Date(new Date(warranty.created_at).setFullYear(new Date(warranty.created_at).getFullYear() + parseInt(warranty.warranty_type) || 1)).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)))} Days
+                                        {getWarrantyExpiration(warranty.created_at, warranty.warranty_type).daysLeft} Days
                                     </span>
                                 </div>
                             )}
@@ -136,7 +136,7 @@ export const WarrantySpecSheet = ({ isOpen, onClose, warranty }: WarrantySpecShe
                 </div>
                 {/* Footer Area (Close) */}
                 <div className="p-6 border-t border-border/40 bg-background/95 backdrop-blur">
-                    <Button className="w-full" onClick={onClose} variant="secondary">Close</Button>
+                    <Button className="w-full h-12 text-base font-medium border-2 hover:bg-muted/50 transition-all" onClick={onClose} variant="outline">Close</Button>
                 </div>
             </SheetContent>
         </Sheet>

@@ -27,8 +27,21 @@ const Login = () => {
   const [resendLoading, setResendLoading] = useState(false);
 
   const navigate = useNavigate();
-  const { login, verifyOTP } = useAuth();
+  const { login, verifyOTP, user, loading: authLoading } = useAuth();
   const { toast } = useToast();
+
+  // Redirect if already logged in
+  useEffect(() => {
+    if (!authLoading && user) {
+      const dashboardRoutes = {
+        customer: "/dashboard/customer",
+        vendor: "/dashboard/vendor",
+        admin: "/dashboard/admin",
+      };
+      const redirectPath = dashboardRoutes[user.role] || "/warranty";
+      navigate(redirectPath, { replace: true });
+    }
+  }, [user, authLoading, navigate]);
 
   // Sync role from URL
   useEffect(() => {
@@ -207,6 +220,11 @@ const Login = () => {
 
   return (
     <div className="min-h-screen w-full relative flex items-center justify-center p-4 overflow-hidden">
+      {authLoading && (
+        <div className="absolute inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center">
+          <Loader2 className="h-10 w-10 text-white animate-spin" />
+        </div>
+      )}
       {/* Background Image */}
       <div className="absolute inset-0 z-0">
         <img
@@ -280,7 +298,7 @@ const Login = () => {
                 value={email}
                 onChange={handleEmailChange}
                 required
-                disabled={loading}
+                disabled={loading || authLoading}
                 className={`h-14 px-4 rounded-xl border-2 bg-white/10 border-white/10 text-white placeholder:text-white/40 focus:border-blue-400 focus:ring-2 focus:ring-blue-400/20 text-lg transition-all ${emailError ? 'border-red-400' : ''}`}
               />
               {emailError && (
@@ -290,7 +308,7 @@ const Login = () => {
 
             <Button
               type="submit"
-              disabled={loading}
+              disabled={loading || authLoading}
               className="w-full h-14 rounded-xl font-bold text-lg bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-600/30 transition-all uppercase tracking-wide border border-blue-400/20"
             >
               {loading ? (

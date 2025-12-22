@@ -46,12 +46,26 @@ export function downloadCSV(data: any[], filename: string = 'export.csv') {
   }
 }
 
-export function getWarrantyExpiration(createdAt: string | Date | null | undefined) {
+export function getWarrantyExpiration(createdAt: string | Date | null | undefined, warrantyType?: string) {
   if (!createdAt) return { expirationDate: null, daysLeft: 0, isExpired: false };
+
+  // Parse warranty duration from type (e.g., "5", "2+3", "1+1")
+  let warrantyYears = 1; // Default
+  if (warrantyType) {
+    if (warrantyType.includes('+')) {
+      // Handle "2+3", "1+2" etc.
+      warrantyYears = warrantyType.split('+')
+        .map(part => parseInt(part.trim()) || 0)
+        .reduce((sum, current) => sum + current, 0);
+    } else {
+      // Handle simple numbers "5", "3"
+      warrantyYears = parseInt(warrantyType) || 1;
+    }
+  }
 
   const registeredDate = new Date(createdAt);
   const expirationDate = new Date(registeredDate);
-  expirationDate.setFullYear(expirationDate.getFullYear() + 2); // 2 years warranty
+  expirationDate.setFullYear(expirationDate.getFullYear() + warrantyYears);
 
   const today = new Date();
   const timeDiff = expirationDate.getTime() - today.getTime();

@@ -98,7 +98,7 @@ const AdminWarrantyList = ({
                 const productName = productNameMapping[rawProductName] || rawProductName;
 
                 // Calculate warranty expiration
-                const { expirationDate, daysLeft, isExpired } = getWarrantyExpiration(warranty.created_at);
+                const { expirationDate, daysLeft, isExpired } = getWarrantyExpiration(warranty.created_at, warranty.warranty_type);
 
                 return (
                     <Card key={warranty.uid || warranty.id} className="hover:shadow-md transition-shadow">
@@ -600,7 +600,7 @@ const AdminWarrantyList = ({
 };
 
 const AdminDashboard = () => {
-    const { user, loading } = useAuth();
+    const { user, logout, loading } = useAuth();
     const { toast } = useToast();
     const [stats, setStats] = useState({
         totalWarranties: 0,
@@ -1634,6 +1634,17 @@ const AdminDashboard = () => {
             return vendorSortOrder === 'asc' ? (aVal > bVal ? 1 : -1) : (aVal < bVal ? 1 : -1);
         });
     if (loading) return <div>Loading...</div>;
+    if (loading) {
+        return (
+            <div className="flex items-center justify-center min-h-screen bg-gray-50">
+                <div className="flex flex-col items-center gap-4">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+                    <p className="text-muted-foreground font-medium animate-pulse">Loading dashboard...</p>
+                </div>
+            </div>
+        );
+    }
+
     if (!user) return <Navigate to="/login?role=admin" replace />;
     if (user.role !== "admin") return <Navigate to="/warranty" replace />;
 

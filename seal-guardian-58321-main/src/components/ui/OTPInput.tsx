@@ -67,7 +67,7 @@ const OTPInput = ({ value, onChange, length = 6 }: OTPInputProps) => {
     };
 
     return (
-        <div className="flex gap-3 justify-center">
+        <div className="grid grid-cols-6 gap-2 sm:gap-3 w-full max-w-[360px] mx-auto">
             {Array.from({ length }).map((_, index) => (
                 <input
                     key={index}
@@ -81,11 +81,11 @@ const OTPInput = ({ value, onChange, length = 6 }: OTPInputProps) => {
                     onPaste={handlePaste}
                     aria-label={`OTP digit ${index + 1}`}
                     className="
-            h-16 w-14 text-center text-2xl font-bold
-            border-2 border-gray-300 bg-white rounded-xl shadow-sm
+            aspect-square w-full text-center text-xl sm:text-2xl font-bold
+            border-2 border-gray-300 bg-white rounded-lg sm:rounded-xl shadow-sm
             focus:border-blue-600 focus:ring-2 focus:ring-blue-600/20 
             focus:shadow-md focus:outline-none
-            transition-all
+            transition-all p-0
           "
                 />
             ))}

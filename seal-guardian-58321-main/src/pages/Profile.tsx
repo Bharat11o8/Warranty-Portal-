@@ -246,22 +246,24 @@ const Profile = () => {
                                 </div>
 
                                 {/* Role (Read-only) */}
-                                <div className="space-y-2">
-                                    <Label htmlFor="role">Account Role</Label>
-                                    <div className="relative">
-                                        <RoleIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-                                        <Input
-                                            id="role"
-                                            type="text"
-                                            value={roleConfig.label}
-                                            disabled
-                                            className="pl-11 h-12 bg-muted cursor-not-allowed"
-                                        />
+                                {user.role === 'admin' && (
+                                    <div className="space-y-2">
+                                        <Label htmlFor="role">Account Role</Label>
+                                        <div className="relative">
+                                            <RoleIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+                                            <Input
+                                                id="role"
+                                                type="text"
+                                                value={roleConfig.label}
+                                                disabled
+                                                className="pl-11 h-12 bg-muted cursor-not-allowed"
+                                            />
+                                        </div>
+                                        <p className="text-xs text-muted-foreground">
+                                            Role is managed by administrators and cannot be changed
+                                        </p>
                                     </div>
-                                    <p className="text-xs text-muted-foreground">
-                                        Role is managed by administrators and cannot be changed
-                                    </p>
-                                </div>
+                                )}
 
                                 <Button type="submit" className="w-full h-12" disabled={saving}>
                                     {saving ? "Saving..." : "Save Changes"}

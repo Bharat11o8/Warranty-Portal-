@@ -58,7 +58,14 @@ const CustomerDashboard = () => {
     };
 
     if (loading) {
-        return <div>Loading...</div>;
+        return (
+            <div className="flex items-center justify-center min-h-screen bg-gray-50">
+                <div className="flex flex-col items-center gap-4">
+                    <Loader2 className="h-12 w-12 text-primary animate-spin" />
+                    <p className="text-muted-foreground font-medium animate-pulse">Loading dashboard...</p>
+                </div>
+            </div>
+        );
     }
 
     if (!user) {
@@ -200,7 +207,7 @@ const CustomerDashboard = () => {
                     const productName = productNameMapping[rawProductName] || rawProductName;
 
                     // Expiration Logic
-                    const { daysLeft, isExpired } = getWarrantyExpiration(warranty.created_at);
+                    const { daysLeft, isExpired } = getWarrantyExpiration(warranty.created_at, warranty.warranty_type);
 
                     return (
                         <div key={warranty.id} className="group flex flex-col">
@@ -296,24 +303,26 @@ const CustomerDashboard = () => {
                 </div>
 
                 {/* New Warranty Actions */}
-                <div className="grid grid-cols-2 gap-3 mb-8">
+                <div className="grid grid-cols-2 gap-4 mb-8">
                     <button
                         onClick={() => setCreatingWarranty('seat-cover')}
-                        className="flex flex-col items-center justify-center p-4 rounded-xl border border-border/50 bg-card hover:bg-accent/5 transition-all group active:scale-[0.98]"
+                        className="relative flex flex-col items-center justify-center p-6 rounded-2xl border border-red-100 bg-gradient-to-b from-red-50 to-white hover:from-red-100 hover:to-red-50 transition-all group active:scale-[0.98] shadow-sm hover:shadow-md hover:shadow-red-500/10 overflow-hidden"
                     >
-                        <div className="w-10 h-10 rounded-full bg-blue-500/10 flex items-center justify-center mb-2 group-hover:scale-110 transition-transform">
-                            <img src="/icons/seat-cover.png" className="w-5 h-5 opacity-80" alt="Seat Cover" />
+                        <div className="absolute top-0 right-0 w-16 h-16 bg-red-500/5 rounded-bl-full -mr-4 -mt-4 transition-transform group-hover:scale-110" />
+                        <div className="relative w-14 h-14 mb-3 group-hover:scale-110 transition-transform duration-300 drop-shadow-sm">
+                            <img src="/seat-cover-icon.png" className="w-full h-full object-contain" alt="Seat Cover" />
                         </div>
-                        <span className="text-xs font-semibold">Add Seat Cover</span>
+                        <span className="text-sm font-bold text-red-900/80 group-hover:text-red-900 transition-colors">Add Seat Cover Warranty</span>
                     </button>
                     <button
                         onClick={() => setCreatingWarranty('ppf')}
-                        className="flex flex-col items-center justify-center p-4 rounded-xl border border-border/50 bg-card hover:bg-accent/5 transition-all group active:scale-[0.98]"
+                        className="relative flex flex-col items-center justify-center p-6 rounded-2xl border border-blue-100 bg-gradient-to-b from-blue-50 to-white hover:from-blue-100 hover:to-blue-50 transition-all group active:scale-[0.98] shadow-sm hover:shadow-md hover:shadow-blue-500/10 overflow-hidden"
                     >
-                        <div className="w-10 h-10 rounded-full bg-purple-500/10 flex items-center justify-center mb-2 group-hover:scale-110 transition-transform">
-                            <img src="/icons/ppf.png" className="w-5 h-5 opacity-80" alt="PPF" />
+                        <div className="absolute top-0 right-0 w-16 h-16 bg-blue-500/5 rounded-bl-full -mr-4 -mt-4 transition-transform group-hover:scale-110" />
+                        <div className="relative w-14 h-14 mb-3 group-hover:scale-110 transition-transform duration-300 drop-shadow-sm">
+                            <img src="/ppf-icon.png" className="w-full h-full object-contain" alt="PPF" />
                         </div>
-                        <span className="text-xs font-semibold">Add PPF</span>
+                        <span className="text-sm font-bold text-blue-900/80 group-hover:text-blue-900 transition-colors">Add PPF Warranty</span>
                     </button>
                 </div>
 
@@ -342,14 +351,14 @@ const CustomerDashboard = () => {
 
                 {/* Tabs */}
                 <Tabs defaultValue="approved" className="space-y-6">
-                    <TabsList className="w-full bg-muted/20 p-1 rounded-lg h-auto grid grid-cols-3">
-                        <TabsTrigger value="approved" className="rounded-md py-2 text-xs font-medium data-[state=active]:bg-background data-[state=active]:shadow-sm text-green-700 data-[state=active]:text-green-800">
+                    <TabsList className="w-full bg-muted/20 p-1 rounded-lg h-auto grid grid-cols-3 gap-2">
+                        <TabsTrigger value="approved" className="rounded-md py-2 text-xs font-medium data-[state=active]:bg-white data-[state=active]:shadow-sm text-green-700 data-[state=active]:text-green-800 data-[state=active]:border-2 data-[state=active]:border-green-500/20 transition-all">
                             Approved ({approvedWarranties.length})
                         </TabsTrigger>
-                        <TabsTrigger value="pending" className="rounded-md py-2 text-xs font-medium data-[state=active]:bg-background data-[state=active]:shadow-sm text-amber-700 data-[state=active]:text-amber-800">
+                        <TabsTrigger value="pending" className="rounded-md py-2 text-xs font-medium data-[state=active]:bg-white data-[state=active]:shadow-sm text-amber-700 data-[state=active]:text-amber-800 data-[state=active]:border-2 data-[state=active]:border-amber-500/20 transition-all">
                             Pending ({pendingWarranties.length})
                         </TabsTrigger>
-                        <TabsTrigger value="rejected" className="rounded-md py-2 text-xs font-medium data-[state=active]:bg-background data-[state=active]:shadow-sm text-red-700 data-[state=active]:text-red-800">
+                        <TabsTrigger value="rejected" className="rounded-md py-2 text-xs font-medium data-[state=active]:bg-white data-[state=active]:shadow-sm text-red-700 data-[state=active]:text-red-800 data-[state=active]:border-2 data-[state=active]:border-red-500/20 transition-all">
                             Rejected ({rejectedWarranties.length})
                         </TabsTrigger>
                     </TabsList>
