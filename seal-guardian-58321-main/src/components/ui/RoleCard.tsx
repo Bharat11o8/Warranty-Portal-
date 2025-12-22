@@ -1,3 +1,4 @@
+import { LucideIcon, Check } from "lucide-react";
 interface RoleCardProps {
     icon: LucideIcon;
     title: string;

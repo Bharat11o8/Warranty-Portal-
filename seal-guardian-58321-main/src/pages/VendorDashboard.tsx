@@ -24,6 +24,7 @@ const WarrantyList = ({ items, showReason = false, user, onEditWarranty, onVerif
     user: any,
     onVerify?: (warranty: any) => void,
     onReject?: (warranty: any) => void,
+    onEditWarranty?: (warranty: any) => void,
     isPendingVerification?: boolean
 }) => {
     if (items.length === 0) {
@@ -1029,7 +1030,6 @@ const VendorDashboard = () => {
                     <TabsContent value="pending_verification" className="space-y-4">
                         <WarrantyList
                             items={filterAndSortWarranties(pendingVendorWarranties)}
-                            items={filterAndSortWarranties(pendingVendorWarranties)}
                             user={user}
                             onVerify={handleVerifyWarranty}
                             onReject={handleRejectWarranty}
@@ -1043,7 +1043,6 @@ const VendorDashboard = () => {
                         ) : (
                             <WarrantyList
                                 items={filterAndSortWarranties(warranties)}
-                                items={filterAndSortWarranties(warranties)}
                                 user={user}
                             />
                         )}
@@ -1051,7 +1050,6 @@ const VendorDashboard = () => {
 
                     <TabsContent value="approved" className="space-y-4">
                         <WarrantyList
-                            items={filterAndSortWarranties(approvedWarranties)}
                             items={filterAndSortWarranties(approvedWarranties)}
                             user={user}
                         />
@@ -1061,14 +1059,12 @@ const VendorDashboard = () => {
                         <WarrantyList
                             items={filterAndSortWarranties(rejectedWarranties)}
                             showReason={true}
-                            showReason={true}
                             user={user}
                         />
                     </TabsContent>
 
                     <TabsContent value="pending" className="space-y-4">
                         <WarrantyList
-                            items={filterAndSortWarranties(pendingWarranties)}
                             items={filterAndSortWarranties(pendingWarranties)}
                             user={user}
                         />
