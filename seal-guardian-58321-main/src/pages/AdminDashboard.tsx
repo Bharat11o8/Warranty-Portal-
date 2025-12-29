@@ -54,6 +54,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { ProductManagement } from "@/components/admin/ProductManagement";
 import { downloadCSV, getWarrantyExpiration, cn } from "@/lib/utils";
 import Header from "@/components/Header";
@@ -104,6 +105,17 @@ const AdminWarrantyList = ({
                     <Card key={warranty.uid || warranty.id} className="hover:shadow-md transition-shadow">
                         <CardContent className="pt-6">
                             <div className="flex justify-between items-start mb-4">
+                                {/* Product Icon */}
+                                <div className={cn(
+                                    "h-12 w-12 rounded-full flex items-center justify-center shrink-0 border mr-4",
+                                    warranty.product_type === 'seat-cover' ? "bg-blue-500/10 border-blue-500/20" : "bg-purple-500/10 border-purple-500/20"
+                                )}>
+                                    <img
+                                        src={warranty.product_type === 'seat-cover' ? "/seat-cover-icon.png" : "/ppf-icon.png"}
+                                        alt={warranty.product_type}
+                                        className="w-6 h-6 object-contain"
+                                    />
+                                </div>
                                 <div className="flex-1">
                                     <div className="flex items-baseline gap-2 mb-1">
                                         <h3 className="text-lg font-bold uppercase tracking-wide">
@@ -159,26 +171,91 @@ const AdminWarrantyList = ({
 
                                 <div>
                                     <p className="text-xs text-muted-foreground mb-1">Customer</p>
-                                    <h3 className="text-sm font-medium flex items-center gap-1">
-                                        👤 {warranty.customer_name}
-                                    </h3>
+                                    <TooltipProvider>
+                                        <Tooltip>
+                                            <TooltipTrigger asChild>
+                                                <div className="cursor-pointer hover:bg-muted/50 p-1.5 -m-1.5 rounded-md transition-colors">
+                                                    <h3 className="text-sm font-medium flex items-center gap-1">
+                                                        <User className="h-4 w-4 text-blue-600" />
+                                                        {warranty.customer_name}
+                                                    </h3>
+                                                </div>
+                                            </TooltipTrigger>
+                                            <TooltipContent side="bottom" className="max-w-xs p-3">
+                                                <div className="space-y-2">
+                                                    <p className="font-semibold text-sm border-b pb-1">Customer Details</p>
+                                                    <div className="text-xs space-y-1.5">
+                                                        <div className="flex items-center gap-2">
+                                                            <User className="h-3 w-3 text-muted-foreground" />
+                                                            <span>{warranty.customer_name}</span>
+                                                        </div>
+                                                        {warranty.customer_email && (
+                                                            <div className="flex items-center gap-2">
+                                                                <Mail className="h-3 w-3 text-muted-foreground" />
+                                                                <span>{warranty.customer_email}</span>
+                                                            </div>
+                                                        )}
+                                                        {warranty.customer_phone && (
+                                                            <div className="flex items-center gap-2">
+                                                                <Phone className="h-3 w-3 text-muted-foreground" />
+                                                                <span>{warranty.customer_phone}</span>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </TooltipContent>
+                                        </Tooltip>
+                                    </TooltipProvider>
                                 </div>
 
+
                                 <div>
-                                    <p className="text-xs text-muted-foreground mb-1">Submitted By</p>
-                                    <div className="text-sm">
-                                        <p className="font-medium">{warranty.submitted_by_role === 'vendor' ? '🏪' : '👤'} {warranty.submitted_by_name || 'N/A'}</p>
-                                        {warranty.submitted_by_role && (
-                                            <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium mt-1 ${warranty.submitted_by_role === 'customer'
-                                                ? 'bg-blue-100 text-blue-800'
-                                                : warranty.submitted_by_role === 'vendor'
-                                                    ? 'bg-purple-100 text-purple-800'
-                                                    : 'bg-gray-100 text-gray-800'
-                                                }`}>
-                                                {warranty.submitted_by_role.charAt(0).toUpperCase() + warranty.submitted_by_role.slice(1)}
-                                            </span>
-                                        )}
-                                    </div>
+                                    <p className="text-xs text-muted-foreground mb-1">
+                                        {warranty.status === 'pending_vendor' ? 'Installer' : 'Verified By'}
+                                    </p>
+                                    <TooltipProvider>
+                                        <Tooltip>
+                                            <TooltipTrigger asChild>
+                                                <div className="text-sm cursor-pointer hover:bg-muted/50 p-1.5 -m-1.5 rounded-md transition-colors">
+                                                    <p className="font-medium flex items-center gap-1.5">
+                                                        <Store className="h-4 w-4 text-purple-600" />
+                                                        {warranty.vendor_store_name || productDetails.storeName || 'N/A'}
+                                                    </p>
+                                                    <span className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium mt-1 bg-purple-100 text-purple-800">
+                                                        Franchise
+                                                    </span>
+                                                </div>
+                                            </TooltipTrigger>
+                                            <TooltipContent side="bottom" className="max-w-xs p-3">
+                                                <div className="space-y-2">
+                                                    <p className="font-semibold text-sm border-b pb-1">
+                                                        {warranty.status === 'pending_vendor' ? 'Installer Details' : 'Verified By Details'}
+                                                    </p>
+                                                    <div className="text-xs space-y-1.5">
+                                                        <div className="flex items-center gap-2">
+                                                            <User className="h-3 w-3 text-muted-foreground" />
+                                                            <span>
+                                                                {productDetails.manpowerName ||
+                                                                    warranty.manpower_name_from_db ||
+                                                                    productDetails.installerName ||
+                                                                    'Not specified'}
+                                                            </span>
+                                                        </div>
+                                                        <div className="flex items-center gap-2">
+                                                            <Store className="h-3 w-3 text-muted-foreground" />
+                                                            <span>{warranty.vendor_store_name || productDetails.storeName || 'N/A'}</span>
+                                                        </div>
+                                                        {(productDetails.storeEmail || warranty.installer_contact) && (
+                                                            <div className="flex items-center gap-2">
+                                                                <Mail className="h-3 w-3 text-muted-foreground" />
+                                                                <span>{productDetails.storeEmail || warranty.installer_contact}</span>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </TooltipContent>
+                                        </Tooltip>
+                                    </TooltipProvider>
                                 </div>
 
                                 {warranty.product_type === 'seat-cover' && (
@@ -2566,7 +2643,21 @@ const AdminDashboard = () => {
                                             <option value="created_at">Sort by Date</option>
                                             <option value="customer_name">Sort by Name</option>
                                             <option value="status">Sort by Status</option>
-                                            <option value="product_type">Sort by Product</option>
+                                        </select>
+                                        <select
+                                            className="px-3 py-2 rounded-md border border-input bg-background text-sm"
+                                            value={warrantySearch.includes('seat-cover') ? 'seat-cover' : warrantySearch.includes('ppf') ? 'ppf' : 'all'}
+                                            onChange={(e) => {
+                                                if (e.target.value === 'all') {
+                                                    setWarrantySearch('');
+                                                } else {
+                                                    setWarrantySearch(e.target.value);
+                                                }
+                                            }}
+                                        >
+                                            <option value="all">All Products</option>
+                                            <option value="seat-cover">Seat Cover</option>
+                                            <option value="ppf">PPF</option>
                                         </select>
                                         <Button
                                             variant="outline"
@@ -2617,9 +2708,8 @@ const AdminDashboard = () => {
                                         </Button>
                                     )}
                                     <Button
-                                        variant="outline"
                                         size="sm"
-                                        className="ml-auto"
+                                        className="ml-auto bg-green-600 border-green-600 text-white hover:bg-green-700 hover:text-white transition-colors"
                                         onClick={handleExportWarranties}
                                     >
                                         <Download className="h-4 w-4 mr-2" />
@@ -2678,6 +2768,7 @@ const AdminDashboard = () => {
                                                     aVal = (aVal || '').toString().toLowerCase();
                                                     bVal = (bVal || '').toString().toLowerCase();
                                                 }
+                                                if (aVal === bVal) return 0;
                                                 if (warrantySortOrder === 'asc') {
                                                     return aVal > bVal ? 1 : -1;
                                                 } else {

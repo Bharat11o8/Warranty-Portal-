@@ -118,17 +118,17 @@ export const WarrantySpecSheet = ({ isOpen, onClose, warranty }: WarrantySpecShe
                     {(productDetails.invoiceFileName || productDetails.photos?.warranty) && (
                         <div className="space-y-1">
                             <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-3 pl-1">Documentation</h4>
-                            <Button variant="outline" className="w-full justify-between h-12 bg-background/50 hover:bg-muted/50 border-input/50" onClick={() => {
+                            <Button variant="outline" className="w-full justify-between h-12 bg-background/50 hover:bg-blue-50 hover:border-blue-200 border-input/50 transition-colors" onClick={() => {
                                 const url = typeof productDetails.invoiceFileName === 'string' && productDetails.invoiceFileName.startsWith('http')
                                     ? productDetails.invoiceFileName
                                     : `http://localhost:3000/uploads/${productDetails.invoiceFileName}`;
                                 window.open(url, '_blank');
                             }}>
                                 <span className="flex items-center gap-2">
-                                    <FileText className="h-4 w-4 text-primary" />
-                                    <span>View Invoice</span>
+                                    <FileText className="h-4 w-4 text-blue-600" />
+                                    <span className="text-blue-700">View Invoice</span>
                                 </span>
-                                <ExternalLink className="h-4 w-4 text-muted-foreground" />
+                                <ExternalLink className="h-4 w-4 text-blue-500" />
                             </Button>
                         </div>
                     )}

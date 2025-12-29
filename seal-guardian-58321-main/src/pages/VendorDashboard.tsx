@@ -16,32 +16,35 @@ import { Input } from "@/components/ui/input";
 import EVProductsForm from "@/components/warranty/EVProductsForm";
 import SeatCoverForm from "@/components/warranty/SeatCoverForm";
 import { Pagination } from "@/components/Pagination";
+import { WarrantySpecSheet } from "@/components/warranty/WarrantySpecSheet";
 
-// WarrantyList Component
-const WarrantyList = ({ items, showReason = false, user, onEditWarranty, onVerify, onReject, isPendingVerification = false }: {
+// WarrantyList Component - Modern card design matching Customer Dashboard
+const WarrantyList = ({ items, showReason = false, user, onEditWarranty, onVerify, onReject, isPendingVerification = false, onSelectWarranty }: {
     items: any[],
     showReason?: boolean,
     user: any,
     onVerify?: (warranty: any) => void,
     onReject?: (warranty: any) => void,
     onEditWarranty?: (warranty: any) => void,
-    isPendingVerification?: boolean
+    isPendingVerification?: boolean,
+    onSelectWarranty?: (warranty: any) => void
 }) => {
     if (items.length === 0) {
         return (
-            <div className="text-center py-12 border rounded-lg border-dashed">
-                <Package className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                <h3 className="text-lg font-medium mb-2">No Warranties Found</h3>
-                <p className="text-muted-foreground mb-4">No warranties in this category</p>
-                {items.length === 0 && (
-                    <p className="text-sm text-muted-foreground mt-2">Waiting for customer registrations</p>
-                )}
+            <div className="flex flex-col items-center justify-center py-16 text-center border rounded-xl border-dashed bg-muted/10">
+                <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mb-4">
+                    <Package className="h-8 w-8 text-muted-foreground/50" />
+                </div>
+                <h3 className="text-lg font-medium">No Warranties Found</h3>
+                <p className="text-sm text-muted-foreground mt-1 max-w-xs mx-auto">
+                    {isPendingVerification ? 'No warranties pending your verification' : 'Warranties will appear here'}
+                </p>
             </div>
         );
     }
 
     return (
-        <div className="grid gap-4">
+        <div className="space-y-3">
             {items.map((warranty, index) => {
                 const productDetails = typeof warranty.product_details === 'string'
                     ? JSON.parse(warranty.product_details)
@@ -53,434 +56,118 @@ const WarrantyList = ({ items, showReason = false, user, onEditWarranty, onVerif
                 const rawProductName = productDetails.product || productDetails.productName || warranty.product_type;
                 const productName = productNameMapping[rawProductName] || rawProductName;
 
-
                 // Calculate warranty expiration
-                const { expirationDate, daysLeft, isExpired } = getWarrantyExpiration(warranty.created_at, warranty.warranty_type);
+                const { daysLeft, isExpired } = getWarrantyExpiration(warranty.created_at, warranty.warranty_type);
 
                 return (
-                    <Card key={warranty.id || warranty.uid || `warranty-${index}`} className="hover:shadow-md transition-shadow">
-                        <CardContent className="pt-6">
-                            <div className="flex justify-between items-start mb-4">
-                                <div className="flex-1">
+                    <div key={warranty.id || warranty.uid || `warranty-${index}`} className="group flex flex-col">
+                        <div
+                            onClick={() => onSelectWarranty && onSelectWarranty(warranty)}
+                            className={cn(
+                                "relative flex items-center gap-4 p-4 bg-card hover:bg-accent/5 transition-all rounded-xl border border-border/50 shadow-sm cursor-pointer active:scale-[0.99] z-10",
+                                (showReason || isPendingVerification) && "rounded-b-none border-b-0"
+                            )}
+                        >
+                            {/* Icon */}
+                            <div className={cn(
+                                "h-12 w-12 rounded-full flex items-center justify-center shrink-0 border",
+                                warranty.product_type === 'seat-cover' ? "bg-blue-500/10 border-blue-500/20 text-blue-600" : "bg-purple-500/10 border-purple-500/20 text-purple-600"
+                            )}>
+                                <img
+                                    src={warranty.product_type === 'seat-cover' ? "/seat-cover-icon.png" : "/ppf-icon.png"}
+                                    alt="Icon"
+                                    className="w-6 h-6 object-contain opacity-80 group-hover:opacity-100 transition-opacity"
+                                />
+                            </div>
 
-                                    <div className="flex items-baseline gap-2 mb-1">
-                                        <h3 className="text-lg font-bold uppercase tracking-wide">
-                                            {productName.replace(/-/g, ' ')}
-                                        </h3>
-                                        <span className="text-sm text-muted-foreground normal-case">
-                                            {warranty.product_type}
-                                        </span>
-                                    </div>
-                                    <p className="text-sm text-muted-foreground">
-                                        Registered on {new Date(warranty.created_at).toLocaleDateString('en-US', {
-                                            year: 'numeric',
-                                            month: 'long',
-                                            day: 'numeric'
-                                        })}
-                                    </p>
-                                    {warranty.status === 'validated' && expirationDate && (
-                                        <p className="text-sm text-muted-foreground mt-0.5">
-                                            Expires on {expirationDate.toLocaleDateString('en-US', {
-                                                year: 'numeric',
-                                                month: 'long',
-                                                day: 'numeric'
-                                            })}
-                                        </p>
+                            {/* Main Info */}
+                            <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 mb-0.5">
+                                    <h4 className="font-semibold text-base truncate pr-2 capitalize">
+                                        {productName.replace(/-/g, ' ')}
+                                    </h4>
+                                    {warranty.status === 'validated' && (
+                                        <Badge variant="outline" className={cn(
+                                            "h-5 text-[10px] px-1.5 uppercase tracking-wide border-0",
+                                            isExpired ? "bg-red-100 text-red-600" : "bg-green-100 text-green-700"
+                                        )}>
+                                            {isExpired ? 'Expired' : 'Active'}
+                                        </Badge>
                                     )}
                                 </div>
-                                <div className="flex items-center gap-2">
-                                    {warranty.status === 'validated' && expirationDate && (
-                                        <span className={cn("text-sm font-medium", isExpired ? "text-destructive" : "text-green-600")}>
-                                            {isExpired ? "Expired" : `${daysLeft} days left`}
-                                        </span>
-                                    )}
-                                    <Badge variant={
-                                        warranty.status === 'validated' ? 'default' :
-                                            warranty.status === 'rejected' ? 'destructive' : 'secondary'
-                                    } className={warranty.status === 'validated' ? 'bg-green-600' : ''}>
-                                        {warranty.status === 'validated' ? 'Approved' : warranty.status === 'rejected' ? 'Disapproved' : warranty.status}
-                                    </Badge>
+                                <p className="text-sm text-muted-foreground truncate">
+                                    {warranty.car_make} {warranty.car_model} • <span className="text-xs opacity-70">{new Date(warranty.created_at).toLocaleDateString()}</span>
+                                </p>
+                                <p className="text-xs text-muted-foreground mt-0.5">
+                                    👤 {warranty.customer_name} • {warranty.customer_phone}
+                                </p>
+                            </div>
+
+                            {/* Status Indicator (Right aligned) */}
+                            <div className="shrink-0 flex flex-col items-end gap-1">
+                                {/* Show days remaining for approved warranties */}
+                                {warranty.status === 'validated' && (
+                                    <span className={cn(
+                                        "text-xs font-semibold",
+                                        isExpired ? "text-red-600" : "text-green-600"
+                                    )}>
+                                        {isExpired ? "Expired" : `${daysLeft} days`}
+                                    </span>
+                                )}
+                                <div className="flex items-center gap-1.5">
+                                    <div className={cn(
+                                        "w-2.5 h-2.5 rounded-full shadow-sm",
+                                        warranty.status === 'validated' ? "bg-green-500 shadow-green-500/50" :
+                                            warranty.status === 'pending' ? "bg-amber-500 shadow-amber-500/50" :
+                                                warranty.status === 'pending_vendor' ? "bg-blue-500 shadow-blue-500/50" :
+                                                    "bg-red-500 shadow-red-500/50"
+                                    )} />
+                                    <span className="text-[10px] font-medium text-muted-foreground capitalize">
+                                        {warranty.status === 'pending_vendor' ? 'Needs Review' : warranty.status === 'pending' ? 'Admin Review' : warranty.status === 'validated' ? 'Approved' : warranty.status}
+                                    </span>
                                 </div>
                             </div>
-                            {isPendingVerification && (
-                                <div className="flex gap-2 mb-4">
+                        </div>
+
+                        {/* Pending Verification Actions */}
+                        {isPendingVerification && (
+                            <div className="relative mx-1 p-3 bg-blue-500/5 rounded-b-xl border border-t-0 border-blue-500/10 animate-in slide-in-from-top-1 z-0">
+                                <div className="flex gap-2">
                                     <Button
-                                        className="bg-green-600 hover:bg-green-700 text-white flex-1"
-                                        onClick={() => onVerify && onVerify(warranty)}
+                                        size="sm"
+                                        className="flex-1 bg-green-600 hover:bg-green-700 text-white h-9"
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            onVerify && onVerify(warranty);
+                                        }}
                                     >
-                                        <CheckCircle className="mr-2 h-4 w-4" /> Approve Installation
+                                        <CheckCircle className="w-4 h-4 mr-2" /> Approve
                                     </Button>
                                     <Button
+                                        size="sm"
                                         variant="destructive"
-                                        className="flex-1"
-                                        onClick={() => onReject && onReject(warranty)}
+                                        className="flex-1 h-9"
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            onReject && onReject(warranty);
+                                        }}
                                     >
-                                        <XCircle className="mr-2 h-4 w-4" /> Reject
+                                        <XCircle className="w-4 h-4 mr-2" /> Reject
                                     </Button>
                                 </div>
-                            )}
-                            <div className={`grid grid-cols-2 ${warranty.product_type === 'ev-products' ? 'lg:grid-cols-6 md:grid-cols-3' : warranty.product_type === 'seat-cover' ? 'lg:grid-cols-5 md:grid-cols-3' : 'lg:grid-cols-4 md:grid-cols-2'} gap-4 mt-4 pt-4 border-t`}>
-                                {warranty.product_type === 'seat-cover' && (
-                                    <>
-                                        <div>
-                                            <p className="text-xs text-muted-foreground mb-1">Customer</p>
-                                            <h3 className="text-sm font-medium flex items-center gap-1">
-                                                👤 {warranty.customer_name}
-                                            </h3>
-                                        </div>
-                                        <div>
-                                            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">UID</p>
-                                            <p className="font-mono text-sm font-semibold">{warranty.uid || productDetails.uid || 'N/A'}</p>
-                                        </div>
-
-
-                                    </>
-                                )}
-                                {warranty.product_type === 'ev-products' && (
-                                    <>
-                                        {/* ADD CUSTOMER NAME HERE - BEFORE LOT NUMBER */}
-                                        <div>
-                                            <p className="text-xs text-muted-foreground mb-1">Customer</p>
-                                            <h3 className="text-sm font-medium flex items-center gap-1">
-                                                👤 {warranty.customer_name}
-                                            </h3>
-                                        </div>
-
-                                        <div>
-                                            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">Lot Number</p>
-                                            <p className="font-mono text-sm font-semibold">{productDetails.lotNumber || 'N/A'}</p>
-                                        </div>
-                                        <div>
-                                            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">Roll Number</p>
-                                            <p className="font-mono text-sm font-semibold">{productDetails.rollNumber || 'N/A'}</p>
-                                        </div>
-                                        <div>
-                                            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">Vehicle Reg</p>
-                                            <p className="font-mono text-sm font-semibold">{productDetails.carRegistration || warranty.car_reg || 'N/A'}</p>
-                                        </div>
-                                    </>
-                                )}
-                                <div>
-                                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">Warranty Type</p>
-                                    <p className="text-sm font-medium">
-                                        <span className="inline-flex items-center rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-semibold text-blue-800">
-                                            {warranty.warranty_type || '1 Year'}
-                                        </span>
-                                    </p>
-                                </div>
-                                <div>
-                                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">Vehicle</p>
-                                    <p className="text-sm font-medium">{warranty.car_make} {warranty.car_model}</p>
-                                    {warranty.car_year && (
-                                        <p className="text-xs text-muted-foreground">{warranty.car_year}</p>
-                                    )}
-                                </div>
-                                <div>
-                                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">Invoice</p>
-                                    <Dialog>
-                                        <DialogTrigger asChild>
-                                            <Button variant="outline" size="sm" className="h-8 w-full">
-                                                <FileText className="h-3 w-3 mr-1" />
-                                                View
-                                            </Button>
-                                        </DialogTrigger>
-                                        <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
-                                            <DialogHeader>
-                                                <DialogTitle>Invoice Document</DialogTitle>
-                                                <DialogDescription>
-                                                    Uploaded invoice for {productName.replace(/-/g, ' ')}
-                                                </DialogDescription>
-                                            </DialogHeader>
-                                            <div className="mt-4">
-                                                {(() => {
-                                                    const invoiceFile = warranty.product_type === 'ev-products'
-                                                        ? productDetails.photos?.warranty
-                                                        : productDetails.invoiceFileName;
-                                                    if (invoiceFile) {
-                                                        const imgSrc = typeof invoiceFile === 'string' && invoiceFile.startsWith('http')
-                                                            ? invoiceFile
-                                                            : `http://localhost:3000/uploads/${invoiceFile}`;
-                                                        return (
-                                                            <div className="space-y-4">
-                                                                <div className="border rounded-lg p-4 bg-muted/50">
-                                                                    <img
-                                                                        src={imgSrc}
-                                                                        alt="Invoice"
-                                                                        className="w-full h-auto rounded"
-                                                                        onError={(e) => {
-                                                                            e.currentTarget.style.display = 'none';
-                                                                            const nextEl = e.currentTarget.nextElementSibling as HTMLElement;
-                                                                            if (nextEl) nextEl.classList.remove('hidden');
-                                                                        }}
-                                                                    />
-                                                                    <div className="hidden text-center py-8 text-muted-foreground">
-                                                                        <FileText className="h-16 w-16 mx-auto mb-2" />
-                                                                        <p>Preview not available (PDF or other format)</p>
-                                                                    </div>
-                                                                </div>
-                                                                <Button
-                                                                    className="w-full"
-                                                                    onClick={() => {
-                                                                        fetch(imgSrc)
-                                                                            .then(res => res.blob())
-                                                                            .then(blob => {
-                                                                                const blobUrl = window.URL.createObjectURL(blob);
-                                                                                const link = document.createElement("a");
-                                                                                link.href = blobUrl;
-                                                                                link.download = typeof invoiceFile === 'string' ? invoiceFile : 'invoice';
-                                                                                document.body.appendChild(link);
-                                                                                link.click();
-                                                                                link.remove();
-                                                                                window.URL.revokeObjectURL(blobUrl);
-                                                                            })
-                                                                            .catch(err => console.error("Download failed", err));
-                                                                    }}
-                                                                >
-                                                                    <Download className="h-4 w-4 mr-2" />
-                                                                    Download Document
-                                                                </Button>
-                                                            </div>
-                                                        );
-                                                    } else {
-                                                        return (
-                                                            <div className="text-center py-8 text-muted-foreground">
-                                                                <FileText className="h-16 w-16 mx-auto mb-2" />
-                                                                <p>No invoice uploaded</p>
-                                                            </div>
-                                                        );
-                                                    }
-                                                })()}
-                                            </div>
-                                        </DialogContent>
-                                    </Dialog>
-                                </div>
-                                <div>
-                                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">Details</p>
-                                    <Dialog>
-                                        <DialogTrigger asChild>
-                                            <Button variant="outline" size="sm" className="h-8 w-full">
-                                                <Eye className="h-3 w-3 mr-1" />
-                                                View
-                                            </Button>
-                                        </DialogTrigger>
-                                        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
-                                            <DialogHeader>
-                                                <DialogTitle className="text-2xl">Warranty Registration Details</DialogTitle>
-                                                <DialogDescription>
-                                                    Complete information for {productName.replace(/-/g, ' ')}
-                                                </DialogDescription>
-                                            </DialogHeader>
-                                            <div className="mt-6 space-y-6">
-                                                <div>
-                                                    <h3 className="text-lg font-semibold mb-3 pb-2 border-b">Product Information</h3>
-                                                    <div className="grid grid-cols-2 gap-4">
-                                                        <div>
-                                                            <p className="text-sm text-muted-foreground">Product Name</p>
-                                                            <p className="font-medium">{productName.replace(/-/g, ' ').toUpperCase()}</p>
-                                                        </div>
-                                                        <div>
-                                                            <p className="text-sm text-muted-foreground">Product Type</p>
-                                                            <p className="font-medium">{warranty.product_type}</p>
-                                                        </div>
-                                                        {warranty.product_type === 'ev-products' ? (
-                                                            <>
-                                                                <div>
-                                                                    <p className="text-sm text-muted-foreground">Lot Number</p>
-                                                                    <p className="font-mono font-medium">{productDetails.lotNumber || 'N/A'}</p>
-                                                                </div>
-                                                                <div>
-                                                                    <p className="text-sm text-muted-foreground">Roll Number</p>
-                                                                    <p className="font-mono font-medium">{productDetails.rollNumber || 'N/A'}</p>
-                                                                </div>
-                                                                <div>
-                                                                    <p className="text-sm text-muted-foreground">Vehicle Reg</p>
-                                                                    <p className="font-mono font-medium">{productDetails.carRegistration || warranty.car_reg || 'N/A'}</p>
-                                                                </div>
-                                                            </>
-                                                        ) : (
-                                                            <div>
-                                                                <p className="text-sm text-muted-foreground">UID</p>
-                                                                <p className="font-mono font-medium">{warranty.uid || productDetails.uid || 'N/A'}</p>
-                                                            </div>
-                                                        )}
-                                                        <div>
-                                                            <p className="text-sm text-muted-foreground">Warranty Type</p>
-                                                            <p className="font-medium">{warranty.warranty_type || '1 Year'}</p>
-                                                        </div>
-                                                        <div>
-                                                            <p className="text-sm text-muted-foreground">Purchase Date</p>
-                                                            <p className="font-medium">{new Date(warranty.purchase_date).toLocaleDateString()}</p>
-                                                        </div>
-                                                        <div>
-                                                            <p className="text-sm text-muted-foreground">Registration Date</p>
-                                                            <p className="font-medium">{new Date(warranty.created_at).toLocaleDateString()}</p>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                                {warranty.product_type === 'ev-products' && productDetails.photos && (
-                                                    <div>
-                                                        <h3 className="text-lg font-semibold mb-3 pb-2 border-b">Photo Documentation</h3>
-                                                        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                                                            {Object.entries(productDetails.photos).map(([key, filename]) => {
-                                                                const labels: Record<string, string> = {
-                                                                    lhs: 'Left Hand Side',
-                                                                    rhs: 'Right Hand Side',
-                                                                    frontReg: 'Front with Reg No.',
-                                                                    backReg: 'Back with Reg No.',
-                                                                    warranty: 'Warranty Card'
-                                                                };
-                                                                if (!filename) return null;
-                                                                return (
-                                                                    <div key={key} className="space-y-2">
-                                                                        <p className="text-sm font-medium text-muted-foreground">{labels[key] || key}</p>
-                                                                        <div className="border rounded-lg overflow-hidden bg-muted/50 aspect-video relative group">
-                                                                            <img
-                                                                                src={typeof filename === 'string' && filename.startsWith('http') ? filename : `http://localhost:3000/uploads/${filename}`}
-                                                                                alt={labels[key]}
-                                                                                className="w-full h-full object-cover"
-                                                                            />
-                                                                            <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                                                                                <a
-                                                                                    href={typeof filename === 'string' && filename.startsWith('http') ? filename : `http://localhost:3000/uploads/${filename}`}
-                                                                                    target="_blank"
-                                                                                    rel="noopener noreferrer"
-                                                                                    className="text-white text-xs bg-black/50 px-2 py-1 rounded hover:bg-black/70"
-                                                                                >
-                                                                                    View Full
-                                                                                </a>
-                                                                            </div>
-                                                                        </div>
-                                                                    </div>
-                                                                );
-                                                            })}
-                                                        </div>
-                                                    </div>
-                                                )}
-                                                {warranty.product_type === 'seat-cover' && productDetails.invoiceFileName && (
-                                                    <div>
-                                                        <h3 className="text-lg font-semibold mb-3 pb-2 border-b">Documentation</h3>
-                                                        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                                                            <div className="space-y-2">
-                                                                <p className="text-sm font-medium text-muted-foreground">Invoice / MRP Sticker</p>
-                                                                <div className="border rounded-lg overflow-hidden bg-muted/50 aspect-video relative group">
-                                                                    <img
-                                                                        src={typeof productDetails.invoiceFileName === 'string' && productDetails.invoiceFileName.startsWith('http') ? productDetails.invoiceFileName : `http://localhost:3000/uploads/${productDetails.invoiceFileName}`}
-                                                                        alt="Invoice"
-                                                                        className="w-full h-full object-cover"
-                                                                    />
-                                                                    <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                                                                        <a
-                                                                            href={typeof productDetails.invoiceFileName === 'string' && productDetails.invoiceFileName.startsWith('http') ? productDetails.invoiceFileName : `http://localhost:3000/uploads/${productDetails.invoiceFileName}`}
-                                                                            target="_blank"
-                                                                            rel="noopener noreferrer"
-                                                                            className="text-white text-xs bg-black/50 px-2 py-1 rounded hover:bg-black/70"
-                                                                        >
-                                                                            View Full
-                                                                        </a>
-                                                                    </div>
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                )}
-                                                <div>
-                                                    <h3 className="text-lg font-semibold mb-3 pb-2 border-b">Customer Information</h3>
-                                                    <div className="grid grid-cols-2 gap-4">
-                                                        <div>
-                                                            <p className="text-sm text-muted-foreground">Name</p>
-                                                            <p className="font-medium">{warranty.customer_name}</p>
-                                                        </div>
-                                                        <div>
-                                                            <p className="text-sm text-muted-foreground">Email</p>
-                                                            <p className="font-medium">{warranty.customer_email}</p>
-                                                        </div>
-                                                        <div>
-                                                            <p className="text-sm text-muted-foreground">Phone</p>
-                                                            <p className="font-medium">{warranty.customer_phone}</p>
-                                                        </div>
-                                                        <div className="col-span-2">
-                                                            <p className="text-sm text-muted-foreground">Address</p>
-                                                            <p className="font-medium">{warranty.customer_address}</p>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                                <div>
-                                                    <h3 className="text-lg font-semibold mb-3 pb-2 border-b">Vehicle Information</h3>
-                                                    <div className="grid grid-cols-2 gap-4">
-                                                        <div>
-                                                            <p className="text-sm text-muted-foreground">Make</p>
-                                                            <p className="font-medium">{warranty.car_make}</p>
-                                                        </div>
-                                                        <div>
-                                                            <p className="text-sm text-muted-foreground">Model</p>
-                                                            <p className="font-medium">{warranty.car_model}</p>
-                                                        </div>
-                                                        <div>
-                                                            <p className="text-sm text-muted-foreground">Year</p>
-                                                            <p className="font-medium">{warranty.car_year}</p>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                                {warranty.installer_name && (
-                                                    <div>
-                                                        <h3 className="text-lg font-semibold mb-3 pb-2 border-b">Installer Information</h3>
-                                                        <div className="grid grid-cols-2 gap-4">
-                                                            <div>
-                                                                <p className="text-sm text-muted-foreground">Store Name</p>
-                                                                <p className="font-medium">{productDetails.storeName || warranty.installer_name}</p>
-                                                            </div>
-                                                            <div>
-                                                                <p className="text-sm text-muted-foreground">Store Email</p>
-                                                                <p className="font-medium">{productDetails.storeEmail || warranty.installer_contact}</p>
-                                                            </div>
-                                                            <div>
-                                                                <p className="text-sm text-muted-foreground">Purchase Date</p>
-                                                                <p className="font-medium">{new Date(warranty.purchase_date).toLocaleDateString()}</p>
-                                                            </div>
-                                                            <div>
-                                                                <p className="text-sm text-muted-foreground">Manpower (Installer)</p>
-                                                                <p className="font-medium">
-                                                                    {productDetails.manpowerName ||
-                                                                        warranty.manpower_name_from_db ||
-                                                                        productDetails.installerName ||
-                                                                        (warranty.manpower_id ? `ID: ${warranty.manpower_id}` : 'N/A')}
-                                                                </p>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                )}
-                                                <div>
-                                                    <h3 className="text-lg font-semibold mb-3 pb-2 border-b">Status</h3>
-                                                    <div className="flex items-center gap-2">
-                                                        <Badge variant={
-                                                            warranty.status === 'validated' ? 'default' :
-                                                                warranty.status === 'rejected' ? 'destructive' : 'secondary'
-                                                        } className={warranty.status === 'validated' ? 'bg-green-600' : ''}>
-                                                            {warranty.status === 'validated' ? 'APPROVED' : warranty.status === 'rejected' ? 'DISAPPROVED' : warranty.status.toUpperCase()}
-                                                        </Badge>
-                                                        {warranty.rejection_reason && (
-                                                            <p className="text-sm text-destructive">Reason: {warranty.rejection_reason}</p>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </DialogContent>
-                                    </Dialog>
-                                </div>
                             </div>
-                            {showReason && warranty.rejection_reason && (
-                                <div className="mt-4 p-3 bg-destructive/10 rounded-md text-destructive">
-                                    <p className="font-semibold mb-1 text-sm">Reason for Rejection:</p>
-                                    <p className="text-sm">{warranty.rejection_reason}</p>
-                                </div>
-                            )}
-                            {showReason && warranty.status === 'rejected' && (
-                                <div className="mt-4 text-xs text-muted-foreground text-center italic">
-                                    Contact support or customer to correct this registration.
-                                </div>
-                            )}
-                        </CardContent>
-                    </Card>
+                        )}
+
+                        {/* Rejection Reason */}
+                        {showReason && warranty.rejection_reason && (
+                            <div className="relative mx-1 p-3 bg-red-500/5 rounded-b-xl border border-t-0 border-red-500/10 text-sm animate-in slide-in-from-top-1 z-0">
+                                <p className="text-red-600 font-medium flex items-start gap-2">
+                                    <span className="shrink-0 pt-0.5">•</span>
+                                    {warranty.rejection_reason}
+                                </p>
+                            </div>
+                        )}
+                    </div>
                 );
             })}
         </div>
@@ -572,6 +259,10 @@ const VendorDashboard = () => {
         setManpowerWarrantyDialogData({ member, status, warranties: manpowerWarranties });
         setManpowerWarrantyDialogOpen(true);
     };
+
+    // Spec Sheet State for viewing warranty details
+    const [specSheetData, setSpecSheetData] = useState<any | null>(null);
+
     // Warranty stats
     const pendingVendorWarranties = warranties.filter(w => w.status === 'pending_vendor');
     const pendingWarranties = warranties.filter(w => w.status === 'pending');
@@ -910,20 +601,16 @@ const VendorDashboard = () => {
 
                 {/* Action Bar & Filters */}
                 <div className="flex flex-col gap-4 mb-6">
-                    <div className="flex flex-col sm:flex-row gap-4">
-
-
-                        {/* Search */}
-                        <div className="flex-1 min-w-[200px] relative">
-                            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                            <input
-                                type="text"
-                                placeholder="Search by customer, phone, car, UID..."
-                                className="w-full pl-10 pr-4 py-2 rounded-md border border-input bg-background text-sm"
-                                value={warrantySearch}
-                                onChange={(e) => setWarrantySearch(e.target.value)}
-                            />
-                        </div>
+                    {/* Pill-shaped Search Bar */}
+                    <div className="relative shadow-sm rounded-full">
+                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <input
+                            type="text"
+                            placeholder="Search by customer, phone, car, UID..."
+                            className="w-full pl-11 pr-4 py-3 rounded-full border-0 bg-background/80 backdrop-blur-md ring-1 ring-border/50 focus:ring-2 focus:ring-primary/20 text-sm shadow-lg shadow-black/5 transition-all"
+                            value={warrantySearch}
+                            onChange={(e) => setWarrantySearch(e.target.value)}
+                        />
                     </div>
 
                     <div className="flex flex-col md:flex-row gap-4 items-start md:items-center justify-between">
@@ -957,16 +644,16 @@ const VendorDashboard = () => {
                                 </Button>
                             )}
                             <Button
-                                variant="outline"
                                 size="sm"
                                 onClick={handleExport}
+                                className="bg-green-600 border-green-600 text-white hover:bg-green-700 hover:text-white transition-colors"
                             >
                                 <Download className="h-4 w-4 mr-2" />
                                 Export CSV
                             </Button>
                         </div>
 
-                        {/* Sort */}
+                        {/* Sort & Filter */}
                         <div className="flex flex-wrap items-center gap-2 w-full md:w-auto justify-end">
                             <select
                                 className="px-3 py-2 rounded-md border border-input bg-background text-sm flex-1 md:flex-none"
@@ -976,7 +663,21 @@ const VendorDashboard = () => {
                                 <option value="created_at">Sort by Date</option>
                                 <option value="customer_name">Sort by Customer</option>
                                 <option value="status">Sort by Status</option>
-                                <option value="product_type">Sort by Product</option>
+                            </select>
+                            <select
+                                className="px-3 py-2 rounded-md border border-input bg-background text-sm flex-1 md:flex-none"
+                                value={warrantySearch.includes('seat-cover') ? 'seat-cover' : warrantySearch.includes('ppf') ? 'ppf' : 'all'}
+                                onChange={(e) => {
+                                    if (e.target.value === 'all') {
+                                        setWarrantySearch('');
+                                    } else {
+                                        setWarrantySearch(e.target.value);
+                                    }
+                                }}
+                            >
+                                <option value="all">All Products</option>
+                                <option value="seat-cover">Seat Cover</option>
+                                <option value="ppf">PPF</option>
                             </select>
                             <Button
                                 variant="outline"
@@ -990,86 +691,73 @@ const VendorDashboard = () => {
                 </div>
 
                 {/* Warranty Entries with Tabs */}
-                <Tabs defaultValue="pending_verification" className="space-y-4">
-                    <TabsList className="flex flex-wrap h-auto gap-2 bg-transparent p-0">
-                        <TabsTrigger value="pending_verification" className="relative">
-                            Pending Verification
-                            <Badge variant="secondary" className="ml-2 px-1.5 py-0 h-5 text-xs bg-orange-600/10 text-orange-700 hover:bg-orange-600/20">
-                                {pendingVendorWarranties.length}
-                            </Badge>
+                <Tabs defaultValue="all" className="space-y-6">
+                    <TabsList className="w-full bg-muted/20 p-1 rounded-lg h-auto grid grid-cols-3 md:grid-cols-6 gap-2">
+                        <TabsTrigger value="all" className="rounded-md py-2 text-xs font-medium data-[state=active]:bg-white data-[state=active]:shadow-sm transition-all">
+                            All ({warranties.length})
                         </TabsTrigger>
-                        <TabsTrigger value="all" className="relative">
-                            All Warranties
-                            <Badge variant="secondary" className="ml-2 px-1.5 py-0 h-5 text-xs">
-                                {warranties.length}
-                            </Badge>
+                        <TabsTrigger value="approved" className="rounded-md py-2 text-xs font-medium data-[state=active]:bg-white data-[state=active]:shadow-sm text-green-700 data-[state=active]:text-green-800 data-[state=active]:border-2 data-[state=active]:border-green-500/20 transition-all">
+                            Approved ({approvedWarranties.length})
                         </TabsTrigger>
-                        <TabsTrigger value="approved" className="relative">
-                            Approved
-                            <Badge variant="secondary" className="ml-2 px-1.5 py-0 h-5 text-xs bg-green-600/10 text-green-700 hover:bg-green-600/20">
-                                {approvedWarranties.length}
-                            </Badge>
+                        <TabsTrigger value="disapproved" className="rounded-md py-2 text-xs font-medium data-[state=active]:bg-white data-[state=active]:shadow-sm text-red-700 data-[state=active]:text-red-800 data-[state=active]:border-2 data-[state=active]:border-red-500/20 transition-all">
+                            Rejected ({rejectedWarranties.length})
                         </TabsTrigger>
-                        <TabsTrigger value="disapproved" className="relative">
-                            Disapproved
-                            <Badge variant="secondary" className="ml-2 px-1.5 py-0 h-5 text-xs bg-red-600/10 text-red-700 hover:bg-red-600/20">
-                                {rejectedWarranties.length}
-                            </Badge>
+                        <TabsTrigger value="pending_verification" className="rounded-md py-2 text-xs font-medium data-[state=active]:bg-white data-[state=active]:shadow-sm text-blue-700 data-[state=active]:text-blue-800 data-[state=active]:border-2 data-[state=active]:border-blue-500/20 transition-all">
+                            Pending for Verification ({pendingVendorWarranties.length})
                         </TabsTrigger>
-                        <TabsTrigger value="pending" className="relative">
-                            Pending Admin
-                            <Badge variant="secondary" className="ml-2 px-1.5 py-0 h-5 text-xs bg-yellow-600/10 text-yellow-700 hover:bg-yellow-600/20">
-                                {pendingWarranties.length}
-                            </Badge>
+                        <TabsTrigger value="pending" className="rounded-md py-2 text-xs font-medium data-[state=active]:bg-white data-[state=active]:shadow-sm text-amber-700 data-[state=active]:text-amber-800 data-[state=active]:border-2 data-[state=active]:border-amber-500/20 transition-all">
+                            Pending from Admin ({pendingWarranties.length})
                         </TabsTrigger>
-                        <TabsTrigger value="manpower" className="relative">
-                            Manpower
-                            <Badge variant="secondary" className="ml-2 px-1.5 py-0 h-5 text-xs">
-                                {manpowerList.length}
-                            </Badge>
+                        <TabsTrigger value="manpower" className="rounded-md py-2 text-xs font-medium data-[state=active]:bg-white data-[state=active]:shadow-sm text-purple-700 data-[state=active]:text-purple-800 data-[state=active]:border-2 data-[state=active]:border-purple-500/20 transition-all">
+                            Manpower ({manpowerList.length})
                         </TabsTrigger>
                     </TabsList>
 
-                    <TabsContent value="pending_verification" className="space-y-4">
+                    <TabsContent value="pending_verification" className="outline-none animate-in fade-in slide-in-from-bottom-2 duration-500">
                         <WarrantyList
                             items={filterAndSortWarranties(pendingVendorWarranties)}
                             user={user}
                             onVerify={handleVerifyWarranty}
                             onReject={handleRejectWarranty}
                             isPendingVerification={true}
+                            onSelectWarranty={setSpecSheetData}
                         />
                     </TabsContent>
 
-                    <TabsContent value="all" className="space-y-4">
+                    <TabsContent value="all" className="outline-none animate-in fade-in slide-in-from-bottom-2 duration-500">
                         {loadingWarranties ? (
-                            <div className="text-center py-4 text-muted-foreground">Loading warranties...</div>
+                            <div className="py-12 flex justify-center"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
                         ) : (
                             <WarrantyList
                                 items={filterAndSortWarranties(warranties)}
                                 user={user}
+                                onSelectWarranty={setSpecSheetData}
                             />
                         )}
                     </TabsContent>
 
-                    <TabsContent value="approved" className="space-y-4">
+                    <TabsContent value="approved" className="outline-none animate-in fade-in slide-in-from-bottom-2 duration-500">
                         <WarrantyList
                             items={filterAndSortWarranties(approvedWarranties)}
                             user={user}
+                            onSelectWarranty={setSpecSheetData}
                         />
                     </TabsContent>
 
-                    <TabsContent value="disapproved" className="space-y-4">
+                    <TabsContent value="disapproved" className="outline-none animate-in fade-in slide-in-from-bottom-2 duration-500">
                         <WarrantyList
                             items={filterAndSortWarranties(rejectedWarranties)}
                             showReason={true}
                             user={user}
+                            onSelectWarranty={setSpecSheetData}
                         />
                     </TabsContent>
 
-                    <TabsContent value="pending" className="space-y-4">
+                    <TabsContent value="pending" className="outline-none animate-in fade-in slide-in-from-bottom-2 duration-500">
                         <WarrantyList
                             items={filterAndSortWarranties(pendingWarranties)}
                             user={user}
+                            onSelectWarranty={setSpecSheetData}
                         />
                     </TabsContent>
 
@@ -1402,6 +1090,13 @@ const VendorDashboard = () => {
                         </div>
                     </DialogContent>
                 </Dialog>
+
+                {/* Warranty Spec Sheet for viewing details */}
+                <WarrantySpecSheet
+                    isOpen={!!specSheetData}
+                    onClose={() => setSpecSheetData(null)}
+                    warranty={specSheetData}
+                />
             </main>
         </div>
     );

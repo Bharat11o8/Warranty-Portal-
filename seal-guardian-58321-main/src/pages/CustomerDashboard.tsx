@@ -224,7 +224,7 @@ const CustomerDashboard = () => {
                                     warranty.product_type === 'seat-cover' ? "bg-blue-500/10 border-blue-500/20 text-blue-600" : "bg-purple-500/10 border-purple-500/20 text-purple-600"
                                 )}>
                                     <img
-                                        src={warranty.product_type === 'seat-cover' ? "/icons/seat-cover.png" : "/icons/ppf.png"}
+                                        src={warranty.product_type === 'seat-cover' ? "/seat-cover-icon.png" : "/ppf-icon.png"}
                                         alt="Icon"
                                         className="w-6 h-6 object-contain opacity-80 group-hover:opacity-100 transition-opacity"
                                     />
@@ -250,18 +250,29 @@ const CustomerDashboard = () => {
                                     </p>
                                 </div>
 
-                                {/* Status Indicator (Right aligned pill) */}
+                                {/* Status Indicator (Right aligned) */}
                                 <div className="shrink-0 flex flex-col items-end gap-1">
-                                    <div className={cn(
-                                        "w-3 h-3 rounded-full shadow-sm",
-                                        warranty.status === 'validated' ? "bg-green-500 shadow-green-500/50" :
-                                            warranty.status === 'pending' ? "bg-amber-500 shadow-amber-500/50" :
-                                                warranty.status === 'pending_vendor' ? "bg-blue-500 shadow-blue-500/50" :
-                                                    "bg-red-500 shadow-red-500/50"
-                                    )} />
-                                    <span className="text-[10px] font-medium text-muted-foreground capitalize">
-                                        {warranty.status === 'pending_vendor' ? 'In Review' : warranty.status}
-                                    </span>
+                                    {/* Show days remaining for approved warranties */}
+                                    {warranty.status === 'validated' && (
+                                        <span className={cn(
+                                            "text-xs font-semibold",
+                                            isExpired ? "text-red-600" : "text-green-600"
+                                        )}>
+                                            {isExpired ? "Expired" : `${daysLeft} days`}
+                                        </span>
+                                    )}
+                                    <div className="flex items-center gap-1.5">
+                                        <div className={cn(
+                                            "w-2.5 h-2.5 rounded-full shadow-sm",
+                                            warranty.status === 'validated' ? "bg-green-500 shadow-green-500/50" :
+                                                warranty.status === 'pending' ? "bg-amber-500 shadow-amber-500/50" :
+                                                    warranty.status === 'pending_vendor' ? "bg-blue-500 shadow-blue-500/50" :
+                                                        "bg-red-500 shadow-red-500/50"
+                                        )} />
+                                        <span className="text-[10px] font-medium text-muted-foreground capitalize">
+                                            {warranty.status === 'pending_vendor' ? 'In Review' : warranty.status === 'validated' ? 'Approved' : warranty.status}
+                                        </span>
+                                    </div>
                                 </div>
                             </div>
 

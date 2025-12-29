@@ -529,11 +529,13 @@ export class AdminController {
                     p.name as submitted_by_name,
                     p.email as submitted_by_email,
                     ur.role as submitted_by_role,
-                    m.name as manpower_name_from_db
+                    m.name as manpower_name_from_db,
+                    vd.store_name as vendor_store_name
                 FROM warranty_registrations wr
                 LEFT JOIN profiles p ON wr.user_id = p.id
                 LEFT JOIN user_roles ur ON p.id = ur.user_id
                 LEFT JOIN manpower m ON wr.manpower_id = m.id
+                LEFT JOIN vendor_details vd ON m.vendor_id = vd.id
                 ORDER BY wr.created_at DESC
                 LIMIT ? OFFSET ?
             `, [limit, offset]);
@@ -619,10 +621,12 @@ export class AdminController {
                     wr.*,
                     p.name as submitted_by_name,
                     p.email as submitted_by_email,
-                    m.name as manpower_name_from_db
+                    m.name as manpower_name_from_db,
+                    vd.store_name as vendor_store_name
                 FROM warranty_registrations wr
                 LEFT JOIN profiles p ON wr.user_id = p.id
                 LEFT JOIN manpower m ON wr.manpower_id = m.id
+                LEFT JOIN vendor_details vd ON m.vendor_id = vd.id
                 WHERE wr.customer_email = ?
                 ORDER BY wr.created_at DESC
             `, [email]);
