@@ -1,4 +1,4 @@
-import { authenticateToken, requireRole, AuthRequest } from './auth';
+import { authenticateToken, requireRole, AuthRequest } from './auth.js';
 import { Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 

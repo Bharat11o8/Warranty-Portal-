@@ -1,7 +1,7 @@
-import { validate } from './validate';
+import { validate } from './validate.js';
 import { z } from 'zod'; // Import z directly
 import { Request, Response, NextFunction } from 'express';
-import { AppError } from '../utils/errors';
+import { AppError } from '../utils/errors.js';
 
 describe('Validation Middleware', () => {
     let mockReq: Partial<Request>;
