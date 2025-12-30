@@ -34,6 +34,50 @@ export class AdminController {
             const [rejected]: any = await db.execute("SELECT COUNT(*) as count FROM warranty_registrations WHERE status = 'rejected'");
             const rejectedWarranties = rejected[0].count;
 
+            // 8. Monthly Statistics (Last 6 months)
+            const [monthlyStats]: any = await db.execute(`
+                SELECT 
+                    DATE_FORMAT(created_at, '%Y-%m') as month,
+                    COUNT(*) as total,
+                    SUM(CASE WHEN status = 'validated' THEN 1 ELSE 0 END) as approved,
+                    SUM(CASE WHEN status = 'rejected' THEN 1 ELSE 0 END) as rejected,
+                    SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pending_admin,
+                    SUM(CASE WHEN status = 'pending_vendor' THEN 1 ELSE 0 END) as pending_vendor
+                FROM warranty_registrations 
+                WHERE created_at >= DATE_SUB(NOW(), INTERVAL 6 MONTH)
+                GROUP BY DATE_FORMAT(created_at, '%Y-%m')
+                ORDER BY month ASC
+            `);
+
+            // 9. Monthly Customer Stats (Last 6 months)
+            // Determine New vs Returning based on when the customer FIRST registered a warranty
+            const [monthlyCustomerStats]: any = await db.execute(`
+                WITH FirstSeen AS (
+                    SELECT customer_email, MIN(created_at) as first_date
+                    FROM warranty_registrations 
+                    GROUP BY customer_email
+                )
+                SELECT 
+                    DATE_FORMAT(wr.created_at, '%Y-%m') as month,
+                    COUNT(DISTINCT wr.customer_email) as active_customers,
+                    COUNT(DISTINCT CASE 
+                        WHEN DATE_FORMAT(fs.first_date, '%Y-%m') = DATE_FORMAT(wr.created_at, '%Y-%m') 
+                        THEN wr.customer_email 
+                    END) as new_customers
+                FROM warranty_registrations wr
+                JOIN FirstSeen fs ON wr.customer_email = fs.customer_email
+                WHERE wr.created_at >= DATE_SUB(NOW(), INTERVAL 6 MONTH)
+                GROUP BY DATE_FORMAT(wr.created_at, '%Y-%m')
+                ORDER BY month ASC
+            `);
+
+            const formattedCustomerStats = monthlyCustomerStats.map((stat: any) => ({
+                month: stat.month,
+                active_customers: Number(stat.active_customers),
+                new_customers: Number(stat.new_customers),
+                returning_customers: Number(stat.active_customers) - Number(stat.new_customers)
+            }));
+
             res.json({
                 success: true,
                 stats: {
@@ -43,7 +87,9 @@ export class AdminController {
                     pendingApprovals,
                     pendingVendorApprovals,
                     validatedWarranties,
-                    rejectedWarranties
+                    rejectedWarranties,
+                    monthlyStats,
+                    monthlyCustomerStats: formattedCustomerStats
                 }
             });
         } catch (error: any) {

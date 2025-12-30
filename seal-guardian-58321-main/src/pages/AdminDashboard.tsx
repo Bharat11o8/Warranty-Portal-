@@ -59,6 +59,65 @@ import { ProductManagement } from "@/components/admin/ProductManagement";
 import { downloadCSV, getWarrantyExpiration, cn } from "@/lib/utils";
 import Header from "@/components/Header";
 import { Pagination } from "@/components/Pagination";
+import {
+    PieChart,
+    Pie,
+    Cell,
+    ResponsiveContainer,
+    Tooltip as RechartsTooltip,
+    Legend,
+    BarChart,
+    Bar,
+    XAxis,
+    YAxis,
+    CartesianGrid
+} from 'recharts';
+
+const COLORS = {
+    validated: '#16a34a', // green-600
+    rejected: '#dc2626', // red-600
+    pending: '#ca8a04', // yellow-600
+    pending_vendor: '#ea580c', // orange-600
+    customer: '#2563eb', // blue-600
+    franchise: '#9333ea', // purple-600
+    total: '#f97316', // orange-500
+    default: '#cbd5e1' // slate-300
+};
+
+const CustomTooltip = ({ active, payload, label }: any) => {
+    if (active && payload && payload.length) {
+        // Check if it's the BarChart (usually has a label/month)
+        const isBarChart = !!label;
+
+        return (
+            <div className="bg-background border rounded-lg shadow-lg p-3 min-w-[150px]">
+                {isBarChart && (
+                    <p className="font-semibold mb-2">
+                        {/^\d{4}-\d{2}$/.test(label)
+                            ? new Date(label + '-01').toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+                            : label}
+                    </p>
+                )}
+                {payload.map((entry: any, index: number) => {
+                    const color = entry.color || entry.fill || (entry.payload && entry.payload.color) || (entry.payload && entry.payload.fill) || '#000';
+                    return (
+                        <div key={index} className="flex justify-between items-center gap-4 mb-1 last:mb-0">
+                            <div className="flex items-center gap-2">
+                                <div
+                                    className="w-2 h-2 rounded-full"
+                                    style={{ backgroundColor: color }}
+                                />
+                                <span className="text-sm font-medium text-muted-foreground">{entry.name}</span>
+                            </div>
+                            <span className="font-mono font-bold text-foreground">{entry.value}</span>
+                        </div>
+                    );
+                })}
+            </div>
+        );
+    }
+    return null;
+};
 
 const AdminWarrantyList = ({
     items,
@@ -103,8 +162,8 @@ const AdminWarrantyList = ({
 
                 return (
                     <Card key={warranty.uid || warranty.id} className="hover:shadow-md transition-shadow">
-                        <CardContent className="pt-6">
-                            <div className="flex justify-between items-start mb-4">
+                        <CardContent className="p-4 md:p-6">
+                            <div className="flex flex-col sm:flex-row justify-between items-start gap-4 mb-4">
                                 {/* Product Icon */}
                                 <div className={cn(
                                     "h-12 w-12 rounded-full flex items-center justify-center shrink-0 border mr-4",
@@ -687,8 +746,12 @@ const AdminDashboard = () => {
         pendingVendorApprovals: 0,
         validatedWarranties: 0,
         rejectedWarranties: 0,
+        monthlyStats: [] as any[],
+        monthlyCustomerStats: [] as any[],
     });
     const [activeTab, setActiveTab] = useState("overview");
+    const [overviewView, setOverviewView] = useState<'warranty' | 'franchise' | 'customer'>('warranty');
+    const [selectedMonth, setSelectedMonth] = useState<string | null>(null);
     const [warrantyFilter, setWarrantyFilter] = useState<'all' | 'validated' | 'rejected' | 'pending' | 'pending_vendor'>('all');
     const [vendorFilter, setVendorFilter] = useState<'all' | 'approved' | 'disapproved' | 'pending'>('all');
     const [vendors, setVendors] = useState<any[]>([]);
@@ -1150,7 +1213,30 @@ const AdminDashboard = () => {
         try {
             const response = await api.get("/admin/stats");
             if (response.data.success) {
-                setStats(response.data.stats);
+                const s = response.data.stats;
+                setStats({
+                    totalWarranties: Number(s.totalWarranties || 0),
+                    totalVendors: Number(s.totalVendors || 0),
+                    totalCustomers: Number(s.totalCustomers || 0),
+                    pendingApprovals: Number(s.pendingApprovals || 0),
+                    pendingVendorApprovals: Number(s.pendingVendorApprovals || 0),
+                    validatedWarranties: Number(s.validatedWarranties || 0),
+                    rejectedWarranties: Number(s.rejectedWarranties || 0),
+                    monthlyStats: (s.monthlyStats || []).map((m: any) => ({
+                        ...m,
+                        total: Number(m.total || 0),
+                        approved: Number(m.approved || 0),
+                        rejected: Number(m.rejected || 0),
+                        pending_admin: Number(m.pending_admin || 0),
+                        pending_vendor: Number(m.pending_vendor || 0),
+                    })),
+                    monthlyCustomerStats: (s.monthlyCustomerStats || []).map((m: any) => ({
+                        ...m,
+                        active_customers: Number(m.active_customers || 0),
+                        new_customers: Number(m.new_customers || 0),
+                        returning_customers: Number(m.returning_customers || 0),
+                    })),
+                });
             }
         } catch (error) {
             console.error("Failed to fetch stats", error);
@@ -1189,7 +1275,12 @@ const AdminDashboard = () => {
         try {
             const response = await api.get("/admin/vendors");
             if (response.data.success) {
-                setVendors(response.data.vendors);
+                // Ensure manpower_count is a number
+                const parsedVendors = response.data.vendors.map((v: any) => ({
+                    ...v,
+                    manpower_count: Number(v.manpower_count || 0)
+                }));
+                setVendors(parsedVendors);
             }
         } catch (error) {
             console.error("Failed to fetch vendors:", error);
@@ -1221,6 +1312,15 @@ const AdminDashboard = () => {
             if (!background) setLoadingCustomers(false);
         }
     };
+
+    // Update charts data when view changes
+    useEffect(() => {
+        if (overviewView === 'franchise') {
+            fetchVendors();
+        } else if (overviewView === 'customer') {
+            fetchCustomers();
+        }
+    }, [overviewView]);
 
     const handleUpdateStatus = async (warrantyId: string, status: 'validated' | 'rejected', reason?: string) => {
         setProcessingWarranty(warrantyId);
@@ -2583,15 +2683,480 @@ const AdminDashboard = () => {
                         {/* <TabsTrigger value="products">Products</TabsTrigger> */}
                     </TabsList>
 
-                    <TabsContent value="overview" className="space-y-4">
-                        <Card>
-                            <CardHeader>
-                                <CardTitle className="text-center">System Overview</CardTitle>
-                                <CardDescription className="text-center">
-                                    Select a category above to manage records
-                                </CardDescription>
-                            </CardHeader>
-                        </Card>
+                    <TabsContent value="overview" className="space-y-6">
+
+
+                        {/* Interactive Chart Section */}
+                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                            {/* Main Chart Area */}
+                            <Card className="lg:col-span-2 shadow-sm">
+                                <CardHeader>
+                                    <div className="flex items-center justify-between">
+                                        <div>
+                                            <CardTitle>Analytics Overview</CardTitle>
+                                            <CardDescription>
+                                                Visual breakdown of system metrics
+                                            </CardDescription>
+                                        </div>
+                                        {/* View Toggles */}
+                                        <div className="flex bg-muted p-1 rounded-lg overflow-x-auto max-w-full">
+                                            <div className="flex shrink-0">
+                                                <button
+                                                    onClick={() => setOverviewView('warranty')}
+                                                    className={cn(
+                                                        "px-3 py-1.5 text-sm font-medium rounded-md transition-all",
+                                                        overviewView === 'warranty'
+                                                            ? "bg-background shadow-sm text-foreground"
+                                                            : "text-muted-foreground hover:text-foreground"
+                                                    )}
+                                                >
+                                                    Warranties
+                                                </button>
+                                                <button
+                                                    onClick={() => setOverviewView('franchise')}
+                                                    className={cn(
+                                                        "px-3 py-1.5 text-sm font-medium rounded-md transition-all",
+                                                        overviewView === 'franchise'
+                                                            ? "bg-background shadow-sm text-foreground"
+                                                            : "text-muted-foreground hover:text-foreground"
+                                                    )}
+                                                >
+                                                    Franchises
+                                                </button>
+                                                <button
+                                                    onClick={() => setOverviewView('customer')}
+                                                    className={cn(
+                                                        "px-3 py-1.5 text-sm font-medium rounded-md transition-all",
+                                                        overviewView === 'customer'
+                                                            ? "bg-background shadow-sm text-foreground"
+                                                            : "text-muted-foreground hover:text-foreground"
+                                                    )}
+                                                >
+                                                    Customers
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </CardHeader>
+                                <CardContent className="p-0 md:p-6 md:pt-0">
+                                    <div className="min-h-[400px] md:h-[450px] w-full mt-4">
+                                        {overviewView === 'warranty' && (
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 h-full">
+                                                <div className="h-[300px] md:h-full">
+                                                    <ResponsiveContainer width="100%" height="100%">
+                                                        <PieChart margin={{ top: 20, bottom: 20 }}>
+                                                            <Pie
+                                                                data={[
+                                                                    { name: 'Approved', value: stats.validatedWarranties, color: COLORS.validated },
+                                                                    { name: 'Rejected', value: stats.rejectedWarranties, color: COLORS.rejected },
+                                                                    { name: 'Pending Admin', value: stats.pendingApprovals, color: COLORS.pending },
+                                                                    { name: 'Waiting Vendor', value: stats.pendingVendorApprovals, color: COLORS.pending_vendor },
+                                                                ].filter(i => i.value > 0)}
+                                                                cx="50%"
+                                                                cy="50%"
+                                                                innerRadius={60}
+                                                                outerRadius={100}
+                                                                paddingAngle={2}
+                                                                dataKey="value"
+                                                            >
+                                                                {[
+                                                                    { name: 'Approved', value: stats.validatedWarranties, color: COLORS.validated },
+                                                                    { name: 'Rejected', value: stats.rejectedWarranties, color: COLORS.rejected },
+                                                                    { name: 'Pending Admin', value: stats.pendingApprovals, color: COLORS.pending },
+                                                                    { name: 'Waiting Vendor', value: stats.pendingVendorApprovals, color: COLORS.pending_vendor },
+                                                                ].filter(i => i.value > 0).map((entry, index) => (
+                                                                    <Cell key={`cell-${index}`} fill={entry.color} strokeWidth={0} />
+                                                                ))}
+                                                            </Pie>
+                                                            <RechartsTooltip content={<CustomTooltip />} />
+                                                            <Legend
+                                                                verticalAlign="bottom"
+                                                                height={60}
+                                                                content={(props) => {
+                                                                    const { payload } = props;
+                                                                    return (
+                                                                        <div className="grid grid-cols-2 gap-y-2 gap-x-4 mt-8 justify-center mx-auto max-w-[300px]">
+                                                                            {payload?.map((entry: any, index: number) => (
+                                                                                <div key={`legend-item-${index}`} className="flex items-center gap-2">
+                                                                                    <div className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: entry.color }} />
+                                                                                    <span className="text-[10px] sm:text-xs font-medium text-foreground truncate">
+                                                                                        {entry.value}
+                                                                                    </span>
+                                                                                </div>
+                                                                            ))}
+                                                                        </div>
+                                                                    );
+                                                                }}
+                                                            />
+                                                        </PieChart>
+                                                    </ResponsiveContainer>
+                                                </div>
+                                                <div className="h-[300px] md:h-full border-t pt-8 mt-4 md:border-t-0 md:pt-0 md:mt-0 md:border-l md:pl-8">
+                                                    <div className="relative flex items-center justify-center mb-4 min-h-[24px]">
+                                                        <p className="text-sm font-medium z-10 bg-background px-2">Monthly Trends</p>
+                                                        {selectedMonth && (
+                                                            <Button
+                                                                variant="ghost"
+                                                                size="sm"
+                                                                onClick={() => setSelectedMonth(null)}
+                                                                className="absolute right-0 h-6 text-xs hover:bg-muted"
+                                                            >
+                                                                Reset View
+                                                            </Button>
+                                                        )}
+                                                    </div>
+                                                    <ResponsiveContainer width="100%" height="90%">
+                                                        <BarChart
+                                                            data={stats.monthlyStats}
+                                                            margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
+                                                            barGap={2}
+                                                        >
+                                                            <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                                                            <XAxis
+                                                                dataKey="month"
+                                                                tickLine={false}
+                                                                tick={({ x, y, payload }) => {
+                                                                    const date = new Date(payload.value + '-01');
+                                                                    const label = date.toLocaleDateString('en-US', { month: 'short' });
+                                                                    const isSelected = selectedMonth === payload.value;
+                                                                    return (
+                                                                        <g transform={`translate(${x},${y})`}>
+                                                                            <text
+                                                                                x={0}
+                                                                                y={0}
+                                                                                dy={12}
+                                                                                textAnchor="middle"
+                                                                                fill={isSelected ? "#2563eb" : "#666"}
+                                                                                fontWeight={isSelected ? "bold" : "normal"}
+                                                                                fontSize={12}
+                                                                                className="cursor-pointer hover:font-bold"
+                                                                                onClick={() => setSelectedMonth(isSelected ? null : payload.value)}
+                                                                            >
+                                                                                {label}
+                                                                            </text>
+                                                                        </g>
+                                                                    );
+                                                                }}
+                                                            />
+                                                            <YAxis tickLine={false} axisLine={false} tick={{ fontSize: 12 }} />
+                                                            <RechartsTooltip content={<CustomTooltip />} cursor={{ fill: 'transparent' }} />
+                                                            <Legend verticalAlign="top" height={36} iconType="circle" />
+                                                            <Bar name="Total" dataKey="total" fill="#94a3b8" radius={[4, 4, 0, 0]} maxBarSize={40} />
+                                                            <Bar name="Approved" dataKey="approved" fill="#16a34a" radius={[4, 4, 0, 0]} maxBarSize={40} />
+                                                        </BarChart>
+                                                    </ResponsiveContainer>
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {overviewView === 'franchise' && (
+                                            <div className="h-[400px] md:h-full w-full p-4">
+                                                <ResponsiveContainer width="100%" height="100%">
+                                                    <BarChart
+                                                        data={[
+                                                            { name: 'Total Franchises', value: stats.totalVendors, color: COLORS.franchise },
+                                                            { name: 'Manpower / Staff', value: vendors.reduce((acc, v) => acc + (v.manpower_count || 0), 0), color: '#c084fc' }
+                                                        ]}
+                                                        margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
+                                                    >
+                                                        <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                                                        <XAxis dataKey="name" tickLine={false} axisLine={false} />
+                                                        <YAxis tickLine={false} axisLine={false} />
+                                                        <RechartsTooltip content={<CustomTooltip />} cursor={{ fill: 'transparent' }} />
+                                                        <Bar dataKey="value" radius={[4, 4, 0, 0]} maxBarSize={50}>
+                                                            {[
+                                                                { name: 'Total Franchises', value: stats.totalVendors, color: COLORS.franchise },
+                                                                { name: 'Manpower / Staff', value: vendors.reduce((acc, v) => acc + (v.manpower_count || 0), 0), color: '#c084fc' }
+                                                            ].map((entry, index) => (
+                                                                <Cell key={`cell-${index}`} fill={entry.color} />
+                                                            ))}
+                                                        </Bar>
+                                                    </BarChart>
+                                                </ResponsiveContainer>
+                                            </div>
+                                        )}
+
+                                        {overviewView === 'customer' && (
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 h-full">
+                                                <div className="h-[300px] md:h-full">
+                                                    <ResponsiveContainer width="100%" height="100%">
+                                                        <PieChart margin={{ top: 20, bottom: 40 }}>
+                                                            <Pie
+                                                                data={[
+                                                                    { name: 'Total Customers', value: stats.totalCustomers, color: COLORS.customer },
+                                                                    { name: 'Total Warranties', value: stats.totalWarranties, color: COLORS.total },
+                                                                    { name: 'Approved', value: stats.validatedWarranties, color: COLORS.validated },
+                                                                    { name: 'Rejected', value: stats.rejectedWarranties, color: COLORS.rejected },
+                                                                    { name: 'Pending', value: stats.pendingApprovals, color: COLORS.pending },
+                                                                ]}
+                                                                cx="50%"
+                                                                cy="50%"
+                                                                innerRadius={60}
+                                                                outerRadius={100}
+                                                                paddingAngle={2}
+                                                                dataKey="value"
+                                                            >
+                                                                {[
+                                                                    { name: 'Total Customers', value: stats.totalCustomers, color: COLORS.customer },
+                                                                    { name: 'Total Warranties', value: stats.totalWarranties, color: COLORS.total },
+                                                                    { name: 'Approved', value: stats.validatedWarranties, color: COLORS.validated },
+                                                                    { name: 'Rejected', value: stats.rejectedWarranties, color: COLORS.rejected },
+                                                                    { name: 'Pending', value: stats.pendingApprovals, color: COLORS.pending },
+                                                                ].map((entry, index) => (
+                                                                    <Cell key={`cell-${index}`} fill={entry.color} strokeWidth={0} />
+                                                                ))}
+                                                            </Pie>
+                                                            <RechartsTooltip content={<CustomTooltip />} />
+                                                            <Legend
+                                                                verticalAlign="bottom"
+                                                                height={80}
+                                                                content={(props) => {
+                                                                    const { payload } = props;
+                                                                    return (
+                                                                        <div className="grid grid-cols-2 gap-y-2 gap-x-4 mt-8 justify-center mx-auto max-w-[300px]">
+                                                                            {payload?.map((entry: any, index: number) => (
+                                                                                <div key={`legend-item-${index}`} className="flex items-center gap-2">
+                                                                                    <div className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: entry.color }} />
+                                                                                    <span className="text-[10px] sm:text-xs font-medium text-foreground truncate">
+                                                                                        {entry.value}
+                                                                                    </span>
+                                                                                </div>
+                                                                            ))}
+                                                                        </div>
+                                                                    );
+                                                                }}
+                                                            />
+                                                        </PieChart>
+                                                    </ResponsiveContainer>
+                                                </div>
+                                                <div className="h-[300px] md:h-full border-t pt-8 mt-4 md:border-t-0 md:pt-0 md:mt-0 md:border-l md:pl-8">
+                                                    <div className="relative flex items-center justify-center mb-4 min-h-[24px]">
+                                                        <p className="text-sm font-medium z-10 bg-background px-2">Customer Growth</p>
+                                                        {selectedMonth && (
+                                                            <Button
+                                                                variant="ghost"
+                                                                size="sm"
+                                                                onClick={() => setSelectedMonth(null)}
+                                                                className="absolute right-0 h-6 text-xs hover:bg-muted"
+                                                            >
+                                                                Reset View
+                                                            </Button>
+                                                        )}
+                                                    </div>
+                                                    <ResponsiveContainer width="100%" height="90%">
+                                                        <BarChart
+                                                            data={stats.monthlyCustomerStats}
+                                                            margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
+                                                            barGap={2}
+                                                        >
+                                                            <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                                                            <XAxis
+                                                                dataKey="month"
+                                                                tickLine={false}
+                                                                tick={({ x, y, payload }) => {
+                                                                    const date = new Date(payload.value + '-01');
+                                                                    const label = date.toLocaleDateString('en-US', { month: 'short' });
+                                                                    const isSelected = selectedMonth === payload.value;
+                                                                    return (
+                                                                        <g transform={`translate(${x},${y})`}>
+                                                                            <text
+                                                                                x={0}
+                                                                                y={0}
+                                                                                dy={12}
+                                                                                textAnchor="middle"
+                                                                                fill={isSelected ? "#2563eb" : "#666"}
+                                                                                fontWeight={isSelected ? "bold" : "normal"}
+                                                                                fontSize={12}
+                                                                                className="cursor-pointer hover:font-bold"
+                                                                                onClick={() => setSelectedMonth(isSelected ? null : payload.value)}
+                                                                            >
+                                                                                {label}
+                                                                            </text>
+                                                                        </g>
+                                                                    );
+                                                                }}
+                                                            />
+                                                            <YAxis tickLine={false} axisLine={false} tick={{ fontSize: 12 }} />
+                                                            <RechartsTooltip content={<CustomTooltip />} cursor={{ fill: 'transparent' }} />
+                                                            <Legend verticalAlign="top" height={36} iconType="circle" />
+                                                            <Bar name="New Customers" dataKey="new_customers" fill="#16a34a" radius={[4, 4, 0, 0]} maxBarSize={40} />
+                                                            <Bar name="Returning Customers" dataKey="returning_customers" fill="#2563eb" radius={[4, 4, 0, 0]} maxBarSize={40} />
+                                                        </BarChart>
+                                                    </ResponsiveContainer>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                </CardContent>
+                            </Card>
+
+                            {/* Detailed Breakdown Side Panel */}
+                            <Card className="shadow-sm">
+                                <CardHeader>
+                                    <CardTitle>Detailed Breakdown</CardTitle>
+                                    <CardDescription>
+                                        {overviewView === 'warranty' ? (
+                                            selectedMonth ?
+                                                `Statistics for ${new Date(selectedMonth + '-01').toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}` :
+                                                'Warranty Statistics'
+                                        ) :
+                                            overviewView === 'franchise' ? 'Franchise Network' : 'User Base'}
+                                    </CardDescription>
+                                </CardHeader>
+                                <CardContent>
+                                    <ScrollArea className="h-auto md:h-[450px] pr-4">
+                                        <div className="space-y-6">
+                                            {overviewView === 'warranty' && (() => {
+                                                // Determine which stats to display (Global or Selected Month)
+                                                const currentStats = selectedMonth
+                                                    ? stats.monthlyStats.find((m: any) => m.month === selectedMonth) || {
+                                                        total: 0,
+                                                        approved: 0,
+                                                        pending_admin: 0,
+                                                        pending_vendor: 0,
+                                                        rejected: 0
+                                                    }
+                                                    : {
+                                                        total: stats.totalWarranties,
+                                                        approved: stats.validatedWarranties,
+                                                        pending_admin: stats.pendingApprovals,
+                                                        pending_vendor: stats.pendingVendorApprovals,
+                                                        rejected: stats.rejectedWarranties
+                                                    };
+
+                                                const total = selectedMonth ? currentStats.total : stats.totalWarranties;
+
+                                                return (
+                                                    <>
+                                                        <div className="space-y-2">
+                                                            <div className="flex items-center justify-between">
+                                                                <div className="flex items-center gap-2">
+                                                                    <div className="h-2 w-2 rounded-full bg-green-600" />
+                                                                    <span className="text-sm font-medium">Approved</span>
+                                                                </div>
+                                                                <span className="font-mono text-sm font-bold">{selectedMonth ? currentStats.approved : stats.validatedWarranties}</span>
+                                                            </div>
+                                                            <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden">
+                                                                <div className="h-full bg-green-600 rounded-full" style={{ width: `${((selectedMonth ? currentStats.approved : stats.validatedWarranties) / (total || 1)) * 100}%` }} />
+                                                            </div>
+                                                        </div>
+
+                                                        <div className="space-y-2">
+                                                            <div className="flex items-center justify-between">
+                                                                <div className="flex items-center gap-2">
+                                                                    <div className="h-2 w-2 rounded-full bg-yellow-600" />
+                                                                    <span className="text-sm font-medium">Pending Admin</span>
+                                                                </div>
+                                                                <span className="font-mono text-sm font-bold">{selectedMonth ? currentStats.pending_admin : stats.pendingApprovals}</span>
+                                                            </div>
+                                                            <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden">
+                                                                <div className="h-full bg-yellow-600 rounded-full" style={{ width: `${((selectedMonth ? currentStats.pending_admin : stats.pendingApprovals) / (total || 1)) * 100}%` }} />
+                                                            </div>
+                                                        </div>
+
+                                                        <div className="space-y-2">
+                                                            <div className="flex items-center justify-between">
+                                                                <div className="flex items-center gap-2">
+                                                                    <div className="h-2 w-2 rounded-full bg-orange-600" />
+                                                                    <span className="text-sm font-medium">Pending Vendor</span>
+                                                                </div>
+                                                                <span className="font-mono text-sm font-bold">{selectedMonth ? currentStats.pending_vendor : stats.pendingVendorApprovals}</span>
+                                                            </div>
+                                                            <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden">
+                                                                <div className="h-full bg-orange-600 rounded-full" style={{ width: `${((selectedMonth ? currentStats.pending_vendor : stats.pendingVendorApprovals) / (total || 1)) * 100}%` }} />
+                                                            </div>
+                                                        </div>
+
+                                                        <div className="space-y-2">
+                                                            <div className="flex items-center justify-between">
+                                                                <div className="flex items-center gap-2">
+                                                                    <div className="h-2 w-2 rounded-full bg-red-600" />
+                                                                    <span className="text-sm font-medium">Rejected</span>
+                                                                </div>
+                                                                <span className="font-mono text-sm font-bold">{selectedMonth ? currentStats.rejected : stats.rejectedWarranties}</span>
+                                                            </div>
+                                                            <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden">
+                                                                <div className="h-full bg-red-600 rounded-full" style={{ width: `${((selectedMonth ? currentStats.rejected : stats.rejectedWarranties) / (total || 1)) * 100}%` }} />
+                                                            </div>
+                                                        </div>
+                                                    </>
+                                                );
+                                            })()}
+
+                                            {overviewView === 'franchise' && (
+                                                <div className="space-y-4">
+                                                    <div className="rounded-lg border p-3 flex items-center justify-between bg-muted/30">
+                                                        <div>
+                                                            <p className="text-xs text-muted-foreground uppercase font-semibold">Total Partners</p>
+                                                            <p className="text-2xl font-bold text-primary">{stats.totalVendors}</p>
+                                                        </div>
+                                                        <Store className="h-8 w-8 text-purple-200" />
+                                                    </div>
+                                                    <div className="rounded-lg border p-3 flex items-center justify-between bg-muted/30">
+                                                        <div>
+                                                            <p className="text-xs text-muted-foreground uppercase font-semibold">Total Staff</p>
+                                                            <p className="text-2xl font-bold text-primary">
+                                                                {vendors.reduce((acc, v) => acc + (v.manpower_count || 0), 0)}
+                                                            </p>
+                                                        </div>
+                                                        <Users className="h-8 w-8 text-blue-200" />
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {!viewingVendor && overviewView === 'customer' && (
+                                                <div className="space-y-6 animate-in fade-in duration-500">
+                                                    <div>
+                                                        <p className="text-sm font-medium text-muted-foreground mb-1">User Base</p>
+                                                        <div className="flex items-center justify-between p-4 bg-muted/20 rounded-lg border">
+                                                            <div>
+                                                                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">
+                                                                    {selectedMonth
+                                                                        ? `Customers in ${new Date(selectedMonth + '-01').toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}`
+                                                                        : 'Total Registered'}
+                                                                </p>
+                                                                <p className="text-3xl font-bold text-blue-600">
+                                                                    {selectedMonth
+                                                                        ? (stats.monthlyCustomerStats.find((m: any) => m.month === selectedMonth)?.active_customers || 0)
+                                                                        : stats.totalCustomers}
+                                                                </p>
+                                                            </div>
+                                                            <div className="h-10 w-10 text-blue-500 bg-blue-100 rounded-full flex items-center justify-center">
+                                                                <User className="w-5 h-5" />
+                                                            </div>
+                                                        </div>
+
+                                                        {/* Detailed New vs Returning Breakdown */}
+                                                        {selectedMonth ? (
+                                                            <div className="grid grid-cols-2 gap-4 mt-4">
+                                                                <div className="p-3 bg-green-50 rounded-lg border border-green-100">
+                                                                    <p className="text-xs font-semibold text-green-700 mb-1">New Customers</p>
+                                                                    <p className="text-2xl font-bold text-green-800">
+                                                                        {stats.monthlyCustomerStats.find((m: any) => m.month === selectedMonth)?.new_customers || 0}
+                                                                    </p>
+                                                                    <p className="text-[10px] text-green-600 mt-1">First-time buyers</p>
+                                                                </div>
+                                                                <div className="p-3 bg-blue-50 rounded-lg border border-blue-100">
+                                                                    <p className="text-xs font-semibold text-blue-700 mb-1">Returning</p>
+                                                                    <p className="text-2xl font-bold text-blue-800">
+                                                                        {stats.monthlyCustomerStats.find((m: any) => m.month === selectedMonth)?.returning_customers || 0}
+                                                                    </p>
+                                                                    <p className="text-[10px] text-blue-600 mt-1">Loyal customers</p>
+                                                                </div>
+                                                            </div>
+                                                        ) : (
+                                                            <p className="text-sm text-muted-foreground mt-2">
+                                                                Platform user distribution shows <span className="font-bold text-foreground">{stats.totalCustomers > 0 ? ((stats.totalCustomers / (stats.totalCustomers + stats.totalVendors)) * 100).toFixed(1) : 0}%</span> are customers.
+                                                            </p>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </ScrollArea>
+                                </CardContent>
+                            </Card>
+                        </div>
                     </TabsContent>
 
                     <TabsContent value="products" className="space-y-4">
