@@ -20,6 +20,8 @@ const __dirname = dirname(__filename);
 dotenv.config({ path: join(__dirname, '../.env') });
 const app = express();
 const PORT = process.env.PORT || 3000;
+// Enable trust proxy for rate limiting behind load balancers/proxies
+app.set('trust proxy', 1);
 // ===========================================
 // SECURITY MIDDLEWARE (Applied First)
 // ===========================================
@@ -35,7 +37,14 @@ app.use(enhancedLogger);
 // Parse allowed origins from environment
 const allowedOrigins = process.env.ALLOWED_ORIGINS
     ? process.env.ALLOWED_ORIGINS.split(',').map(origin => origin.trim())
-    : ['http://localhost:5173', 'http://localhost:3000'];
+    : [
+        'http://localhost:5173',
+        'http://localhost:3000',
+        'http://localhost:8080',
+        'http://127.0.0.1:8080',
+        'https://warranty.emporiobyautoform.in',
+        'https://server-bharat-maheshwaris-projects.vercel.app'
+    ];
 app.use(cors({
     origin: (origin, callback) => {
         // Allow requests with no origin (mobile apps, Postman, etc.)

@@ -546,57 +546,60 @@ const VendorDashboard = () => {
             <Header />
             <main className="container mx-auto px-4 py-8">
                 <div className="mb-8">
-                    <h1 className="text-4xl font-bold mb-2">Franchise Dashboard</h1>
+                    <h1 className="text-4xl font-bold mb-2">Dashboard</h1>
                     <p className="text-muted-foreground">
                         Manage customer warranty registrations for your store
                     </p>
                 </div>
 
                 {/* Stats Cards */}
-                <div className="grid gap-4 grid-cols-1 md:grid-cols-4 mb-6">
-                    <Card>
-                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="text-sm font-medium">Total Warranties</CardTitle>
-                            <Package className="h-4 w-4 text-muted-foreground" />
-                        </CardHeader>
-                        <CardContent>
-                            <div className="text-2xl font-bold">{warranties.length}</div>
-                            <p className="text-xs text-muted-foreground">All registered products</p>
-                        </CardContent>
-                    </Card>
+                <div className="mb-6">
+                    <h2 className="text-lg font-semibold mb-3 text-muted-foreground">Statistics</h2>
+                    <div className="grid gap-3 grid-cols-2 md:grid-cols-4">
+                        <Card>
+                            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                                <CardTitle className="text-sm font-medium">Total Warranties</CardTitle>
+                                <Package className="h-4 w-4 text-muted-foreground" />
+                            </CardHeader>
+                            <CardContent>
+                                <div className="text-2xl font-bold">{warranties.length}</div>
+                                <p className="text-xs text-muted-foreground">All registered products</p>
+                            </CardContent>
+                        </Card>
 
-                    <Card>
-                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="text-sm font-medium">Approved</CardTitle>
-                            <CheckCircle className="h-4 w-4 text-green-600" />
-                        </CardHeader>
-                        <CardContent>
-                            <div className="text-2xl font-bold">{approvedWarranties.length}</div>
-                            <p className="text-xs text-muted-foreground">Verified warranties</p>
-                        </CardContent>
-                    </Card>
+                        <Card>
+                            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                                <CardTitle className="text-sm font-medium">Approved</CardTitle>
+                                <CheckCircle className="h-4 w-4 text-green-600" />
+                            </CardHeader>
+                            <CardContent>
+                                <div className="text-2xl font-bold">{approvedWarranties.length}</div>
+                                <p className="text-xs text-muted-foreground">Verified warranties</p>
+                            </CardContent>
+                        </Card>
 
-                    <Card>
-                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="text-sm font-medium">Pending</CardTitle>
-                            <Clock className="h-4 w-4 text-yellow-600" />
-                        </CardHeader>
-                        <CardContent>
-                            <div className="text-2xl font-bold">{pendingWarranties.length}</div>
-                            <p className="text-xs text-muted-foreground">Awaiting verification</p>
-                        </CardContent>
-                    </Card>
+                        <Card>
+                            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                                <CardTitle className="text-sm font-medium">Pending</CardTitle>
+                                <Clock className="h-4 w-4 text-yellow-600" />
+                            </CardHeader>
+                            <CardContent>
+                                <div className="text-2xl font-bold">{pendingWarranties.length}</div>
+                                <p className="text-xs text-muted-foreground">Awaiting verification</p>
+                            </CardContent>
+                        </Card>
 
-                    <Card>
-                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="text-sm font-medium">Disapproved</CardTitle>
-                            <XCircle className="h-4 w-4 text-red-600" />
-                        </CardHeader>
-                        <CardContent>
-                            <div className="text-2xl font-bold">{rejectedWarranties.length}</div>
-                            <p className="text-xs text-muted-foreground">Rejected warranties</p>
-                        </CardContent>
-                    </Card>
+                        <Card>
+                            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                                <CardTitle className="text-sm font-medium">Disapproved</CardTitle>
+                                <XCircle className="h-4 w-4 text-red-600" />
+                            </CardHeader>
+                            <CardContent>
+                                <div className="text-2xl font-bold">{rejectedWarranties.length}</div>
+                                <p className="text-xs text-muted-foreground">Rejected warranties</p>
+                            </CardContent>
+                        </Card>
+                    </div>
                 </div>
 
                 {/* Action Bar & Filters */}
@@ -692,23 +695,23 @@ const VendorDashboard = () => {
 
                 {/* Warranty Entries with Tabs */}
                 <Tabs defaultValue="all" className="space-y-6">
-                    <TabsList className="w-full bg-muted/20 p-1 rounded-lg h-auto grid grid-cols-3 md:grid-cols-6 gap-2">
-                        <TabsTrigger value="all" className="rounded-md py-2 text-xs font-medium data-[state=active]:bg-white data-[state=active]:shadow-sm transition-all">
+                    <TabsList className="w-full bg-muted/20 p-1.5 rounded-lg h-auto flex flex-wrap gap-1.5 md:grid md:grid-cols-6">
+                        <TabsTrigger value="all" className="flex-1 min-w-[80px] rounded-md py-2 px-2 text-xs font-medium data-[state=active]:bg-white data-[state=active]:shadow-sm transition-all">
                             All ({warranties.length})
                         </TabsTrigger>
-                        <TabsTrigger value="approved" className="rounded-md py-2 text-xs font-medium data-[state=active]:bg-white data-[state=active]:shadow-sm text-green-700 data-[state=active]:text-green-800 data-[state=active]:border-2 data-[state=active]:border-green-500/20 transition-all">
+                        <TabsTrigger value="approved" className="flex-1 min-w-[80px] rounded-md py-2 px-2 text-xs font-medium data-[state=active]:bg-white data-[state=active]:shadow-sm text-green-700 data-[state=active]:text-green-800 data-[state=active]:border-2 data-[state=active]:border-green-500/20 transition-all">
                             Approved ({approvedWarranties.length})
                         </TabsTrigger>
-                        <TabsTrigger value="disapproved" className="rounded-md py-2 text-xs font-medium data-[state=active]:bg-white data-[state=active]:shadow-sm text-red-700 data-[state=active]:text-red-800 data-[state=active]:border-2 data-[state=active]:border-red-500/20 transition-all">
+                        <TabsTrigger value="disapproved" className="flex-1 min-w-[80px] rounded-md py-2 px-2 text-xs font-medium data-[state=active]:bg-white data-[state=active]:shadow-sm text-red-700 data-[state=active]:text-red-800 data-[state=active]:border-2 data-[state=active]:border-red-500/20 transition-all">
                             Rejected ({rejectedWarranties.length})
                         </TabsTrigger>
-                        <TabsTrigger value="pending_verification" className="rounded-md py-2 text-xs font-medium data-[state=active]:bg-white data-[state=active]:shadow-sm text-blue-700 data-[state=active]:text-blue-800 data-[state=active]:border-2 data-[state=active]:border-blue-500/20 transition-all">
-                            Pending for Verification ({pendingVendorWarranties.length})
+                        <TabsTrigger value="pending_verification" className="flex-1 min-w-[90px] rounded-md py-2 px-2 text-xs font-medium data-[state=active]:bg-white data-[state=active]:shadow-sm text-blue-700 data-[state=active]:text-blue-800 data-[state=active]:border-2 data-[state=active]:border-blue-500/20 transition-all">
+                            <span className="hidden sm:inline">Pending for </span>Verification ({pendingVendorWarranties.length})
                         </TabsTrigger>
-                        <TabsTrigger value="pending" className="rounded-md py-2 text-xs font-medium data-[state=active]:bg-white data-[state=active]:shadow-sm text-amber-700 data-[state=active]:text-amber-800 data-[state=active]:border-2 data-[state=active]:border-amber-500/20 transition-all">
-                            Pending from Admin ({pendingWarranties.length})
+                        <TabsTrigger value="pending" className="flex-1 min-w-[90px] rounded-md py-2 px-2 text-xs font-medium data-[state=active]:bg-white data-[state=active]:shadow-sm text-amber-700 data-[state=active]:text-amber-800 data-[state=active]:border-2 data-[state=active]:border-amber-500/20 transition-all">
+                            <span className="hidden sm:inline">Pending from </span>Admin ({pendingWarranties.length})
                         </TabsTrigger>
-                        <TabsTrigger value="manpower" className="rounded-md py-2 text-xs font-medium data-[state=active]:bg-white data-[state=active]:shadow-sm text-purple-700 data-[state=active]:text-purple-800 data-[state=active]:border-2 data-[state=active]:border-purple-500/20 transition-all">
+                        <TabsTrigger value="manpower" className="flex-1 min-w-[80px] rounded-md py-2 px-2 text-xs font-medium data-[state=active]:bg-white data-[state=active]:shadow-sm text-purple-700 data-[state=active]:text-purple-800 data-[state=active]:border-2 data-[state=active]:border-purple-500/20 transition-all">
                             Manpower ({manpowerList.length})
                         </TabsTrigger>
                     </TabsList>
@@ -842,10 +845,10 @@ const VendorDashboard = () => {
                                             ) : (
                                                 <div className="grid gap-4">
                                                     {manpowerList.map((member) => (
-                                                        <div key={member.id} className="flex items-center justify-between p-4 border rounded-lg bg-card hover:bg-accent/5 transition-colors">
+                                                        <div key={member.id} className="p-4 border rounded-xl bg-card hover:shadow-md transition-all">
                                                             {editingId === member.id ? (
                                                                 // Edit Mode
-                                                                <div className="flex-1 grid grid-cols-1 md:grid-cols-4 gap-4 items-center">
+                                                                <div className="grid grid-cols-1 md:grid-cols-4 gap-3 items-center">
                                                                     <Input
                                                                         placeholder="Name"
                                                                         value={editName}
@@ -857,7 +860,7 @@ const VendorDashboard = () => {
                                                                         onChange={(e) => setEditPhone(e.target.value)}
                                                                     />
                                                                     <select
-                                                                        className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm"
+                                                                        className="h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                                                                         value={editType}
                                                                         onChange={(e) => setEditType(e.target.value)}
                                                                     >
@@ -870,6 +873,7 @@ const VendorDashboard = () => {
                                                                             size="sm"
                                                                             onClick={() => handleUpdateManpower(member.id)}
                                                                             disabled={updatingManpower}
+                                                                            className="flex-1"
                                                                         >
                                                                             {updatingManpower ? (
                                                                                 <Loader2 className="h-4 w-4 mr-1 animate-spin" />
@@ -883,71 +887,81 @@ const VendorDashboard = () => {
                                                                             variant="outline"
                                                                             onClick={handleCancelEdit}
                                                                         >
-                                                                            <X className="h-4 w-4 mr-1" /> Cancel
+                                                                            <X className="h-4 w-4" />
                                                                         </Button>
                                                                     </div>
                                                                 </div>
                                                             ) : (
-                                                                // View Mode
-                                                                <>
-                                                                    <div className="flex items-center gap-4">
-                                                                        <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
-                                                                            <User className="h-5 w-5 text-primary" />
-                                                                        </div>
-                                                                        <div>
-                                                                            <p className="font-medium">{member.name}</p>
-                                                                            <div className="flex flex-col md:flex-row md:items-center gap-1 md:gap-2 text-sm text-muted-foreground">
-                                                                                <span>{member.phone_number}</span>
-                                                                                <span className="hidden md:inline">•</span>
-                                                                                <span className="font-mono text-xs bg-muted px-1 py-0.5 rounded">{member.manpower_id}</span>
-                                                                                <span className="hidden md:inline">•</span>
-                                                                                <Badge variant="outline" className="text-xs capitalize">
-                                                                                    {member.applicator_type?.replace('_', ' ')} Applicator
-                                                                                </Badge>
-                                                                                <span className="hidden md:inline">•</span>
-                                                                                <button
-                                                                                    onClick={() => showManpowerWarranties(member, 'validated')}
-                                                                                    className="inline-flex items-center rounded-full bg-green-100 px-2 py-0.5 text-xs font-semibold text-green-800 hover:bg-green-200 cursor-pointer transition-colors"
-                                                                                >
-                                                                                    {member.validated_count || 0} Approved
-                                                                                </button>
-                                                                                <button
-                                                                                    onClick={() => showManpowerWarranties(member, 'pending')}
-                                                                                    className="inline-flex items-center rounded-full bg-yellow-100 px-2 py-0.5 text-xs font-semibold text-yellow-800 hover:bg-yellow-200 cursor-pointer transition-colors"
-                                                                                >
-                                                                                    {member.pending_count || 0} Pending
-                                                                                </button>
-                                                                                <button
-                                                                                    onClick={() => showManpowerWarranties(member, 'rejected')}
-                                                                                    className="inline-flex items-center rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-800 hover:bg-red-200 cursor-pointer transition-colors"
-                                                                                >
-                                                                                    {member.rejected_count || 0} Disapproved
-                                                                                </button>
-                                                                                <span className="hidden md:inline">•</span>
-                                                                                <span className="font-medium text-muted-foreground">
-                                                                                    {member.total_count || 0} Total
-                                                                                </span>
+                                                                // View Mode - Clean Card Design
+                                                                <div className="space-y-3">
+                                                                    {/* Header: Name + Actions */}
+                                                                    <div className="flex items-start justify-between">
+                                                                        <div className="flex items-center gap-3">
+                                                                            <div className="h-10 w-10 rounded-full bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center shrink-0">
+                                                                                <User className="h-5 w-5 text-primary" />
+                                                                            </div>
+                                                                            <div>
+                                                                                <h4 className="font-semibold text-base">{member.name}</h4>
+                                                                                <p className="text-sm text-muted-foreground">{member.phone_number}</p>
                                                                             </div>
                                                                         </div>
+                                                                        <div className="flex gap-1">
+                                                                            <Button
+                                                                                variant="ghost"
+                                                                                size="icon"
+                                                                                className="h-8 w-8"
+                                                                                onClick={() => handleEditManpower(member)}
+                                                                            >
+                                                                                <Edit2 className="h-4 w-4" />
+                                                                            </Button>
+                                                                            <Button
+                                                                                variant="ghost"
+                                                                                size="icon"
+                                                                                className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                                                                                onClick={() => handleDeleteManpower(member.id)}
+                                                                            >
+                                                                                <Trash2 className="h-4 w-4" />
+                                                                            </Button>
+                                                                        </div>
                                                                     </div>
-                                                                    <div className="flex gap-2">
-                                                                        <Button
-                                                                            variant="ghost"
-                                                                            size="icon"
-                                                                            onClick={() => handleEditManpower(member)}
-                                                                        >
-                                                                            <Edit2 className="h-4 w-4" />
-                                                                        </Button>
-                                                                        <Button
-                                                                            variant="ghost"
-                                                                            size="icon"
-                                                                            className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                                                                            onClick={() => handleDeleteManpower(member.id)}
-                                                                        >
-                                                                            <Trash2 className="h-4 w-4" />
-                                                                        </Button>
+
+                                                                    {/* Meta Row: ID + Type */}
+                                                                    <div className="flex items-center gap-2 flex-wrap">
+                                                                        <span className="font-mono text-xs bg-muted px-2 py-1 rounded">{member.manpower_id}</span>
+                                                                        <Badge variant="secondary" className="text-xs capitalize">
+                                                                            {member.applicator_type?.replace('_', ' ')}
+                                                                        </Badge>
                                                                     </div>
-                                                                </>
+
+                                                                    {/* Stats Grid */}
+                                                                    <div className="grid grid-cols-4 gap-2 pt-2 border-t">
+                                                                        <button
+                                                                            onClick={() => showManpowerWarranties(member, 'validated')}
+                                                                            className="flex flex-col items-center p-2 rounded-lg bg-green-50 hover:bg-green-100 transition-colors"
+                                                                        >
+                                                                            <span className="text-lg font-bold text-green-700">{member.validated_count || 0}</span>
+                                                                            <span className="text-[10px] text-green-600 font-medium">Approved</span>
+                                                                        </button>
+                                                                        <button
+                                                                            onClick={() => showManpowerWarranties(member, 'pending')}
+                                                                            className="flex flex-col items-center p-2 rounded-lg bg-amber-50 hover:bg-amber-100 transition-colors"
+                                                                        >
+                                                                            <span className="text-lg font-bold text-amber-700">{member.pending_count || 0}</span>
+                                                                            <span className="text-[10px] text-amber-600 font-medium">Pending</span>
+                                                                        </button>
+                                                                        <button
+                                                                            onClick={() => showManpowerWarranties(member, 'rejected')}
+                                                                            className="flex flex-col items-center p-2 rounded-lg bg-red-50 hover:bg-red-100 transition-colors"
+                                                                        >
+                                                                            <span className="text-lg font-bold text-red-700">{member.rejected_count || 0}</span>
+                                                                            <span className="text-[10px] text-red-600 font-medium">Rejected</span>
+                                                                        </button>
+                                                                        <div className="flex flex-col items-center p-2 rounded-lg bg-muted/50">
+                                                                            <span className="text-lg font-bold text-muted-foreground">{member.total_count || 0}</span>
+                                                                            <span className="text-[10px] text-muted-foreground font-medium">Total</span>
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
                                                             )}
                                                         </div>
                                                     ))}

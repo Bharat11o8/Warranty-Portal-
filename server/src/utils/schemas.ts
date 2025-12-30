@@ -83,12 +83,53 @@ export const updateProfileSchema = z.object({
 // WARRANTY SCHEMAS
 // ===========================================
 
+// Seat Cover product details schema
+const seatCoverDetailsSchema = z.object({
+    uid: z.string().min(13, 'UID must be at least 13 digits').max(16, 'UID must be at most 16 digits'),
+    productName: z.string().min(1, 'Product name is required'),
+    storeName: z.string().optional(),
+    storeEmail: z.string().email().optional().or(z.literal('')),
+    manpowerId: z.string().optional(),
+    manpowerName: z.string().optional(),
+    customerAddress: z.string().optional(),
+    invoiceFileName: z.string().optional().nullable(),
+});
+
+// EV Products (PPF) details schema
+const evProductDetailsSchema = z.object({
+    product: z.string().min(1, 'Product is required'),
+    lotNumber: z.string().min(1, 'Lot number is required'),
+    rollNumber: z.string().min(1, 'Roll number is required'),
+    installArea: z.string().optional(),
+    manpowerId: z.string().optional(),
+    manpowerName: z.string().optional(),
+    customerAddress: z.string().optional(),
+    carRegistration: z.string().optional(),
+    dealerAddress: z.string().optional(),
+    photos: z.object({
+        lhs: z.string().optional().nullable(),
+        rhs: z.string().optional().nullable(),
+        frontReg: z.string().optional().nullable(),
+        backReg: z.string().optional().nullable(),
+        warranty: z.string().optional().nullable(),
+    }).optional(),
+    termsAccepted: z.boolean().optional(),
+    installationDate: z.string().optional(),
+});
+
+// Flexible product details that accepts either type (for multipart form parsing)
+const productDetailsSchema = z.union([
+    seatCoverDetailsSchema,
+    evProductDetailsSchema,
+    z.record(z.string(), z.any()), // Fallback for form parsing edge cases
+]);
+
 export const warrantySubmitSchema = z.object({
     productType: z.enum(['seat-cover', 'ev-products']),
     customerName: z.string().min(2, 'Customer name is required'),
     customerEmail: z.string().email().optional().or(z.literal('')),
     customerPhone: z.string().min(10, 'Customer phone is required'),
-    customerAddress: z.string().min(5, 'Customer address is required'),
+    customerAddress: z.string().min(1, 'Customer address is required'),
     carMake: z.string().min(1, 'Car make is required'),
     carModel: z.string().min(1, 'Car model is required'),
     carYear: z.string().length(4, 'Car year must be 4 digits'),
@@ -96,8 +137,8 @@ export const warrantySubmitSchema = z.object({
     warrantyType: z.string().min(1, 'Warranty type is required'),
     installerName: z.string().optional(),
     installerContact: z.string().optional(),
-    productDetails: z.any(), // Flexible for different product types
-    manpowerId: z.string().optional(),
+    productDetails: productDetailsSchema,
+    manpowerId: z.string().optional().nullable(),
 });
 
 // ===========================================

@@ -223,105 +223,122 @@ export class AuthController {
         const pending = pendingUsers[0];
         const newUserId = uuidv4(); // Generate new permanent user ID
 
-        // Insert into profiles table
-        await db.execute(
-          'INSERT INTO profiles (id, name, email, phone_number) VALUES (?, ?, ?, ?)',
-          [newUserId, pending.name, pending.email, pending.phone_number]
-        );
+        // Use transaction for atomic multi-table writes
+        const connection = await db.getConnection();
+        try {
+          await connection.beginTransaction();
 
-        // Insert user role
-        await db.execute(
-          'INSERT INTO user_roles (id, user_id, role) VALUES (?, ?, ?)',
-          [uuidv4(), newUserId, pending.role]
-        );
-
-        // If vendor, create verification record and details
-        if (pending.role === 'vendor') {
-          const verificationToken = uuidv4();
-
-          await db.execute(
-            "INSERT INTO vendor_verification (id, user_id, is_verified) VALUES (?, ?, ?)",
-            [uuidv4(), newUserId, false]
+          // Insert into profiles table
+          await connection.execute(
+            'INSERT INTO profiles (id, name, email, phone_number) VALUES (?, ?, ?, ?)',
+            [newUserId, pending.name, pending.email, pending.phone_number]
           );
 
-          // Insert vendor details
-          const vendorDetailsId = uuidv4();
-          await db.execute(
-            `INSERT INTO vendor_details 
-             (id, user_id, store_name, store_email, address, state, city, pincode) 
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-            [vendorDetailsId, newUserId, pending.store_name, pending.store_email, pending.address, pending.state, pending.city, pending.pincode]
+          // Insert user role
+          await connection.execute(
+            'INSERT INTO user_roles (id, user_id, role) VALUES (?, ?, ?)',
+            [uuidv4(), newUserId, pending.role]
           );
 
-          // Insert manpower details if any
-          if (pending.manpower_data) {
-            const manpowerList = typeof pending.manpower_data === 'string'
-              ? JSON.parse(pending.manpower_data)
-              : pending.manpower_data;
+          // If vendor, create verification record and details
+          if (pending.role === 'vendor') {
+            const verificationToken = uuidv4();
 
-            if (manpowerList && manpowerList.length > 0) {
-              for (const m of manpowerList) {
-                await db.execute(
-                  `INSERT INTO manpower 
-                   (id, vendor_id, name, phone_number, manpower_id, applicator_type) 
-                   VALUES (?, ?, ?, ?, ?, ?)`,
-                  [uuidv4(), vendorDetailsId, m.name, m.phoneNumber, m.manpowerId, m.applicatorType]
-                );
+            await connection.execute(
+              "INSERT INTO vendor_verification (id, user_id, is_verified) VALUES (?, ?, ?)",
+              [uuidv4(), newUserId, false]
+            );
+
+            // Insert vendor details
+            const vendorDetailsId = uuidv4();
+            await connection.execute(
+              `INSERT INTO vendor_details 
+               (id, user_id, store_name, store_email, address, state, city, pincode) 
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+              [vendorDetailsId, newUserId, pending.store_name, pending.store_email, pending.address, pending.state, pending.city, pending.pincode]
+            );
+
+            // Insert manpower details if any
+            if (pending.manpower_data) {
+              const manpowerList = typeof pending.manpower_data === 'string'
+                ? JSON.parse(pending.manpower_data)
+                : pending.manpower_data;
+
+              if (manpowerList && manpowerList.length > 0) {
+                for (const m of manpowerList) {
+                  await connection.execute(
+                    `INSERT INTO manpower 
+                     (id, vendor_id, name, phone_number, manpower_id, applicator_type) 
+                     VALUES (?, ?, ?, ?, ?, ?)`,
+                    [uuidv4(), vendorDetailsId, m.name, m.phoneNumber, m.manpowerId, m.applicatorType]
+                  );
+                }
               }
             }
+
+            // Delete from pending registrations (inside transaction)
+            await connection.execute('DELETE FROM pending_registrations WHERE id = ?', [userId]);
+
+            // Commit the transaction
+            await connection.commit();
+
+            // Send emails AFTER successful commit (outside transaction)
+            await EmailService.sendVendorVerificationRequest(
+              pending.email,
+              pending.name,
+              pending.phone_number,
+              newUserId,
+              verificationToken
+            );
+
+            await EmailService.sendVendorRegistrationConfirmation(pending.email, pending.name);
+
+            // Vendor needs admin approval, don't provide token yet
+            return res.json({
+              success: true,
+              message: 'Registration complete! Your vendor account is pending admin approval.',
+              token: null,
+              user: null
+            });
           }
 
-          // Send verification email to admin
-          await EmailService.sendVendorVerificationRequest(
-            pending.email,
-            pending.name,
-            pending.phone_number,
-            newUserId,
-            verificationToken
+          // For customers - delete from pending (inside transaction)
+          await connection.execute('DELETE FROM pending_registrations WHERE id = ?', [userId]);
+
+          // Commit the transaction
+          await connection.commit();
+
+          // Generate JWT for customer
+          const token = jwt.sign(
+            {
+              id: newUserId,
+              email: pending.email,
+              role: pending.role
+            },
+            process.env.JWT_SECRET as string,
+            { expiresIn: process.env.JWT_EXPIRES_IN || '24h' } as jwt.SignOptions
           );
 
-          // Send confirmation email to vendor
-          await EmailService.sendVendorRegistrationConfirmation(pending.email, pending.name);
-
-          // Delete from pending registrations
-          await db.execute('DELETE FROM pending_registrations WHERE id = ?', [userId]);
-
-          // Vendor needs admin approval, don't provide token yet
           return res.json({
             success: true,
-            message: 'Registration complete! Your vendor account is pending admin approval.',
-            token: null,
-            user: null
+            message: 'Registration successful!',
+            token,
+            user: {
+              id: newUserId,
+              email: pending.email,
+              name: pending.name,
+              role: pending.role,
+              phoneNumber: pending.phone_number,
+              isValidated: true
+            }
           });
+        } catch (transactionError) {
+          // Rollback on any failure
+          await connection.rollback();
+          throw transactionError;
+        } finally {
+          connection.release();
         }
-
-        // For customers - delete from pending and provide token
-        await db.execute('DELETE FROM pending_registrations WHERE id = ?', [userId]);
-
-        // Generate JWT for customer
-        const token = jwt.sign(
-          {
-            id: newUserId,
-            email: pending.email,
-            role: pending.role
-          },
-          process.env.JWT_SECRET as string,
-          { expiresIn: process.env.JWT_EXPIRES_IN || '24h' } as jwt.SignOptions
-        );
-
-        return res.json({
-          success: true,
-          message: 'Registration successful!',
-          token,
-          user: {
-            id: newUserId,
-            email: pending.email,
-            name: pending.name,
-            role: pending.role,
-            phoneNumber: pending.phone_number,
-            isValidated: true
-          }
-        });
       }
 
       // SECOND: This is a LOGIN flow - user already exists in profiles

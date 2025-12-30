@@ -12,7 +12,13 @@ const storage = new CloudinaryStorage({
         allowed_formats: ['jpg', 'jpeg', 'png'],
     },
 });
-const upload = multer({ storage: storage });
+const upload = multer({
+    storage: storage,
+    limits: {
+        fileSize: 5 * 1024 * 1024, // 5MB max per file
+        files: 6 // Max 6 files (invoice + 5 photos)
+    }
+});
 // Use upload.any() to handle multiple files with different field names
 router.post('/submit', authenticateToken, upload.any(), WarrantyController.submitWarranty);
 router.get('/', authenticateToken, WarrantyController.getWarranties);

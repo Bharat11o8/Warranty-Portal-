@@ -7,6 +7,21 @@ dotenv.config();
  */
 export class EmailService {
     /**
+     * HTML escape utility to prevent XSS in email templates
+     */
+    static escapeHtml(str) {
+        if (!str)
+            return '';
+        const htmlEscapes = {
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            '"': '&quot;',
+            "'": '&#39;'
+        };
+        return str.replace(/[&<>"']/g, char => htmlEscapes[char] || char);
+    }
+    /**
      * Helper to get the correct application URL based on environment
      * Centralizes the logic for Production vs Localhost
      */
@@ -14,10 +29,70 @@ export class EmailService {
         // Force production URL if running on Vercel or in production mode
         const isProduction = process.env.NODE_ENV === 'production' || process.env.VERCEL === '1';
         const appUrl = isProduction
-            ? 'https://server-bharat-maheshwaris-projects.vercel.app'
+            ? (process.env.BACKEND_URL || 'https://server-bharat-maheshwaris-projects.vercel.app')
             : (process.env.APP_URL || 'http://localhost:5173');
         // Remove trailing slash if present
         return appUrl.endsWith('/') ? appUrl.slice(0, -1) : appUrl;
+    }
+    /**
+     * Send email with retry and exponential backoff
+     * @param emailFn - Async function that sends the email
+     * @param context - Description of what email was being sent (for logging)
+     * @param retries - Number of retry attempts (default 3)
+     * @returns true if email sent successfully, false otherwise
+     */
+    static async sendWithRetry(emailFn, context, retries = 3) {
+        for (let attempt = 1; attempt <= retries; attempt++) {
+            try {
+                await emailFn();
+                return true; // Success
+            }
+            catch (error) {
+                console.error(`[Email] Attempt ${attempt}/${retries} failed for "${context}":`, error.message);
+                if (attempt < retries) {
+                    // Exponential backoff: 1s, 2s, 4s
+                    const delay = 1000 * Math.pow(2, attempt - 1);
+                    await new Promise(resolve => setTimeout(resolve, delay));
+                }
+            }
+        }
+        // All retries failed - alert admin
+        console.error(`[Email] All ${retries} attempts failed for "${context}". Alerting admin.`);
+        await this.alertAdminOfFailure(context);
+        return false;
+    }
+    /**
+     * Alert admin when email delivery fails after all retries
+     */
+    static async alertAdminOfFailure(context) {
+        const adminEmail = process.env.ADMIN_ALERT_EMAIL || process.env.EMAIL_FROM;
+        if (!adminEmail) {
+            console.error('[Email] No admin email configured for failure alerts');
+            return;
+        }
+        try {
+            await transporter.sendMail({
+                from: process.env.EMAIL_FROM,
+                to: adminEmail,
+                subject: '⚠️ Email Delivery Failed - Warranty Portal',
+                html: `
+          <div style="font-family: Arial, sans-serif; padding: 20px;">
+            <h2 style="color: #dc3545;">⚠️ Email Delivery Failure Alert</h2>
+            <p>An email failed to send after multiple retry attempts:</p>
+            <div style="background: #f8f9fa; padding: 15px; border-left: 4px solid #dc3545; margin: 15px 0;">
+              <strong>Failed Email:</strong> ${this.escapeHtml(context)}<br>
+              <strong>Time:</strong> ${new Date().toISOString()}<br>
+              <strong>Environment:</strong> ${process.env.NODE_ENV || 'development'}
+            </div>
+            <p style="color: #666;">Please check the server logs for more details and consider manual follow-up.</p>
+          </div>
+        `
+            });
+        }
+        catch (alertError) {
+            // Even the alert failed - just log it
+            console.error('[Email] Failed to send admin alert:', alertError);
+        }
     }
     /**
      * Helper to generate consistent HTML email templates
@@ -98,17 +173,19 @@ export class EmailService {
       
       <p style="margin-top: 30px;">Best regards,<br><strong>Autoform India Team</strong></p>
     `;
-        await transporter.sendMail({
-            from: process.env.EMAIL_FROM,
-            to: email,
-            subject: '🔐 Your OTP for Warranty Portal Login',
-            html: this.getHtmlTemplate({
-                title: 'Warranty Portal Login',
-                content: htmlContent,
-                headerColorStart: '#667eea',
-                headerColorEnd: '#764ba2'
-            })
-        });
+        await this.sendWithRetry(async () => {
+            await transporter.sendMail({
+                from: process.env.EMAIL_FROM,
+                to: email,
+                subject: '🔐 Your OTP for Warranty Portal Login',
+                html: this.getHtmlTemplate({
+                    title: 'Warranty Portal Login',
+                    content: htmlContent,
+                    headerColorStart: '#667eea',
+                    headerColorEnd: '#764ba2'
+                })
+            });
+        }, `OTP to ${email}`);
     }
     static async sendVendorVerificationRequest(vendorEmail, vendorName, vendorPhone, userId, token) {
         const baseUrl = this.getAppUrl();
@@ -567,7 +644,7 @@ export class EmailService {
         });
     }
     static async sendAdminInvitation(adminEmail, adminName, invitedByName) {
-        const loginUrl = 'https://warranty.autoformindia.com';
+        const loginUrl = process.env.FRONTEND_URL || 'https://warranty.autoformindia.com';
         const htmlContent = `
       <h2 style="color: #333; margin-top: 0;">Hello ${adminName},</h2>
       

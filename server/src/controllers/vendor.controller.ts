@@ -439,17 +439,19 @@ export class VendorController {
       }
       // If active === 'all', show both active and inactive
 
-      // Get manpower list with application count
+      // Get manpower list with application count (optimized to avoid N+1 queries)
       const [manpower]: any = await db.execute(
         `
     SELECT
       m.*,
-      (SELECT COUNT(*) FROM warranty_registrations w WHERE w.manpower_id = m.id AND w.status = 'validated') AS validated_count,
-      (SELECT COUNT(*) FROM warranty_registrations w WHERE w.manpower_id = m.id AND w.status = 'pending') AS pending_count,
-      (SELECT COUNT(*) FROM warranty_registrations w WHERE w.manpower_id = m.id AND w.status = 'rejected') AS rejected_count,
-      (SELECT COUNT(*) FROM warranty_registrations w WHERE w.manpower_id = m.id) AS total_count
+      COALESCE(SUM(CASE WHEN w.status = 'validated' THEN 1 ELSE 0 END), 0) AS validated_count,
+      COALESCE(SUM(CASE WHEN w.status = 'pending' THEN 1 ELSE 0 END), 0) AS pending_count,
+      COALESCE(SUM(CASE WHEN w.status = 'rejected' THEN 1 ELSE 0 END), 0) AS rejected_count,
+      COUNT(w.id) AS total_count
     FROM manpower m
+    LEFT JOIN warranty_registrations w ON w.manpower_id = m.id
     WHERE ${whereClause}
+    GROUP BY m.id
     ORDER BY m.is_active DESC, m.name ASC
   `,
         [vendorId]
