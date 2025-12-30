@@ -2838,7 +2838,20 @@ const AdminDashboard = () => {
                                                                     );
                                                                 }}
                                                             />
-                                                            <YAxis tickLine={false} axisLine={false} tick={{ fontSize: 12 }} />
+                                                            <YAxis
+                                                                tickLine={false}
+                                                                axisLine={false}
+                                                                tick={{ fontSize: 12 }}
+                                                                domain={[0, (dataMax: number) => {
+                                                                    // Dynamic scaling: round up to next nice number
+                                                                    if (dataMax === 0) return 10;
+                                                                    const magnitude = Math.pow(10, Math.floor(Math.log10(dataMax)));
+                                                                    const normalized = dataMax / magnitude;
+                                                                    let multiplier = normalized <= 1 ? 1 : normalized <= 2 ? 2 : normalized <= 5 ? 5 : 10;
+                                                                    return Math.ceil(dataMax / (magnitude * multiplier)) * (magnitude * multiplier);
+                                                                }]}
+                                                                allowDataOverflow={false}
+                                                            />
                                                             <RechartsTooltip content={<CustomTooltip />} cursor={{ fill: 'transparent' }} />
                                                             <Legend verticalAlign="top" height={36} iconType="circle" />
                                                             <Bar name="Total" dataKey="total" fill="#94a3b8" radius={[4, 4, 0, 0]} maxBarSize={40} />
@@ -2861,7 +2874,18 @@ const AdminDashboard = () => {
                                                     >
                                                         <CartesianGrid strokeDasharray="3 3" vertical={false} />
                                                         <XAxis dataKey="name" tickLine={false} axisLine={false} />
-                                                        <YAxis tickLine={false} axisLine={false} />
+                                                        <YAxis
+                                                            tickLine={false}
+                                                            axisLine={false}
+                                                            domain={[0, (dataMax: number) => {
+                                                                if (dataMax === 0) return 10;
+                                                                const magnitude = Math.pow(10, Math.floor(Math.log10(dataMax)));
+                                                                const normalized = dataMax / magnitude;
+                                                                let multiplier = normalized <= 1 ? 1 : normalized <= 2 ? 2 : normalized <= 5 ? 5 : 10;
+                                                                return Math.ceil(dataMax / (magnitude * multiplier)) * (magnitude * multiplier);
+                                                            }]}
+                                                            allowDataOverflow={false}
+                                                        />
                                                         <RechartsTooltip content={<CustomTooltip />} cursor={{ fill: 'transparent' }} />
                                                         <Bar dataKey="value" radius={[4, 4, 0, 0]} maxBarSize={50}>
                                                             {[
@@ -2976,7 +3000,19 @@ const AdminDashboard = () => {
                                                                     );
                                                                 }}
                                                             />
-                                                            <YAxis tickLine={false} axisLine={false} tick={{ fontSize: 12 }} />
+                                                            <YAxis
+                                                                tickLine={false}
+                                                                axisLine={false}
+                                                                tick={{ fontSize: 12 }}
+                                                                domain={[0, (dataMax: number) => {
+                                                                    if (dataMax === 0) return 10;
+                                                                    const magnitude = Math.pow(10, Math.floor(Math.log10(dataMax)));
+                                                                    const normalized = dataMax / magnitude;
+                                                                    let multiplier = normalized <= 1 ? 1 : normalized <= 2 ? 2 : normalized <= 5 ? 5 : 10;
+                                                                    return Math.ceil(dataMax / (magnitude * multiplier)) * (magnitude * multiplier);
+                                                                }]}
+                                                                allowDataOverflow={false}
+                                                            />
                                                             <RechartsTooltip content={<CustomTooltip />} cursor={{ fill: 'transparent' }} />
                                                             <Legend verticalAlign="top" height={36} iconType="circle" />
                                                             <Bar name="New Customers" dataKey="new_customers" fill="#16a34a" radius={[4, 4, 0, 0]} maxBarSize={40} />
