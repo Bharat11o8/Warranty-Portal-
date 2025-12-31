@@ -1,6 +1,8 @@
 import axios from 'axios';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
+// Ensure API URL always ends with /api
+const rawApiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+const API_URL = rawApiUrl.endsWith('/api') ? rawApiUrl : `${rawApiUrl}/api`;
 const isDev = import.meta.env.DEV;
 
 if (isDev) console.log('API Base URL:', API_URL);
