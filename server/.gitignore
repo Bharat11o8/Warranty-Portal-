@@ -1,10 +1,21 @@
 node_modules
 dist
+
+# Environment files - NEVER commit these
 .env
+.env.local
+.env.*.local
+.env.production
+.env.development
+
 .vercel
 npm-debug.log
 yarn-error.log
 coverage
 .DS_Store
 uploads/
-.env*.local
+
+# Backups
+*.backup
+*.bak
+
