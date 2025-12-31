@@ -90,16 +90,28 @@ graph TD
 ## 🗺️ 5. Priority Fix Roadmap
 
 ### 🔴 Phase 1: Critical Stability (High Urgency)
-- [ ] **Transactions**: Wrap all multi-stage writes in `db.beginTransaction()`.
-- [ ] **OTP Security**: Switch to `crypto.randomInt()` for true randomness.
-- [ ] **Connection Guard**: Limit `connectionLimit` to `1` or `2` for Vercel functions.
+- [x] **Transactions**: Wrap all multi-stage writes in `db.beginTransaction()`. ✅ *Fixed in auth.controller.ts*
+- [x] **OTP Security**: Switch to `crypto.randomInt()` for true randomness. ✅ *Fixed in otp.service.ts*
+- [x] **Connection Guard**: Limit `connectionLimit` to `2` for Vercel functions. ✅ *Fixed in database.ts*
 
 ### 🟠 Phase 2: High Security & Logic
-- [ ] **Persistent Limiting**: Move rate limiting to Redis (Upstash).
-- [ ] **Soft Deletes**: Add `deleted_at` columns to avoid IRM (Irreversible Mistake).
-- [ ] **File Protection**: Add strict `fileSize` limits (e.g., 5MB) to Multer config.
+- [x] **Persistent Limiting**: Move rate limiting to Redis (Upstash). ✅ *Fixed in rateLimit.ts*
+- [ ] **Soft Deletes**: Add `deleted_at` columns to avoid IRM (Irreversible Mistake). ⏳ *Deferred*
+- [x] **File Protection**: Add strict `fileSize` limits (5MB) to Multer config. ✅ *Fixed in warranty.routes.ts*
 
 ### 🟡 Phase 3: Scalability & DX
-- [ ] **Pre-aggregate Stats**: Use a cache or summary table for the Admin Dashboard.
-- [ ] **Zod Enforcement**: Replace manual regex with shared Zod schemas across FE/BE.
-- [ ] **Naming Cleanup**: Resolve `uid` vs `id` vs `registration_number` discrepancies.
+- [ ] **Pre-aggregate Stats**: Use a cache or summary table for the Admin Dashboard. ⏳ *Deferred*
+- [x] **Zod Enforcement**: Replace z.any() with proper typed schemas. ✅ *Fixed in schemas.ts*
+- [ ] **Naming Cleanup**: Resolve `uid` vs `id` vs `registration_number` discrepancies. ⏳ *Deferred*
+
+### 🔵 Additional Fixes (Added during audit)
+- [x] **Email Retry**: Added retry with exponential backoff + admin alerts. ✅ *Fixed in email.service.ts*
+- [x] **HTML Escaping**: Prevent XSS in email templates. ✅ *Fixed in email.service.ts*
+- [x] **N+1 Query**: Optimized getManpower with JOIN. ✅ *Fixed in vendor.controller.ts*
+- [x] **Configurable URLs**: Use env vars for BACKEND_URL/FRONTEND_URL. ✅ *Fixed in email.service.ts*
+- [x] **Git Security**: Removed secrets from tracking, updated .gitignore. ✅
+
+---
+
+*Last updated: 2025-12-30*
+
