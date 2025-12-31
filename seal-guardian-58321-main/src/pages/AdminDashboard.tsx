@@ -2888,7 +2888,7 @@ const AdminDashboard = () => {
                                                             tickLine={false}
                                                             axisLine={false}
                                                             domain={[0, (dataMax: number) => {
-                                                                if (dataMax === 0) return 10;
+                                                                if (dataMax === undefined || dataMax === null || isNaN(dataMax) || dataMax === 0) return 10;
                                                                 const magnitude = Math.pow(10, Math.floor(Math.log10(dataMax)));
                                                                 const normalized = dataMax / magnitude;
                                                                 let multiplier = normalized <= 1 ? 1 : normalized <= 2 ? 2 : normalized <= 5 ? 5 : 10;
@@ -2978,56 +2978,66 @@ const AdminDashboard = () => {
                                                         )}
                                                     </div>
                                                     <ResponsiveContainer width="100%" height="90%">
-                                                        <BarChart
-                                                            data={stats.monthlyCustomerStats}
-                                                            margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
-                                                            barGap={2}
-                                                        >
-                                                            <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                                                            <XAxis
-                                                                dataKey="month"
-                                                                tickLine={false}
-                                                                tick={({ x, y, payload }) => {
-                                                                    const date = new Date(payload.value + '-01');
-                                                                    const label = date.toLocaleDateString('en-US', { month: 'short' });
-                                                                    const isSelected = selectedMonth === payload.value;
-                                                                    return (
-                                                                        <g transform={`translate(${x},${y})`}>
-                                                                            <text
-                                                                                x={0}
-                                                                                y={0}
-                                                                                dy={12}
-                                                                                textAnchor="middle"
-                                                                                fill={isSelected ? "#2563eb" : "#666"}
-                                                                                fontWeight={isSelected ? "bold" : "normal"}
-                                                                                fontSize={12}
-                                                                                className="cursor-pointer hover:font-bold"
-                                                                                onClick={() => setSelectedMonth(isSelected ? null : payload.value)}
-                                                                            >
-                                                                                {label}
-                                                                            </text>
-                                                                        </g>
-                                                                    );
-                                                                }}
-                                                            />
-                                                            <YAxis
-                                                                tickLine={false}
-                                                                axisLine={false}
-                                                                tick={{ fontSize: 12 }}
-                                                                domain={[0, (dataMax: number) => {
-                                                                    if (dataMax === 0) return 10;
-                                                                    const magnitude = Math.pow(10, Math.floor(Math.log10(dataMax)));
-                                                                    const normalized = dataMax / magnitude;
-                                                                    let multiplier = normalized <= 1 ? 1 : normalized <= 2 ? 2 : normalized <= 5 ? 5 : 10;
-                                                                    return Math.ceil(dataMax / (magnitude * multiplier)) * (magnitude * multiplier);
-                                                                }]}
-                                                                allowDataOverflow={false}
-                                                            />
-                                                            <RechartsTooltip content={<CustomTooltip />} cursor={{ fill: 'transparent' }} />
-                                                            <Legend verticalAlign="top" height={36} iconType="circle" />
-                                                            <Bar name="New Customers" dataKey="new_customers" fill="#16a34a" radius={[4, 4, 0, 0]} maxBarSize={40} />
-                                                            <Bar name="Returning Customers" dataKey="returning_customers" fill="#2563eb" radius={[4, 4, 0, 0]} maxBarSize={40} />
-                                                        </BarChart>
+                                                        {stats.monthlyCustomerStats && stats.monthlyCustomerStats.length > 0 ? (
+                                                            <BarChart
+                                                                data={stats.monthlyCustomerStats}
+                                                                margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
+                                                                barGap={2}
+                                                            >
+                                                                <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                                                                <XAxis
+                                                                    dataKey="month"
+                                                                    tickLine={false}
+                                                                    tick={({ x, y, payload }) => {
+                                                                        const date = new Date(payload.value + '-01');
+                                                                        const label = date.toLocaleDateString('en-US', { month: 'short' });
+                                                                        const isSelected = selectedMonth === payload.value;
+                                                                        return (
+                                                                            <g transform={`translate(${x},${y})`}>
+                                                                                <text
+                                                                                    x={0}
+                                                                                    y={0}
+                                                                                    dy={12}
+                                                                                    textAnchor="middle"
+                                                                                    fill={isSelected ? "#2563eb" : "#666"}
+                                                                                    fontWeight={isSelected ? "bold" : "normal"}
+                                                                                    fontSize={12}
+                                                                                    className="cursor-pointer hover:font-bold"
+                                                                                    onClick={() => setSelectedMonth(isSelected ? null : payload.value)}
+                                                                                >
+                                                                                    {label}
+                                                                                </text>
+                                                                            </g>
+                                                                        );
+                                                                    }}
+                                                                />
+                                                                <YAxis
+                                                                    tickLine={false}
+                                                                    axisLine={false}
+                                                                    tick={{ fontSize: 12 }}
+                                                                    domain={[0, (dataMax: number) => {
+                                                                        if (dataMax === undefined || dataMax === null || isNaN(dataMax) || dataMax === 0) return 10;
+                                                                        const magnitude = Math.pow(10, Math.floor(Math.log10(dataMax)));
+                                                                        const normalized = dataMax / magnitude;
+                                                                        let multiplier = normalized <= 1 ? 1 : normalized <= 2 ? 2 : normalized <= 5 ? 5 : 10;
+                                                                        return Math.ceil(dataMax / (magnitude * multiplier)) * (magnitude * multiplier);
+                                                                    }]}
+                                                                    allowDataOverflow={false}
+                                                                />
+                                                                <RechartsTooltip content={<CustomTooltip />} cursor={{ fill: 'transparent' }} />
+                                                                <Legend verticalAlign="top" height={36} iconType="circle" />
+                                                                <Bar name="New Customers" dataKey="new_customers" fill="#16a34a" radius={[4, 4, 0, 0]} maxBarSize={40} />
+                                                                <Bar name="Returning Customers" dataKey="returning_customers" fill="#2563eb" radius={[4, 4, 0, 0]} maxBarSize={40} />
+                                                            </BarChart>
+                                                        ) : (
+                                                            <BarChart data={[{ month: '', new_customers: 0, returning_customers: 0 }]} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                                                                <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                                                                <XAxis dataKey="month" />
+                                                                <YAxis domain={[0, 10]} />
+                                                                <Bar name="New Customers" dataKey="new_customers" fill="#16a34a" />
+                                                                <Bar name="Returning Customers" dataKey="returning_customers" fill="#2563eb" />
+                                                            </BarChart>
+                                                        )}
                                                     </ResponsiveContainer>
                                                 </div>
                                             </div>
