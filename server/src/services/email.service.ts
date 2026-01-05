@@ -114,8 +114,8 @@ export class EmailService {
   private static getHtmlTemplate({
     title,
     content,
-    headerColorStart = '#667eea',
-    headerColorEnd = '#764ba2',
+    headerColorStart = '#FFB400',
+    headerColorEnd = '#FF8C00',
     footerText = `© ${new Date().getFullYear()} Autoform India. All rights reserved.`
   }: {
     title: string;
