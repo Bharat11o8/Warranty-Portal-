@@ -133,8 +133,8 @@ export class EmailService {
         <style>
           body { font-family: 'Segoe UI', Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; background-color: #f4f4f4; }
           .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-          .header { background: linear-gradient(135deg, ${headerColorStart} 0%, ${headerColorEnd} 100%); color: white; padding: 40px 30px; text-align: center; border-radius: 10px 10px 0 0; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
-          .header h1 { margin: 0; font-size: 26px; font-weight: 600; letter-spacing: 0.5px; }
+          .header { background: linear-gradient(135deg, ${headerColorStart} 0%, ${headerColorEnd} 100%); color: #000000; padding: 40px 30px; text-align: center; border-radius: 10px 10px 0 0; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+          .header h1 { margin: 0; font-size: 26px; font-weight: 600; letter-spacing: 0.5px; color: #000000; }
           .content { background: #ffffff; padding: 30px; border-radius: 0 0 10px 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); }
           
           /* Common Component Classes */
@@ -148,7 +148,7 @@ export class EmailService {
           .warning-box { background: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; margin: 20px 0; border-radius: 4px; }
           .error-box { background: #ffebee; border: 2px solid #f44336; border-radius: 8px; padding: 20px; margin: 20px 0; }
           
-          .button { display: inline-block; background: linear-gradient(135deg, ${headerColorStart} 0%, ${headerColorEnd} 100%); color: white !important; padding: 14px 28px; text-decoration: none; border-radius: 6px; font-weight: bold; margin: 10px 0; box-shadow: 0 4px 6px rgba(0,0,0,0.1); transition: transform 0.2s; }
+          .button { display: inline-block; background: linear-gradient(135deg, ${headerColorStart} 0%, ${headerColorEnd} 100%); color: #000000 !important; padding: 14px 28px; text-decoration: none; border-radius: 6px; font-weight: bold; margin: 10px 0; box-shadow: 0 4px 6px rgba(0,0,0,0.1); transition: transform 0.2s; }
           .button:hover { transform: translateY(-1px); box-shadow: 0 6px 8px rgba(0,0,0,0.15); opacity: 0.95; }
           .button-secondary { background: #6c757d; }
           .button-danger { background: linear-gradient(135deg, #ff416c 0%, #ff4b2b 100%); }
@@ -166,7 +166,7 @@ export class EmailService {
       <body>
         <div class="container">
           <div class="header">
-            <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1765531503/warranty-portal/autoform-logo.png" alt="Autoform India" style="max-width: 180px; height: auto; margin-bottom: 15px;" />
+            <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1765531503/warranty-portal/autoform-logo.png" alt="Autoform India" style="max-width: 220px; height: auto; margin-bottom: 15px;" />
             <h1>${title}</h1>
           </div>
           <div class="content">
@@ -186,13 +186,13 @@ export class EmailService {
       <h2 style="color: #333; margin-top: 0;">Hello ${name},</h2>
       <p>You've requested to login to your Warranty Portal account. Please use the OTP below to complete your login:</p>
       
-      <div style="background: #f8f9fa; border: 2px dashed #667eea; border-radius: 10px; padding: 20px; text-align: center; margin: 25px 0;">
+      <div style="background: #f8f9fa; border: 2px dashed #FFB400; border-radius: 10px; padding: 20px; text-align: center; margin: 25px 0;">
         <p style="margin: 0; color: #666; font-size: 14px; text-transform: uppercase; letter-spacing: 1px;">Your One-Time Password</p>
-        <div style="font-size: 36px; font-weight: 800; color: #667eea; letter-spacing: 8px; margin: 10px 0;">${otp}</div>
+        <div style="font-size: 36px; font-weight: 800; color: #FFB400; letter-spacing: 8px; margin: 10px 0;">${otp}</div>
         <p style="margin: 10px 0 0 0; color: #999; font-size: 13px;">Valid for 10 minutes</p>
       </div>
       
-      <div class="warning-box">
+      <div class="info-box">
         <strong>Important:</strong> Do not share this OTP with anyone. Our team will never ask for your OTP.
       </div>
       
@@ -210,8 +210,8 @@ export class EmailService {
           html: this.getHtmlTemplate({
             title: 'Warranty Portal Login',
             content: htmlContent,
-            headerColorStart: '#667eea',
-            headerColorEnd: '#764ba2'
+            headerColorStart: '#FFB400',
+            headerColorEnd: '#FF8C00'
           })
         });
       },
