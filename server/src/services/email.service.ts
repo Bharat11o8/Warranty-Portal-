@@ -166,6 +166,7 @@ export class EmailService {
       <body>
         <div class="container">
           <div class="header">
+            <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1765531503/warranty-portal/autoform-logo.png" alt="Autoform India" style="max-width: 180px; height: auto; margin-bottom: 15px;" />
             <h1>${title}</h1>
           </div>
           <div class="content">

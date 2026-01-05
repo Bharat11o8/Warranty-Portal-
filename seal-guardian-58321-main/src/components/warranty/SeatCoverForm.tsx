@@ -15,7 +15,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Combobox } from "@/components/ui/combobox";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
-import { Upload, Loader2 } from "lucide-react";
+import { Upload, Loader2, HelpCircle } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { submitWarranty, updateWarranty } from "@/lib/warrantyApi";
 
 interface SeatCoverFormProps {
@@ -417,8 +418,18 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing }: SeatCo
             </div>
 
             <div className="space-y-2 md:col-span-2">
-              <Label htmlFor="uid">
+              <Label htmlFor="uid" className="flex items-center gap-1">
                 UID <span className="text-destructive">*</span>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <HelpCircle className="h-4 w-4 text-muted-foreground cursor-help" />
+                    </TooltipTrigger>
+                    <TooltipContent side="top" className="max-w-xs">
+                      <p>Check the UID on the seat cover bag's MRP sticker. If not found, contact the store.</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               </Label>
               <Input
                 id="uid"
