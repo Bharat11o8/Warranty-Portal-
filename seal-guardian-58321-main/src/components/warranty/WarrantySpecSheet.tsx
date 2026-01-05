@@ -87,6 +87,16 @@ export const WarrantySpecSheet = ({ isOpen, onClose, warranty }: WarrantySpecShe
                         </div>
                     </div>
 
+                    {/* Customer Details */}
+                    <div className="space-y-1">
+                        <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-3 pl-1">Customer Details</h4>
+                        <div className="bg-muted/20 rounded-lg p-2 border border-border/40">
+                            <SpecRow label="Customer Name" value={warranty.customer_name || productDetails.customerName || "N/A"} />
+                            <SpecRow label="Customer Email" value={warranty.customer_email || productDetails.customerEmail || "N/A"} />
+                            <SpecRow label="Customer Phone" value={warranty.customer_phone || productDetails.customerPhone || "N/A"} />
+                        </div>
+                    </div>
+
                     {/* Key Dates */}
                     <div className="space-y-1">
                         <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-3 pl-1">Important Dates</h4>
