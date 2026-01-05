@@ -235,7 +235,7 @@ const ProductInfo = ({ formData, updateFormData, onPrev, onSubmit, loading }: Pr
           disabled={loading}
         />
         <Label htmlFor="terms" className="text-sm leading-relaxed cursor-pointer">
-          I agree to the Terms and Conditions and confirm that all information provided is accurate{" "}
+          I agree to the <a href="/terms" className="text-primary hover:underline" target="_blank">Terms of Service</a> and confirm that all information provided is accurate{" "}
           <span className="text-destructive">*</span>
         </Label>
       </div>

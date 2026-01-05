@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useAuth, UserRole } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { User, Mail, Phone, ShieldCheck, AlertCircle, KeyRound, Store, MapPin, Plus, Trash2, Users, Loader2 } from "lucide-react";
@@ -47,6 +48,7 @@ const Register = () => {
   const [showOTP, setShowOTP] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<FormErrors>({});
+  const [termsAccepted, setTermsAccepted] = useState(false);
 
   // Customer Form Data
   const [customerData, setCustomerData] = useState({
@@ -160,6 +162,15 @@ const Register = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (!termsAccepted) {
+      toast({
+        title: "Terms Required",
+        description: "Please accept the terms and conditions to proceed.",
+        variant: "destructive",
+      });
+      return;
+    }
 
     // Validate before submission
     if (role === "customer") {
@@ -635,6 +646,26 @@ const Register = () => {
                 </p>
               </div>
             )}
+
+            <div className="flex items-start space-x-2 pt-2">
+              <Checkbox
+                id="terms"
+                checked={termsAccepted}
+                onCheckedChange={(checked) => setTermsAccepted(checked as boolean)}
+                className="border-white/50 data-[state=checked]:bg-blue-600 data-[state=checked]:border-blue-600"
+              />
+              <div className="grid gap-1.5 leading-none">
+                <label
+                  htmlFor="terms"
+                  className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-white"
+                >
+                  I accept the terms and conditions
+                </label>
+                <p className="text-sm text-white/70">
+                  By checking this box, I confirm that the information provided is accurate and I agree to the <a href="/terms" className="text-blue-300 hover:text-blue-200 hover:underline" target="_blank">Terms of Service</a>.
+                </p>
+              </div>
+            </div>
 
             <Button type="submit" className="w-full h-12 text-lg font-semibold bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-600/30 border border-blue-400/20" disabled={loading}>
               {loading ? (

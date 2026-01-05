@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Combobox } from "@/components/ui/combobox";
 import { useToast } from "@/hooks/use-toast";
@@ -66,6 +67,7 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing }: SeatCo
     carYear: "",
     warrantyType: "1 Year",
     invoiceFile: null as File | null,
+    termsAccepted: false,
   });
 
   // Auto-fill customer details for logged-in customers
@@ -182,6 +184,16 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing }: SeatCo
     setLoading(true);
 
     try {
+      if (!formData.termsAccepted) {
+        toast({
+          title: "Terms Required",
+          description: "Please accept the terms and conditions to proceed.",
+          variant: "destructive",
+        });
+        setLoading(false);
+        return;
+      }
+
       if (formData.uid.length < 13 || formData.uid.length > 16) {
         toast({
           title: "Invalid UID",
@@ -609,6 +621,25 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing }: SeatCo
                 Max. file size: 20 MB. {formData.invoiceFile && `Selected: ${formData.invoiceFile.name}`}
               </p>
             </div>
+            <div className="flex items-start space-x-2 pt-4">
+              <Checkbox
+                id="terms"
+                checked={formData.termsAccepted}
+                onCheckedChange={(checked) => handleChange("termsAccepted", checked as any)}
+              />
+              <div className="grid gap-1.5 leading-none">
+                <label
+                  htmlFor="terms"
+                  className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                >
+                  I accept the terms and conditions
+                </label>
+                <p className="text-sm text-muted-foreground">
+                  By checking this box, I confirm that the information provided is accurate and I agree to the <a href="/terms" className="text-primary hover:underline" target="_blank">Terms of Service</a> and Warranty Policy.
+                </p>
+              </div>
+            </div>
+
           </div>
 
           <Button type="submit" size="lg" className="w-full" disabled={loading}>
