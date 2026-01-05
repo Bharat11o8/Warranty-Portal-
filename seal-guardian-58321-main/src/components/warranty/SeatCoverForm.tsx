@@ -445,6 +445,9 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing }: SeatCo
               <p className="text-xs text-muted-foreground">
                 {formData.uid.length} of 16 max characters
               </p>
+              <p className="text-xs text-muted-foreground mt-1">
+                💡 Find the UID on the seat cover bag's MRP sticker. If not found, contact the store.
+              </p>
             </div>
 
             <div className="space-y-2">
