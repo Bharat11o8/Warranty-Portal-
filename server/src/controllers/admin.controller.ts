@@ -123,10 +123,10 @@ export class AdminController {
                      WHERE wr.manpower_id IN (SELECT id FROM manpower WHERE vendor_id = vd.id)
                      AND wr.status = 'validated'
                     ) as validated_warranties,
-                    (SELECT COUNT(*) FROM warranty_registrations wr 
-                     WHERE wr.manpower_id IN (SELECT id FROM manpower WHERE vendor_id = vd.id)
-                     AND wr.status = 'pending'
-                    ) as pending_warranties,
+                     (SELECT COUNT(*) FROM warranty_registrations wr 
+                      WHERE wr.manpower_id IN (SELECT id FROM manpower WHERE vendor_id = vd.id)
+                      AND wr.status IN ('pending', 'pending_vendor')
+                     ) as pending_warranties,
                     (SELECT COUNT(*) FROM warranty_registrations wr 
                      WHERE wr.manpower_id IN (SELECT id FROM manpower WHERE vendor_id = vd.id)
                      AND wr.status = 'rejected'
@@ -199,7 +199,7 @@ export class AdminController {
                         (SELECT COUNT(*) FROM warranty_registrations w 
                          WHERE w.manpower_id = m.id AND w.status = 'validated') as points,
                         (SELECT COUNT(*) FROM warranty_registrations w 
-                         WHERE w.manpower_id = m.id AND w.status = 'pending') as pending_points,
+                         WHERE w.manpower_id = m.id AND w.status IN ('pending', 'pending_vendor')) as pending_points,
                         (SELECT COUNT(*) FROM warranty_registrations w 
                          WHERE w.manpower_id = m.id AND w.status = 'rejected') as rejected_points
                     FROM manpower m 
@@ -622,7 +622,7 @@ export class AdminController {
                     MAX(COALESCE(customer_address, JSON_UNQUOTE(JSON_EXTRACT(product_details, '$.customerAddress')))) as customer_address,
                     COUNT(*) as total_warranties,
                     SUM(CASE WHEN status = 'validated' THEN 1 ELSE 0 END) as validated_warranties,
-                    SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pending_warranties,
+                    SUM(CASE WHEN status IN ('pending', 'pending_vendor') THEN 1 ELSE 0 END) as pending_warranties,
                     SUM(CASE WHEN status = 'rejected' THEN 1 ELSE 0 END) as rejected_warranties,
                     MIN(created_at) as first_warranty_date,
                     MAX(created_at) as last_warranty_date
