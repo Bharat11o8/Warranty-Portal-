@@ -97,3 +97,51 @@ export const getPincodeError = (pincode: string): string => {
     if (!PINCODE_REGEX.test(pincode.trim())) return 'Pincode must be 6 digits';
     return '';
 };
+
+// Indian Vehicle Registration Number
+// Format: XX-00-XX-0000 (with or without hyphens/spaces)
+// Examples: DL-01-AB-1234, MH12CD5678, KA 05 MQ 9999
+// State Code (2 letters) + RTO Code (2 digits) + Series (1-2 letters) + Number (exactly 4 digits)
+export const INDIAN_VEHICLE_REG_REGEX = /^[A-Z]{2}[\s\-]?\d{2}[\s\-]?[A-Z]{1,2}[\s\-]?\d{4}$/i;
+
+/**
+ * Validate Indian vehicle registration number
+ * @param regNumber - Registration number string
+ * @returns true if valid, false otherwise
+ */
+export const validateVehicleReg = (regNumber: string): boolean => {
+    if (!regNumber) return false;
+    const cleaned = regNumber.trim().toUpperCase();
+    return INDIAN_VEHICLE_REG_REGEX.test(cleaned);
+};
+
+/**
+ * Format vehicle registration for display (add hyphens)
+ * @param regNumber - Raw registration number
+ * @returns Formatted registration number
+ */
+export const formatVehicleReg = (regNumber: string): string => {
+    // Remove all spaces and hyphens, uppercase
+    const cleaned = regNumber.replace(/[\s\-]/g, '').toUpperCase();
+    if (cleaned.length < 4) return cleaned;
+
+    // Format: XX-00-XX-0000
+    const match = cleaned.match(/^([A-Z]{2})(\d{2})([A-Z]{1,3})(\d{1,4})$/);
+    if (match) {
+        return `${match[1]}-${match[2]}-${match[3]}-${match[4]}`;
+    }
+    return cleaned;
+};
+
+/**
+ * Get validation error message for vehicle registration
+ * @param regNumber - Registration number to validate
+ * @returns Error message or empty string if valid
+ */
+export const getVehicleRegError = (regNumber: string): string => {
+    if (!regNumber) return '';
+    if (!validateVehicleReg(regNumber)) {
+        return 'Invalid format. Use: XX-00-XX-0000 (e.g., DL-01-AB-1234)';
+    }
+    return '';
+};

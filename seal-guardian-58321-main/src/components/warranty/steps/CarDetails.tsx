@@ -1,7 +1,12 @@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Combobox } from "@/components/ui/combobox";
+import { CAR_MAKES } from "@/lib/carMakes";
+import { validateVehicleReg } from "@/lib/validation";
 import { EVFormData } from "../EVProductsForm";
+import { useToast } from "@/hooks/use-toast";
 
 interface CarDetailsProps {
   formData: EVFormData;
@@ -11,8 +16,37 @@ interface CarDetailsProps {
 }
 
 const CarDetails = ({ formData, updateFormData, onNext, onPrev }: CarDetailsProps) => {
+  const { toast } = useToast();
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+
+    // Custom validation for required fields
+    if (!formData.installationDate) {
+      toast({ title: "Installation Date Required", description: "Please select installation date", variant: "destructive" });
+      return;
+    }
+    if (!formData.carMake) {
+      toast({ title: "Car Make Required", description: "Please select a car make", variant: "destructive" });
+      return;
+    }
+    if (!formData.carModel) {
+      toast({ title: "Car Model Required", description: "Please enter the car model", variant: "destructive" });
+      return;
+    }
+    if (!formData.carYear) {
+      toast({ title: "Car Year Required", description: "Please select a car year", variant: "destructive" });
+      return;
+    }
+    if (!formData.carReg) {
+      toast({ title: "Registration Number Required", description: "Please enter car registration number", variant: "destructive" });
+      return;
+    }
+    if (!validateVehicleReg(formData.carReg)) {
+      toast({ title: "Invalid Registration Format", description: "Use format: XX-00-XX-0000 (e.g., DL-01-AB-1234)", variant: "destructive" });
+      return;
+    }
+
     onNext();
   };
 
@@ -42,13 +76,13 @@ const CarDetails = ({ formData, updateFormData, onNext, onPrev }: CarDetailsProp
           <Label htmlFor="carMake">
             Car Make <span className="text-destructive">*</span>
           </Label>
-          <Input
-            id="carMake"
-            type="text"
-            placeholder="e.g., Honda"
+          <Combobox
+            options={[...CAR_MAKES]}
             value={formData.carMake}
-            onChange={(e) => updateFormData({ carMake: e.target.value })}
-            required
+            onChange={(value) => updateFormData({ carMake: value })}
+            placeholder="Select car make..."
+            searchPlaceholder="Search car brands..."
+            emptyMessage="No car brand found."
           />
         </div>
 
@@ -70,16 +104,21 @@ const CarDetails = ({ formData, updateFormData, onNext, onPrev }: CarDetailsProp
           <Label htmlFor="carYear">
             Year <span className="text-destructive">*</span>
           </Label>
-          <Input
-            id="carYear"
-            type="number"
-            placeholder="e.g., 2024"
-            min="1900"
-            max={new Date().getFullYear() + 1}
+          <Select
             value={formData.carYear}
-            onChange={(e) => updateFormData({ carYear: e.target.value })}
-            required
-          />
+            onValueChange={(value) => updateFormData({ carYear: value })}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Select year..." />
+            </SelectTrigger>
+            <SelectContent>
+              {Array.from({ length: new Date().getFullYear() - 1979 }, (_, i) => new Date().getFullYear() - i).map(year => (
+                <SelectItem key={year} value={year.toString()}>
+                  {year}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
 
         <div className="space-y-2 md:col-span-2">

@@ -220,12 +220,91 @@ const EVProductsForm = ({ initialData, warrantyId, onSuccess, isUniversal, isEdi
   };
 
   const handleSubmit = async () => {
+    // === Step 1: Installer Details Validation ===
+    if (!formData.storeName) {
+      toast({ title: "Store Name Required", description: "Please select a store", variant: "destructive" });
+      return;
+    }
+    if (!formData.installerName) {
+      toast({ title: "Installer Name Required", description: "Please select an installer", variant: "destructive" });
+      return;
+    }
+
+    // === Step 2: Customer Details Validation ===
+    if (!formData.customerFname) {
+      toast({ title: "Customer Name Required", description: "Please enter customer's first name", variant: "destructive" });
+      return;
+    }
+    if (!formData.customerMobile) {
+      toast({ title: "Customer Mobile Required", description: "Please enter customer's mobile number", variant: "destructive" });
+      return;
+    }
+
+    // === Step 3: Car Details Validation ===
+    if (!formData.installationDate) {
+      toast({ title: "Installation Date Required", description: "Please select installation date", variant: "destructive" });
+      return;
+    }
+    if (!formData.carMake) {
+      toast({ title: "Car Make Required", description: "Please select a car make", variant: "destructive" });
+      return;
+    }
+    if (!formData.carModel) {
+      toast({ title: "Car Model Required", description: "Please enter the car model", variant: "destructive" });
+      return;
+    }
+    if (!formData.carYear) {
+      toast({ title: "Car Year Required", description: "Please select a car year", variant: "destructive" });
+      return;
+    }
+    if (!formData.carReg) {
+      toast({ title: "Registration Number Required", description: "Please enter car registration number", variant: "destructive" });
+      return;
+    }
+
+    // === Step 4: Product Info Validation ===
+    if (!formData.product) {
+      toast({ title: "Product Required", description: "Please select a product", variant: "destructive" });
+      return;
+    }
+    if (!formData.lotNumber) {
+      toast({ title: "Lot Number Required", description: "Please enter the lot number", variant: "destructive" });
+      return;
+    }
+    if (!formData.rollNumber) {
+      toast({ title: "Roll Number Required", description: "Please enter the roll number", variant: "destructive" });
+      return;
+    }
+    if (!formData.installArea) {
+      toast({ title: "Installation Area Required", description: "Please enter the area of installation", variant: "destructive" });
+      return;
+    }
+
+    // === Photo Validation ===
+    if (!formData.lhsPhoto) {
+      toast({ title: "LHS Photo Required", description: "Please upload left hand side photo", variant: "destructive" });
+      return;
+    }
+    if (!formData.rhsPhoto) {
+      toast({ title: "RHS Photo Required", description: "Please upload right hand side photo", variant: "destructive" });
+      return;
+    }
+    if (!formData.frontRegPhoto) {
+      toast({ title: "Front Photo Required", description: "Please upload front photo with registration number", variant: "destructive" });
+      return;
+    }
+    if (!formData.backRegPhoto) {
+      toast({ title: "Back Photo Required", description: "Please upload back photo with registration number", variant: "destructive" });
+      return;
+    }
+    if (!formData.warrantyPhoto) {
+      toast({ title: "Warranty Card Required", description: "Please upload warranty card photo with dealer stamp", variant: "destructive" });
+      return;
+    }
+
+    // === Terms Validation ===
     if (!formData.termsAccepted) {
-      toast({
-        title: "Terms Required",
-        description: "Please accept the terms and conditions",
-        variant: "destructive",
-      });
+      toast({ title: "Terms Required", description: "Please accept the terms and conditions", variant: "destructive" });
       return;
     }
 

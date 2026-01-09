@@ -6,6 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Combobox } from "@/components/ui/combobox";
 import { EVFormData } from "../EVProductsForm";
 import { useAuth } from "@/contexts/AuthContext";
+import { useToast } from "@/hooks/use-toast";
 import api from "@/lib/api";
 
 interface InstallerDetailsProps {
@@ -16,6 +17,7 @@ interface InstallerDetailsProps {
 
 const InstallerDetails = ({ formData, updateFormData, onNext }: InstallerDetailsProps) => {
   const { user } = useAuth();
+  const { toast } = useToast();
   const [stores, setStores] = useState<any[]>([]);
   const [manpowerList, setManpowerList] = useState<any[]>([]);
 
@@ -71,6 +73,17 @@ const InstallerDetails = ({ formData, updateFormData, onNext }: InstallerDetails
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+
+    // Custom validation for required fields
+    if (!formData.storeName) {
+      toast({ title: "Store Name Required", description: "Please select a store", variant: "destructive" });
+      return;
+    }
+    if (!formData.installerName) {
+      toast({ title: "Installer Name Required", description: "Please select an installer", variant: "destructive" });
+      return;
+    }
+
     onNext();
   };
 

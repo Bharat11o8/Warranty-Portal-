@@ -20,6 +20,7 @@ import { Upload, Loader2, HelpCircle, CheckCircle2, FileText } from "lucide-reac
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { submitWarranty, updateWarranty } from "@/lib/warrantyApi";
 import { TermsModal } from "./TermsModal";
+import { CAR_MAKES } from "@/lib/carMakes";
 
 interface SeatCoverFormProps {
   initialData?: any;
@@ -225,6 +226,28 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing }: SeatCo
         toast({
           title: "Invalid Email",
           description: "Please enter a valid email address",
+          variant: "destructive",
+        });
+        setLoading(false);
+        return;
+      }
+
+      // Validate Car Make
+      if (!formData.carMake) {
+        toast({
+          title: "Car Make Required",
+          description: "Please select a car make",
+          variant: "destructive",
+        });
+        setLoading(false);
+        return;
+      }
+
+      // Validate Car Year
+      if (!formData.carYear) {
+        toast({
+          title: "Car Year Required",
+          description: "Please select a car year",
           variant: "destructive",
         });
         setLoading(false);
@@ -533,14 +556,15 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing }: SeatCo
 
             <div className="space-y-2">
               <Label htmlFor="carMake">
-                Car Make
+                Car Make <span className="text-destructive">*</span>
               </Label>
-              <Input
-                id="carMake"
-                type="text"
-                placeholder="e.g., Toyota, Honda"
+              <Combobox
+                options={[...CAR_MAKES]}
                 value={formData.carMake}
-                onChange={(e) => handleChange("carMake", e.target.value)}
+                onChange={(value) => handleChange("carMake", value)}
+                placeholder="Select car make..."
+                searchPlaceholder="Search car brands..."
+                emptyMessage="No car brand found."
                 disabled={loading}
               />
             </div>
@@ -561,17 +585,24 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing }: SeatCo
 
             <div className="space-y-2">
               <Label htmlFor="carYear">
-                Car Year
+                Car Year <span className="text-destructive">*</span>
               </Label>
-              <Input
-                id="carYear"
-                type="text"
-                placeholder="e.g., 2024"
+              <Select
                 value={formData.carYear}
-                onChange={(e) => handleChange("carYear", e.target.value)}
-                maxLength={4}
+                onValueChange={(value) => handleChange("carYear", value)}
                 disabled={loading}
-              />
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select year..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {Array.from({ length: new Date().getFullYear() - 1979 }, (_, i) => new Date().getFullYear() - i).map(year => (
+                    <SelectItem key={year} value={year.toString()}>
+                      {year}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="space-y-2">

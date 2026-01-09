@@ -60,6 +60,49 @@ const ProductInfo = ({ formData, updateFormData, onPrev, onSubmit, loading }: Pr
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+
+    // Custom validation for required fields
+    if (!formData.product) {
+      toast({ title: "Product Required", description: "Please select a product", variant: "destructive" });
+      return;
+    }
+    if (!formData.lotNumber) {
+      toast({ title: "Lot Number Required", description: "Please enter the lot number", variant: "destructive" });
+      return;
+    }
+    if (!formData.rollNumber) {
+      toast({ title: "Roll Number Required", description: "Please enter the roll number", variant: "destructive" });
+      return;
+    }
+    if (!formData.installArea) {
+      toast({ title: "Installation Area Required", description: "Please enter the area of installation", variant: "destructive" });
+      return;
+    }
+    if (!formData.lhsPhoto) {
+      toast({ title: "LHS Photo Required", description: "Please upload left hand side photo", variant: "destructive" });
+      return;
+    }
+    if (!formData.rhsPhoto) {
+      toast({ title: "RHS Photo Required", description: "Please upload right hand side photo", variant: "destructive" });
+      return;
+    }
+    if (!formData.frontRegPhoto) {
+      toast({ title: "Front Photo Required", description: "Please upload front photo with registration number", variant: "destructive" });
+      return;
+    }
+    if (!formData.backRegPhoto) {
+      toast({ title: "Back Photo Required", description: "Please upload back photo with registration number", variant: "destructive" });
+      return;
+    }
+    if (!formData.warrantyPhoto) {
+      toast({ title: "Warranty Card Required", description: "Please upload warranty card photo with dealer stamp", variant: "destructive" });
+      return;
+    }
+    if (!formData.termsAccepted) {
+      toast({ title: "Terms Required", description: "Please accept the terms and conditions", variant: "destructive" });
+      return;
+    }
+
     onSubmit();
   };
 
