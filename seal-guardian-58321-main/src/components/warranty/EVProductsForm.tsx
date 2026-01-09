@@ -259,6 +259,9 @@ const EVProductsForm = ({ initialData, warrantyId, onSuccess, isUniversal, isEdi
           installArea: formData.installArea,
           manpowerId: formData.manpowerId,
           manpowerName: formData.installerName,
+          storeName: formData.storeName,
+          storeEmail: formData.storeEmail,
+          dealerMobile: formData.dealerMobile,
           customerAddress: "N/A", // Added to ensure it's saved in JSON
           carRegistration: formData.carReg,
           dealerAddress: `${formData.dealerAddr1}, ${formData.dealerAddr2 ? formData.dealerAddr2 + ', ' : ''}${formData.dealerCity}, ${formData.dealerState} - ${formData.dealerPostalCode}`,

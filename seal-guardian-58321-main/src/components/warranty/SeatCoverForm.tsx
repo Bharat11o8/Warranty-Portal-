@@ -16,9 +16,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Combobox } from "@/components/ui/combobox";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
-import { Upload, Loader2, HelpCircle } from "lucide-react";
+import { Upload, Loader2, HelpCircle, CheckCircle2, FileText } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { submitWarranty, updateWarranty } from "@/lib/warrantyApi";
+import { TermsModal } from "./TermsModal";
 
 interface SeatCoverFormProps {
   initialData?: any;
@@ -35,6 +36,7 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing }: SeatCo
   const [stores, setStores] = useState<any[]>([]);
   const [products, setProducts] = useState<any[]>([]);
   const [manpowerList, setManpowerList] = useState<any[]>([]);
+  const [termsModalOpen, setTermsModalOpen] = useState(false);
   const [formData, setFormData] = useState(initialData ? {
     uid: initialData.product_details?.uid || "",
     customerName: initialData.customer_name || "",
@@ -51,6 +53,7 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing }: SeatCo
     carYear: initialData.car_year || "",
     warrantyType: initialData.warranty_type || "1 Year",
     invoiceFile: null as File | null,
+    termsAccepted: true, // Already accepted if editing
   } : {
     uid: "",
     customerName: "",
@@ -295,6 +298,7 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing }: SeatCo
         carYear: "",
         warrantyType: "1 Year",
         invoiceFile: null,
+        termsAccepted: false,
       });
 
       // Redirect to appropriate dashboard based on role
@@ -621,28 +625,44 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing }: SeatCo
                 Max. file size: 20 MB. {formData.invoiceFile && `Selected: ${formData.invoiceFile.name}`}
               </p>
             </div>
-            <div className="flex items-start space-x-2 pt-4">
-              <Checkbox
-                id="terms"
-                checked={formData.termsAccepted}
-                onCheckedChange={(checked) => handleChange("termsAccepted", checked as any)}
-              />
-              <div className="grid gap-1.5 leading-none">
-                <label
-                  htmlFor="terms"
-                  className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                >
-                  I accept the terms and conditions
-                </label>
-                <p className="text-sm text-muted-foreground">
-                  By checking this box, I confirm that the information provided is accurate and I agree to the <a href="/terms" className="text-primary hover:underline" target="_blank">Terms of Service</a> and Warranty Policy.
-                </p>
+            {/* Terms & Conditions - Professional Modal Flow */}
+            <div className="md:col-span-2 pt-4 border-t">
+              <div className={`p-4 rounded-lg border ${formData.termsAccepted ? 'bg-green-50 border-green-200' : 'bg-muted/30 border-border'}`}>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    {formData.termsAccepted ? (
+                      <CheckCircle2 className="h-6 w-6 text-green-600" />
+                    ) : (
+                      <FileText className="h-6 w-6 text-muted-foreground" />
+                    )}
+                    <div>
+                      <p className={`font-medium ${formData.termsAccepted ? 'text-green-700' : 'text-foreground'}`}>
+                        {formData.termsAccepted ? 'Terms & Conditions Accepted' : 'Terms & Conditions'}
+                        <span className="text-destructive ml-1">*</span>
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {formData.termsAccepted
+                          ? 'You have read and accepted the warranty terms'
+                          : 'You must read and accept the terms to continue'}
+                      </p>
+                    </div>
+                  </div>
+                  <Button
+                    type="button"
+                    variant={formData.termsAccepted ? "outline" : "default"}
+                    size="sm"
+                    onClick={() => setTermsModalOpen(true)}
+                    disabled={loading}
+                  >
+                    {formData.termsAccepted ? 'View Terms' : 'View & Accept Terms'}
+                  </Button>
+                </div>
               </div>
             </div>
 
           </div>
 
-          <Button type="submit" size="lg" className="w-full" disabled={loading}>
+          <Button type="submit" size="lg" className="w-full" disabled={loading || !formData.termsAccepted}>
             {loading ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -650,6 +670,13 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing }: SeatCo
               </>
             ) : "SUBMIT"}
           </Button>
+
+          {/* Terms Modal */}
+          <TermsModal
+            isOpen={termsModalOpen}
+            onClose={() => setTermsModalOpen(false)}
+            onAccept={() => setFormData(prev => ({ ...prev, termsAccepted: true }))}
+          />
         </form>
       </CardContent>
     </Card>

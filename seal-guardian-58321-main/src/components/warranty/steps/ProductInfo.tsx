@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import api from "@/lib/api";
 import { Button } from "@/components/ui/button";
-import { Loader2 } from "lucide-react";
+import { Loader2, CheckCircle2, FileText } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -9,6 +9,7 @@ import { Combobox } from "@/components/ui/combobox";
 import { Checkbox } from "@/components/ui/checkbox";
 import { EVFormData } from "../EVProductsForm";
 import { useToast } from "@/hooks/use-toast";
+import { TermsModal } from "../TermsModal";
 
 interface ProductInfoProps {
   formData: EVFormData;
@@ -21,6 +22,7 @@ interface ProductInfoProps {
 const ProductInfo = ({ formData, updateFormData, onPrev, onSubmit, loading }: ProductInfoProps) => {
   const { toast } = useToast();
   const [products, setProducts] = useState<any[]>([]);
+  const [termsModalOpen, setTermsModalOpen] = useState(false);
 
   useEffect(() => {
     const fetchProducts = async () => {
@@ -226,25 +228,46 @@ const ProductInfo = ({ formData, updateFormData, onPrev, onSubmit, loading }: Pr
         </p>
       </div>
 
-      <div className="flex items-start space-x-2 pt-4">
-        <Checkbox
-          id="terms"
-          checked={formData.termsAccepted}
-          onCheckedChange={(checked) => updateFormData({ termsAccepted: checked as boolean })}
-          required
-          disabled={loading}
-        />
-        <Label htmlFor="terms" className="text-sm leading-relaxed cursor-pointer">
-          I agree to the <a href="/terms" className="text-primary hover:underline" target="_blank">Terms of Service</a> and confirm that all information provided is accurate{" "}
-          <span className="text-destructive">*</span>
-        </Label>
+      {/* Terms & Conditions - Professional Modal Flow */}
+      <div className="pt-4 border-t">
+        <div className={`p-4 rounded-lg border ${formData.termsAccepted ? 'bg-green-50 border-green-200' : 'bg-muted/30 border-border'}`}>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              {formData.termsAccepted ? (
+                <CheckCircle2 className="h-6 w-6 text-green-600" />
+              ) : (
+                <FileText className="h-6 w-6 text-muted-foreground" />
+              )}
+              <div>
+                <p className={`font-medium ${formData.termsAccepted ? 'text-green-700' : 'text-foreground'}`}>
+                  {formData.termsAccepted ? 'Terms & Conditions Accepted' : 'Terms & Conditions'}
+                  <span className="text-destructive ml-1">*</span>
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {formData.termsAccepted
+                    ? 'You have read and accepted the warranty terms'
+                    : 'You must read and accept the terms to continue'}
+                </p>
+              </div>
+            </div>
+            <Button
+              type="button"
+              variant={formData.termsAccepted ? "outline" : "default"}
+              size="sm"
+              onClick={() => setTermsModalOpen(true)}
+              disabled={loading}
+            >
+              {formData.termsAccepted ? 'View Terms' : 'View & Accept Terms'}
+            </Button>
+          </div>
+        </div>
       </div>
 
       <div className="flex justify-between">
         <Button type="button" variant="outline" size="lg" onClick={onPrev}>
           ← Previous
         </Button>
-        <Button type="submit" size="lg" disabled={loading}>
+        <Button type="submit" size="lg" disabled={loading || !formData.termsAccepted}>
           {loading ? (
             <>
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -253,6 +276,13 @@ const ProductInfo = ({ formData, updateFormData, onPrev, onSubmit, loading }: Pr
           ) : "Submit Registration ✓"}
         </Button>
       </div>
+
+      {/* Terms Modal */}
+      <TermsModal
+        isOpen={termsModalOpen}
+        onClose={() => setTermsModalOpen(false)}
+        onAccept={() => updateFormData({ termsAccepted: true })}
+      />
     </form>
   );
 };

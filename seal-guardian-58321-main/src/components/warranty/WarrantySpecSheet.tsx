@@ -83,7 +83,23 @@ export const WarrantySpecSheet = ({ isOpen, onClose, warranty }: WarrantySpecShe
                             <SpecRow label="Make & Model" value={`${warranty.car_make} ${warranty.car_model}`} />
                             <SpecRow label="Product Name" value={productName} />
                             <SpecRow label="Warranty Type" value={warranty.warranty_type} />
-                            <SpecRow label="UID" value={warranty.uid || productDetails.uid || "N/A"} mono />
+
+                            {/* Seat Cover Specific Fields */}
+                            {warranty.product_type === 'seat-cover' && (
+                                <>
+                                    <SpecRow label="UID" value={warranty.uid || productDetails.uid || "N/A"} mono />
+                                </>
+                            )}
+
+                            {/* EV/PPF Specific Fields */}
+                            {warranty.product_type === 'ev-products' && (
+                                <>
+                                    <SpecRow label="Lot Number" value={productDetails.lotNumber || "N/A"} mono />
+                                    <SpecRow label="Roll Number" value={productDetails.rollNumber || "N/A"} mono />
+                                    <SpecRow label="Installation Area" value={productDetails.installArea || "N/A"} />
+                                    <SpecRow label="Vehicle Registration" value={productDetails.carRegistration || warranty.registration_number || "N/A"} mono />
+                                </>
+                            )}
                         </div>
                     </div>
 
@@ -104,12 +120,21 @@ export const WarrantySpecSheet = ({ isOpen, onClose, warranty }: WarrantySpecShe
                             <SpecRow label="Purchase Date" value={new Date(warranty.purchase_date).toLocaleDateString()} />
                             <SpecRow label="Registered Date" value={new Date(warranty.created_at).toLocaleDateString()} />
                             {warranty.status === 'validated' && (
-                                <div className="flex justify-between items-center py-3 px-2 rounded-sm bg-green-500/5 mt-1 border border-green-500/10">
-                                    <span className="text-sm text-green-700 font-medium">Days Remaining</span>
-                                    <span className="text-sm text-green-700 font-bold">
-                                        {getWarrantyExpiration(warranty.created_at, warranty.warranty_type).daysLeft} Days
-                                    </span>
-                                </div>
+                                <>
+                                    {warranty.validated_at && (
+                                        <SpecRow label="Approved Date" value={new Date(warranty.validated_at).toLocaleDateString()} />
+                                    )}
+                                    <SpecRow
+                                        label="Expiration Date"
+                                        value={getWarrantyExpiration(warranty.validated_at || warranty.created_at, warranty.warranty_type).expirationDate?.toLocaleDateString() || "N/A"}
+                                    />
+                                    <div className="flex justify-between items-center py-3 px-2 rounded-sm bg-green-500/5 mt-1 border border-green-500/10">
+                                        <span className="text-sm text-green-700 font-medium">Days Remaining</span>
+                                        <span className="text-sm text-green-700 font-bold">
+                                            {getWarrantyExpiration(warranty.validated_at || warranty.created_at, warranty.warranty_type).daysLeft} Days
+                                        </span>
+                                    </div>
+                                </>
                             )}
                         </div>
                     </div>
@@ -119,13 +144,30 @@ export const WarrantySpecSheet = ({ isOpen, onClose, warranty }: WarrantySpecShe
                         <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-3 pl-1">Installer Details</h4>
                         <div className="bg-muted/20 rounded-lg p-2 border border-border/40">
                             <SpecRow label="Store Name" value={productDetails.storeName || warranty.installer_name} />
-                            <SpecRow label="Store Email" value={productDetails.storeEmail || warranty.installer_contact} />
+                            <SpecRow
+                                label="Store Email"
+                                value={productDetails.storeEmail || (warranty.installer_contact?.includes('|') ? warranty.installer_contact.split('|')[0].trim() : warranty.installer_contact) || "N/A"}
+                            />
+                            <SpecRow
+                                label="Store Phone"
+                                value={productDetails.dealerMobile || (warranty.installer_contact?.includes('|') ? warranty.installer_contact.split('|')[1].trim() : "") || "N/A"}
+                            />
                             <SpecRow label="Applicator" value={productDetails.manpowerName || warranty.manpower_name_from_db || "Standard"} />
                         </div>
                     </div>
 
-                    {/* Documents Section */}
-                    {(productDetails.invoiceFileName || productDetails.photos?.warranty) && (
+                    {/* EV/PPF: Dealer Address */}
+                    {warranty.product_type === 'ev-products' && productDetails.dealerAddress && (
+                        <div className="space-y-1">
+                            <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-3 pl-1">Dealer Information</h4>
+                            <div className="bg-muted/20 rounded-lg p-3 border border-border/40">
+                                <p className="text-sm text-foreground">{productDetails.dealerAddress}</p>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Documents Section - Seat Cover: Invoice */}
+                    {warranty.product_type === 'seat-cover' && productDetails.invoiceFileName && (
                         <div className="space-y-1">
                             <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-3 pl-1">Documentation</h4>
                             <Button variant="outline" className="w-full justify-between h-12 bg-background/50 hover:bg-blue-50 hover:border-blue-200 border-input/50 transition-colors" onClick={() => {
@@ -134,6 +176,65 @@ export const WarrantySpecSheet = ({ isOpen, onClose, warranty }: WarrantySpecShe
                                     : `http://localhost:3000/uploads/${productDetails.invoiceFileName}`;
                                 window.open(url, '_blank');
                             }}>
+                                <span className="flex items-center gap-2">
+                                    <FileText className="h-4 w-4 text-blue-600" />
+                                    <span className="text-blue-700">View Invoice / MRP Sticker</span>
+                                </span>
+                                <ExternalLink className="h-4 w-4 text-blue-500" />
+                            </Button>
+                        </div>
+                    )}
+
+                    {/* Documents Section - EV/PPF: Photo Links */}
+                    {warranty.product_type === 'ev-products' && productDetails.photos && (
+                        <div className="space-y-1">
+                            <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-3 pl-1">Installation Photos</h4>
+                            <div className="grid grid-cols-2 gap-2">
+                                {productDetails.photos.lhs && (
+                                    <Button variant="outline" size="sm" className="justify-between h-10 bg-background/50 hover:bg-blue-50 hover:border-blue-200 border-input/50 transition-colors" onClick={() => window.open(productDetails.photos.lhs, '_blank')}>
+                                        <span className="flex items-center gap-2">
+                                            <FileText className="h-3 w-3 text-blue-600" />
+                                            <span className="text-blue-700 text-xs">LHS View</span>
+                                        </span>
+                                        <ExternalLink className="h-3 w-3 text-blue-500" />
+                                    </Button>
+                                )}
+                                {productDetails.photos.rhs && (
+                                    <Button variant="outline" size="sm" className="justify-between h-10 bg-background/50 hover:bg-blue-50 hover:border-blue-200 border-input/50 transition-colors" onClick={() => window.open(productDetails.photos.rhs, '_blank')}>
+                                        <span className="flex items-center gap-2">
+                                            <FileText className="h-3 w-3 text-blue-600" />
+                                            <span className="text-blue-700 text-xs">RHS View</span>
+                                        </span>
+                                        <ExternalLink className="h-3 w-3 text-blue-500" />
+                                    </Button>
+                                )}
+                                {productDetails.photos.frontReg && (
+                                    <Button variant="outline" size="sm" className="justify-between h-10 bg-background/50 hover:bg-blue-50 hover:border-blue-200 border-input/50 transition-colors" onClick={() => window.open(productDetails.photos.frontReg, '_blank')}>
+                                        <span className="flex items-center gap-2">
+                                            <FileText className="h-3 w-3 text-blue-600" />
+                                            <span className="text-blue-700 text-xs">Front Reg</span>
+                                        </span>
+                                        <ExternalLink className="h-3 w-3 text-blue-500" />
+                                    </Button>
+                                )}
+                                {productDetails.photos.backReg && (
+                                    <Button variant="outline" size="sm" className="justify-between h-10 bg-background/50 hover:bg-blue-50 hover:border-blue-200 border-input/50 transition-colors" onClick={() => window.open(productDetails.photos.backReg, '_blank')}>
+                                        <span className="flex items-center gap-2">
+                                            <FileText className="h-3 w-3 text-blue-600" />
+                                            <span className="text-blue-700 text-xs">Back Reg</span>
+                                        </span>
+                                        <ExternalLink className="h-3 w-3 text-blue-500" />
+                                    </Button>
+                                )}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Documentation Section - EV/PPF: Invoice */}
+                    {warranty.product_type === 'ev-products' && productDetails.photos?.warranty && (
+                        <div className="space-y-1">
+                            <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-3 pl-1">Documentation</h4>
+                            <Button variant="outline" className="w-full justify-between h-12 bg-background/50 hover:bg-blue-50 hover:border-blue-200 border-input/50 transition-colors" onClick={() => window.open(productDetails.photos.warranty, '_blank')}>
                                 <span className="flex items-center gap-2">
                                     <FileText className="h-4 w-4 text-blue-600" />
                                     <span className="text-blue-700">View Invoice</span>
