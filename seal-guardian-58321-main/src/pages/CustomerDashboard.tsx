@@ -151,6 +151,18 @@ const CustomerDashboard = () => {
                 };
                 const rawProductName = productDetails.product || productDetails.productName || '';
                 const displayProductName = productNameMapping[rawProductName] || rawProductName;
+                // Handle specific search term mappings
+                if (search === 'ppf') {
+                    if (
+                        warranty.product_type?.toLowerCase().includes('paint-protection') ||
+                        rawProductName.toLowerCase().includes('paint-protection') ||
+                        displayProductName.toLowerCase().includes('paint protection films') ||
+                        rawProductName.toLowerCase().includes('ppf')
+                    ) {
+                        return true;
+                    }
+                }
+
                 return (
                     warranty.uid?.toLowerCase().includes(search) ||
                     warranty.product_type?.toLowerCase().includes(search) ||

@@ -152,7 +152,7 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing }: SeatCo
         setFormData(prev => ({ ...prev, storeEmail: selectedStore.store_email, manpowerId: "" }));
 
         try {
-          const response = await api.get(`/public/stores/${selectedStore.vendor_details_id}/manpower`);
+          const response = await api.get(`/public/stores/${selectedStore.vendor_details_id}/manpower?active=true`);
           if (response.data.success) {
             setManpowerList(response.data.manpower);
           }

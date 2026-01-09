@@ -257,7 +257,11 @@ const VendorDashboard = () => {
     const showManpowerWarranties = (member: any, status: 'validated' | 'pending' | 'rejected') => {
         // Filter warranties for this manpower by status
         const manpowerWarranties = warranties.filter((w: any) =>
-            w.manpower_id === member.id && w.status === status
+            w.manpower_id === member.id && (
+                status === 'pending'
+                    ? (w.status === 'pending' || w.status === 'pending_vendor')
+                    : w.status === status
+            )
         );
         setManpowerWarrantyDialogData({ member, status, warranties: manpowerWarranties });
         setManpowerWarrantyDialogOpen(true);
@@ -302,6 +306,23 @@ const VendorDashboard = () => {
                 if (!warrantySearch) return true;
                 const search = warrantySearch.toLowerCase();
 
+                // Parse product details key info
+                const productDetails = typeof warranty.product_details === 'string'
+                    ? JSON.parse(warranty.product_details || '{}')
+                    : warranty.product_details || {};
+                const rawProductName = productDetails.product || productDetails.productName || warranty.product_type || '';
+
+                // Handle specific search term mappings
+                if (search === 'ppf') {
+                    if (
+                        rawProductName.toLowerCase().includes('paint-protection') ||
+                        rawProductName.toLowerCase().includes('paint protection film') ||
+                        rawProductName.toLowerCase().includes('ppf')
+                    ) {
+                        return true;
+                    }
+                }
+
                 return (
                     warranty.customer_name?.toLowerCase().includes(search) ||
                     warranty.customer_phone?.includes(search) ||
@@ -309,6 +330,7 @@ const VendorDashboard = () => {
                     warranty.car_make?.toLowerCase().includes(search) ||
                     warranty.car_model?.toLowerCase().includes(search) ||
                     warranty.product_type?.toLowerCase().includes(search) ||
+                    rawProductName.toLowerCase().includes(search) ||
                     warranty.manpower_name?.toLowerCase().includes(search)
                 );
             })
@@ -823,8 +845,7 @@ const VendorDashboard = () => {
                                                         onChange={(e) => setNewManpowerType(e.target.value)}
                                                     >
                                                         <option value="seat_cover">Seat Cover Applicator</option>
-                                                        <option value="ppf_spf">PPF/SPF Applicator</option>
-                                                        <option value="ev">EV Applicator</option>
+                                                        <option value="ppf_spf">PPF Applicator</option>
                                                     </select>
                                                     <Button type="submit" size="icon" disabled={addingManpower}>
                                                         {addingManpower ? (
@@ -868,8 +889,7 @@ const VendorDashboard = () => {
                                                                         onChange={(e) => setEditType(e.target.value)}
                                                                     >
                                                                         <option value="seat_cover">Seat Cover</option>
-                                                                        <option value="ppf_spf">PPF/SPF</option>
-                                                                        <option value="ev">EV</option>
+                                                                        <option value="ppf_spf">PPF</option>
                                                                     </select>
                                                                     <div className="flex gap-2">
                                                                         <Button
@@ -989,49 +1009,68 @@ const VendorDashboard = () => {
                                         ) : (
                                             <div className="grid gap-4">
                                                 {pastManpowerList.map((member) => (
-                                                    <div key={member.id} className="flex items-center justify-between p-4 border rounded-lg bg-muted/20">
-                                                        <div className="flex items-center gap-4">
-                                                            <div className="h-10 w-10 rounded-full bg-gray-100 flex items-center justify-center">
-                                                                <User className="h-5 w-5 text-gray-500" />
-                                                            </div>
-                                                            <div>
-                                                                <p className="font-medium text-muted-foreground">{member.name}</p>
-                                                                <div className="flex flex-col md:flex-row md:items-center gap-1 md:gap-2 text-sm text-muted-foreground">
-                                                                    <span>{member.phone_number}</span>
-                                                                    <span className="hidden md:inline">•</span>
-                                                                    <span className="font-mono text-xs bg-muted px-1 py-0.5 rounded">{member.manpower_id}</span>
-                                                                    <span className="hidden md:inline">•</span>
-                                                                    <Badge variant="outline" className="text-xs capitalize">
-                                                                        {member.applicator_type?.replace('_', ' ')}
-                                                                    </Badge>
-                                                                    <span className="hidden md:inline">•</span>
-                                                                    <span className="inline-flex items-center rounded-full bg-green-100 px-2 py-0.5 text-xs font-semibold text-green-800">
-                                                                        {member.validated_count || 0} Approved
-                                                                    </span>
-                                                                    <span className="inline-flex items-center rounded-full bg-yellow-100 px-2 py-0.5 text-xs font-semibold text-yellow-800">
-                                                                        {member.pending_count || 0} Pending
-                                                                    </span>
-                                                                    <span className="inline-flex items-center rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-800">
-                                                                        {member.rejected_count || 0} Disapproved
-                                                                    </span>
-                                                                    <span className="hidden md:inline">•</span>
-                                                                    {member.removed_at && (
-                                                                        <>
-                                                                            <span className="text-xs">
-                                                                                Removed: {new Date(member.removed_at).toLocaleDateString()}
-                                                                            </span>
-                                                                            <span className="hidden md:inline">•</span>
-                                                                        </>
-                                                                    )}
-                                                                    <span className="font-medium">
-                                                                        {member.total_count || 0} Total Points
-                                                                    </span>
+                                                    <div key={member.id} className="p-4 border rounded-xl bg-muted/40 transition-all opacity-90 hover:opacity-100">
+                                                        <div className="space-y-3">
+                                                            {/* Header: Name + Meta */}
+                                                            <div className="flex items-start justify-between">
+                                                                <div className="flex items-center gap-3">
+                                                                    <div className="h-10 w-10 rounded-full bg-gray-100 flex items-center justify-center shrink-0 border border-gray-200">
+                                                                        <User className="h-5 w-5 text-gray-500" />
+                                                                    </div>
+                                                                    <div>
+                                                                        <h4 className="font-semibold text-base text-muted-foreground">{member.name}</h4>
+                                                                        <p className="text-sm text-muted-foreground">{member.phone_number}</p>
+                                                                    </div>
                                                                 </div>
-                                                                {member.removed_reason && (
-                                                                    <p className="text-xs text-muted-foreground mt-1">
-                                                                        Reason: {member.removed_reason}
-                                                                    </p>
+                                                                {member.removed_at && (
+                                                                    <div className="text-right">
+                                                                        <Badge variant="outline" className="text-xs bg-background/50">
+                                                                            Removed: {new Date(member.removed_at).toLocaleDateString()}
+                                                                        </Badge>
+                                                                    </div>
                                                                 )}
+                                                            </div>
+
+                                                            {/* Meta Row: ID + Type */}
+                                                            <div className="flex items-center gap-2 flex-wrap">
+                                                                <span className="font-mono text-xs bg-background px-2 py-1 rounded border">{member.manpower_id}</span>
+                                                                <Badge variant="secondary" className="text-xs capitalize bg-background/50">
+                                                                    {member.applicator_type?.replace('_', ' ')}
+                                                                </Badge>
+                                                                {member.removed_reason && (
+                                                                    <span className="text-xs text-muted-foreground italic">
+                                                                        Reason: {member.removed_reason}
+                                                                    </span>
+                                                                )}
+                                                            </div>
+
+                                                            {/* Stats Grid */}
+                                                            <div className="grid grid-cols-4 gap-2 pt-2 border-t border-border/50">
+                                                                <button
+                                                                    onClick={() => showManpowerWarranties(member, 'validated')}
+                                                                    className="flex flex-col items-center p-2 rounded-lg bg-green-50/50 hover:bg-green-50 transition-colors cursor-pointer"
+                                                                >
+                                                                    <span className="text-lg font-bold text-green-700/80">{member.validated_count || 0}</span>
+                                                                    <span className="text-[10px] text-green-600/80 font-medium">Approved</span>
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => showManpowerWarranties(member, 'pending')}
+                                                                    className="flex flex-col items-center p-2 rounded-lg bg-amber-50/50 hover:bg-amber-50 transition-colors cursor-pointer"
+                                                                >
+                                                                    <span className="text-lg font-bold text-amber-700/80">{member.pending_count || 0}</span>
+                                                                    <span className="text-[10px] text-amber-600/80 font-medium">Pending</span>
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => showManpowerWarranties(member, 'rejected')}
+                                                                    className="flex flex-col items-center p-2 rounded-lg bg-red-50/50 hover:bg-red-50 transition-colors cursor-pointer"
+                                                                >
+                                                                    <span className="text-lg font-bold text-red-700/80">{member.rejected_count || 0}</span>
+                                                                    <span className="text-[10px] text-red-600/80 font-medium">Rejected</span>
+                                                                </button>
+                                                                <div className="flex flex-col items-center p-2 rounded-lg bg-muted/30">
+                                                                    <span className="text-lg font-bold text-muted-foreground">{member.total_count || 0}</span>
+                                                                    <span className="text-[10px] text-muted-foreground font-medium">Total</span>
+                                                                </div>
                                                             </div>
                                                         </div>
                                                     </div>
@@ -1092,8 +1131,12 @@ const VendorDashboard = () => {
                                                     <p>{pd.productName || pd.product || w.product_type}</p>
                                                 </div>
                                                 <div>
-                                                    <p className="text-xs text-muted-foreground">UID/Lot</p>
-                                                    <p className="font-mono text-xs">{w.uid || pd.lotNumber || 'N/A'}</p>
+                                                    <p className="text-xs text-muted-foreground">
+                                                        {w.product_type === 'seat-cover' ? 'UID' : 'Serial No'}
+                                                    </p>
+                                                    <p className="font-mono text-xs">
+                                                        {w.product_type === 'seat-cover' ? w.uid : (pd.serialNumber || 'N/A')}
+                                                    </p>
                                                 </div>
                                                 <div>
                                                     <p className="text-xs text-muted-foreground">Registered</p>

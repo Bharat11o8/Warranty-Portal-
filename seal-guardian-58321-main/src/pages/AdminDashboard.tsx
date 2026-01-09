@@ -1309,12 +1309,32 @@ const AdminDashboard = () => {
                                                     // Search filter
                                                     if (vendorDetailWarrantySearch) {
                                                         const search = vendorDetailWarrantySearch.toLowerCase();
+
+                                                        // Parse product details safetly
+                                                        const productDetails = typeof warranty.product_details === 'string'
+                                                            ? JSON.parse(warranty.product_details || '{}')
+                                                            : warranty.product_details || {};
+                                                        const rawProductName = productDetails.product || productDetails.productName || warranty.product_type || '';
+
+                                                        // Handle specific search term mappings
+                                                        if (search === 'ppf') {
+                                                            if (
+                                                                rawProductName.toLowerCase().includes('paint-protection') ||
+                                                                rawProductName.toLowerCase().includes('paint protection film') ||
+                                                                rawProductName.toLowerCase().includes('ppf') ||
+                                                                warranty.product_type?.toLowerCase().includes('ppf')
+                                                            ) {
+                                                                return true;
+                                                            }
+                                                        }
+
                                                         return (
                                                             warranty.customer_name?.toLowerCase().includes(search) ||
                                                             warranty.customer_email?.toLowerCase().includes(search) ||
                                                             warranty.customer_phone?.includes(search) ||
                                                             warranty.uid?.toLowerCase().includes(search) ||
-                                                            warranty.product_type?.toLowerCase().includes(search)
+                                                            warranty.product_type?.toLowerCase().includes(search) ||
+                                                            rawProductName.toLowerCase().includes(search)
                                                         );
                                                     }
                                                     return true;
@@ -2669,6 +2689,25 @@ const AdminDashboard = () => {
                                                 // Search filter
                                                 if (warrantySearch) {
                                                     const search = warrantySearch.toLowerCase();
+
+                                                    // Parse product details safetly
+                                                    const productDetails = typeof warranty.product_details === 'string'
+                                                        ? JSON.parse(warranty.product_details || '{}')
+                                                        : warranty.product_details || {};
+                                                    const rawProductName = productDetails.product || productDetails.productName || warranty.product_type || '';
+
+                                                    // Handle specific search term mappings
+                                                    if (search === 'ppf') {
+                                                        if (
+                                                            rawProductName.toLowerCase().includes('paint-protection') ||
+                                                            rawProductName.toLowerCase().includes('paint protection film') ||
+                                                            rawProductName.toLowerCase().includes('ppf') ||
+                                                            warranty.product_type?.toLowerCase().includes('ppf')
+                                                        ) {
+                                                            return true;
+                                                        }
+                                                    }
+
                                                     return (
                                                         warranty.customer_name?.toLowerCase().includes(search) ||
                                                         warranty.customer_email?.toLowerCase().includes(search) ||
@@ -2676,7 +2715,8 @@ const AdminDashboard = () => {
                                                         warranty.uid?.toLowerCase().includes(search) ||
                                                         warranty.car_make?.toLowerCase().includes(search) ||
                                                         warranty.car_model?.toLowerCase().includes(search) ||
-                                                        warranty.product_type?.toLowerCase().includes(search)
+                                                        warranty.product_type?.toLowerCase().includes(search) ||
+                                                        rawProductName.toLowerCase().includes(search)
                                                     );
                                                 }
                                                 return true;

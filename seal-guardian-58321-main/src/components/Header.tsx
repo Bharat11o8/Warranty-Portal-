@@ -45,7 +45,7 @@ const Header = () => {
               size="sm"
               className="w-full justify-start"
             >
-              T&C
+              Terms & Conditions
             </Button>
           </Link>
 
@@ -93,7 +93,7 @@ const Header = () => {
               size="sm"
               className="w-full justify-start"
             >
-              T&C
+              Terms & Conditions
             </Button>
           </Link>
         </>
@@ -135,7 +135,7 @@ const Header = () => {
               )}
               <Link to="/terms">
                 <Button variant={isActive("/terms") ? "secondary" : "ghost"} size="sm">
-                  T&C
+                  Terms & Conditions
                 </Button>
               </Link>
 
@@ -179,7 +179,7 @@ const Header = () => {
           ) : (
             <Link to="/terms">
               <Button variant={isActive("/terms") ? "secondary" : "ghost"} size="sm">
-                T&C
+                Terms & Conditions
               </Button>
             </Link>
           )}

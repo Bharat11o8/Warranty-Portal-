@@ -445,7 +445,7 @@ export class VendorController {
     SELECT
       m.*,
       COALESCE(SUM(CASE WHEN w.status = 'validated' THEN 1 ELSE 0 END), 0) AS validated_count,
-      COALESCE(SUM(CASE WHEN w.status = 'pending' THEN 1 ELSE 0 END), 0) AS pending_count,
+      COALESCE(SUM(CASE WHEN w.status IN ('pending', 'pending_vendor') THEN 1 ELSE 0 END), 0) AS pending_count,
       COALESCE(SUM(CASE WHEN w.status = 'rejected' THEN 1 ELSE 0 END), 0) AS rejected_count,
       COUNT(w.id) AS total_count
     FROM manpower m

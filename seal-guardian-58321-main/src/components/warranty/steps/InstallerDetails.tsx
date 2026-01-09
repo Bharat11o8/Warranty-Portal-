@@ -53,7 +53,7 @@ const InstallerDetails = ({ formData, updateFormData, onNext }: InstallerDetails
         });
 
         try {
-          const response = await api.get(`/public/stores/${selectedStore.vendor_details_id}/manpower`);
+          const response = await api.get(`/public/stores/${selectedStore.vendor_details_id}/manpower?active=true`);
           if (response.data.success) {
             setManpowerList(response.data.manpower);
           }
