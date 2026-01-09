@@ -64,67 +64,104 @@ export const TermsModal = ({ isOpen, onClose, onAccept }: TermsModalProps) => {
                     <div className="p-4 space-y-6 text-sm">
                         {/* Important Notice */}
                         <div className="p-4 bg-amber-50 border-l-4 border-amber-500 rounded space-y-2">
-                            <p className="font-bold">This Warranty Is Only Valid for Products Purchased from Autoform and being used in India Only.</p>
+                            <p className="font-bold text-lg">This Warranty Is Only Valid for Products Purchased from Autoform and being used in India Only.</p>
                             <p className="font-semibold">The Artificial Leather (PU/PVC) Used for the Fabrication of Products is Manufactured by Autoform.</p>
-                            <p className="font-semibold">The Warranty Period Will Start From the Date of Purchase and Ends After the warranty period.</p>
+                            <p className="font-semibold">The Warranty Period Will Start From the Date of Purchase and Ends After Two Years.</p>
                             <p>For the Purpose of This Limited Warranty, the Date of Purchase Is the Date Indicated on the Original Bill of Sale or Receipted Invoice of the Product.</p>
                         </div>
 
                         {/* Terms & Conditions */}
                         <div className="space-y-3">
-                            <h3 className="text-lg font-bold text-gray-900">Terms & Conditions</h3>
+                            <h3 className="text-lg font-bold text-gray-900">Terms & Condition</h3>
                             <ul className="space-y-2 list-disc pl-6 text-gray-700">
                                 <li>The Warranty Shall Apply in the Case of: Stitching Defect, Color Bleeding, Rubbing Fastness.</li>
-                                <li>If Any Manufacturing Defect Is Observed During the Warranty Period, the Manufacturer Holds the Obligation to Repair or Replace Free of Charge.</li>
-                                <li>Manufacturer Undertakes No Liability in the Matter of Any Consequential Loss/damage.</li>
-                                <li>Warranty Repair/replacement Will Be Carried Out Only at the Workshop of the Authorized Dealer or Service Center of Autoform.</li>
-                                <li>Autoform Reserves the Right either to Repair or Replace a Defective Product after satisfactory inspection.</li>
-                                <li>This warranty is non-transferrable and valid for original purchaser only.</li>
+                                <li>If Any Manufacturing Defect Is Observed in the Seat cover During the Warranty Period, the Manufacturer Holds the Obligation/liability to Repair or Replace the Seat cover Free of Charge (After Careful Observation and Review by the Company's Management Team).</li>
+                                <li>Manufacturer Undertakes No Liability in the Matter of Any Consequential Loss/damage Cause Due to Failure of Seat cover, what so ever.</li>
+                                <li>Warranty Repair/replacement Will Be Carried Out Only at the Workshop of the Authorized Dealer or Service Center of Autoform This Warranty Is Valid Only for the Original Vehicle on Which the Seat cover Was Installed.</li>
+                                <li>Autoform Reserves the Right either to Repair or Replace a Defective Seat cover after satisfactory inspection.</li>
+                                <li>No this warranty is non transferrable and valid for original purchaser.</li>
+                                <li>The Warranty Shall Not Be Applied in the Case of Mishandling Such as Seat cover Torn Because of the Unsafe Use of Sharp Object, Oil or Chemical Spills Fall on the Cover, Excessive Dirt, Food Stains or any other mishandling found during the inspection done by authorized representative of Autoform.</li>
                             </ul>
                         </div>
 
                         {/* Exclusions */}
                         <div className="space-y-3">
-                            <h3 className="text-lg font-bold text-gray-900">Warranty Exclusions</h3>
+                            <h3 className="text-lg font-bold text-gray-900">The Warranty Shall Not Be Applied in the Case of –</h3>
                             <ul className="space-y-2 list-disc pl-6 text-gray-700">
-                                <li>Mishandling such as tears from sharp objects</li>
-                                <li>Scuffing, scratches, cuts, material fatigue</li>
-                                <li>Oil or Chemical Spills</li>
-                                <li>Excessive Dirt, Food Stains or dye transfer from clothing</li>
-                                <li>Fading due to sun exposure or chemical use</li>
-                                <li>Cleaning with prohibited substances</li>
-                                <li>Commercial or fleet vehicle use</li>
-                                <li>Damage from fire, flood, severe weather, natural disasters</li>
-                                <li>Products altered, modified, or repaired after sale</li>
+                                <li>Mishandling Such as Seat cover torn because of the unsafe use of sharp object,</li>
+                                <li>Scuffing scratches, cuts, material fatigue,</li>
+                                <li>Oil or Chemical Spills Fall on the cover,</li>
+                                <li>Excessive Dirt, Food Stains or blue dye transfer from clothing.</li>
+                                <li>Fading due to sun exposure or chemical use.</li>
+                                <li>Cleaning with prohibited substances such as – Saddle soaps, oils, alcohol based solvent products, silicone conditioners.</li>
+                                <li>Commercial or fleet vehicle use including car rentals.</li>
+                                <li>Damage from fire, flood, severe weather, natural disaster, acts of war & acts of God.</li>
+                                <li>If seat cover has been altered, modified, or repaired after sale.</li>
+                                <li>Any other mishandling, Found during the inspection done by authorized representative of Autoform.</li>
+                                <li>In case of any Information found to be incorrect or incomplete will deem the warranty null and void or will be regarded as disqualified without prior notice.</li>
+                            </ul>
+                        </div>
+
+                        {/* Liability */}
+                        <div className="space-y-3">
+                            <h3 className="text-lg font-bold text-gray-900">Autoform India shall not be liable for:</h3>
+                            <ul className="space-y-2 list-disc pl-6 text-gray-700">
+                                <li>Labour costs for removal or reinstallation,</li>
+                                <li>Loss of vehicle use or downtime,</li>
+                                <li>Incidental or consequential damages</li>
+                                <li>Any law suits against seat cover solutions.</li>
+                                <li>This warranty is limited exclusively to repair or replacement of the defective products.</li>
                             </ul>
                         </div>
 
                         {/* Customer Responsibilities */}
                         <div className="space-y-3">
-                            <h3 className="text-lg font-bold text-gray-900">Customer Responsibilities</h3>
+                            <h3 className="text-lg font-bold text-gray-900">Customer Responsibilities:</h3>
                             <ul className="space-y-2 list-disc pl-6 text-gray-700">
-                                <li>Maintain the product using damp cloth only</li>
-                                <li>Avoid alcohol, silicone, solvents, or abrasive cleaners</li>
-                                <li>Retain all purchase documentation for warranty validation</li>
-                                <li>Ensure proper packaging and labelling for returns</li>
+                                <li>Maintain the product using damp cloth only.</li>
+                                <li>Avoid alcohol, silicone, solvents, or abrasive cleaners.</li>
+                                <li>Retain all purchase documentation for warranty validation.</li>
+                                <li>Ensure proper packaging and labelling for returns.</li>
                             </ul>
                         </div>
 
-                        {/* Privacy Notice */}
+                        {/* Care Note */}
                         <div className="space-y-3">
-                            <h3 className="text-lg font-bold text-gray-900">Data Collection Notice</h3>
-                            <p className="text-gray-700">
-                                When submitting warranty details, you may be asked to enter your name, email address, mailing address,
-                                phone number or other details required by us. This information is used to process your warranty registration
-                                and provide customer service.
-                            </p>
+                            <h3 className="text-lg font-bold text-gray-900">Kindly Note</h3>
+                            <p className="text-gray-700">Protect Your PU/PVC Seat Cover From Excessive Heat and Dirt, Direct Sunlight, Sharp Object, Oil and Chemical Spills. Vacuuming and Gentle Wipe With a Clamp Cloth Are Sufficient to Keep the PU/PVC Clean.</p>
                         </div>
+
+                        {/* Privacy - Data Collection */}
+                        <div className="space-y-3">
+                            <h3 className="text-lg font-bold text-gray-900">What personal information do we collect from the people who submit the product warranty details using our website www.autoformindia.com?</h3>
+                            <p className="text-gray-700">When submitting the warranty details on our site, as appropriate, you may be asked to enter your name, email address, mailing address, phone number or other details required by us.</p>
+                        </div>
+
+                        <div className="space-y-3">
+                            <h3 className="text-lg font-bold text-gray-900">When do we collect information?</h3>
+                            <p className="text-gray-700">We collect information from you when you submit details to register for warranty on our site, place an order, subscribe to a newsletter or enter information on our site.</p>
+                        </div>
+
+                        <div className="space-y-3">
+                            <h3 className="text-lg font-bold text-gray-900">How do we use your information?</h3>
+                            <p className="text-gray-700 mb-2">We may use the information we collect from you when you register, make a purchase, sign up for our newsletter, respond to a survey or marketing communication, surf the website, or use certain other site features in the following ways:</p>
+                            <ul className="space-y-2 list-disc pl-6 text-gray-700">
+                                <li>To personalize your experience and to allow us to deliver the type of content and product offerings in which you are most interested.</li>
+                                <li>To improve our website in order to better serve you.</li>
+                                <li>To allow us to better service you in responding to your customer service requests.</li>
+                                <li>To administer a contest, promotion, survey or other site feature.</li>
+                                <li>To quickly process your transactions.</li>
+                                <li>To ask for ratings and reviews of services or products.</li>
+                                <li>To follow up with them after correspondence (live chat, email or phone inquiries).</li>
+                            </ul>
+                        </div>
+
+                        <p className="font-bold text-lg text-gray-900">Once again, thank you for trusting us.</p>
 
                         {/* Final Notice */}
                         <div className="p-4 bg-blue-50 border-l-4 border-blue-500 rounded">
                             <p className="font-bold text-gray-900">
-                                An online warranty registration must be completed within 30 days from the date of purchase.
-                                Any information found to be incorrect or incomplete will deem the warranty null and void.
+                                To activate the warranty, an on-line warranty registration must be completed via www.autoformindia.com/warranty within 30 days from the date of the purchase. This is an Auto Generated E-warranty File, any Information found to be incorrect or incomplete will deem the warranty null and void or will be regarded as disqualified without prior notice.
                             </p>
                         </div>
 
@@ -168,7 +205,7 @@ export const TermsModal = ({ isOpen, onClose, onAccept }: TermsModalProps) => {
                                 Confirm & Accept
                             </>
                         ) : (
-                            "Accept Terms"
+                            "Accept Terms & Conditions"
                         )}
                     </Button>
                 </DialogFooter>

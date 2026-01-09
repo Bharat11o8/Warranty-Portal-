@@ -659,12 +659,12 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing }: SeatCo
             {/* Terms & Conditions - Professional Modal Flow */}
             <div className="md:col-span-2 pt-4 border-t">
               <div className={`p-4 rounded-lg border ${formData.termsAccepted ? 'bg-green-50 border-green-200' : 'bg-muted/30 border-border'}`}>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 sm:gap-0">
+                  <div className="flex items-start sm:items-center gap-3">
                     {formData.termsAccepted ? (
-                      <CheckCircle2 className="h-6 w-6 text-green-600" />
+                      <CheckCircle2 className="h-6 w-6 text-green-600 shrink-0 mt-0.5 sm:mt-0" />
                     ) : (
-                      <FileText className="h-6 w-6 text-muted-foreground" />
+                      <FileText className="h-6 w-6 text-muted-foreground shrink-0 mt-0.5 sm:mt-0" />
                     )}
                     <div>
                       <p className={`font-medium ${formData.termsAccepted ? 'text-green-700' : 'text-foreground'}`}>
@@ -684,8 +684,9 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing }: SeatCo
                     size="sm"
                     onClick={() => setTermsModalOpen(true)}
                     disabled={loading}
+                    className="w-full sm:w-auto"
                   >
-                    {formData.termsAccepted ? 'View Terms' : 'View & Accept Terms'}
+                    {formData.termsAccepted ? 'View Terms' : 'View & Accept'}
                   </Button>
                 </div>
               </div>

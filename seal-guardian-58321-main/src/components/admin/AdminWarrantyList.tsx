@@ -225,22 +225,12 @@ export const AdminWarrantyList = ({
                                     </div>
                                 )}
 
-                                {warranty.product_type === 'ev-products' && (
-                                    <>
-                                        <div>
-                                            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">Lot Number</p>
-                                            <p className="font-mono text-sm font-semibold">{productDetails.lotNumber || 'N/A'}</p>
-                                        </div>
-                                        <div>
-                                            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">Roll Number</p>
-                                            <p className="font-mono text-sm font-semibold">{productDetails.rollNumber || 'N/A'}</p>
-                                        </div>
-                                        <div>
-                                            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">Vehicle Reg</p>
-                                            <p className="font-mono text-sm font-semibold">{productDetails.carRegistration || warranty.car_reg || 'N/A'}</p>
-                                        </div>
-                                    </>
-                                )}
+                                <>
+                                    <div>
+                                        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">Serial Number</p>
+                                        <p className="font-mono text-sm font-semibold">{warranty.uid || 'N/A'}</p>
+                                    </div>
+                                </>
 
                                 <div>
                                     <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">Warranty Type</p>

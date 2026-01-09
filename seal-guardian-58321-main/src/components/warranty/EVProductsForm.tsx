@@ -44,8 +44,8 @@ export interface EVFormData {
   // Product Info
   product: string;
   warrantyType: string;
-  lotNumber: string;
-  rollNumber: string;
+  warrantyType: string;
+  installArea: string;
   installArea: string;
   lhsPhoto: File | null;
   rhsPhoto: File | null;
@@ -92,8 +92,8 @@ const EVProductsForm = ({ initialData, warrantyId, onSuccess, isUniversal, isEdi
     carReg: "",
     product: "",
     warrantyType: "1 Year",
-    lotNumber: "",
-    rollNumber: "",
+    warrantyType: "1 Year",
+    carMake: "",
     carMake: "",
     carYear: "",
     installArea: "",
@@ -327,14 +327,14 @@ const EVProductsForm = ({ initialData, warrantyId, onSuccess, isUniversal, isEdi
         carModel: carModelName,
         carYear: new Date().getFullYear().toString(),
         purchaseDate: formData.installationDate,
-        warrantyType: "1 Year", // Default warranty type for EV products
+        warrantyType: formData.warrantyType || "1 Year", // Use selected warranty type from product
         installerName: formData.storeName,
         installerContact: `${formData.storeEmail} | ${formData.dealerMobile}`,
         manpowerId: formData.manpowerId || null,
         productDetails: {
           product: formData.product,
-          lotNumber: formData.lotNumber,
-          rollNumber: formData.rollNumber,
+          product: formData.product,
+
           installArea: formData.installArea,
           manpowerId: formData.manpowerId,
           manpowerName: formData.installerName,

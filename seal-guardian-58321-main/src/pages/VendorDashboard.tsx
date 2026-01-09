@@ -100,6 +100,9 @@ const WarrantyList = ({ items, showReason = false, user, onEditWarranty, onVerif
                                 </p>
                                 <p className="text-xs text-muted-foreground mt-0.5">
                                     👤 {warranty.customer_name} • {warranty.customer_phone}
+                                    {warranty.product_type !== 'seat-cover' && (
+                                        <span className="ml-2">• <span className="font-mono ml-1">Serial: {warranty.uid}</span></span>
+                                    )}
                                 </p>
                             </div>
 

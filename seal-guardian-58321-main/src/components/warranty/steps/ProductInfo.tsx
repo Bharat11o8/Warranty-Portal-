@@ -66,14 +66,7 @@ const ProductInfo = ({ formData, updateFormData, onPrev, onSubmit, loading }: Pr
       toast({ title: "Product Required", description: "Please select a product", variant: "destructive" });
       return;
     }
-    if (!formData.lotNumber) {
-      toast({ title: "Lot Number Required", description: "Please enter the lot number", variant: "destructive" });
-      return;
-    }
-    if (!formData.rollNumber) {
-      toast({ title: "Roll Number Required", description: "Please enter the roll number", variant: "destructive" });
-      return;
-    }
+
     if (!formData.installArea) {
       toast({ title: "Installation Area Required", description: "Please enter the area of installation", variant: "destructive" });
       return;
@@ -145,35 +138,7 @@ const ProductInfo = ({ formData, updateFormData, onPrev, onSubmit, loading }: Pr
           </p>
         </div>
 
-        <div className="space-y-2">
-          <Label htmlFor="lotNumber">
-            Lot Number <span className="text-destructive">*</span>
-          </Label>
-          <Input
-            id="lotNumber"
-            type="text"
-            placeholder="Enter lot number"
-            value={formData.lotNumber}
-            onChange={(e) => updateFormData({ lotNumber: e.target.value })}
-            required
-            disabled={loading}
-          />
-        </div>
 
-        <div className="space-y-2">
-          <Label htmlFor="rollNumber">
-            Roll Number <span className="text-destructive">*</span>
-          </Label>
-          <Input
-            id="rollNumber"
-            type="text"
-            placeholder="Enter roll number"
-            value={formData.rollNumber}
-            onChange={(e) => updateFormData({ rollNumber: e.target.value })}
-            required
-            disabled={loading}
-          />
-        </div>
 
         <div className="space-y-2">
           <Label htmlFor="installArea">
@@ -274,12 +239,12 @@ const ProductInfo = ({ formData, updateFormData, onPrev, onSubmit, loading }: Pr
       {/* Terms & Conditions - Professional Modal Flow */}
       <div className="pt-4 border-t">
         <div className={`p-4 rounded-lg border ${formData.termsAccepted ? 'bg-green-50 border-green-200' : 'bg-muted/30 border-border'}`}>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 sm:gap-0">
+            <div className="flex items-start sm:items-center gap-3">
               {formData.termsAccepted ? (
-                <CheckCircle2 className="h-6 w-6 text-green-600" />
+                <CheckCircle2 className="h-6 w-6 text-green-600 shrink-0 mt-0.5 sm:mt-0" />
               ) : (
-                <FileText className="h-6 w-6 text-muted-foreground" />
+                <FileText className="h-6 w-6 text-muted-foreground shrink-0 mt-0.5 sm:mt-0" />
               )}
               <div>
                 <p className={`font-medium ${formData.termsAccepted ? 'text-green-700' : 'text-foreground'}`}>
@@ -299,8 +264,9 @@ const ProductInfo = ({ formData, updateFormData, onPrev, onSubmit, loading }: Pr
               size="sm"
               onClick={() => setTermsModalOpen(true)}
               disabled={loading}
+              className="w-full sm:w-auto"
             >
-              {formData.termsAccepted ? 'View Terms' : 'View & Accept Terms'}
+              {formData.termsAccepted ? 'View Terms' : 'View & Accept'}
             </Button>
           </div>
         </div>
