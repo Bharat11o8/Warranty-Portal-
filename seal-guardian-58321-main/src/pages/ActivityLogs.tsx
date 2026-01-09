@@ -229,7 +229,7 @@ const ActivityLogs = () => {
                                             <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Admin</th>
                                             <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Action</th>
                                             <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Target</th>
-                                            <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Details</th>
+
                                         </tr>
                                     </thead>
                                     <tbody className="[&_tr:last-child]:border-0">
@@ -259,15 +259,7 @@ const ActivityLogs = () => {
                                                     <div className="text-sm">{log.target_type}</div>
                                                     <div className="text-xs text-muted-foreground">{log.target_name || log.target_id || 'N/A'}</div>
                                                 </td>
-                                                <td className="p-4 align-middle">
-                                                    {log.details && typeof log.details === 'object' ? (
-                                                        <div className="text-xs text-muted-foreground max-w-[200px] truncate">
-                                                            {log.details.rejection_reason || log.details.product_type || JSON.stringify(log.details)}
-                                                        </div>
-                                                    ) : (
-                                                        <span className="text-muted-foreground">-</span>
-                                                    )}
-                                                </td>
+
                                             </tr>
                                         ))}
                                     </tbody>

@@ -2121,6 +2121,12 @@ const AdminDashboard = () => {
                                                                 data={stats.monthlyStats}
                                                                 margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
                                                                 barGap={2}
+                                                                onClick={(data) => {
+                                                                    if (data && data.activePayload && data.activePayload.length > 0) {
+                                                                        const clickedMonth = data.activePayload[0].payload.month;
+                                                                        setSelectedMonth(prev => prev === clickedMonth ? null : clickedMonth);
+                                                                    }
+                                                                }}
                                                             >
                                                                 <CartesianGrid strokeDasharray="3 3" vertical={false} />
                                                                 <XAxis
@@ -2293,6 +2299,12 @@ const AdminDashboard = () => {
                                                                 data={stats.monthlyCustomerStats}
                                                                 margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
                                                                 barGap={2}
+                                                                onClick={(data) => {
+                                                                    if (data && data.activePayload && data.activePayload.length > 0) {
+                                                                        const clickedMonth = data.activePayload[0].payload.month;
+                                                                        setSelectedMonth(prev => prev === clickedMonth ? null : clickedMonth);
+                                                                    }
+                                                                }}
                                                             >
                                                                 <CartesianGrid strokeDasharray="3 3" vertical={false} />
                                                                 <XAxis
