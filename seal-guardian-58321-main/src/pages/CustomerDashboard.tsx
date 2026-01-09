@@ -248,7 +248,7 @@ const CustomerDashboard = () => {
                                     <p className="text-sm text-muted-foreground truncate">
                                         {productName.replace(/-/g, ' ')} • <span className="text-xs opacity-70">{new Date(warranty.created_at).toLocaleDateString()}</span>
                                         {warranty.product_type !== 'seat-cover' && (
-                                            <span className="ml-2">• <span className="font-mono ml-1">Serial: {warranty.uid}</span></span>
+                                            <span className="ml-2">• <span className="font-mono ml-1">Serial: {productDetails.serialNumber || warranty.uid}</span></span>
                                         )}
                                     </p>
                                 </div>

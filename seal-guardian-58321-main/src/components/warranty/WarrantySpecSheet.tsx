@@ -94,7 +94,7 @@ export const WarrantySpecSheet = ({ isOpen, onClose, warranty }: WarrantySpecShe
                             {/* EV/PPF Specific Fields */}
                             {warranty.product_type === 'ev-products' && (
                                 <>
-                                    <SpecRow label="Serial Number" value={warranty.uid || "N/A"} mono />
+                                    <SpecRow label="Serial Number" value={productDetails.serialNumber || warranty.uid || "N/A"} mono />
                                     <SpecRow label="Installation Area" value={productDetails.installArea || "N/A"} />
                                     <SpecRow label="Vehicle Registration" value={productDetails.carRegistration || warranty.registration_number || "N/A"} mono />
                                 </>

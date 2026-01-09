@@ -44,8 +44,7 @@ export interface EVFormData {
   // Product Info
   product: string;
   warrantyType: string;
-  warrantyType: string;
-  installArea: string;
+  serialNumber: string;
   installArea: string;
   lhsPhoto: File | null;
   rhsPhoto: File | null;
@@ -91,9 +90,8 @@ const EVProductsForm = ({ initialData, warrantyId, onSuccess, isUniversal, isEdi
     carModel: "",
     carReg: "",
     product: "",
-    warrantyType: "1 Year",
-    warrantyType: "1 Year",
-    carMake: "",
+    warrantyType: "",
+    serialNumber: "",
     carMake: "",
     carYear: "",
     installArea: "",
@@ -144,8 +142,7 @@ const EVProductsForm = ({ initialData, warrantyId, onSuccess, isUniversal, isEdi
 
         product: pd.product || "",
         warrantyType: initialData.warranty_type || "1 Year",
-        lotNumber: pd.lotNumber || "",
-        rollNumber: pd.rollNumber || "",
+        serialNumber: pd.serialNumber || "",
         installArea: pd.installArea || "",
 
         // Photos are URLs in edit mode, need to handle this in ProductInfo or just show them
@@ -267,14 +264,7 @@ const EVProductsForm = ({ initialData, warrantyId, onSuccess, isUniversal, isEdi
       toast({ title: "Product Required", description: "Please select a product", variant: "destructive" });
       return;
     }
-    if (!formData.lotNumber) {
-      toast({ title: "Lot Number Required", description: "Please enter the lot number", variant: "destructive" });
-      return;
-    }
-    if (!formData.rollNumber) {
-      toast({ title: "Roll Number Required", description: "Please enter the roll number", variant: "destructive" });
-      return;
-    }
+
     if (!formData.installArea) {
       toast({ title: "Installation Area Required", description: "Please enter the area of installation", variant: "destructive" });
       return;
@@ -334,8 +324,8 @@ const EVProductsForm = ({ initialData, warrantyId, onSuccess, isUniversal, isEdi
         productDetails: {
           product: formData.product,
           product: formData.product,
-
           installArea: formData.installArea,
+          serialNumber: formData.serialNumber,
           manpowerId: formData.manpowerId,
           manpowerName: formData.installerName,
           storeName: formData.storeName,
@@ -368,7 +358,7 @@ const EVProductsForm = ({ initialData, warrantyId, onSuccess, isUniversal, isEdi
         result = await submitWarranty(warrantyData);
         toast({
           title: "Warranty Registered",
-          description: `Success! Roll No: ${formData.rollNumber}, Lot No: ${formData.lotNumber}, Vehicle Reg: ${formData.carReg}`,
+          description: `Success! Serial No: ${formData.serialNumber}, Vehicle Reg: ${formData.carReg}`,
         });
       }
 
@@ -399,9 +389,9 @@ const EVProductsForm = ({ initialData, warrantyId, onSuccess, isUniversal, isEdi
             carModel: "",
             carReg: "",
             product: "",
-            warrantyType: "1 Year",
-            lotNumber: "",
-            rollNumber: "",
+            warrantyType: "",
+            serialNumber: "",
+
             installArea: "",
             carMake: "",
             carYear: "",

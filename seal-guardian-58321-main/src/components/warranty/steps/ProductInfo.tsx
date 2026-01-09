@@ -133,12 +133,25 @@ const ProductInfo = ({ formData, updateFormData, onPrev, onSubmit, loading }: Pr
             readOnly
             className="bg-muted"
           />
-          <p className="text-xs text-muted-foreground">
-            Default warranty period for EV products
-          </p>
+
         </div>
 
 
+
+        <div className="space-y-2">
+          <Label htmlFor="serialNumber">
+            Serial Number <span className="text-destructive">*</span>
+          </Label>
+          <Input
+            id="serialNumber"
+            type="text"
+            placeholder="Enter Product Serial Number"
+            value={formData.serialNumber}
+            onChange={(e) => updateFormData({ serialNumber: e.target.value })}
+            required
+            disabled={loading}
+          />
+        </div>
 
         <div className="space-y-2">
           <Label htmlFor="installArea">
@@ -282,7 +295,7 @@ const ProductInfo = ({ formData, updateFormData, onPrev, onSubmit, loading }: Pr
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               Submitting...
             </>
-          ) : "Submit Registration ✓"}
+          ) : "Submit Registration"}
         </Button>
       </div>
 
