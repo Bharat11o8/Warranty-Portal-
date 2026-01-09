@@ -348,15 +348,32 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing }: SeatCo
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
+  const ALLOWED_FILE_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/heic', 'image/heif', 'application/pdf'];
+  const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file && file.size > 20 * 1024 * 1024) {
-      toast({
-        title: "File Too Large",
-        description: "Maximum file size is 20 MB",
-        variant: "destructive",
-      });
-      return;
+    if (file) {
+      // Check file size
+      if (file.size > MAX_FILE_SIZE) {
+        toast({
+          title: "File Too Large",
+          description: "Maximum file size is 5 MB",
+          variant: "destructive",
+        });
+        e.target.value = ''; // Reset input
+        return;
+      }
+      // Check file type
+      if (!ALLOWED_FILE_TYPES.includes(file.type)) {
+        toast({
+          title: "Invalid File Format",
+          description: "Only JPG, PNG, HEIC, and PDF files are allowed",
+          variant: "destructive",
+        });
+        e.target.value = ''; // Reset input
+        return;
+      }
     }
     setFormData(prev => ({ ...prev, invoiceFile: file || null }));
   };
@@ -457,18 +474,8 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing }: SeatCo
             </div>
 
             <div className="space-y-2 md:col-span-2">
-              <Label htmlFor="uid" className="flex items-center gap-1">
+              <Label htmlFor="uid">
                 UID <span className="text-destructive">*</span>
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <HelpCircle className="h-4 w-4 text-muted-foreground cursor-help" />
-                    </TooltipTrigger>
-                    <TooltipContent side="top" className="max-w-xs">
-                      <p>Check the UID on the seat cover bag's MRP sticker. If not found, contact the store.</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
               </Label>
               <Input
                 id="uid"
@@ -644,7 +651,7 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing }: SeatCo
                 <Input
                   id="invoiceFile"
                   type="file"
-                  accept="image/*"
+                  accept="image/jpeg,image/png,image/heic,image/heif,application/pdf"
                   onChange={handleFileChange}
                   required={!warrantyId}
                   disabled={loading}
@@ -653,7 +660,7 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing }: SeatCo
                 <Upload className="h-5 w-5 text-muted-foreground" />
               </div>
               <p className="text-xs text-muted-foreground">
-                Max. file size: 20 MB. {formData.invoiceFile && `Selected: ${formData.invoiceFile.name}`}
+                Max. file size: 5 MB. Formats: JPG, PNG, HEIC, PDF. {formData.invoiceFile && `Selected: ${formData.invoiceFile.name}`}
               </p>
             </div>
             {/* Terms & Conditions - Professional Modal Flow */}

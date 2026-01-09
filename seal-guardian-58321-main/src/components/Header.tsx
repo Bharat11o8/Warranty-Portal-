@@ -28,7 +28,7 @@ const Header = () => {
 
       {user ? (
         <>
-          {user.role !== 'vendor' && (
+          {user.role === 'admin' && (
             <Link to="/warranty" onClick={() => mobile && setIsOpen(false)}>
               <Button
                 variant={isActive("/warranty") ? "secondary" : "ghost"}
@@ -126,7 +126,7 @@ const Header = () => {
 
           {user ? (
             <>
-              {user.role !== 'vendor' && (
+              {user.role === 'admin' && (
                 <Link to="/warranty">
                   <Button variant={isActive("/warranty") ? "secondary" : "ghost"} size="sm">
                     Warranty

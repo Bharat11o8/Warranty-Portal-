@@ -205,7 +205,7 @@ const CustomerDashboard = () => {
 
         return (
             <div className="space-y-3">
-                {items.map((warranty) => {
+                {items.map((warranty, index) => {
                     const productDetails = typeof warranty.product_details === 'string'
                         ? JSON.parse(warranty.product_details || '{}')
                         : warranty.product_details || {};
@@ -222,7 +222,7 @@ const CustomerDashboard = () => {
                     const { daysLeft, isExpired } = getWarrantyExpiration(warranty.created_at, warranty.warranty_type);
 
                     return (
-                        <div key={warranty.id} className="group flex flex-col">
+                        <div key={warranty.id || index} className="group flex flex-col">
                             <div
                                 onClick={() => setSpecSheetData(warranty)}
                                 className={cn(

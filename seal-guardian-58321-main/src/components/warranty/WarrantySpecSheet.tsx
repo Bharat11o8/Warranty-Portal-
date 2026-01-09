@@ -55,11 +55,12 @@ export const WarrantySpecSheet = ({ isOpen, onClose, warranty }: WarrantySpecShe
                             <Badge variant={warranty.status === 'validated' ? 'default' : 'secondary'} className={cn(
                                 "capitalize shadow-sm",
                                 warranty.status === 'validated' && "bg-green-500/10 text-green-600 hover:bg-green-500/20 border-green-500/20 shadow-green-500/5",
-                                (warranty.status === 'pending' || warranty.status === 'pending_vendor') && "bg-yellow-500/10 text-yellow-600 hover:bg-yellow-500/20 border-yellow-500/20 shadow-yellow-500/5",
+                                warranty.status === 'pending' && "bg-yellow-500/10 text-yellow-600 hover:bg-yellow-500/20 border-yellow-500/20 shadow-yellow-500/5",
+                                warranty.status === 'pending_vendor' && "bg-blue-500/10 text-blue-600 hover:bg-blue-500/20 border-blue-500/20 shadow-blue-500/5",
                                 warranty.status === 'rejected' && "bg-red-500/10 text-red-600 hover:bg-red-500/20 border-red-500/20 shadow-red-500/5"
                             )}>
                                 {warranty.status === 'validated' ? 'Approved' :
-                                    warranty.status === 'pending_vendor' ? 'Pending' :
+                                    warranty.status === 'pending_vendor' ? 'In Review' :
                                         warranty.status === 'pending' ? 'Pending' :
                                             warranty.status}
                             </Badge>

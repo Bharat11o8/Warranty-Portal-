@@ -72,10 +72,6 @@ const ProfilePopover = () => {
                     <div className="flex flex-col space-y-2">
                         <p className="text-sm font-medium leading-none">{user.name}</p>
                         <p className="text-xs leading-none text-muted-foreground">{user.email}</p>
-                        <Badge variant={roleConfig.badgeVariant} className="w-fit">
-                            <RoleIcon className="mr-1 h-3 w-3" />
-                            {roleConfig.label}
-                        </Badge>
                     </div>
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />

@@ -46,14 +46,29 @@ const ProductInfo = ({ formData, updateFormData, onPrev, onSubmit, loading }: Pr
     }
   }, [formData.product, products]);
 
+  const ALLOWED_FILE_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/heic', 'image/heif', 'application/pdf'];
+  const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+
   const handleFileChange = (name: keyof EVFormData, file: File | null) => {
-    if (file && file.size > 20 * 1024 * 1024) {
-      toast({
-        title: "File Too Large",
-        description: "Maximum file size is 20 MB",
-        variant: "destructive",
-      });
-      return;
+    if (file) {
+      // Check file size
+      if (file.size > MAX_FILE_SIZE) {
+        toast({
+          title: "File Too Large",
+          description: "Maximum file size is 5 MB per image",
+          variant: "destructive",
+        });
+        return;
+      }
+      // Check file type
+      if (!ALLOWED_FILE_TYPES.includes(file.type)) {
+        toast({
+          title: "Invalid File Format",
+          description: "Only JPG, PNG, HEIC, and PDF files are allowed",
+          variant: "destructive",
+        });
+        return;
+      }
     }
     updateFormData({ [name]: file });
   };
@@ -180,7 +195,7 @@ const ProductInfo = ({ formData, updateFormData, onPrev, onSubmit, loading }: Pr
             <Input
               id="lhsPhoto"
               type="file"
-              accept="image/*"
+              accept="image/jpeg,image/png,image/heic,image/heif,application/pdf"
               onChange={(e) => handleFileChange("lhsPhoto", e.target.files?.[0] || null)}
               required
               disabled={loading}
@@ -194,7 +209,7 @@ const ProductInfo = ({ formData, updateFormData, onPrev, onSubmit, loading }: Pr
             <Input
               id="rhsPhoto"
               type="file"
-              accept="image/*"
+              accept="image/jpeg,image/png,image/heic,image/heif,application/pdf"
               onChange={(e) => handleFileChange("rhsPhoto", e.target.files?.[0] || null)}
               required
               disabled={loading}
@@ -208,7 +223,7 @@ const ProductInfo = ({ formData, updateFormData, onPrev, onSubmit, loading }: Pr
             <Input
               id="frontRegPhoto"
               type="file"
-              accept="image/*"
+              accept="image/jpeg,image/png,image/heic,image/heif,application/pdf"
               onChange={(e) => handleFileChange("frontRegPhoto", e.target.files?.[0] || null)}
               required
               disabled={loading}
@@ -222,7 +237,7 @@ const ProductInfo = ({ formData, updateFormData, onPrev, onSubmit, loading }: Pr
             <Input
               id="backRegPhoto"
               type="file"
-              accept="image/*"
+              accept="image/jpeg,image/png,image/heic,image/heif,application/pdf"
               onChange={(e) => handleFileChange("backRegPhoto", e.target.files?.[0] || null)}
               required
               disabled={loading}
@@ -236,7 +251,7 @@ const ProductInfo = ({ formData, updateFormData, onPrev, onSubmit, loading }: Pr
             <Input
               id="warrantyPhoto"
               type="file"
-              accept="image/*"
+              accept="image/jpeg,image/png,image/heic,image/heif,application/pdf"
               onChange={(e) => handleFileChange("warrantyPhoto", e.target.files?.[0] || null)}
               required
               disabled={loading}
@@ -245,7 +260,7 @@ const ProductInfo = ({ formData, updateFormData, onPrev, onSubmit, loading }: Pr
         </div>
 
         <p className="text-sm text-muted-foreground">
-          Maximum file size: 20 MB per image. Accepted formats: JPG, PNG, JPEG
+          Maximum file size: 5 MB per image. Accepted formats: JPG, PNG, HEIC, PDF
         </p>
       </div>
 

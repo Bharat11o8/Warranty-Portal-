@@ -270,6 +270,11 @@ const EVProductsForm = ({ initialData, warrantyId, onSuccess, isUniversal, isEdi
       return;
     }
 
+    if (!formData.serialNumber) {
+      toast({ title: "Serial Number Required", description: "Please enter the product serial number", variant: "destructive" });
+      return;
+    }
+
     // === Photo Validation ===
     if (!formData.lhsPhoto) {
       toast({ title: "LHS Photo Required", description: "Please upload left hand side photo", variant: "destructive" });
@@ -301,10 +306,9 @@ const EVProductsForm = ({ initialData, warrantyId, onSuccess, isUniversal, isEdi
     setLoading(true);
 
     try {
-      // Extract car make from carModel (assuming format like "Toyota Camry")
-      const carParts = formData.carModel.split(' ');
-      const carMake = carParts[0] || "N/A";
-      const carModelName = carParts.slice(1).join(' ') || formData.carModel;
+      // Use direct values from formData
+      const carMake = formData.carMake;
+      const carModelName = formData.carModel;
 
       // Prepare warranty data
       const warrantyData = {
@@ -322,7 +326,6 @@ const EVProductsForm = ({ initialData, warrantyId, onSuccess, isUniversal, isEdi
         installerContact: `${formData.storeEmail} | ${formData.dealerMobile}`,
         manpowerId: formData.manpowerId || null,
         productDetails: {
-          product: formData.product,
           product: formData.product,
           installArea: formData.installArea,
           serialNumber: formData.serialNumber,
