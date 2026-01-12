@@ -10,6 +10,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { EVFormData } from "../EVProductsForm";
 import { useToast } from "@/hooks/use-toast";
 import { TermsModal } from "../TermsModal";
+import { compressImage, isCompressibleImage } from "@/lib/imageCompression";
 
 interface ProductInfoProps {
   formData: EVFormData;
@@ -23,6 +24,7 @@ const ProductInfo = ({ formData, updateFormData, onPrev, onSubmit, loading }: Pr
   const { toast } = useToast();
   const [products, setProducts] = useState<any[]>([]);
   const [termsModalOpen, setTermsModalOpen] = useState(false);
+  const [compressing, setCompressing] = useState(false);
 
   useEffect(() => {
     const fetchProducts = async () => {
@@ -46,16 +48,53 @@ const ProductInfo = ({ formData, updateFormData, onPrev, onSubmit, loading }: Pr
     }
   }, [formData.product, products]);
 
-  const handleFileChange = (name: keyof EVFormData, file: File | null) => {
-    if (file && file.size > 20 * 1024 * 1024) {
-      toast({
-        title: "File Too Large",
-        description: "Maximum file size is 20 MB",
-        variant: "destructive",
-      });
-      return;
+  const handleFileChange = async (name: keyof EVFormData, file: File | null) => {
+    const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB (after compression)
+    const ALLOWED_FILE_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/heic', 'image/heif', 'application/pdf'];
+
+    if (file) {
+      const isAllowedType = ALLOWED_FILE_TYPES.includes(file.type) ||
+        file.name.toLowerCase().endsWith('.heic') ||
+        file.name.toLowerCase().endsWith('.heif') ||
+        file.name.toLowerCase().endsWith('.pdf');
+
+      if (!isAllowedType) {
+        toast({
+          title: "Invalid File Type",
+          description: "Only JPG, PNG, HEIC, and PDF files are allowed",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Compress image if it's a compressible type (not PDF)
+      let processedFile = file;
+      if (isCompressibleImage(file) && file.size > 1024 * 1024) { // Compress if > 1MB
+        setCompressing(true);
+        try {
+          processedFile = await compressImage(file, { maxSizeKB: 1024, quality: 0.8 });
+          // Silent compression - no need to inform customer
+        } catch (err) {
+          console.error('Compression failed:', err);
+          // Continue with original file if compression fails
+        } finally {
+          setCompressing(false);
+        }
+      }
+
+      if (processedFile.size > MAX_FILE_SIZE) {
+        toast({
+          title: "File Too Large",
+          description: "Maximum file size is 5 MB. Please use a smaller image.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      updateFormData({ [name]: processedFile });
+    } else {
+      updateFormData({ [name]: null });
     }
-    updateFormData({ [name]: file });
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -182,7 +221,7 @@ const ProductInfo = ({ formData, updateFormData, onPrev, onSubmit, loading }: Pr
             <Input
               id="lhsPhoto"
               type="file"
-              accept="image/*"
+              accept="image/jpeg,image/png,image/heic,image/heif,application/pdf"
               onChange={(e) => handleFileChange("lhsPhoto", e.target.files?.[0] || null)}
               required
               disabled={loading}
@@ -196,7 +235,7 @@ const ProductInfo = ({ formData, updateFormData, onPrev, onSubmit, loading }: Pr
             <Input
               id="rhsPhoto"
               type="file"
-              accept="image/*"
+              accept="image/jpeg,image/png,image/heic,image/heif,application/pdf"
               onChange={(e) => handleFileChange("rhsPhoto", e.target.files?.[0] || null)}
               required
               disabled={loading}
@@ -210,7 +249,7 @@ const ProductInfo = ({ formData, updateFormData, onPrev, onSubmit, loading }: Pr
             <Input
               id="frontRegPhoto"
               type="file"
-              accept="image/*"
+              accept="image/jpeg,image/png,image/heic,image/heif,application/pdf"
               onChange={(e) => handleFileChange("frontRegPhoto", e.target.files?.[0] || null)}
               required
               disabled={loading}
@@ -224,7 +263,7 @@ const ProductInfo = ({ formData, updateFormData, onPrev, onSubmit, loading }: Pr
             <Input
               id="backRegPhoto"
               type="file"
-              accept="image/*"
+              accept="image/jpeg,image/png,image/heic,image/heif,application/pdf"
               onChange={(e) => handleFileChange("backRegPhoto", e.target.files?.[0] || null)}
               required
               disabled={loading}
@@ -238,7 +277,7 @@ const ProductInfo = ({ formData, updateFormData, onPrev, onSubmit, loading }: Pr
             <Input
               id="warrantyPhoto"
               type="file"
-              accept="image/*"
+              accept="image/jpeg,image/png,image/heic,image/heif,application/pdf"
               onChange={(e) => handleFileChange("warrantyPhoto", e.target.files?.[0] || null)}
               required
               disabled={loading}
@@ -247,7 +286,7 @@ const ProductInfo = ({ formData, updateFormData, onPrev, onSubmit, loading }: Pr
         </div>
 
         <p className="text-sm text-muted-foreground">
-          Maximum file size: 20 MB per image. Accepted formats: JPG, PNG, JPEG
+          Maximum file size: 5 MB per image. Accepted formats: JPG, PNG, HEIC,PDF
         </p>
       </div>
 

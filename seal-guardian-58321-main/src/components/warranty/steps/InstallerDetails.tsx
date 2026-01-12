@@ -28,9 +28,12 @@ const InstallerDetails = ({ formData, updateFormData, onNext }: InstallerDetails
         const response = await api.get('/public/stores');
         if (response.data.success) {
           setStores(response.data.stores);
+        } else {
+          toast({ title: "Failed to Load Stores", description: "Could not fetch store list. Please refresh.", variant: "destructive" });
         }
       } catch (error) {
         console.error("Failed to fetch stores", error);
+        toast({ title: "Network Error", description: "Could not connect to server. Please check your internet.", variant: "destructive" });
       }
     };
     fetchStores();
@@ -56,10 +59,14 @@ const InstallerDetails = ({ formData, updateFormData, onNext }: InstallerDetails
           const response = await api.get(`/public/stores/${selectedStore.vendor_details_id}/manpower?active=true`);
           if (response.data.success) {
             setManpowerList(response.data.manpower);
+            if (response.data.manpower.length === 0) {
+              toast({ title: "No Installers Found", description: "This store has no active installers. Please contact support.", variant: "destructive" });
+            }
           }
         } catch (error) {
           console.error("Failed to fetch manpower", error);
           setManpowerList([]);
+          toast({ title: "Failed to Load Installers", description: "Could not fetch installer list for this store.", variant: "destructive" });
         }
       } else {
         setManpowerList([]);

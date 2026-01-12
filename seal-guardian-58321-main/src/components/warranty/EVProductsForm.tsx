@@ -306,9 +306,20 @@ const EVProductsForm = ({ initialData, warrantyId, onSuccess, isUniversal, isEdi
     setLoading(true);
 
     try {
+      console.log('[DEBUG] Starting EV form submission...');
+
       // Use direct values from formData
       const carMake = formData.carMake;
       const carModelName = formData.carModel;
+
+      console.log('[DEBUG] CarMake:', carMake, 'CarModel:', carModelName);
+      console.log('[DEBUG] Photos:', {
+        lhs: formData.lhsPhoto?.name,
+        rhs: formData.rhsPhoto?.name,
+        front: formData.frontRegPhoto?.name,
+        back: formData.backRegPhoto?.name,
+        warranty: formData.warrantyPhoto?.name
+      });
 
       // Prepare warranty data
       const warrantyData = {
@@ -319,7 +330,7 @@ const EVProductsForm = ({ initialData, warrantyId, onSuccess, isUniversal, isEdi
         customerAddress: "N/A",
         carMake: carMake,
         carModel: carModelName,
-        carYear: new Date().getFullYear().toString(),
+        carYear: formData.carYear || new Date().getFullYear().toString(),
         purchaseDate: formData.installationDate,
         warrantyType: formData.warrantyType || "1 Year", // Use selected warranty type from product
         installerName: formData.storeName,
@@ -349,16 +360,20 @@ const EVProductsForm = ({ initialData, warrantyId, onSuccess, isUniversal, isEdi
         },
       };
 
+      console.log('[DEBUG] Warranty data prepared, calling submitWarranty/updateWarranty...');
+
       // Submit or Update warranty registration
       let result;
       if (warrantyId) {
         result = await updateWarranty(warrantyId, warrantyData);
+        console.log('[DEBUG] Update result:', result);
         toast({
           title: "Warranty Updated",
           description: "Warranty updated successfully.",
         });
       } else {
         result = await submitWarranty(warrantyData);
+        console.log('[DEBUG] Submit result:', result);
         toast({
           title: "Warranty Registered",
           description: `Success! Serial No: ${formData.serialNumber}, Vehicle Reg: ${formData.carReg}`,
@@ -417,10 +432,41 @@ const EVProductsForm = ({ initialData, warrantyId, onSuccess, isUniversal, isEdi
         }
       }
     } catch (error: any) {
-      console.error("Warranty submission error:", error);
+      console.error("[DEBUG] Warranty submission error:", error);
+      console.error("[DEBUG] Error details:", {
+        message: error.message,
+        response: error.response?.data,
+        status: error.response?.status,
+        code: error.code
+      });
+
+      // Determine specific error message based on error type
+      let errorTitle = "Submission Failed";
+      let errorMessage = "Failed to submit EV product warranty registration";
+
+      if (error.code === "ERR_NETWORK" || error.message?.includes("Network Error")) {
+        errorTitle = "Network Error";
+        errorMessage = "Unable to connect to server. Please check your internet connection and try again. If uploading photos, try using smaller images.";
+      } else if (error.code === "ECONNABORTED" || error.message?.includes("timeout")) {
+        errorTitle = "Upload Timeout";
+        errorMessage = "The upload took too long. Try using smaller photos (under 2MB each) or a faster internet connection.";
+      } else if (error.response?.status === 413) {
+        errorTitle = "Files Too Large";
+        errorMessage = "The total upload size is too large. Please use smaller images (under 2MB each).";
+      } else if (error.response?.status === 400) {
+        errorMessage = error.response?.data?.error || "Invalid form data. Please check all fields and try again.";
+      } else if (error.response?.status === 401 || error.response?.status === 403) {
+        errorTitle = "Session Expired";
+        errorMessage = "Your session has expired. Please log in again.";
+      } else if (error.response?.data?.error) {
+        errorMessage = error.response.data.error;
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+
       toast({
-        title: "Submission Failed",
-        description: error.response?.data?.error || "Failed to submit EV product warranty registration",
+        title: errorTitle,
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {
