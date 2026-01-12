@@ -4,7 +4,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Combobox } from "@/components/ui/combobox";
 import { CAR_MAKES } from "@/lib/carMakes";
-import { validateVehicleReg } from "@/lib/validation";
+import { validateVehicleReg, formatVehicleRegLive, getVehicleRegError } from "@/lib/validation";
 import { EVFormData } from "../EVProductsForm";
 import { useToast } from "@/hooks/use-toast";
 
@@ -17,6 +17,12 @@ interface CarDetailsProps {
 
 const CarDetails = ({ formData, updateFormData, onNext, onPrev }: CarDetailsProps) => {
   const { toast } = useToast();
+
+  // Handle vehicle registration input with auto-formatting
+  const handleRegChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const formatted = formatVehicleRegLive(e.target.value);
+    updateFormData({ carReg: formatted });
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -39,11 +45,13 @@ const CarDetails = ({ formData, updateFormData, onNext, onPrev }: CarDetailsProp
       return;
     }
     if (!formData.carReg) {
-      toast({ title: "Registration Number Required", description: "Please enter car registration number", variant: "destructive" });
+      toast({ title: "Registration Number Required", description: "Please enter vehicle registration number", variant: "destructive" });
       return;
     }
-    if (!validateVehicleReg(formData.carReg)) {
-      toast({ title: "Invalid Registration Format", description: "Use format: XX-00-XX-0000 (e.g., DL-01-AB-1234)", variant: "destructive" });
+
+    const regError = getVehicleRegError(formData.carReg);
+    if (regError) {
+      toast({ title: "Invalid Registration Format", description: regError, variant: "destructive" });
       return;
     }
 
@@ -123,16 +131,20 @@ const CarDetails = ({ formData, updateFormData, onNext, onPrev }: CarDetailsProp
 
         <div className="space-y-2 md:col-span-2">
           <Label htmlFor="carReg">
-            Car Registration Number <span className="text-destructive">*</span>
+            Vehicle Registration Number <span className="text-destructive">*</span>
           </Label>
           <Input
             id="carReg"
             type="text"
-            placeholder="e.g., DL-01-AB-1234"
+            placeholder="e.g., DL-01-AB-1234 or MH-12-A-123"
             value={formData.carReg}
-            onChange={(e) => updateFormData({ carReg: e.target.value })}
+            onChange={handleRegChange}
             required
+            maxLength={20}
           />
+          <p className="text-xs text-muted-foreground">
+            Supports: 4-wheelers (DL-01-AB-1234), 2-wheelers (MH-12-A-123), BH series (BH-02-AA-1234)
+          </p>
         </div>
       </div>
 

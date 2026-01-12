@@ -98,39 +98,167 @@ export const getPincodeError = (pincode: string): string => {
     return '';
 };
 
-// Indian Vehicle Registration Number
-// Format: XX-00-XX-0000 (with or without hyphens/spaces)
-// Examples: DL-01-AB-1234, MH12CD5678, KA 05 MQ 9999
-// State Code (2 letters) + RTO Code (2 digits) + Series (1-2 letters) + Number (exactly 4 digits)
-export const INDIAN_VEHICLE_REG_REGEX = /^[A-Z]{2}[\s\-]?\d{2}[\s\-]?[A-Z]{1,2}[\s\-]?\d{4}$/i;
+// ============================================
+// INDIAN VEHICLE REGISTRATION VALIDATION
+// ============================================
+// Supports: Standard (4W/2W), BH Series, Temporary, Diplomatic, Defense plates
 
 /**
- * Validate Indian vehicle registration number
+ * Vehicle registration patterns for all Indian formats
+ */
+export const VEHICLE_REG_PATTERNS = {
+    // Standard format: XX-00-X(X)-0000 (State-RTO-Series-Number)
+    // Covers: 4-wheelers (DL-01-AB-1234), 2-wheelers (MH-12-A-123)
+    // Also covers old format with 1-digit RTO
+    STANDARD: /^[A-Z]{2}[0-9]{1,2}[A-Z]{1,3}[0-9]{1,4}$/,
+
+    // BH (Bharat) Series: National portability format
+    // Example: BH-02-AA-1234
+    BH_SERIES: /^BH[0-9]{2}[A-Z]{2}[0-9]{4}$/,
+
+    // Temporary Registration: TR followed by numbers
+    // Example: TR-0101-12345
+    TEMPORARY: /^TR[0-9]{4}[0-9]{4,5}$/,
+
+    // Diplomatic plates: CD (Corps Diplomatique), CC (Consular Corps), UN
+    // Example: CD-123, UN-1234
+    DIPLOMATIC: /^(CD|CC|UN)[0-9]{3,4}$/,
+
+    // Defense vehicles: 2 digits + 1 letter + 5 digits
+    // Example: 01A12345
+    DEFENSE: /^[0-9]{2}[A-Z]{1}[0-9]{5}$/
+};
+
+/**
+ * All regex patterns for validation
+ */
+const ALL_PATTERNS = Object.values(VEHICLE_REG_PATTERNS);
+
+/**
+ * Fancy/VIP number patterns (for detection, not validation)
+ */
+const FANCY_PATTERNS = [
+    /0001$/, /0007$/, /0009$/, /0011$/,  // Single repeats
+    /0786$/, /1111$/, /2222$/, /3333$/,  // Religious/repeating
+    /4444$/, /5555$/, /6666$/, /7777$/,
+    /8888$/, /9999$/, /1234$/, /4321$/,  // Sequential
+    /0000$/                               // All zeros
+];
+
+/**
+ * Normalize vehicle registration (remove spaces, hyphens, uppercase)
+ * @param regNumber - Raw registration input
+ * @returns Normalized uppercase string
+ */
+export const normalizeVehicleReg = (regNumber: string): string => {
+    if (!regNumber) return '';
+    return regNumber.replace(/[\s\-]/g, '').toUpperCase();
+};
+
+/**
+ * Validate Indian vehicle registration number (all formats)
  * @param regNumber - Registration number string
  * @returns true if valid, false otherwise
  */
 export const validateVehicleReg = (regNumber: string): boolean => {
     if (!regNumber) return false;
-    const cleaned = regNumber.trim().toUpperCase();
-    return INDIAN_VEHICLE_REG_REGEX.test(cleaned);
+    const normalized = normalizeVehicleReg(regNumber);
+    return ALL_PATTERNS.some(pattern => pattern.test(normalized));
 };
 
 /**
- * Format vehicle registration for display (add hyphens)
+ * Get the type of vehicle registration
+ * @param regNumber - Registration number string
+ * @returns Type string or null if invalid
+ */
+export const getVehicleRegType = (regNumber: string): string | null => {
+    const normalized = normalizeVehicleReg(regNumber);
+
+    if (VEHICLE_REG_PATTERNS.BH_SERIES.test(normalized)) return 'BH_SERIES';
+    if (VEHICLE_REG_PATTERNS.TEMPORARY.test(normalized)) return 'TEMPORARY';
+    if (VEHICLE_REG_PATTERNS.DIPLOMATIC.test(normalized)) return 'DIPLOMATIC';
+    if (VEHICLE_REG_PATTERNS.DEFENSE.test(normalized)) return 'DEFENSE';
+    if (VEHICLE_REG_PATTERNS.STANDARD.test(normalized)) return 'STANDARD';
+
+    return null;
+};
+
+/**
+ * Check if the registration has a fancy/VIP number
+ * @param regNumber - Registration number string
+ * @returns true if fancy number detected
+ */
+export const isFancyNumber = (regNumber: string): boolean => {
+    const normalized = normalizeVehicleReg(regNumber);
+    return FANCY_PATTERNS.some(pattern => pattern.test(normalized));
+};
+
+/**
+ * Auto-format vehicle registration while typing (adds hyphens)
+ * @param input - Current input value
+ * @returns Formatted string with hyphens
+ */
+export const formatVehicleRegLive = (input: string): string => {
+    // Remove all non-alphanumeric, uppercase
+    const cleaned = input.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+
+    // BH series format: BH-00-XX-0000
+    if (cleaned.startsWith('BH') && cleaned.length > 2) {
+        let result = 'BH';
+        const rest = cleaned.slice(2);
+        if (rest.length > 0) result += '-' + rest.slice(0, 2);
+        if (rest.length > 2) result += '-' + rest.slice(2, 4);
+        if (rest.length > 4) result += '-' + rest.slice(4, 8);
+        return result;
+    }
+
+    // Diplomatic format: CD-0000 / CC-0000 / UN-0000
+    if (/^(CD|CC|UN)/.test(cleaned)) {
+        const prefix = cleaned.slice(0, 2);
+        const num = cleaned.slice(2, 6);
+        return num ? `${prefix}-${num}` : prefix;
+    }
+
+    // Standard format: XX-00-XXX-0000
+    if (cleaned.length <= 2) return cleaned;
+
+    let result = cleaned.slice(0, 2); // State code
+    let pos = 2;
+
+    // RTO code (1-2 digits)
+    const rtoMatch = cleaned.slice(pos).match(/^(\d{1,2})/);
+    if (rtoMatch) {
+        result += '-' + rtoMatch[1];
+        pos += rtoMatch[1].length;
+    }
+
+    // Series letters (1-3 letters)
+    const seriesMatch = cleaned.slice(pos).match(/^([A-Z]{1,3})/);
+    if (seriesMatch) {
+        result += '-' + seriesMatch[1];
+        pos += seriesMatch[1].length;
+    }
+
+    // Registration number (1-4 digits)
+    const numMatch = cleaned.slice(pos).match(/^(\d{1,4})/);
+    if (numMatch) {
+        result += '-' + numMatch[1];
+    }
+
+    return result;
+};
+
+/**
+ * Format vehicle registration for display (final format with hyphens)
  * @param regNumber - Raw registration number
  * @returns Formatted registration number
  */
 export const formatVehicleReg = (regNumber: string): string => {
-    // Remove all spaces and hyphens, uppercase
-    const cleaned = regNumber.replace(/[\s\-]/g, '').toUpperCase();
-    if (cleaned.length < 4) return cleaned;
+    const normalized = normalizeVehicleReg(regNumber);
+    if (!normalized) return '';
 
-    // Format: XX-00-XX-0000
-    const match = cleaned.match(/^([A-Z]{2})(\d{2})([A-Z]{1,3})(\d{1,4})$/);
-    if (match) {
-        return `${match[1]}-${match[2]}-${match[3]}-${match[4]}`;
-    }
-    return cleaned;
+    // Already apply live formatting logic
+    return formatVehicleRegLive(normalized);
 };
 
 /**
@@ -140,8 +268,9 @@ export const formatVehicleReg = (regNumber: string): string => {
  */
 export const getVehicleRegError = (regNumber: string): string => {
     if (!regNumber) return '';
+
     if (!validateVehicleReg(regNumber)) {
-        return 'Invalid format. Use: XX-00-XX-0000 (e.g., DL-01-AB-1234)';
+        return 'Invalid format. Examples: DL-01-AB-1234, MH-12-A-123, BH-02-AA-1234';
     }
     return '';
 };

@@ -150,22 +150,6 @@ const InstallerDetails = ({ formData, updateFormData, onNext }: InstallerDetails
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="installerCode">
-            Installer Code <span className="text-destructive">*</span>
-          </Label>
-          <Input
-            id="installerCode"
-            type="text"
-            placeholder="Enter installer code"
-            value={formData.installerCode}
-            onChange={(e) => updateFormData({ installerCode: e.target.value })}
-            required
-            readOnly
-            className="bg-muted"
-          />
-        </div>
-
-        <div className="space-y-2">
           <Label htmlFor="storeEmail">
             Store Email <span className="text-destructive">*</span>
           </Label>
