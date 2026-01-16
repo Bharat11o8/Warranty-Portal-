@@ -405,7 +405,7 @@ export class VendorController {
     SELECT
       m.*,
       COALESCE(SUM(CASE WHEN w.status = 'validated' THEN 1 ELSE 0 END), 0) AS validated_count,
-      COALESCE(SUM(CASE WHEN w.status = 'pending' THEN 1 ELSE 0 END), 0) AS pending_count,
+      COALESCE(SUM(CASE WHEN w.status IN ('pending', 'pending_vendor') THEN 1 ELSE 0 END), 0) AS pending_count,
       COALESCE(SUM(CASE WHEN w.status = 'rejected' THEN 1 ELSE 0 END), 0) AS rejected_count,
       COUNT(w.id) AS total_count
     FROM manpower m
@@ -544,8 +544,24 @@ export class VendorController {
     static async approveWarranty(req, res) {
         try {
             const { uid } = req.params;
-            // Check pending_vendor status and update to pending
-            await db.execute("UPDATE warranty_registrations SET status = 'pending' WHERE uid = ? AND status = 'pending_vendor'", [uid]);
+            const userId = req.user?.id;
+            if (!userId) {
+                return res.status(401).json({ error: 'User not authenticated' });
+            }
+            // Get vendor's vendor_details_id
+            const [vendorDetails] = await db.execute('SELECT id FROM vendor_details WHERE user_id = ?', [userId]);
+            if (vendorDetails.length === 0) {
+                return res.status(403).json({ error: 'Vendor details not found' });
+            }
+            const vendorId = vendorDetails[0].id;
+            // Update only if warranty's manpower belongs to this vendor
+            const [result] = await db.execute(`UPDATE warranty_registrations wr
+         INNER JOIN manpower m ON wr.manpower_id = m.id
+         SET wr.status = 'pending'
+         WHERE wr.uid = ? AND wr.status = 'pending_vendor' AND m.vendor_id = ?`, [uid, vendorId]);
+            if (result.affectedRows === 0) {
+                return res.status(404).json({ error: 'Warranty not found or not authorized to approve' });
+            }
             res.json({ success: true, message: 'Warranty approved successfully' });
         }
         catch (error) {
@@ -557,10 +573,27 @@ export class VendorController {
         try {
             const { uid } = req.params;
             const { reason } = req.body;
+            const userId = req.user?.id;
+            if (!userId) {
+                return res.status(401).json({ error: 'User not authenticated' });
+            }
             if (!reason) {
                 return res.status(400).json({ error: 'Rejection reason is required' });
             }
-            await db.execute("UPDATE warranty_registrations SET status = 'rejected', rejection_reason = ? WHERE uid = ? AND status = 'pending_vendor'", [reason, uid]);
+            // Get vendor's vendor_details_id
+            const [vendorDetails] = await db.execute('SELECT id FROM vendor_details WHERE user_id = ?', [userId]);
+            if (vendorDetails.length === 0) {
+                return res.status(403).json({ error: 'Vendor details not found' });
+            }
+            const vendorId = vendorDetails[0].id;
+            // Update only if warranty's manpower belongs to this vendor
+            const [result] = await db.execute(`UPDATE warranty_registrations wr
+         INNER JOIN manpower m ON wr.manpower_id = m.id
+         SET wr.status = 'rejected', wr.rejection_reason = ?
+         WHERE wr.uid = ? AND wr.status = 'pending_vendor' AND m.vendor_id = ?`, [reason, uid, vendorId]);
+            if (result.affectedRows === 0) {
+                return res.status(404).json({ error: 'Warranty not found or not authorized to reject' });
+            }
             // Fetch details and send email to Customer
             const [warranty] = await db.execute('SELECT * FROM warranty_registrations WHERE uid = ?', [uid]);
             if (warranty.length > 0) {

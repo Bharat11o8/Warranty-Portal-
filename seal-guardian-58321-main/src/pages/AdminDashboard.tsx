@@ -55,7 +55,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { ProductManagement } from "@/components/admin/ProductManagement";
+
 import { AdminWarrantyList } from "@/components/admin/AdminWarrantyList";
 import { formatWarrantyForExport, formatVendorForExport, formatCustomerForExport, formatManpowerForExport } from "@/lib/adminExports";
 import { downloadCSV, getWarrantyExpiration, cn } from "@/lib/utils";
@@ -1990,12 +1990,9 @@ const AdminDashboard = () => {
                         <TabsTrigger value="warranties">Warranties</TabsTrigger>
                         <TabsTrigger value="vendors">Franchises</TabsTrigger>
                         <TabsTrigger value="customers">Customers</TabsTrigger>
-                        {/* <TabsTrigger value="products">Products</TabsTrigger> */}
                     </TabsList>
 
                     <TabsContent value="overview" className="space-y-6">
-
-
                         {/* Interactive Chart Section */}
                         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                             {/* Main Chart Area */}
@@ -2549,9 +2546,7 @@ const AdminDashboard = () => {
                         </div>
                     </TabsContent>
 
-                    <TabsContent value="products" className="space-y-4">
-                        <ProductManagement />
-                    </TabsContent>
+
 
                     <TabsContent value="warranties" className="space-y-4">
                         <Card>
@@ -3804,7 +3799,8 @@ const AdminDashboard = () => {
                             </CardContent>
                         </Card>
                     </TabsContent>
-                </Tabs >
+
+                </Tabs>
 
                 {/* Rejection Dialog for Warranties Tab */}
                 {

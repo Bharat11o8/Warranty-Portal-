@@ -4,7 +4,7 @@ import { EmailService } from '../services/email.service.js';
 export class PublicController {
     static async getStores(req, res) {
         try {
-            // Get all vendors with their store details
+            // Get only approved vendors with their store details
             const [stores] = await db.execute(`
         SELECT 
           vd.id as vendor_details_id,
@@ -17,6 +17,8 @@ export class PublicController {
           p.phone_number as phone
         FROM vendor_details vd
         JOIN profiles p ON vd.user_id = p.id
+        JOIN vendor_verification vv ON vd.user_id = vv.user_id
+        WHERE vv.is_verified = TRUE
         ORDER BY vd.store_name ASC
       `);
             res.json({

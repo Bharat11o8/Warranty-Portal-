@@ -13,6 +13,7 @@ import vendorRoutes from './routes/vendor.routes.js';
 import warrantyRoutes from './routes/warranty.routes.js';
 import adminRoutes from './routes/admin.routes.js';
 import publicRoutes from './routes/public.routes.js';
+import catalogRoutes from './routes/catalog.routes.js';
 // Get current directory for ES modules
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -41,6 +42,7 @@ const allowedOrigins = process.env.ALLOWED_ORIGINS
         'http://localhost:5173',
         'http://localhost:3000',
         'http://localhost:8080',
+        'http://localhost:8081',
         'http://127.0.0.1:8080',
         'https://warranty.emporiobyautoform.in',
         'https://server-bharat-maheshwaris-projects.vercel.app'
@@ -88,6 +90,7 @@ app.use('/api/vendor', generalApiLimiter, vendorRoutes);
 app.use('/api/warranty', generalApiLimiter, warrantyRoutes);
 app.use('/api/admin', generalApiLimiter, adminRoutes);
 app.use('/api/public', generalApiLimiter, publicRoutes);
+app.use('/api/catalog', generalApiLimiter, catalogRoutes);
 // ===========================================
 // ERROR HANDLING
 // ===========================================

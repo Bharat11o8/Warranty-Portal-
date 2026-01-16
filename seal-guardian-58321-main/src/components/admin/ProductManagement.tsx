@@ -164,13 +164,7 @@ export function ProductManagement() {
 
     return (
         <div className="space-y-6">
-            <div className="flex justify-between items-center">
-                <div>
-                    <h2 className="text-2xl font-bold tracking-tight">Product Management</h2>
-                    <p className="text-muted-foreground">
-                        Manage products and their warranty periods
-                    </p>
-                </div>
+            <div className="flex justify-end items-center">
                 <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
                     <DialogTrigger asChild>
                         <Button>
