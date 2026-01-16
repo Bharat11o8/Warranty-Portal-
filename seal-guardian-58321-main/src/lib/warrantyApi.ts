@@ -2,6 +2,22 @@ import api from './api';
 import { WarrantyData } from './types';
 
 export const submitWarranty = async (data: WarrantyData) => {
+  console.log('[DEBUG warrantyApi] submitWarranty called with data:', data);
+
+  // Helper function to detect File objects across browsers (mobile compatibility)
+  const isFileObject = (obj: any): obj is File => {
+    if (!obj) return false;
+    // Duck-typing check for File-like objects (works on iOS Safari, Chrome Mobile, etc.)
+    return (
+      (obj instanceof File) ||
+      (typeof obj === 'object' &&
+        obj.name !== undefined &&
+        obj.size !== undefined &&
+        typeof obj.name === 'string' &&
+        typeof obj.size === 'number')
+    );
+  };
+
   const formData = new FormData();
   let hasFiles = false;
 
@@ -10,7 +26,7 @@ export const submitWarranty = async (data: WarrantyData) => {
     for (const key in obj) {
       if (Object.prototype.hasOwnProperty.call(obj, key)) {
         const value = obj[key];
-        const formKey = parentKey ? `${parentKey}[${key}]` : key;
+        const formKey = parentKey ? `${parentKey} [${key}]` : key;
 
         if (value instanceof File) {
           hasFiles = true;
@@ -23,7 +39,7 @@ export const submitWarranty = async (data: WarrantyData) => {
             // But the form state has `invoiceFile` at root or `lhsPhoto` at root usually?
             // Wait, SeatCoverForm has `invoiceFile` at root of formData state, but passed inside `productDetails` to API?
             // Let's check SeatCoverForm submit logic.
-            // It constructs `warrantyData` with `productDetails: { invoiceFileName: ... }`.
+            // It constructs `warrantyData` with `productDetails: { invoiceFileName: ... } `.
             // But `invoiceFile` is NOT in `productDetails` in the constructed object in SeatCoverForm?
             // Ah, SeatCoverForm: `invoiceFileName: formData.invoiceFile?.name`. It sends the NAME.
             // We need to change SeatCoverForm to pass the FILE object somewhere.
@@ -64,6 +80,7 @@ export const submitWarranty = async (data: WarrantyData) => {
       formData.append(key, (data as any)[key]);
     }
   }
+  console.log('[DEBUG warrantyApi] Root fields appended');
 
   // 2. Handle productDetails
   const pd = { ...data.productDetails };
@@ -74,7 +91,7 @@ export const submitWarranty = async (data: WarrantyData) => {
   // We will modify the forms to pass the file in a temporary field in `data` or `productDetails`.
   // Let's say we put the File object in `productDetails` temporarily.
 
-  if ((pd as any).invoiceFile instanceof File) {
+  if (isFileObject((pd as any).invoiceFile)) {
     filesToAppend['invoiceFile'] = (pd as any).invoiceFile;
     delete (pd as any).invoiceFile;
     // Also clear the name field if it's just a placeholder, controller will set it
@@ -83,6 +100,7 @@ export const submitWarranty = async (data: WarrantyData) => {
 
   // Check for photos (EV)
   if (pd.photos) {
+    console.log('[DEBUG warrantyApi] Processing photos:', pd.photos);
     const photos = { ...pd.photos };
     // The form sends: lhs: filename. We need the File object.
     // We will modify EVProductsForm to pass File objects in `photos` or separate fields.
@@ -93,15 +111,19 @@ export const submitWarranty = async (data: WarrantyData) => {
     // We should change it to pass the File objects.
 
     ['lhs', 'rhs', 'frontReg', 'backReg', 'warranty'].forEach(key => {
-      if ((photos as any)[key] instanceof File) {
+      if (isFileObject((photos as any)[key])) {
+        console.log(`[DEBUG warrantyApi] Found file for ${key}:`, (photos as any)[key].name);
         filesToAppend[`${key}Photo`] = (photos as any)[key];
         delete (photos as any)[key];
+      } else {
+        console.log(`[DEBUG warrantyApi] No File found for ${key}, value:`, (photos as any)[key]);
       }
     });
     pd.photos = photos;
   }
 
   // Append files
+  console.log('[DEBUG warrantyApi] Files to append:', Object.keys(filesToAppend));
   Object.keys(filesToAppend).forEach(key => {
     formData.append(key, filesToAppend[key]);
     hasFiles = true;
@@ -109,14 +131,19 @@ export const submitWarranty = async (data: WarrantyData) => {
 
   // Append productDetails as JSON
   formData.append('productDetails', JSON.stringify(pd));
+  console.log('[DEBUG warrantyApi] productDetails JSON:', JSON.stringify(pd));
+
+  console.log('[DEBUG warrantyApi] hasFiles:', hasFiles, '- making API call...');
 
   if (hasFiles) {
     const response = await api.post('/warranty/submit', formData, {
       headers: { 'Content-Type': 'multipart/form-data' }
     });
+    console.log('[DEBUG warrantyApi] Response received:', response.data);
     return response.data;
   } else {
     const response = await api.post('/warranty/submit', data);
+    console.log('[DEBUG warrantyApi] Response received (no files):', response.data);
     return response.data;
   }
 };
@@ -127,7 +154,7 @@ export const getWarranties = async () => {
 };
 
 export const getWarrantyById = async (id: string) => {
-  const response = await api.get(`/warranty/${id}`);
+  const response = await api.get(`/ warranty / ${id} `);
   return response.data;
 };
 
@@ -156,7 +183,7 @@ export const updateWarranty = async (id: string, data: WarrantyData) => {
     const photos = { ...pd.photos };
     ['lhs', 'rhs', 'frontReg', 'backReg', 'warranty'].forEach(key => {
       if ((photos as any)[key] instanceof File) {
-        filesToAppend[`${key}Photo`] = (photos as any)[key];
+        filesToAppend[`${key} Photo`] = (photos as any)[key];
         delete (photos as any)[key];
       }
     });
@@ -171,12 +198,12 @@ export const updateWarranty = async (id: string, data: WarrantyData) => {
   formData.append('productDetails', JSON.stringify(pd));
 
   if (hasFiles) {
-    const response = await api.put(`/warranty/${id}`, formData, {
+    const response = await api.put(`/ warranty / ${id} `, formData, {
       headers: { 'Content-Type': 'multipart/form-data' }
     });
     return response.data;
   } else {
-    const response = await api.put(`/warranty/${id}`, data);
+    const response = await api.put(`/ warranty / ${id} `, data);
     return response.data;
   }
 };

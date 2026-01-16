@@ -36,8 +36,8 @@ const CustomerDetails = ({ formData, updateFormData, onNext, onPrev, isCustomer 
       return;
     }
 
-    // Validate Email
-    if ((!isVendor || formData.customerEmail) && !validateEmail(formData.customerEmail)) {
+    // Validate Email (only if provided, since it's optional for vendors)
+    if (formData.customerEmail && !validateEmail(formData.customerEmail)) {
       toast({
         title: "Invalid Email",
         description: "Please enter a valid email address",
