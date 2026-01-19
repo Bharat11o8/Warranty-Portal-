@@ -96,8 +96,9 @@ export class WarrantyController {
       // Check if UID or Serial Number already exists
       const checkId = uid || warrantyData.productDetails.serialNumber;
       if (checkId) {
+        // Fetch product_details to check retry count
         const [existingWarranty]: any = await db.execute(
-          'SELECT uid, user_id, status FROM warranty_registrations WHERE uid = ?',
+          'SELECT uid, user_id, status, product_details FROM warranty_registrations WHERE uid = ?',
           [checkId]
         );
 
@@ -108,6 +109,28 @@ export class WarrantyController {
           // 1. The warranty was rejected AND
           // 2. The user owns it (same user_id)
           if (existing.status === 'rejected' && existing.user_id === req.user.id) {
+
+            // Parse existing details to check retry count
+            let existingDetails: any = {};
+            try {
+              existingDetails = typeof existing.product_details === 'string'
+                ? JSON.parse(existing.product_details)
+                : existing.product_details || {};
+            } catch (e) {
+              console.error("Error parsing existing product_details", e);
+            }
+
+            const currentRetryCount = existingDetails.retryCount || 0;
+
+            if (currentRetryCount >= 1) {
+              return res.status(400).json({
+                error: 'Maximum resubmission limit reached. You can only edit and resubmit a rejected warranty once. Please submit a new warranty.'
+              });
+            }
+
+            // Increment retry count for the new submission
+            warrantyData.productDetails.retryCount = currentRetryCount + 1;
+
             // Delete the old rejected warranty so it can be resubmitted fresh
             await db.execute('DELETE FROM warranty_registrations WHERE uid = ?', [checkId]);
           } else {

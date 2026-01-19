@@ -16,6 +16,7 @@ import warrantyRoutes from './routes/warranty.routes.js';
 import adminRoutes from './routes/admin.routes.js';
 import publicRoutes from './routes/public.routes.js';
 import catalogRoutes from './routes/catalog.routes.js';
+import grievanceRoutes from './routes/grievance.routes.js';
 
 // Get current directory for ES modules
 const __filename = fileURLToPath(import.meta.url);
@@ -110,6 +111,7 @@ app.use('/api/warranty', generalApiLimiter, warrantyRoutes);
 app.use('/api/admin', generalApiLimiter, adminRoutes);
 app.use('/api/public', generalApiLimiter, publicRoutes);
 app.use('/api/catalog', generalApiLimiter, catalogRoutes);
+app.use('/api/grievance', generalApiLimiter, grievanceRoutes);
 
 // ===========================================
 // ERROR HANDLING
