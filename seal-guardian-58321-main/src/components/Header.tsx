@@ -2,7 +2,7 @@ import { Link, useNavigate, useLocation } from "react-router-dom";
 import { Button } from "./ui/button";
 import { useAuth } from "@/contexts/AuthContext";
 import ProfilePopover from "./ProfilePopover";
-import { Users, ClipboardList, Package, Menu } from "lucide-react";
+import { Users, ClipboardList, Package, Menu, MessageSquareWarning } from "lucide-react";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { useState } from "react";
 
@@ -49,6 +49,20 @@ const Header = () => {
             </Button>
           </Link>
 
+          {/* Customer-only: Grievance link */}
+          {user.role === 'customer' && (
+            <Link to="/grievance" onClick={() => mobile && setIsOpen(false)}>
+              <Button
+                variant={isActive("/grievance") ? "secondary" : "ghost"}
+                size="sm"
+                className="w-full justify-start flex items-center gap-2"
+              >
+                <MessageSquareWarning className="h-4 w-4" />
+                Grievance
+              </Button>
+            </Link>
+          )}
+
           {/* Admin-only links */}
           {user.role === 'admin' && (
             <>
@@ -80,6 +94,16 @@ const Header = () => {
                 >
                   <ClipboardList className="h-4 w-4" />
                   Activity Logs
+                </Button>
+              </Link>
+              <Link to="/admin/grievances" onClick={() => mobile && setIsOpen(false)}>
+                <Button
+                  variant={isActive("/admin/grievances") ? "secondary" : "ghost"}
+                  size="sm"
+                  className="w-full justify-start flex items-center gap-2"
+                >
+                  <MessageSquareWarning className="h-4 w-4" />
+                  Grievances
                 </Button>
               </Link>
             </>
@@ -139,6 +163,20 @@ const Header = () => {
                 </Button>
               </Link>
 
+              {/* Customer-only: Grievance link */}
+              {user.role === 'customer' && (
+                <Link to="/grievance">
+                  <Button
+                    variant={isActive("/grievance") ? "secondary" : "ghost"}
+                    size="sm"
+                    className="flex items-center gap-1"
+                  >
+                    <MessageSquareWarning className="h-4 w-4" />
+                    Grievance
+                  </Button>
+                </Link>
+              )}
+
               {user.role === 'admin' && (
                 <>
                   <Link to="/admin/manage">
@@ -169,6 +207,16 @@ const Header = () => {
                     >
                       <ClipboardList className="h-4 w-4" />
                       Activity Logs
+                    </Button>
+                  </Link>
+                  <Link to="/admin/grievances">
+                    <Button
+                      variant={isActive("/admin/grievances") ? "secondary" : "ghost"}
+                      size="sm"
+                      className="flex items-center gap-1"
+                    >
+                      <MessageSquareWarning className="h-4 w-4" />
+                      Grievances
                     </Button>
                   </Link>
                 </>

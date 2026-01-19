@@ -3,7 +3,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import Header from "@/components/Header";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Package, Plus, ArrowLeft, Edit, FileText, Eye, Download, Search, Loader2, X } from "lucide-react";
+import { Package, ArrowLeft, Edit, Search, Loader2 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
@@ -87,9 +87,8 @@ const CustomerDashboard = () => {
             : EVProductsForm;
 
         return (
-            <div className="min-h-screen bg-gradient-to-b from-background to-muted/30">
-                <Header />
-                <main className="container mx-auto px-4 py-8">
+            <div className="bg-gradient-to-b from-background to-muted/30">
+                <div className="container mx-auto px-4 py-8">
                     <Button
                         variant="ghost"
                         onClick={() => {
@@ -109,7 +108,7 @@ const CustomerDashboard = () => {
                             fetchWarranties();
                         }}
                     />
-                </main>
+                </div>
             </div>
         );
     }
@@ -298,12 +297,19 @@ const CustomerDashboard = () => {
                                         <span className="shrink-0 pt-0.5">•</span>
                                         {warranty.rejection_reason || "Check details and resubmit."}
                                     </p>
-                                    <Button size="sm" variant="outline" className="w-full border-red-200 text-red-700 hover:bg-red-50 h-8" onClick={(e) => {
-                                        e.preventDefault();
-                                        setEditingWarranty(warranty);
-                                    }}>
-                                        <Edit className="w-3 h-3 mr-2" /> Edit & Resubmit
-                                    </Button>
+
+                                    {(productDetails.retryCount || 0) >= 1 ? (
+                                        <div className="mt-2 text-xs text-red-500 font-semibold bg-red-100/50 p-2 rounded border border-red-100">
+                                            Max resubmission limit reached. Please register as a new warranty.
+                                        </div>
+                                    ) : (
+                                        <Button size="sm" variant="outline" className="w-full border-red-200 text-red-700 hover:bg-red-50 h-8" onClick={(e) => {
+                                            e.preventDefault();
+                                            setEditingWarranty(warranty);
+                                        }}>
+                                            <Edit className="w-3 h-3 mr-2" /> Edit & Resubmit
+                                        </Button>
+                                    )}
                                 </div>
                             )}
                         </div>
@@ -314,177 +320,188 @@ const CustomerDashboard = () => {
     };
 
     return (
-        <div className="min-h-screen bg-background">
-            <Header />
+        <div className="container mx-auto px-4 md:px-8 py-8">
+            {/* Header Section */}
+            <div className="flex items-center justify-between mb-8">
+                <div>
+                    <h1 className="text-2xl font-bold tracking-tight">My Garage</h1>
+                    <p className="text-sm text-muted-foreground">Manage your protected vehicles</p>
+                </div>
+            </div>
 
-            <main className="container mx-auto px-4 py-6 max-w-2xl">
-                {/* Max-w-2xl keeps it mobile-app like on desktop */}
-
-                {/* Header Section */}
-                <div className="flex items-center justify-between mb-8">
-                    <div>
-                        <h1 className="text-2xl font-bold tracking-tight">My Garage</h1>
-                        <p className="text-sm text-muted-foreground">Manage your protected vehicles</p>
+            {/* New Warranty Actions */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-10">
+                <button
+                    onClick={() => setCreatingWarranty('seat-cover')}
+                    className="relative flex flex-col items-center justify-center p-6 md:p-8 min-h-[200px] rounded-3xl border border-red-50 bg-gradient-to-b from-red-50/50 to-white hover:from-red-50 hover:to-white transition-all group active:scale-[0.99] shadow-sm hover:shadow-xl hover:shadow-red-500/5 overflow-hidden"
+                >
+                    <div className="absolute top-0 right-0 w-28 h-28 bg-red-500/5 rounded-bl-[80px] -mr-6 -mt-6 transition-transform group-hover:scale-110" />
+                    <div className="relative w-16 h-16 mb-4 group-hover:scale-110 transition-transform duration-300 drop-shadow-sm flex items-center justify-center bg-red-100/50 rounded-2xl p-3">
+                        <img src="/seat-cover-icon.png" className="w-full h-full object-contain" alt="Seat Cover" />
                     </div>
-                </div>
+                    <div className="text-center relative z-10">
+                        <h3 className="text-lg font-bold text-gray-900 mb-1">Add Seat Cover Warranty</h3>
+                        <p className="text-sm text-gray-500">Protect your vehicle interiors</p>
+                    </div>
+                </button>
+                <button
+                    onClick={() => setCreatingWarranty('ppf')}
+                    className="relative flex flex-col items-center justify-center p-6 md:p-8 min-h-[200px] rounded-3xl border border-blue-50 bg-gradient-to-b from-blue-50/50 to-white hover:from-blue-50 hover:to-white transition-all group active:scale-[0.99] shadow-sm hover:shadow-xl hover:shadow-blue-500/5 overflow-hidden"
+                >
+                    <div className="absolute top-0 right-0 w-28 h-28 bg-blue-500/5 rounded-bl-[80px] -mr-6 -mt-6 transition-transform group-hover:scale-110" />
+                    <div className="relative w-16 h-16 mb-4 group-hover:scale-110 transition-transform duration-300 drop-shadow-sm flex items-center justify-center bg-blue-100/50 rounded-2xl p-3">
+                        <img src="/ppf-icon.png" className="w-full h-full object-contain" alt="PPF" />
+                    </div>
+                    <div className="text-center relative z-10">
+                        <h3 className="text-lg font-bold text-gray-900 mb-1">Add PPF Warranty</h3>
+                        <p className="text-sm text-gray-500">Premium paint protection</p>
+                    </div>
+                </button>
+            </div>
 
-                {/* New Warranty Actions */}
-                <div className="grid grid-cols-2 gap-4 mb-8">
-                    <button
-                        onClick={() => setCreatingWarranty('seat-cover')}
-                        className="relative flex flex-col items-center justify-center p-6 rounded-2xl border border-red-100 bg-gradient-to-b from-red-50 to-white hover:from-red-100 hover:to-red-50 transition-all group active:scale-[0.98] shadow-sm hover:shadow-md hover:shadow-red-500/10 overflow-hidden"
-                    >
-                        <div className="absolute top-0 right-0 w-16 h-16 bg-red-500/5 rounded-bl-full -mr-4 -mt-4 transition-transform group-hover:scale-110" />
-                        <div className="relative w-14 h-14 mb-3 group-hover:scale-110 transition-transform duration-300 drop-shadow-sm">
-                            <img src="/seat-cover-icon.png" className="w-full h-full object-contain" alt="Seat Cover" />
-                        </div>
-                        <span className="text-sm font-bold text-red-900/80 group-hover:text-red-900 transition-colors">Add Seat Cover Warranty</span>
-                    </button>
-                    <button
-                        onClick={() => setCreatingWarranty('ppf')}
-                        className="relative flex flex-col items-center justify-center p-6 rounded-2xl border border-blue-100 bg-gradient-to-b from-blue-50 to-white hover:from-blue-100 hover:to-blue-50 transition-all group active:scale-[0.98] shadow-sm hover:shadow-md hover:shadow-blue-500/10 overflow-hidden"
-                    >
-                        <div className="absolute top-0 right-0 w-16 h-16 bg-blue-500/5 rounded-bl-full -mr-4 -mt-4 transition-transform group-hover:scale-110" />
-                        <div className="relative w-14 h-14 mb-3 group-hover:scale-110 transition-transform duration-300 drop-shadow-sm">
-                            <img src="/ppf-icon.png" className="w-full h-full object-contain" alt="PPF" />
-                        </div>
-                        <span className="text-sm font-bold text-blue-900/80 group-hover:text-blue-900 transition-colors">Add PPF Warranty</span>
-                    </button>
-                </div>
-
-                {/* Search Bar */}
-                <div className="sticky top-4 z-30 mb-6">
-                    <div className="relative shadow-sm rounded-full">
+            {/* Tabs & Search Section */}
+            <Tabs defaultValue="approved" className="space-y-6">
+                <div className="flex flex-col md:flex-row gap-4 items-center justify-between mb-6 sticky top-20 md:top-4 z-30 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 py-2">
+                    {/* Search Bar */}
+                    <div className="relative shadow-sm rounded-full w-full md:max-w-xl">
                         <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                         <input
                             type="text"
                             placeholder="Search your warranties..."
-                            className="w-full pl-11 pr-4 py-3 rounded-full border-0 bg-background/80 backdrop-blur-md ring-1 ring-border/50 focus:ring-2 focus:ring-primary/20 text-sm shadow-lg shadow-black/5 transition-all"
+                            className="w-full pl-11 pr-4 py-2.5 rounded-full border border-input bg-white ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 text-sm transition-all shadow-sm"
                             value={warrantySearch}
                             onChange={(e) => setWarrantySearch(e.target.value)}
                         />
                     </div>
-                </div>
 
-                {/* Filters */}
-                {(warrantyDateFrom || warrantyDateTo) && (
-                    <div className="flex gap-2 mb-4 overflow-x-auto pb-2">
-                        <Badge variant="secondary" className="bg-muted text-muted-foreground flex gap-1 items-center whitespace-nowrap">
-                            Date Filter Active <X className="h-3 w-3 cursor-pointer" onClick={() => { setWarrantyDateFrom(''); setWarrantyDateTo('') }} />
-                        </Badge>
+                    {/* Filter Tabs */}
+                    <div className="w-full md:w-auto overflow-x-auto pb-2 md:pb-0 scrollbar-none">
+                        <TabsList className="bg-muted/50 p-1 rounded-full h-9 md:h-11 w-full md:w-auto grid grid-cols-3 md:inline-flex">
+                            <TabsTrigger
+                                value="approved"
+                                className="rounded-full px-1 md:px-5 py-1 md:py-2 text-[10px] sm:text-xs md:text-sm font-medium data-[state=active]:bg-white data-[state=active]:text-foreground data-[state=active]:shadow-sm transition-all flex items-center justify-center gap-1 md:gap-2 whitespace-nowrap"
+                            >
+                                Approved
+                                <span className="ml-1 md:ml-1.5 py-0.5 px-1.5 md:px-2 rounded-full bg-green-100 text-green-700 text-[9px] md:text-[10px] font-bold">
+                                    {approvedWarranties.length}
+                                </span>
+                            </TabsTrigger>
+                            <TabsTrigger
+                                value="pending"
+                                className="rounded-full px-1 md:px-5 py-1 md:py-2 text-[10px] sm:text-xs md:text-sm font-medium data-[state=active]:bg-white data-[state=active]:text-foreground data-[state=active]:shadow-sm transition-all flex items-center justify-center gap-1 md:gap-2 whitespace-nowrap"
+                            >
+                                Pending
+                                <span className="ml-1 md:ml-1.5 py-0.5 px-1.5 md:px-2 rounded-full bg-amber-100 text-amber-700 text-[9px] md:text-[10px] font-bold">
+                                    {pendingWarranties.length}
+                                </span>
+                            </TabsTrigger>
+                            <TabsTrigger
+                                value="rejected"
+                                className="rounded-full px-1 md:px-5 py-1 md:py-2 text-[10px] sm:text-xs md:text-sm font-medium data-[state=active]:bg-white data-[state=active]:text-foreground data-[state=active]:shadow-sm transition-all flex items-center justify-center gap-1 md:gap-2 whitespace-nowrap"
+                            >
+                                Rejected
+                                <span className="ml-1 md:ml-1.5 py-0.5 px-1.5 md:px-2 rounded-full bg-red-100 text-red-700 text-[9px] md:text-[10px] font-bold">
+                                    {rejectedWarranties.length}
+                                </span>
+                            </TabsTrigger>
+                        </TabsList>
                     </div>
-                )}
-
-                {/* Tabs */}
-                <Tabs defaultValue="approved" className="space-y-6">
-                    <TabsList className="w-full bg-muted/20 p-1 rounded-lg h-auto grid grid-cols-3 gap-2">
-                        <TabsTrigger value="approved" className="rounded-md py-2 text-xs font-medium data-[state=active]:bg-white data-[state=active]:shadow-sm text-green-700 data-[state=active]:text-green-800 data-[state=active]:border-2 data-[state=active]:border-green-500/20 transition-all">
-                            Approved ({approvedWarranties.length})
-                        </TabsTrigger>
-                        <TabsTrigger value="pending" className="rounded-md py-2 text-xs font-medium data-[state=active]:bg-white data-[state=active]:shadow-sm text-amber-700 data-[state=active]:text-amber-800 data-[state=active]:border-2 data-[state=active]:border-amber-500/20 transition-all">
-                            Pending ({pendingWarranties.length})
-                        </TabsTrigger>
-                        <TabsTrigger value="rejected" className="rounded-md py-2 text-xs font-medium data-[state=active]:bg-white data-[state=active]:shadow-sm text-red-700 data-[state=active]:text-red-800 data-[state=active]:border-2 data-[state=active]:border-red-500/20 transition-all">
-                            Rejected ({rejectedWarranties.length})
-                        </TabsTrigger>
-                    </TabsList>
-
-                    <TabsContent value="approved" className="outline-none animate-in fade-in slide-in-from-bottom-2 duration-500">
-                        {loadingWarranties ? (
-                            <div className="py-12 flex justify-center"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
-                        ) : (
-                            <WarrantyList items={filterAndSortWarranties(approvedWarranties)} />
-                        )}
-                    </TabsContent>
-                    <TabsContent value="pending" className="outline-none animate-in fade-in slide-in-from-bottom-2 duration-500">
-                        <WarrantyList items={filterAndSortWarranties(pendingWarranties)} />
-                    </TabsContent>
-                    <TabsContent value="rejected" className="outline-none animate-in fade-in slide-in-from-bottom-2 duration-500">
-                        <WarrantyList items={filterAndSortWarranties(rejectedWarranties)} showReason={true} />
-                    </TabsContent>
-                </Tabs>
-
-                {/* Pagination */}
-                <div className="mt-8">
-                    <Pagination
-                        currentPage={warrantyPagination.currentPage}
-                        totalPages={warrantyPagination.totalPages}
-                        totalCount={warrantyPagination.totalCount}
-                        limit={warrantyPagination.limit}
-                        onPageChange={(page) => fetchWarranties(page)}
-                    />
                 </div>
 
-                {/* The Spec Sheet Component */}
-                <WarrantySpecSheet
-                    isOpen={!!specSheetData}
-                    onClose={() => setSpecSheetData(null)}
-                    warranty={specSheetData}
-                />
+                <TabsContent value="approved" className="outline-none animate-in fade-in slide-in-from-bottom-2 duration-500">
+                    {loadingWarranties ? (
+                        <div className="py-12 flex justify-center"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
+                    ) : (
+                        <WarrantyList items={filterAndSortWarranties(approvedWarranties)} />
+                    )}
+                </TabsContent>
+                <TabsContent value="pending" className="outline-none animate-in fade-in slide-in-from-bottom-2 duration-500">
+                    <WarrantyList items={filterAndSortWarranties(pendingWarranties)} />
+                </TabsContent>
+                <TabsContent value="rejected" className="outline-none animate-in fade-in slide-in-from-bottom-2 duration-500">
+                    <WarrantyList items={filterAndSortWarranties(rejectedWarranties)} showReason={true} />
+                </TabsContent>
+            </Tabs>
 
-                {/* Create Warranty Dialogs */}
-                <Dialog open={creatingWarranty === 'seat-cover'} onOpenChange={(open) => !open && setCreatingWarranty(null)}>
-                    <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-                        <DialogHeader>
-                            <DialogTitle>Register Seat Cover Warranty</DialogTitle>
-                            <DialogDescription>Enter the details for your new seat cover warranty.</DialogDescription>
-                        </DialogHeader>
+            {/* Pagination */}
+            <div className="mt-8">
+                <Pagination
+                    currentPage={warrantyPagination.currentPage}
+                    totalPages={warrantyPagination.totalPages}
+                    totalCount={warrantyPagination.totalCount}
+                    limit={warrantyPagination.limit}
+                    onPageChange={(page) => fetchWarranties(page)}
+                />
+            </div>
+
+            {/* The Spec Sheet Component */}
+            <WarrantySpecSheet
+                isOpen={!!specSheetData}
+                onClose={() => setSpecSheetData(null)}
+                warranty={specSheetData}
+            />
+
+            {/* Create Warranty Dialogs */}
+            <Dialog open={creatingWarranty === 'seat-cover'} onOpenChange={(open) => !open && setCreatingWarranty(null)}>
+                <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+                    <DialogHeader>
+                        <DialogTitle>Register Seat Cover Warranty</DialogTitle>
+                        <DialogDescription>Enter the details for your new seat cover warranty.</DialogDescription>
+                    </DialogHeader>
+                    <SeatCoverForm
+                        onSuccess={() => {
+                            setCreatingWarranty(null);
+                            fetchWarranties();
+                        }}
+                    />
+                </DialogContent>
+            </Dialog>
+
+            <Dialog open={creatingWarranty === 'ppf'} onOpenChange={(open) => !open && setCreatingWarranty(null)}>
+                <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+                    <DialogHeader>
+                        <DialogTitle>Register PPF Warranty</DialogTitle>
+                        <DialogDescription>Enter the details for your new paint protection film warranty.</DialogDescription>
+                    </DialogHeader>
+                    <EVProductsForm
+                        isUniversal={false}
+                        onSuccess={() => {
+                            setCreatingWarranty(null);
+                            fetchWarranties();
+                        }}
+                    />
+                </DialogContent>
+            </Dialog>
+
+            {/* Edit Warranty Dialog */}
+            <Dialog open={!!editingWarranty} onOpenChange={(open) => !open && setEditingWarranty(null)}>
+                <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+                    <DialogHeader>
+                        <DialogTitle>Edit Warranty</DialogTitle>
+                        <DialogDescription>Update the details for your rejected warranty.</DialogDescription>
+                    </DialogHeader>
+                    {editingWarranty?.product_type === 'seat-cover' ? (
                         <SeatCoverForm
+                            initialData={editingWarranty}
+                            isEditing={true}
                             onSuccess={() => {
-                                setCreatingWarranty(null);
+                                setEditingWarranty(null);
                                 fetchWarranties();
                             }}
                         />
-                    </DialogContent>
-                </Dialog>
-
-                <Dialog open={creatingWarranty === 'ppf'} onOpenChange={(open) => !open && setCreatingWarranty(null)}>
-                    <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-                        <DialogHeader>
-                            <DialogTitle>Register PPF Warranty</DialogTitle>
-                            <DialogDescription>Enter the details for your new paint protection film warranty.</DialogDescription>
-                        </DialogHeader>
+                    ) : (
                         <EVProductsForm
+                            initialData={editingWarranty}
+                            isEditing={true}
                             isUniversal={false}
                             onSuccess={() => {
-                                setCreatingWarranty(null);
+                                setEditingWarranty(null);
                                 fetchWarranties();
                             }}
                         />
-                    </DialogContent>
-                </Dialog>
-
-                {/* Edit Warranty Dialog */}
-                <Dialog open={!!editingWarranty} onOpenChange={(open) => !open && setEditingWarranty(null)}>
-                    <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-                        <DialogHeader>
-                            <DialogTitle>Edit Warranty</DialogTitle>
-                            <DialogDescription>Update the details for your rejected warranty.</DialogDescription>
-                        </DialogHeader>
-                        {editingWarranty?.product_type === 'seat-cover' ? (
-                            <SeatCoverForm
-                                initialData={editingWarranty}
-                                isEditing={true}
-                                onSuccess={() => {
-                                    setEditingWarranty(null);
-                                    fetchWarranties();
-                                }}
-                            />
-                        ) : (
-                            <EVProductsForm
-                                initialData={editingWarranty}
-                                isEditing={true}
-                                isUniversal={false}
-                                onSuccess={() => {
-                                    setEditingWarranty(null);
-                                    fetchWarranties();
-                                }}
-                            />
-                        )}
-                    </DialogContent>
-                </Dialog>
-
-            </main>
+                    )}
+                </DialogContent>
+            </Dialog>
         </div>
     );
 };

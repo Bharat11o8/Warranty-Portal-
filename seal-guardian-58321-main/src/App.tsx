@@ -20,6 +20,9 @@ import NotFound from "./pages/NotFound";
 import CataloguePage from "./pages/CataloguePage";
 import CategoryPage from "./pages/eshop/CategoryPage";
 import ProductPage from "./pages/eshop/ProductPage";
+import GrievancePage from "./pages/GrievancePage";
+import AdminGrievancesPage from "./pages/AdminGrievancesPage";
+import CustomerLayout from "./components/layouts/CustomerLayout";
 
 const queryClient = new QueryClient();
 
@@ -36,16 +39,23 @@ const App = () => (
             <Route path="/register" element={<Register />} />
             <Route path="/warranty" element={<Warranty />} />
             <Route path="/profile" element={<Profile />} />
-            <Route path="/dashboard/customer" element={<CustomerDashboard />} />
+
+            {/* Customer Routes Layout */}
+            <Route element={<CustomerLayout />}>
+              <Route path="/dashboard/customer" element={<CustomerDashboard />} />
+              <Route path="/grievance" element={<GrievancePage />} />
+              <Route path="/terms" element={<Terms />} />
+            </Route>
+
             <Route path="/dashboard/vendor" element={<FranchiseDashboard />} />
             <Route path="/dashboard/admin" element={<AdminDashboard />} />
             <Route path="/admin/manage" element={<AdminManagement />} />
             <Route path="/admin/products" element={<AdminProducts />} />
             <Route path="/admin/activity-logs" element={<ActivityLogs />} />
-            <Route path="/terms" element={<Terms />} />
             <Route path="/catalogue" element={<CataloguePage />} />
             <Route path="/category/:categoryId" element={<CategoryPage />} />
             <Route path="/product/:productId" element={<ProductPage />} />
+            <Route path="/admin/grievances" element={<AdminGrievancesPage />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>

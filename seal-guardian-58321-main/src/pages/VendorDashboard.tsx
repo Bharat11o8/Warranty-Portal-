@@ -18,6 +18,7 @@ import SeatCoverForm from "@/components/warranty/SeatCoverForm";
 import { Pagination } from "@/components/Pagination";
 import { WarrantySpecSheet } from "@/components/warranty/WarrantySpecSheet";
 import { ProductCatalog } from "@/components/vendor/ProductCatalog";
+import VendorGrievances from "@/components/fms/VendorGrievances";
 
 // WarrantyList Component - Modern card design matching Customer Dashboard
 const WarrantyList = ({ items, showReason = false, user, onEditWarranty, onVerify, onReject, isPendingVerification = false, onSelectWarranty }: {
@@ -743,7 +744,14 @@ const VendorDashboard = () => {
                         <TabsTrigger value="catalog" className="flex-1 min-w-[80px] rounded-md py-2 px-2 text-xs font-medium data-[state=active]:bg-white data-[state=active]:shadow-sm text-blue-700 data-[state=active]:text-blue-800 data-[state=active]:border-2 data-[state=active]:border-blue-500/20 transition-all">
                             Catalogue
                         </TabsTrigger>
+                        <TabsTrigger value="grievance" className="flex-1 min-w-[80px] rounded-md py-2 px-2 text-xs font-medium data-[state=active]:bg-white data-[state=active]:shadow-sm text-orange-700 data-[state=active]:text-orange-800 data-[state=active]:border-2 data-[state=active]:border-orange-500/20 transition-all">
+                            Grievances
+                        </TabsTrigger>
                     </TabsList>
+
+                    <TabsContent value="grievance" className="outline-none animate-in fade-in slide-in-from-bottom-2 duration-500">
+                        <VendorGrievances />
+                    </TabsContent>
 
                     <TabsContent value="pending_verification" className="outline-none animate-in fade-in slide-in-from-bottom-2 duration-500">
                         <WarrantyList

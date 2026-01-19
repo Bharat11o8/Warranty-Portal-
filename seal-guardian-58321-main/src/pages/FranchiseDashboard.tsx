@@ -15,6 +15,7 @@ import { StaffManagement } from "@/components/fms/StaffManagement";
 import VendorCatalog from "@/components/eshop/VendorCatalog";
 import { NewsAlerts } from "@/components/fms/NewsAlerts";
 import { ComingSoon } from "@/components/fms/ComingSoon";
+import VendorGrievances from "@/components/fms/VendorGrievances";
 import { Button } from "@/components/ui/button";
 
 // Existing Components for Modals
@@ -258,8 +259,9 @@ const FranchiseDashboard = () => {
                 return <VendorCatalog />;
             case 'news':
                 return <NewsAlerts />;
-            case 'orders':
             case 'grievances':
+                return <VendorGrievances />;
+            case 'orders':
             case 'offers':
             case 'audit':
             case 'targets':

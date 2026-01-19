@@ -1,11 +1,9 @@
-import Header from "@/components/Header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 const Terms = () => {
   return (
     <div className="min-h-screen bg-gradient-to-b from-background to-muted/30">
-      <Header />
-      
+
       <main className="container mx-auto px-4 py-12">
         <Card className="max-w-4xl mx-auto">
           <CardHeader>
@@ -20,7 +18,7 @@ const Terms = () => {
             </div>
 
             <h2 className="text-2xl font-bold text-gray-900 mt-8 mb-4">Terms & Condition</h2>
-            
+
             <ul className="space-y-3 list-disc pl-6 text-gray-700">
               <li className="leading-relaxed">The Warranty Shall Apply in the Case of: Stitching Defect, Color Bleeding, Rubbing Fastness.</li>
               <li className="leading-relaxed">If Any Manufacturing Defect Is Observed in the Seat cover During the Warranty Period, the Manufacturer Holds the Obligation/liability to Repair or Replace the Seat cover Free of Charge (After Careful Observation and Review by the Company's Management Team).</li>
