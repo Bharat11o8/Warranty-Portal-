@@ -1,4 +1,5 @@
 import express from 'express';
+import { createServer } from 'http';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
@@ -14,13 +15,18 @@ import warrantyRoutes from './routes/warranty.routes.js';
 import adminRoutes from './routes/admin.routes.js';
 import publicRoutes from './routes/public.routes.js';
 import catalogRoutes from './routes/catalog.routes.js';
+import notificationRoutes from './routes/notification.routes.js';
+import { initSocket } from './socket.js';
 // Get current directory for ES modules
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 // Load .env from server directory
 dotenv.config({ path: join(__dirname, '../.env') });
 const app = express();
+const httpServer = createServer(app);
 const PORT = process.env.PORT || 3000;
+// Initialize Socket.io
+initSocket(httpServer);
 // Enable trust proxy for rate limiting behind load balancers/proxies
 app.set('trust proxy', 1);
 // ===========================================
@@ -91,6 +97,7 @@ app.use('/api/warranty', generalApiLimiter, warrantyRoutes);
 app.use('/api/admin', generalApiLimiter, adminRoutes);
 app.use('/api/public', generalApiLimiter, publicRoutes);
 app.use('/api/catalog', generalApiLimiter, catalogRoutes);
+app.use('/api/notifications', generalApiLimiter, notificationRoutes);
 // ===========================================
 // ERROR HANDLING
 // ===========================================
@@ -102,8 +109,9 @@ app.use(globalErrorHandler);
 // START SERVER
 // ===========================================
 if (process.env.VERCEL !== '1') {
-    app.listen(PORT, () => {
+    httpServer.listen(PORT, () => {
         console.log(`🚀 Server running on port ${PORT}`);
+        console.log(`📡 Socket.io: Initialized`);
         console.log(`📧 Email service: ${process.env.EMAIL_SERVICE}`);
         console.log(`🗄️  Database: ${process.env.DB_NAME}`);
         console.log(`🌐 CORS origins: ${allowedOrigins.join(', ')}`);

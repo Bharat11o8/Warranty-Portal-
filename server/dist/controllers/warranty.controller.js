@@ -1,3 +1,4 @@
+import { v4 as uuidv4 } from 'uuid';
 import db from '../config/database.js';
 import { EmailService } from '../services/email.service.js';
 import jwt from 'jsonwebtoken';
@@ -75,9 +76,10 @@ export class WarrantyController {
                 }
             }
             const uid = warrantyData.productDetails.uid || null;
-            // Check if UID already exists (only for seat-cover products)
-            if (warrantyData.productType === 'seat-cover' && uid) {
-                const [existingWarranty] = await db.execute('SELECT uid, user_id, status FROM warranty_registrations WHERE uid = ?', [uid]);
+            // Check if UID or Serial Number already exists
+            const checkId = uid || warrantyData.productDetails.serialNumber;
+            if (checkId) {
+                const [existingWarranty] = await db.execute('SELECT uid, user_id, status FROM warranty_registrations WHERE uid = ?', [checkId]);
                 if (existingWarranty.length > 0) {
                     const existing = existingWarranty[0];
                     // Allow resubmission if:
@@ -85,11 +87,11 @@ export class WarrantyController {
                     // 2. The user owns it (same user_id)
                     if (existing.status === 'rejected' && existing.user_id === req.user.id) {
                         // Delete the old rejected warranty so it can be resubmitted fresh
-                        await db.execute('DELETE FROM warranty_registrations WHERE uid = ?', [uid]);
+                        await db.execute('DELETE FROM warranty_registrations WHERE uid = ?', [checkId]);
                     }
                     else {
                         return res.status(400).json({
-                            error: 'This UID is already registered. Each seat cover can only be registered once.'
+                            error: `This ${uid ? 'UID' : 'Serial Number'} is already registered.`
                         });
                     }
                 }
@@ -97,12 +99,15 @@ export class WarrantyController {
             // Insert warranty registration
             // For customer submissions, set status to 'pending_vendor'
             const initialStatus = req.user.role === 'customer' ? 'pending_vendor' : 'pending';
+            // Use provided UID (for seat covers) or Serial Number (for EV products)
+            // or generate a new UUID (fallback)
+            const warrantyId = warrantyData.productDetails.uid || warrantyData.productDetails.serialNumber || uuidv4();
             await db.execute(`INSERT INTO warranty_registrations 
         (uid, user_id, product_type, customer_name, customer_email, customer_phone, 
          customer_address, car_make, car_model, car_year, 
          purchase_date, installer_name, installer_contact, product_details, manpower_id, warranty_type, status) 
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [
-                uid,
+                warrantyId,
                 req.user.id,
                 warrantyData.productType,
                 warrantyData.customerName,
@@ -123,7 +128,7 @@ export class WarrantyController {
             // Handle Email Notifications
             if (initialStatus === 'pending_vendor' && warrantyData.installerContact) {
                 // Generate Token
-                const token = jwt.sign({ warrantyId: uid, vendorEmail: warrantyData.installerContact }, process.env.JWT_SECRET || 'your-secret-key', { expiresIn: '7d' } // Long expiry for email links
+                const token = jwt.sign({ warrantyId: warrantyId, vendorEmail: warrantyData.installerContact }, process.env.JWT_SECRET || 'your-secret-key', { expiresIn: '7d' } // Long expiry for email links
                 );
                 // Send Email to Vendor
                 // Parsing installerContact to get email if it's in "email | phone" format
@@ -131,7 +136,7 @@ export class WarrantyController {
                 if (vendorEmail.includes('|')) {
                     vendorEmail = vendorEmail.split('|')[0].trim();
                 }
-                await EmailService.sendVendorConfirmationEmail(vendorEmail, warrantyData.installerName || 'Partner', warrantyData.customerName, token, warrantyData.productType, warrantyData.productDetails);
+                await EmailService.sendVendorConfirmationEmail(vendorEmail, warrantyData.installerName || 'Partner', warrantyData.customerName, token, warrantyData.productType, warrantyData.productDetails, warrantyData.carMake, warrantyData.carModel);
             }
             else if (warrantyData.customerEmail && warrantyData.customerEmail.trim()) {
                 // Standard confirmation to customer (only if not pending vendor, or maybe send "Submission Received"?)
@@ -145,7 +150,7 @@ export class WarrantyController {
             }
             // If it WASN'T pending_vendor (e.g. Admin submitted), send the standard confirmation now
             if (initialStatus !== 'pending_vendor' && warrantyData.customerEmail && warrantyData.customerEmail.trim()) {
-                await EmailService.sendWarrantyConfirmation(warrantyData.customerEmail, warrantyData.customerName, uid, warrantyData.productType, warrantyData.productDetails);
+                await EmailService.sendWarrantyConfirmation(warrantyData.customerEmail, warrantyData.customerName, uid, warrantyData.productType, warrantyData.productDetails, warrantyData.carMake, warrantyData.carModel);
             }
             res.status(201).json({
                 success: true,

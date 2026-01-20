@@ -317,18 +317,20 @@ export class EmailService {
             })
         });
     }
-    static async sendWarrantyConfirmation(customerEmail, customerName, uid, productType, productDetails) {
+    static async sendWarrantyConfirmation(customerEmail, customerName, uid, productType, productDetails, carMake, carModel) {
         const productName = productDetails?.product || productDetails?.productName || productType;
         const htmlContent = `
       <h2 style="color: #333; margin-top: 0;">Hello ${customerName},</h2>
       <p>Your warranty registration has been successfully completed!</p>
       
       <div class="info-box">
+        <p><strong>Customer Name:</strong> ${customerName}</p>
+        <p><strong>Make:</strong> ${carMake || 'N/A'}</p>
+        <p><strong>Model:</strong> ${carModel || 'N/A'}</p>
         ${productType === 'seat-cover' ? `<p><strong>UID:</strong> ${uid}</p>` : ''}
-        ${productType === 'ev-products' && productDetails ? `
-          <p><strong>Lot Number:</strong> ${productDetails.lotNumber || 'N/A'}</p>
-          <p><strong>Roll Number:</strong> ${productDetails.rollNumber || 'N/A'}</p>
-          <p><strong>Vehicle Registration:</strong> ${productDetails.carRegistration || 'N/A'}</p>
+        ${productType === 'ev-products' ? `
+          <p><strong>Serial Number:</strong> ${productDetails?.serialNumber || 'N/A'}</p>
+          <p><strong>Vehicle Registration:</strong> ${productDetails?.carRegistration || 'N/A'}</p>
         ` : ''}
         <p><strong>Product:</strong> ${String(productName).replace(/-/g, ' ').toUpperCase()}</p>
         <p><strong>Product Type:</strong> ${productType}</p>
@@ -338,7 +340,7 @@ export class EmailService {
       <p>Your warranty is now active. Please keep this email for your records.</p>
       
       <div class="warning-box">
-        <strong>Important:</strong> In case of warranty claims, please provide your ${productType === 'seat-cover' ? 'UID' : productType === 'ev-products' ? 'lot number, roll number, and vehicle registration' : 'warranty details'}.
+        <strong>Important:</strong> In case of warranty claims, please provide your ${productType === 'seat-cover' ? 'UID' : productType === 'ev-products' ? 'serial number and vehicle registration' : 'warranty details'}.
       </div>
       
       <p>Thank you for choosing our products!</p>
@@ -373,10 +375,9 @@ export class EmailService {
       <div class="info-box" style="border-left-color: #00f2fe;">
         <p style="margin: 0 0 10px 0; font-weight: bold; color: #0088cc;">📋 Warranty Details:</p>
         ${productType === 'seat-cover' ? `<p><strong>UID:</strong> ${uid}</p>` : ''}
-        ${productType === 'ev-products' && productDetails ? `
-          <p><strong>Lot Number:</strong> ${productDetails.lotNumber || 'N/A'}</p>
-          <p><strong>Roll Number:</strong> ${productDetails.rollNumber || 'N/A'}</p>
-          <p><strong>Vehicle Registration:</strong> ${productDetails.carRegistration || 'N/A'}</p>
+        ${productType === 'ev-products' ? `
+          <p><strong>Serial Number:</strong> ${productDetails?.serialNumber || 'N/A'}</p>
+          <p><strong>Vehicle Registration:</strong> ${productDetails?.carRegistration || 'N/A'}</p>
         ` : ''}
         <p><strong>Product:</strong> ${String(productName).replace(/-/g, ' ').toUpperCase()}</p>
         <p><strong>Product Type:</strong> ${productType}</p>
@@ -401,7 +402,7 @@ export class EmailService {
         <ul style="margin: 0; padding-left: 20px;">
           <li>Keep this email for your records</li>
           <li>Your warranty is now active and valid</li>
-          <li>Use your ${productType === 'seat-cover' ? 'UID' : productType === 'ev-products' ? 'lot number, roll number, and vehicle registration' : 'warranty details'} for any warranty claims</li>
+          <li>Use your ${productType === 'seat-cover' ? 'UID' : productType === 'ev-products' ? 'serial number and vehicle registration' : 'warranty details'} for any warranty claims</li>
         </ul>
       </div>
       
@@ -437,10 +438,9 @@ export class EmailService {
         <p style="margin: 0 0 10px 0; font-weight: bold; color: #ee5a6f;">Application Details:</p>
         <p><strong>Product:</strong> ${String(productName).replace(/-/g, ' ').toUpperCase()}</p>
         ${productType === 'seat-cover' ? `<p><strong>UID:</strong> ${uid}</p>` : ''}
-        ${productType === 'ev-products' && productDetails ? `
-          <p><strong>Lot Number:</strong> ${productDetails.lotNumber || 'N/A'}</p>
-          <p><strong>Roll Number:</strong> ${productDetails.rollNumber || 'N/A'}</p>
-          <p><strong>Vehicle Registration:</strong> ${productDetails.carRegistration || 'N/A'}</p>
+        ${productType === 'ev-products' ? `
+          <p><strong>Serial Number:</strong> ${productDetails?.serialNumber || 'N/A'}</p>
+          <p><strong>Vehicle Registration:</strong> ${productDetails?.carRegistration || 'N/A'}</p>
         ` : ''}
         <p><strong>Product Type:</strong> ${productType}</p>
         <p><strong>Warranty Type:</strong> ${warrantyType || '1 Year'}</p>
@@ -496,7 +496,7 @@ export class EmailService {
         };
         const rawProductName = productDetails?.product || productDetails?.productName || productType;
         const productName = productNameMapping[rawProductName] || rawProductName;
-        const idLabel = productType === 'seat-cover' ? 'UID' : 'Registration Number';
+        const idLabel = productType === 'seat-cover' ? 'UID' : productType === 'ev-products' ? 'Serial Number' : 'Registration Number';
         const htmlContent = `
       <h2 style="color: #333; margin-top: 0;">Hello ${vendorName},</h2>
       
@@ -549,7 +549,7 @@ export class EmailService {
         };
         const rawProductName = productDetails?.product || productDetails?.productName || productType;
         const productName = productNameMapping[rawProductName] || rawProductName;
-        const idLabel = productType === 'seat-cover' ? 'UID' : 'Registration Number';
+        const idLabel = productType === 'seat-cover' ? 'UID' : productType === 'ev-products' ? 'Serial Number' : 'Registration Number';
         const htmlContent = `
       <h2 style="color: #333; margin-top: 0;">Hello ${vendorName},</h2>
       
@@ -685,7 +685,7 @@ export class EmailService {
             })
         });
     }
-    static async sendVendorConfirmationEmail(vendorEmail, vendorName, customerName, token, productType, productDetails) {
+    static async sendVendorConfirmationEmail(vendorEmail, vendorName, customerName, token, productType, productDetails, carMake, carModel) {
         const baseUrl = this.getAppUrl();
         // Links for actions - these go to backend API endpoints
         const verificationLink = `${baseUrl}/api/public/verify-warranty?token=${token}`;
@@ -695,20 +695,21 @@ export class EmailService {
       <h2 style="color: #333; margin-top: 0;">Hello ${vendorName},</h2>
       <p>A customer has registered a warranty for a product installed at your store. Please verify specific details to proceed.</p>
       
-      <div class="info-box" style="border-left-color: #f5576c;">
+      <div class="info-box" style="border-left-color: #FFB400;">
         <p><strong>Customer Name:</strong> ${customerName}</p>
+        <p><strong>Make:</strong> ${carMake || 'N/A'}</p>
+        <p><strong>Model:</strong> ${carModel || 'N/A'}</p>
         <p><strong>Product:</strong> ${String(productName).replace(/-/g, ' ').toUpperCase()}</p>
         ${productType === 'seat-cover' ? `<p><strong>UID:</strong> ${productDetails?.uid || 'N/A'}</p>` : ''}
         ${productType === 'ev-products' ? `
-          <p><strong>Lot Number:</strong> ${productDetails?.lotNumber || 'N/A'}</p>
-          <p><strong>Roll Number:</strong> ${productDetails?.rollNumber || 'N/A'}</p>
-          <p><strong>Vehicle:</strong> ${productDetails?.carRegistration || 'N/A'}</p>
+          <p><strong>Serial Number:</strong> ${productDetails?.serialNumber || 'N/A'}</p>
+          <p><strong>Vehicle Reg:</strong> ${productDetails?.carRegistration || 'N/A'}</p>
         ` : ''}
         <p><strong>Date:</strong> ${new Date().toLocaleDateString()}</p>
       </div>
       
       <div style="text-align: center; margin: 30px 0;">
-        <a href="${verificationLink}" class="button" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); margin-right: 15px;">✓ Confirm Installation</a>
+        <a href="${verificationLink}" class="button" style="background: linear-gradient(135deg, #FFB400 0%, #FF9000 100%); margin-right: 15px;">✓ Confirm Installation</a>
         
         <p style="margin-top: 20px; font-size: 14px;">
           Is there an issue with this registration?
@@ -725,8 +726,8 @@ export class EmailService {
             html: this.getHtmlTemplate({
                 title: '🛡️ Warranty Verification Required',
                 content: htmlContent,
-                headerColorStart: '#f093fb',
-                headerColorEnd: '#f5576c'
+                headerColorStart: '#FFB400',
+                headerColorEnd: '#FF9000'
             })
         });
     }

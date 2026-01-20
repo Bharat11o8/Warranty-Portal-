@@ -1,4 +1,5 @@
 import express from 'express';
+import { createServer } from 'http';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
@@ -17,6 +18,8 @@ import adminRoutes from './routes/admin.routes.js';
 import publicRoutes from './routes/public.routes.js';
 import catalogRoutes from './routes/catalog.routes.js';
 import grievanceRoutes from './routes/grievance.routes.js';
+import notificationRoutes from './routes/notification.routes.js';
+import { initSocket } from './socket.js';
 
 // Get current directory for ES modules
 const __filename = fileURLToPath(import.meta.url);
@@ -26,7 +29,11 @@ const __dirname = dirname(__filename);
 dotenv.config({ path: join(__dirname, '../.env') });
 
 const app = express();
+const httpServer = createServer(app);
 const PORT = process.env.PORT || 3000;
+
+// Initialize Socket.io
+initSocket(httpServer);
 
 // Enable trust proxy for rate limiting behind load balancers/proxies
 app.set('trust proxy', 1);
@@ -75,7 +82,7 @@ app.use(cors({
     }
   },
   credentials: true,
-  methods: ['GET', 'HEAD', 'OPTIONS', 'POST', 'PUT', 'DELETE'],
+  methods: ['GET', 'HEAD', 'OPTIONS', 'POST', 'PUT', 'PATCH', 'DELETE'],
   allowedHeaders: ['Origin', 'X-Requested-With', 'Content-Type', 'Accept', 'Authorization', 'X-Request-Id']
 }));
 
@@ -112,6 +119,7 @@ app.use('/api/admin', generalApiLimiter, adminRoutes);
 app.use('/api/public', generalApiLimiter, publicRoutes);
 app.use('/api/catalog', generalApiLimiter, catalogRoutes);
 app.use('/api/grievance', generalApiLimiter, grievanceRoutes);
+app.use('/api/notifications', generalApiLimiter, notificationRoutes);
 
 // ===========================================
 // ERROR HANDLING
@@ -128,8 +136,9 @@ app.use(globalErrorHandler);
 // ===========================================
 
 if (process.env.VERCEL !== '1') {
-  app.listen(PORT, () => {
+  httpServer.listen(PORT, () => {
     console.log(`🚀 Server running on port ${PORT}`);
+    console.log(`📡 Socket.io: Initialized`);
     console.log(`📧 Email service: ${process.env.EMAIL_SERVICE}`);
     console.log(`🗄️  Database: ${process.env.DB_NAME}`);
     console.log(`🌐 CORS origins: ${allowedOrigins.join(', ')}`);

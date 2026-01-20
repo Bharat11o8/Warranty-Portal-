@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import db from '../config/database.js';
 import { EmailService } from '../services/email.service.js';
 import { ActivityLogService } from '../services/activity-log.service.js';
+import { NotificationService } from '../services/notification.service.js';
 
 export class AdminController {
     static async getDashboardStats(req: Request, res: Response) {
@@ -284,6 +285,20 @@ export class AdminController {
                 // Don't fail the request if email fails
             }
 
+            // Send real-time notification
+            try {
+                await NotificationService.notify(id, {
+                    title: is_verified ? 'Store Approved! ✓' : 'Store Verification Update',
+                    message: is_verified
+                        ? 'Congratulations! Your store has been verified and approved.'
+                        : `Your store verification was not successful. Reason: ${rejection_reason}`,
+                    type: is_verified ? 'system' : 'alert',
+                    link: '/profile'
+                });
+            } catch (notifError) {
+                console.error('Failed to send vendor verification notification:', notifError);
+            }
+
             // Log the activity
             const admin = (req as any).user;
             await ActivityLogService.log({
@@ -524,6 +539,30 @@ export class AdminController {
                 } catch (vendorEmailError: any) {
                     console.error('Vendor email sending error:', vendorEmailError);
                     // Don't fail the request if vendor email fails
+                }
+
+                // Send real-time notification to vendor
+                try {
+                    const [vendorUser]: any = await db.execute(
+                        `SELECT vd.user_id FROM manpower m 
+                         JOIN vendor_details vd ON m.vendor_id = vd.id 
+                         WHERE m.id = ?`,
+                        [warrantyData.manpower_id]
+                    );
+
+                    if (vendorUser.length > 0) {
+                        const vendorUserId = vendorUser[0].user_id;
+                        await NotificationService.notify(vendorUserId, {
+                            title: status === 'validated' ? 'Warranty Approved! ✓' : 'Warranty Rejected ✗',
+                            message: status === 'validated'
+                                ? `The warranty for ${warrantyData.customer_name} (${warrantyData.uid}) has been approved.`
+                                : `The warranty for ${warrantyData.customer_name} (${warrantyData.uid}) was rejected. Reason: ${rejectionReason}`,
+                            type: status === 'validated' ? 'system' : 'alert',
+                            link: `/dashboard/vendor` // Or a deeper link if available
+                        });
+                    }
+                } catch (notifError) {
+                    console.error('Failed to send warranty status notification:', notifError);
                 }
             }
 

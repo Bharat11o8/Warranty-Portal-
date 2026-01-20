@@ -4,6 +4,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "./contexts/AuthContext";
+import { NotificationProvider } from "./contexts/NotificationContext";
 import Home from "./pages/Home";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
@@ -29,38 +30,40 @@ const queryClient = new QueryClient();
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <AuthProvider>
-      <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        <BrowserRouter>
-          <Routes>
-            <Route path="/" element={<Login />} />
-            <Route path="/login" element={<Login />} />
-            <Route path="/register" element={<Register />} />
-            <Route path="/warranty" element={<Warranty />} />
-            <Route path="/profile" element={<Profile />} />
+      <NotificationProvider>
+        <TooltipProvider>
+          <Toaster />
+          <Sonner />
+          <BrowserRouter>
+            <Routes>
+              <Route path="/" element={<Login />} />
+              <Route path="/login" element={<Login />} />
+              <Route path="/register" element={<Register />} />
+              <Route path="/warranty" element={<Warranty />} />
+              <Route path="/profile" element={<Profile />} />
 
-            {/* Customer Routes Layout */}
-            <Route element={<CustomerLayout />}>
-              <Route path="/dashboard/customer" element={<CustomerDashboard />} />
-              <Route path="/grievance" element={<GrievancePage />} />
-              <Route path="/terms" element={<Terms />} />
-            </Route>
+              {/* Customer Routes Layout */}
+              <Route element={<CustomerLayout />}>
+                <Route path="/dashboard/customer" element={<CustomerDashboard />} />
+                <Route path="/grievance" element={<GrievancePage />} />
+                <Route path="/terms" element={<Terms />} />
+              </Route>
 
-            <Route path="/dashboard/vendor" element={<FranchiseDashboard />} />
-            <Route path="/dashboard/admin" element={<AdminDashboard />} />
-            <Route path="/admin/manage" element={<AdminManagement />} />
-            <Route path="/admin/products" element={<AdminProducts />} />
-            <Route path="/admin/activity-logs" element={<ActivityLogs />} />
-            <Route path="/catalogue" element={<CataloguePage />} />
-            <Route path="/category/:categoryId" element={<CategoryPage />} />
-            <Route path="/product/:productId" element={<ProductPage />} />
-            <Route path="/admin/grievances" element={<AdminGrievancesPage />} />
-            {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </BrowserRouter>
-      </TooltipProvider>
+              <Route path="/dashboard/vendor" element={<FranchiseDashboard />} />
+              <Route path="/dashboard/admin" element={<AdminDashboard />} />
+              <Route path="/admin/manage" element={<AdminManagement />} />
+              <Route path="/admin/products" element={<AdminProducts />} />
+              <Route path="/admin/activity-logs" element={<ActivityLogs />} />
+              <Route path="/catalogue" element={<CataloguePage />} />
+              <Route path="/category/:categoryId" element={<CategoryPage />} />
+              <Route path="/product/:productId" element={<ProductPage />} />
+              <Route path="/admin/grievances" element={<AdminGrievancesPage />} />
+              {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </BrowserRouter>
+        </TooltipProvider>
+      </NotificationProvider>
     </AuthProvider>
   </QueryClientProvider>
 );

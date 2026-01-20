@@ -31,8 +31,10 @@ import {
     Mail,
     Phone,
     MapPin,
-    Loader2
+    Loader2,
+    Megaphone
 } from "lucide-react";
+import { AdminBroadcast } from "@/components/admin/AdminBroadcast";
 import api from "@/lib/api";
 import {
     DropdownMenu,
@@ -1985,11 +1987,17 @@ const AdminDashboard = () => {
                 </div>
 
                 <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-                    <TabsList className="grid grid-cols-2 md:grid-cols-4 mb-8 h-auto">
+                    <TabsList className="flex flex-wrap md:inline-flex mb-8 h-auto p-1 bg-muted">
                         <TabsTrigger value="overview">Overview</TabsTrigger>
                         <TabsTrigger value="warranties">Warranties</TabsTrigger>
                         <TabsTrigger value="vendors">Franchises</TabsTrigger>
                         <TabsTrigger value="customers">Customers</TabsTrigger>
+                        <TabsTrigger value="announcements">
+                            <Megaphone className="h-4 w-4 mr-2" />
+                            Announcements
+                        </TabsTrigger>
+                        <TabsTrigger value="admins">Admins</TabsTrigger>
+                        <TabsTrigger value="activity-logs">Logs</TabsTrigger>
                     </TabsList>
 
                     <TabsContent value="overview" className="space-y-6">
@@ -3798,6 +3806,10 @@ const AdminDashboard = () => {
                                 )}
                             </CardContent>
                         </Card>
+                    </TabsContent>
+
+                    <TabsContent value="announcements">
+                        <AdminBroadcast />
                     </TabsContent>
 
                 </Tabs>

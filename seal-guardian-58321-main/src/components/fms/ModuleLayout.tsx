@@ -1,7 +1,8 @@
 import { ReactNode } from "react";
-import { Search, Bell, HelpCircle } from "lucide-react";
+import { Search, HelpCircle } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { NotificationPopover } from "./NotificationPopover";
 
 interface ModuleLayoutProps {
     title: string;
@@ -30,9 +31,7 @@ export const ModuleLayout = ({ title, description, children, actions }: ModuleLa
                     </div>
 
                     <div className="flex items-center gap-1 border-l pl-4 ml-2">
-                        <Button variant="ghost" size="icon" className="rounded-full h-9 w-9 text-muted-foreground hover:text-primary">
-                            <Bell className="h-4 w-4" />
-                        </Button>
+                        <NotificationPopover />
                         <Button variant="ghost" size="icon" className="rounded-full h-9 w-9 text-muted-foreground hover:text-primary">
                             <HelpCircle className="h-4 w-4" />
                         </Button>
