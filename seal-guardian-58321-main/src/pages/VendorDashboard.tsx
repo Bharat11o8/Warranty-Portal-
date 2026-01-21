@@ -1,4 +1,4 @@
-import { Navigate } from "react-router-dom";
+import { Navigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import Header from "@/components/Header";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -182,6 +182,8 @@ const WarrantyList = ({ items, showReason = false, user, onEditWarranty, onVerif
 const VendorDashboard = () => {
     const { user, loading } = useAuth();
     const { toast } = useToast();
+    const [searchParams, setSearchParams] = useSearchParams();
+    const activeTab = searchParams.get("tab") || "all";
     const [warranties, setWarranties] = useState<any[]>([]);
     const [loadingWarranties, setLoadingWarranties] = useState(false);
     const [warrantyPagination, setWarrantyPagination] = useState({ currentPage: 1, totalPages: 1, totalCount: 0, limit: 30, hasNextPage: false, hasPrevPage: false });
@@ -721,7 +723,7 @@ const VendorDashboard = () => {
                 </div>
 
                 {/* Warranty Entries with Tabs */}
-                <Tabs defaultValue="all" className="space-y-6">
+                <Tabs value={activeTab} onValueChange={(val) => setSearchParams({ tab: val })} className="space-y-6">
                     <TabsList className="w-full bg-muted/20 p-1.5 rounded-lg h-auto flex flex-wrap gap-1.5 md:grid md:grid-cols-6">
                         <TabsTrigger value="all" className="flex-1 min-w-[80px] rounded-md py-2 px-2 text-xs font-medium data-[state=active]:bg-white data-[state=active]:shadow-sm transition-all">
                             All ({warranties.length})
