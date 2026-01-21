@@ -11,7 +11,7 @@ import { Link } from "react-router-dom";
 import { useState, useEffect } from "react";
 import api from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
-import { downloadCSV, getWarrantyExpiration, cn } from "@/lib/utils";
+import { downloadCSV, getWarrantyExpiration, cn, formatToIST } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import EVProductsForm from "@/components/warranty/EVProductsForm";
 import SeatCoverForm from "@/components/warranty/SeatCoverForm";
@@ -98,7 +98,7 @@ const WarrantyList = ({ items, showReason = false, user, onEditWarranty, onVerif
                                     )}
                                 </div>
                                 <p className="text-sm text-muted-foreground truncate">
-                                    {warranty.car_make} {warranty.car_model} • <span className="text-xs opacity-70">{new Date(warranty.created_at).toLocaleDateString()}</span>
+                                    {warranty.car_make} {warranty.car_model} • <span className="text-xs opacity-70">{formatToIST(warranty.created_at)}</span>
                                 </p>
                                 <p className="text-xs text-muted-foreground mt-0.5">
                                     👤 {warranty.customer_name} • {warranty.customer_phone}
@@ -364,7 +364,7 @@ const VendorDashboard = () => {
             const productName = (productNameMapping[rawProductName] || rawProductName)?.toUpperCase() || w.product_type;
 
             return {
-                Date: new Date(w.created_at).toLocaleDateString(),
+                Date: formatToIST(w.created_at),
                 'Product': productName,
                 'Product Type': w.product_type,
                 'Customer': w.customer_name,
@@ -376,7 +376,7 @@ const VendorDashboard = () => {
                 'Status': w.status.toUpperCase(),
                 'Installer Name': productDetails.storeName || w.installer_name || 'N/A',
                 'Manpower': w.manpower_name || productDetails.manpowerName || 'N/A',
-                'Purchase Date': w.purchase_date ? new Date(w.purchase_date).toLocaleDateString() : 'N/A'
+                'Purchase Date': formatToIST(w.purchase_date)
             };
         });
         downloadCSV(exportData, `my_warranties_export_${new Date().toISOString().split('T')[0]}.csv`);
@@ -1037,7 +1037,7 @@ const VendorDashboard = () => {
                                                                 {member.removed_at && (
                                                                     <div className="text-right">
                                                                         <Badge variant="outline" className="text-xs bg-background/50">
-                                                                            Removed: {new Date(member.removed_at).toLocaleDateString()}
+                                                                            Removed: {formatToIST(member.removed_at)}
                                                                         </Badge>
                                                                     </div>
                                                                 )}
@@ -1155,7 +1155,7 @@ const VendorDashboard = () => {
                                                 </div>
                                                 <div>
                                                     <p className="text-xs text-muted-foreground">Registered</p>
-                                                    <p>{new Date(w.created_at).toLocaleDateString()}</p>
+                                                    <p>{formatToIST(w.created_at)}</p>
                                                 </div>
                                             </div>
                                         </div>

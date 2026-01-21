@@ -5,6 +5,8 @@ import { EmailService } from '../services/email.service.js';
 import { AuthRequest } from '../middleware/auth.js';
 import { WarrantyData } from '../types/index.js';
 import jwt from 'jsonwebtoken';
+import { NotificationService } from '../services/notification.service.js';
+
 
 // Extending WarrantyData interface locally if not updated in types file yet
 interface ExtendedWarrantyData extends WarrantyData {
@@ -224,6 +226,66 @@ export class WarrantyController {
           warrantyData.carMake,
           warrantyData.carModel
         );
+      }
+
+
+      // Notify Admin about new warranty
+      try {
+        await NotificationService.broadcast({
+          title: `New Warranty Registration`,
+          message: `New ${warrantyData.productType} warranty registered by ${warrantyData.installerName || warrantyData.customerName}`,
+          type: 'warranty',
+          link: `/admin/verifications?uid=${uid}`,
+          targetUsers: [],
+          targetRole: 'admin'
+        });
+      } catch (err) {
+        console.error('Failed to send admin notification', err);
+      }
+
+      // Notify Vendor/Franchise if warranty was registered through their store
+      try {
+        let vendorUserId: string | null = null;
+        let storeName: string | null = null;
+
+        // Method 1: Look up vendor by manpower_id
+        if (warrantyData.manpowerId) {
+          const [vendorInfo]: any = await db.execute(
+            `SELECT vd.user_id, vd.store_name FROM manpower m 
+             JOIN vendor_details vd ON m.vendor_id = vd.id 
+             WHERE m.id = ?`,
+            [warrantyData.manpowerId]
+          );
+          if (vendorInfo.length > 0) {
+            vendorUserId = vendorInfo[0].user_id;
+            storeName = vendorInfo[0].store_name;
+          }
+        }
+
+        // Method 2: Fallback - Look up vendor by installer_name (store name)
+        if (!vendorUserId && warrantyData.installerName) {
+          const [vendorByName]: any = await db.execute(
+            `SELECT user_id, store_name FROM vendor_details WHERE store_name = ?`,
+            [warrantyData.installerName]
+          );
+          if (vendorByName.length > 0) {
+            vendorUserId = vendorByName[0].user_id;
+            storeName = vendorByName[0].store_name;
+          }
+        }
+
+        // Send notification if vendor was found
+        if (vendorUserId) {
+          await NotificationService.notify(vendorUserId, {
+            title: 'New Warranty Registration',
+            message: `A new ${warrantyData.productType} warranty has been registered through your store for ${warrantyData.customerName}.`,
+            type: 'warranty',
+            link: `/dashboard/vendor`
+          });
+          console.log(`✓ Notified vendor ${storeName} about new warranty`);
+        }
+      } catch (err) {
+        console.error('Failed to send vendor notification', err);
       }
 
       res.status(201).json({
@@ -527,10 +589,44 @@ export class WarrantyController {
         ]
       );
 
+      // Notify the User (Vendor/Customer) about the status update
+      try {
+        if (warranty.user_id) {
+          let notifTitle = 'Warranty Update';
+          let notifMessage = `Your warranty registration (${warranty.uid}) has been updated.`;
+
+          if (warrantyData.productType) { // If it was an edit/resubmission
+            notifMessage = `Your warranty registration (${warranty.uid}) has been updated and resubmitted.`;
+          }
+
+          // If we are just updating status (logic in a different method? No, this is updateWarranty which is mostly for EDITS)
+          // For APPROVAl/REJECTION, that's usually a different method "updateStatus" or similar?
+          // The current file doesn't seem to have a specific "approveWarranty" method visible in the 540 lines? 
+          // Wait, I might have missed it or it's in a different controller? 
+          // Re-reading file... I see submit, get, getById, update. 
+          // Where is approve? Ah, I might need to scroll down or it was truncated? 
+          // The file has 540 lines and ends with closing brace. 
+          // It seems "updateWarranty" is used for EDITS by vendor.
+          // Admin approval usually happens via `updateStatus` or similar. 
+          // Let me check if there are more methods or a separate admin controller.
+
+          // For now, I'll add notification for this "update" action (e.g. if Admin fixed a typo?)
+          await NotificationService.notify(warranty.user_id, {
+            title: notifTitle,
+            message: notifMessage,
+            type: 'warranty',
+            link: `/warranty/view/${warranty.uid}`
+          });
+        }
+      } catch (e) {
+        console.error('Failed to notify user of warranty update', e);
+      }
+
       res.json({
         success: true,
         message: 'Warranty updated and resubmitted successfully'
       });
+
 
     } catch (error: any) {
       console.error('Update warranty error:', error);

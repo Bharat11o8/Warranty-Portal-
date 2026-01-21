@@ -54,7 +54,7 @@ const StatCard = ({ title, value, change, trend, icon: Icon, color, description 
 
 const cn = (...classes: string[]) => classes.filter(Boolean).join(' ');
 
-export const StatsOverview = ({ stats }: { stats: any }) => {
+export const StatsOverview = ({ stats, recentActivity = [] }: { stats: any, recentActivity?: any[] }) => {
     return (
         <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
             {/* Primary Stats Grid */}
@@ -129,28 +129,27 @@ export const StatsOverview = ({ stats }: { stats: any }) => {
                     </CardHeader>
                     <CardContent className="p-0">
                         <div className="divide-y divide-border/10">
-                            {[
-                                { time: '12 Mins Ago', action: 'New Registration', sub: 'MH-12-AB-2024', status: 'primary' },
-                                { time: '2 Hours Ago', action: 'Warranty Validated', sub: 'DL-01-XX-1100', status: 'success' },
-                                { time: '4 Hours Ago', action: 'Support Updated', sub: 'Ticket #8291', status: 'warning' },
-                                { time: '1 Day Ago', action: 'Manual Upload', sub: 'Batch EX-92', status: 'secondary' }
-                            ].map((item, i) => (
-                                <div key={i} className="p-5 flex gap-4 hover:bg-primary/5 transition-colors cursor-default group/item">
-                                    <div className={cn(
-                                        "h-10 w-10 rounded-xl flex items-center justify-center shrink-0 border transition-all duration-500 group-hover/item:scale-110",
-                                        item.status === 'primary' ? "bg-primary/10 border-primary/20 text-primary" :
-                                            item.status === 'success' ? "bg-green-500/10 border-green-500/20 text-green-600" :
-                                                item.status === 'warning' ? "bg-amber-500/10 border-amber-500/20 text-amber-600" : "bg-slate-500/10 border-slate-500/20 text-slate-600"
-                                    )}>
-                                        {item.status === 'success' ? <CheckCircle2 className="h-5 w-5" /> : <Activity className="h-5 w-5" />}
+                            {recentActivity.length === 0 ? (
+                                <div className="p-8 text-center text-muted-foreground text-xs">No recent activity</div>
+                            ) : (
+                                recentActivity.map((item, i) => (
+                                    <div key={i} className="p-5 flex gap-4 hover:bg-primary/5 transition-colors cursor-default group/item">
+                                        <div className={cn(
+                                            "h-10 w-10 rounded-xl flex items-center justify-center shrink-0 border transition-all duration-500 group-hover/item:scale-110",
+                                            item.status === 'primary' ? "bg-primary/10 border-primary/20 text-primary" :
+                                                item.status === 'success' ? "bg-green-500/10 border-green-500/20 text-green-600" :
+                                                    item.status === 'warning' ? "bg-amber-500/10 border-amber-500/20 text-amber-600" : "bg-slate-500/10 border-slate-500/20 text-slate-600"
+                                        )}>
+                                            {item.status === 'success' ? <CheckCircle2 className="h-5 w-5" /> : <Activity className="h-5 w-5" />}
+                                        </div>
+                                        <div>
+                                            <p className="text-sm font-black text-foreground/80 tracking-tight">{item.action}</p>
+                                            <p className="text-[11px] font-bold text-muted-foreground mt-0.5">{item.sub}</p>
+                                            <p className="text-[9px] font-black text-muted-foreground/30 uppercase tracking-widest mt-1">{item.time}</p>
+                                        </div>
                                     </div>
-                                    <div>
-                                        <p className="text-sm font-black text-foreground/80 tracking-tight">{item.action}</p>
-                                        <p className="text-[11px] font-bold text-muted-foreground mt-0.5">{item.sub}</p>
-                                        <p className="text-[9px] font-black text-muted-foreground/30 uppercase tracking-widest mt-1">{item.time}</p>
-                                    </div>
-                                </div>
-                            ))}
+                                ))
+                            )}
                         </div>
                         <div className="p-4 bg-muted/20">
                             <Button variant="ghost" className="w-full text-[10px] font-black uppercase tracking-[0.2em] text-primary hover:bg-primary/10 h-10">

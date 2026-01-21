@@ -4,7 +4,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import api from "@/lib/api";
 import { Loader2, Plus, Download } from "lucide-react";
-import { downloadCSV, cn } from "@/lib/utils";
+import { downloadCSV, cn, formatToIST } from "@/lib/utils";
 
 // Components
 import { DashboardSidebar, FmsModule } from "@/components/fms/DashboardSidebar";
@@ -198,7 +198,7 @@ const FranchiseDashboard = () => {
         const exportData = warranties.map(w => {
             const productDetails = typeof w.product_details === 'string' ? JSON.parse(w.product_details) : w.product_details || {};
             return {
-                Date: new Date(w.created_at).toLocaleDateString(),
+                Date: formatToIST(w.created_at),
                 Product: w.product_type?.toUpperCase(),
                 Customer: w.customer_name,
                 Phone: w.customer_phone,
@@ -223,12 +223,26 @@ const FranchiseDashboard = () => {
     const renderModule = () => {
         switch (activeModule) {
             case 'overview':
-                return <StatsOverview stats={{
-                    total: warranties.length,
-                    approved: warranties.filter(w => w.status === 'validated').length,
-                    pending: warranties.filter(w => w.status === 'pending_vendor').length,
-                    manpower: manpowerList.length
-                }} />;
+                return <StatsOverview
+                    stats={{
+                        total: warranties.length,
+                        approved: warranties.filter(w => w.status === 'validated').length,
+                        pending: warranties.filter(w => w.status === 'pending_vendor').length,
+                        manpower: manpowerList.length
+                    }}
+                    recentActivity={warranties
+                        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+                        .slice(0, 5)
+                        .map(w => ({
+                            time: formatToIST(w.created_at),
+                            action: w.status === 'validated' ? 'Warranty Approved' :
+                                w.status === 'rejected' ? 'Warranty Rejected' : 'New Registration',
+                            sub: `${w.customer_name} • ${w.car_make}`,
+                            status: w.status === 'validated' ? 'success' :
+                                w.status === 'rejected' ? 'warning' : 'primary'
+                        }))
+                    }
+                />;
             case 'warranty':
                 return (
                     <WarrantyManagement
@@ -373,7 +387,7 @@ const FranchiseDashboard = () => {
                                             </div>
                                             <div>
                                                 <p className="text-muted-foreground mb-1 uppercase tracking-tighter font-bold">Date</p>
-                                                <p className="font-semibold">{new Date(w.created_at).toLocaleDateString()}</p>
+                                                <p className="font-semibold">{formatToIST(w.created_at)}</p>
                                             </div>
                                         </div>
                                     </div>

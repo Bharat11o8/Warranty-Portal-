@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { formatToIST } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -353,7 +354,7 @@ export const StaffManagement = ({
                                         </div>
                                         <h3 className="font-black text-2xl text-foreground/80 tracking-tight mb-1">{(member.name || '').toLowerCase()}</h3>
                                         <p className="text-sm font-bold text-muted-foreground/60 mb-6">
-                                            Removed on {member.removed_at ? new Date(member.removed_at).toLocaleDateString() : 'N/A'}
+                                            Removed on {member.removed_at ? formatToIST(member.removed_at) : 'N/A'}
                                         </p>
 
                                         <div className="grid grid-cols-2 gap-4">
@@ -387,7 +388,7 @@ export const StaffManagement = ({
                                             <div>
                                                 <h4 className="text-lg font-black text-foreground/80 tracking-tight">{(member.name || '').toLowerCase()}</h4>
                                                 <p className="text-[10px] font-bold text-muted-foreground/60 uppercase">
-                                                    Removed on {member.removed_at ? new Date(member.removed_at).toLocaleDateString() : 'N/A'}
+                                                    Removed on {member.removed_at ? formatToIST(member.removed_at) : 'N/A'}
                                                 </p>
                                             </div>
                                         </div>

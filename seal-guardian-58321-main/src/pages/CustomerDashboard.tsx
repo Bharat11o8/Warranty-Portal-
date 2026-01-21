@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useState, useEffect } from "react";
 import api from "@/lib/api";
-import { getWarrantyExpiration, cn } from "@/lib/utils";
+import { getWarrantyExpiration, cn, formatToIST } from "@/lib/utils";
 import EVProductsForm from "@/components/warranty/EVProductsForm";
 import SeatCoverForm from "@/components/warranty/SeatCoverForm";
 import { Pagination } from "@/components/Pagination";
@@ -257,7 +257,7 @@ const CustomerDashboard = () => {
                                         )}
                                     </div>
                                     <p className="text-sm text-muted-foreground truncate">
-                                        {productName.replace(/-/g, ' ')} • <span className="text-xs opacity-70">{new Date(warranty.created_at).toLocaleDateString()}</span>
+                                        {productName.replace(/-/g, ' ')} • <span className="text-xs opacity-70">{formatToIST(warranty.created_at)}</span>
                                         {warranty.product_type !== 'seat-cover' && (
                                             <span className="ml-2">• <span className="font-mono ml-1">Serial: {productDetails.serialNumber || warranty.uid}</span></span>
                                         )}

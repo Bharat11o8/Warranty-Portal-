@@ -163,7 +163,7 @@ export const WarrantyManagement = ({
                             <div className="relative mx-1.5 px-6 py-4 bg-primary/5 rounded-b-3xl border border-t-0 border-primary/20 flex items-center justify-between animate-in slide-in-from-top-4 z-0">
                                 <div className="flex items-center gap-4">
                                     <Clock className="h-5 w-5 text-primary animate-spin-[20s] linear" />
-                                    <p className="text-sm font-bold text-primary/80 uppercase tracking-widest">Awaiting Identity Verification</p>
+                                    <p className="text-sm font-bold text-primary/80 uppercase tracking-widest">Awaiting Installation Confirmation</p>
                                 </div>
                                 <div className="flex items-center gap-2">
                                     <Button
@@ -208,14 +208,7 @@ export const WarrantyManagement = ({
                     <Button variant="outline" size="lg" onClick={onExport} className="rounded-2xl shadow-sm hover:bg-muted font-bold h-12 border-border/40 gap-2 px-6">
                         <Download className="h-4 w-4" /> Export CSV
                     </Button>
-                    <div className="flex items-center bg-primary/10 p-1.5 rounded-2xl shadow-inner ring-1 ring-primary/20 h-12">
-                        <Button size="sm" onClick={() => onRegisterNew('ev')} className="rounded-xl h-full px-6 font-black text-xs uppercase tracking-widest shadow-lg shadow-primary/20">
-                            <Plus className="h-4 w-4 mr-2" /> New PPF/SPF
-                        </Button>
-                        <Button variant="ghost" size="sm" onClick={() => onRegisterNew('seat-cover')} className="rounded-xl h-full px-6 font-black text-xs uppercase tracking-widest text-primary hover:bg-primary/20">
-                            <Plus className="h-4 w-4 mr-2" /> Seat Cover
-                        </Button>
-                    </div>
+
                 </div>
             </div>
 

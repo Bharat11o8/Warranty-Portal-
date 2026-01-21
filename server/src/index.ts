@@ -19,6 +19,7 @@ import publicRoutes from './routes/public.routes.js';
 import catalogRoutes from './routes/catalog.routes.js';
 import grievanceRoutes from './routes/grievance.routes.js';
 import notificationRoutes from './routes/notification.routes.js';
+import uploadRoutes from './routes/upload.routes.js';
 import { initSocket } from './socket.js';
 
 // Get current directory for ES modules
@@ -120,6 +121,7 @@ app.use('/api/public', generalApiLimiter, publicRoutes);
 app.use('/api/catalog', generalApiLimiter, catalogRoutes);
 app.use('/api/grievance', generalApiLimiter, grievanceRoutes);
 app.use('/api/notifications', generalApiLimiter, notificationRoutes);
+app.use('/api/upload', generalApiLimiter, uploadRoutes);
 
 // ===========================================
 // ERROR HANDLING

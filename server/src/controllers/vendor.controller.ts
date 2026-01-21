@@ -2,6 +2,8 @@ import { Request, Response } from 'express';
 import db from '../config/database.js';
 import { EmailService } from '../services/email.service.js';
 import { v4 as uuidv4 } from 'uuid';
+import { NotificationService } from '../services/notification.service.js';
+
 
 export class VendorController {
   static async verifyVendor(req: Request, res: Response) {
@@ -520,6 +522,23 @@ export class VendorController {
           applicator_type: applicatorType
         }
       });
+
+      // Notify Admin about new manpower
+      try {
+        // Fetch Store Name for context
+        const [store]: any = await db.execute('SELECT store_name FROM vendor_details WHERE id = ?', [vendorId]);
+        const storeName = store[0]?.store_name || 'Vendor';
+
+        await NotificationService.broadcast({
+          title: 'New Staff Onboarded',
+          message: `${storeName} has added a new ${applicatorType === 'seat_cover' ? 'Seat Cover Expert' : 'PPF Specialist'}: ${name} (${finalManpowerId})`,
+          type: 'warranty',
+          link: `/admin/users`, // Approximated link
+          targetRole: 'admin'
+        });
+      } catch (e) {
+        console.error("Failed to notify admin of new manpower", e);
+      }
     } catch (error: any) {
       console.error('Add manpower error:', error);
       res.status(500).json({ error: 'Failed to add manpower' });
@@ -564,6 +583,27 @@ export class VendorController {
         success: true,
         message: 'Manpower archived successfully'
       });
+
+      // Notify Admin about manpower removal
+      try {
+        // Fetch Store Name and Manpower Name for context
+        // Note: we might need to fetch before update if we want the name, but let's try to fetch active=false record or just use generic message if strictly needed. 
+        // Actually, let's just say "A staff member was removed". Or better, query the manpower details we just updated.
+        const [mp]: any = await db.execute('SELECT name, manpower_id, vendor_id FROM manpower WHERE id = ?', [id]);
+        if (mp.length > 0) {
+          const [store]: any = await db.execute('SELECT store_name FROM vendor_details WHERE id = ?', [mp[0].vendor_id]);
+          const storeName = store[0]?.store_name || 'Vendor';
+
+          await NotificationService.broadcast({
+            title: 'Staff Member Removed',
+            message: `${storeName} has removed staff member: ${mp[0].name} (${mp[0].manpower_id}). Reason: ${reason || 'None provided'}`,
+            type: 'warranty',
+            targetRole: 'admin'
+          });
+        }
+      } catch (e) {
+        console.error("Failed to notify admin of manpower removal", e);
+      }
     } catch (error: any) {
       console.error('Remove manpower error:', error);
       res.status(500).json({ error: 'Failed to remove manpower' });
@@ -663,6 +703,32 @@ export class VendorController {
         return res.status(404).json({ error: 'Warranty not found or not authorized to approve' });
       }
 
+      // Notify relevant parties
+      try {
+        // 1. Notify Admin
+        await NotificationService.broadcast({
+          title: 'Warranty Approved by Vendor',
+          message: `Warranty ${uid} approved by Franchise. Pending Admin Review.`,
+          type: 'warranty',
+          link: `/admin/verifications?uid=${uid}`,
+          targetUsers: [],
+          targetRole: 'admin'
+        });
+
+        // 2. Notify Customer
+        const [warrantyRows]: any = await db.execute('SELECT user_id FROM warranty_registrations WHERE uid = ?', [uid]);
+        if (warrantyRows.length > 0 && warrantyRows[0].user_id) {
+          await NotificationService.notify(warrantyRows[0].user_id, {
+            title: 'Warranty Approved by Franchise',
+            message: `Your warranty ${uid} has been approved by the franchise and is now pending final admin review.`,
+            type: 'warranty',
+            link: `/dashboard/customer`
+          });
+        }
+      } catch (e) {
+        console.error("Failed to send approval notifications", e);
+      }
+
       res.json({ success: true, message: 'Warranty approved successfully' });
     } catch (error: any) {
       console.error('Approve warranty error:', error);
@@ -719,6 +785,7 @@ export class VendorController {
         const w = warranty[0];
         const productDetails = JSON.parse(w.product_details || '{}');
 
+        // 1. Email Notification
         await EmailService.sendWarrantyRejectionToCustomer(
           w.customer_email,
           w.customer_name,
@@ -733,6 +800,16 @@ export class VendorController {
           w.installer_address,
           w.installer_contact
         );
+
+        // 2. Site Notification
+        if (w.user_id) {
+          await NotificationService.notify(w.user_id, {
+            title: 'Warranty Rejected by Franchise',
+            message: `Your warranty ${uid} was rejected by the franchise. Reason: ${reason}`,
+            type: 'warranty',
+            link: `/dashboard/customer`
+          });
+        }
       }
 
       res.json({ success: true, message: 'Warranty rejected successfully' });

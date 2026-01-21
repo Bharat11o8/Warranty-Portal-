@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Download, FileText, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { cn, getWarrantyExpiration } from "@/lib/utils";
+import { cn, getWarrantyExpiration, formatToIST } from "@/lib/utils";
 
 interface WarrantySpecSheetProps {
     isOpen: boolean;
@@ -117,16 +117,16 @@ export const WarrantySpecSheet = ({ isOpen, onClose, warranty }: WarrantySpecShe
                     <div className="space-y-1">
                         <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-3 pl-1">Important Dates</h4>
                         <div className="bg-muted/20 rounded-lg p-2 border border-border/40">
-                            <SpecRow label="Purchase Date" value={new Date(warranty.purchase_date).toLocaleDateString()} />
-                            <SpecRow label="Registered Date" value={new Date(warranty.created_at).toLocaleDateString()} />
+                            <SpecRow label="Purchase Date" value={formatToIST(warranty.purchase_date)} />
+                            <SpecRow label="Registered Date" value={formatToIST(warranty.created_at)} />
                             {warranty.status === 'validated' && (
                                 <>
                                     {warranty.validated_at && (
-                                        <SpecRow label="Approved Date" value={new Date(warranty.validated_at).toLocaleDateString()} />
+                                        <SpecRow label="Approved Date" value={formatToIST(warranty.validated_at)} />
                                     )}
                                     <SpecRow
                                         label="Expiration Date"
-                                        value={getWarrantyExpiration(warranty.validated_at || warranty.created_at, warranty.warranty_type).expirationDate?.toLocaleDateString() || "N/A"}
+                                        value={formatToIST(getWarrantyExpiration(warranty.validated_at || warranty.created_at, warranty.warranty_type).expirationDate)}
                                     />
                                     <div className="flex justify-between items-center py-3 px-2 rounded-sm bg-green-500/5 mt-1 border border-green-500/10">
                                         <span className="text-sm text-green-700 font-medium">Days Remaining</span>

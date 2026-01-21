@@ -77,3 +77,21 @@ export function getWarrantyExpiration(createdAt: string | Date | null | undefine
     isExpired: daysLeft <= 0
   };
 }
+
+export function formatToIST(dateInput: string | Date | number | undefined | null): string {
+  if (!dateInput) return "N/A";
+
+  const date = new Date(dateInput);
+  if (isNaN(date.getTime())) return "Invalid Date";
+
+  return date.toLocaleString('en-IN', {
+    timeZone: 'Asia/Kolkata',
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true
+  });
+}
+

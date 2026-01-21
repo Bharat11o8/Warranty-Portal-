@@ -8,7 +8,7 @@ export class NotificationService {
     static async notify(userId: string | number, data: {
         title: string;
         message: string;
-        type?: 'product' | 'alert' | 'system';
+        type?: 'product' | 'alert' | 'system' | 'posm' | 'order' | 'scheme' | 'warranty';
         link?: string;
         metadata?: any;
     }) {
@@ -24,6 +24,15 @@ export class NotificationService {
             // 2. Fetch the created notification to ensure we have timestamps etc.
             const [rows]: any = await db.execute('SELECT * FROM notifications WHERE id = ?', [notificationId]);
             const notification = rows[0];
+
+            // Parse metadata before emitting
+            if (notification.metadata && typeof notification.metadata === 'string') {
+                try {
+                    notification.metadata = JSON.parse(notification.metadata);
+                } catch (e) {
+                    console.error('Failed to parse metadata for socket emission:', e);
+                }
+            }
 
             // 3. Emit via Socket.io to the user's specific room
             const io = getIO();
@@ -42,10 +51,12 @@ export class NotificationService {
     static async broadcast(data: {
         title: string;
         message: string;
-        type?: 'product' | 'alert' | 'system';
+        type?: 'product' | 'alert' | 'system' | 'posm' | 'order' | 'scheme' | 'warranty';
         link?: string;
         metadata?: any;
+
         targetUsers?: string[]; // Array of user IDs
+        targetRole?: 'admin' | 'vendor' | 'customer'; // New parameter
     }) {
         try {
             let vendors: any[] = [];
@@ -54,10 +65,16 @@ export class NotificationService {
             if (data.targetUsers && data.targetUsers.length > 0) {
                 // If specific users are targeted
                 vendors = data.targetUsers.map(id => ({ id }));
-            } else {
-                // Otherwise broadcast to all vendors
+            } else if (data.targetRole === 'admin') {
+                // Determine admin role name (e.g. 'admin')
                 const [rows]: any = await db.execute(
-                    'SELECT ur.user_id as id FROM user_roles ur WHERE ur.role = "vendor"'
+                    'SELECT DISTINCT ur.user_id as id FROM user_roles ur WHERE ur.role = "admin"'
+                );
+                vendors = rows;
+            } else {
+                // Default: Helper for vendors
+                const [rows]: any = await db.execute(
+                    'SELECT DISTINCT ur.user_id as id FROM user_roles ur WHERE ur.role = "vendor"'
                 );
                 vendors = rows;
             }
@@ -77,7 +94,7 @@ export class NotificationService {
 
     static async getUnreadCount(userId: string | number) {
         const [rows]: any = await db.execute(
-            'SELECT COUNT(*) as count FROM notifications WHERE user_id = ? AND is_read = FALSE',
+            'SELECT COUNT(*) as count FROM notifications WHERE user_id = ? AND is_read = FALSE AND is_cleared = FALSE',
             [userId]
         );
         return rows[0].count;
@@ -93,6 +110,13 @@ export class NotificationService {
     static async markAllAsRead(userId: string | number) {
         await db.execute(
             'UPDATE notifications SET is_read = TRUE WHERE user_id = ?',
+            [userId]
+        );
+    }
+
+    static async clearAll(userId: string | number) {
+        await db.execute(
+            'UPDATE notifications SET is_cleared = TRUE WHERE user_id = ?',
             [userId]
         );
     }

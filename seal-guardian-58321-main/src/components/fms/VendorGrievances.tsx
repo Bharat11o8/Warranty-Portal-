@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import api from "@/lib/api";
+import { formatToIST } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -193,7 +194,7 @@ const VendorGrievances = () => {
                                             <h3 className="font-semibold text-base truncate">{g.subject}</h3>
                                             <p className="text-sm text-muted-foreground truncate">
                                                 {g.customer_name} • {CATEGORIES[g.category] || g.category}
-                                                <span className="text-xs opacity-60 ml-2">• {new Date(g.created_at).toLocaleDateString()}</span>
+                                                <span className="text-xs opacity-60 ml-2">• {formatToIST(g.created_at)}</span>
                                             </p>
                                         </div>
 
@@ -220,7 +221,7 @@ const VendorGrievances = () => {
                                             </Badge>
                                         </DialogTitle>
                                         <DialogDescription>
-                                            {new Date(selectedGrievance.created_at).toLocaleString()}
+                                            {formatToIST(selectedGrievance.created_at)}
                                         </DialogDescription>
                                     </DialogHeader>
 

@@ -44,9 +44,11 @@ const ProductSpotlight: React.FC<ProductSpotlightProps> = ({
                         className={reverse ? 'lg:order-2' : ''}
                     >
                         <Link to={`/product/${product.id}`} className="block group">
-                            <div className="relative rounded-3xl overflow-hidden bg-gradient-to-br from-gray-900/90 to-gray-800/95 p-8 md:p-12 backdrop-blur-xl border border-white/10 transition-all duration-500 hover:-translate-y-2 hover:shadow-2xl hover:border-brand-orange/30 hover:shadow-brand-orange/10">
-                                {/* NEW Badge */}
-                                <span className="badge-new z-10">NEW</span>
+                            <div className="relative rounded-3xl overflow-visible bg-gradient-to-br from-gray-900/90 to-gray-800/95 p-8 md:p-12 backdrop-blur-xl border border-white/10 transition-all duration-500 hover:-translate-y-2 hover:shadow-2xl hover:border-brand-orange/30 hover:shadow-brand-orange/10">
+                                {/* Swinging NEW Tag */}
+                                <div className="hanging-tag">
+                                    <div className="hanging-tag-body">NEW</div>
+                                </div>
 
                                 {/* Glow effect on hover */}
                                 <div className="absolute inset-0 bg-gradient-to-br from-brand-orange/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />

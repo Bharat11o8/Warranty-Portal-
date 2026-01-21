@@ -11,6 +11,7 @@ router.get('/', NotificationController.getNotifications);
 router.get('/unread-count', NotificationController.getUnreadCount);
 router.patch('/:id/read', NotificationController.markRead);
 router.patch('/read-all', NotificationController.markAllRead);
+router.delete('/', NotificationController.clearAll);
 
 // Admin-only broadcast
 router.post('/broadcast', requireRole('admin'), NotificationController.broadcast);

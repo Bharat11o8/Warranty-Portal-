@@ -51,14 +51,22 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, categoryName 
                 )}
 
                 {/* Status Badges */}
-                <div className="absolute top-4 right-4 flex flex-col gap-2">
+                <div className="absolute top-4 right-4 flex flex-col gap-2 z-10">
                     {!product.in_stock && (
                         <Badge variant="destructive" className="font-bold">Out of Stock</Badge>
                     )}
-                    {product.id.includes('new') && (
-                        <Badge className="badge-new animate-pulse-glow border-none">New</Badge>
-                    )}
                 </div>
+
+                {/* Swinging NEW Tag */}
+                {product.id.includes('new') && (
+                    <div className="absolute -top-1 right-4 z-20">
+                        <div className="animate-swing origin-top">
+                            <div className="bg-red-600 text-white text-[10px] font-black tracking-widest px-2 py-1 rounded-b-md shadow-lg border-x border-b border-red-800">
+                                NEW
+                            </div>
+                        </div>
+                    </div>
+                )}
 
                 {categoryName && (
                     <div className="absolute top-4 left-4">

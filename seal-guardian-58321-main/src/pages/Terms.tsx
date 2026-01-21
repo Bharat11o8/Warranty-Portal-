@@ -1,4 +1,5 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { formatToIST } from "@/lib/utils";
 
 const Terms = () => {
   return (
@@ -87,7 +88,7 @@ const Terms = () => {
             <p className="font-bold leading-relaxed mt-4 p-4 bg-blue-50 border-l-4 border-blue-500 rounded">To activate the warranty, an on-line warranty registration must be completed via www.autoformindia.com/warranty within 30 days from the date of the purchase. This is an Auto Generated E-warranty File, any Information found to be incorrect or incomplete will deem the warranty null and void or will be regarded as disqualified without prior notice.</p>
 
             <p className="text-sm text-muted-foreground mt-8">
-              Last updated: {new Date().toLocaleDateString()}
+              Last updated: {formatToIST(new Date())}
             </p>
           </CardContent>
         </Card>

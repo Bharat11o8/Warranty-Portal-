@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Upload, Star, Send, RefreshCw, X, ImageIcon, MessageSquare, Store, FileText, HelpCircle, AlertTriangle } from "lucide-react";
 import api from "@/lib/api";
+import { formatToIST } from "@/lib/utils";
 import { compressImage, isCompressibleImage } from "@/lib/imageCompression";
 
 interface Grievance {
@@ -337,7 +338,7 @@ const GrievancePage = () => {
                                                 <div>
                                                     <CardTitle className="text-lg">{g.subject}</CardTitle>
                                                     <CardDescription>
-                                                        {g.ticket_id} • {new Date(g.created_at).toLocaleDateString()}
+                                                        {g.ticket_id} • {formatToIST(g.created_at)}
                                                     </CardDescription>
                                                 </div>
                                                 <div className="flex gap-2">

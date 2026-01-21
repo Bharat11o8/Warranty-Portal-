@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import db from '../config/database.js';
 import { v4 as uuidv4 } from 'uuid';
 import { ActivityLogService } from '../services/activity-log.service.js';
+import { NotificationService } from '../services/notification.service.js';
 
 export class ProductController {
     static async getAllProducts(req: Request, res: Response) {
@@ -55,6 +56,18 @@ export class ProductController {
                 message: 'Product added successfully',
                 product: { id, name, type, warranty_years }
             });
+
+            // Notify Vendors about new warranty product type
+            try {
+                await NotificationService.broadcast({
+                    title: 'New Warranty Category Added',
+                    message: `New product type '${name}' is now available for warranty registration.`,
+                    type: 'system',
+                    targetRole: 'vendor'
+                });
+            } catch (notifError) {
+                console.error('Failed to broadcast new product type notification:', notifError);
+            }
         } catch (error) {
             console.error('Add product error:', error);
             res.status(500).json({ error: 'Failed to add product' });
@@ -131,6 +144,18 @@ export class ProductController {
                 message: 'Product updated successfully',
                 product: { id, name, type, warranty_years }
             });
+
+            // Notify Vendors about warranty product type update
+            try {
+                await NotificationService.broadcast({
+                    title: 'Warranty Category Updated',
+                    message: `Product type '${name}' details have been updated.`,
+                    type: 'system',
+                    targetRole: 'vendor'
+                });
+            } catch (notifError) {
+                console.error('Failed to broadcast product type update notification:', notifError);
+            }
         } catch (error) {
             console.error('Update product error:', error);
             res.status(500).json({ error: 'Failed to update product' });

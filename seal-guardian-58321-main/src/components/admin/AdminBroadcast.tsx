@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Megaphone, Send, AlertTriangle, ShieldCheck, Users, Image as ImageIcon, Video, X } from "lucide-react";
+import { Megaphone, Users, ShieldCheck, AlertTriangle, ChevronRight, ImageIcon, Video, X, Send, Check, ChevronsUpDown, Upload, Loader2 } from "lucide-react";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -12,15 +12,20 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Check, ChevronsUpDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import api from "@/lib/api";
+import { Badge } from "@/components/ui/badge";
+import React from "react";
 
 export const AdminBroadcast = () => {
     const { toast } = useToast();
     const [loading, setLoading] = useState(false);
     const [vendors, setVendors] = useState<any[]>([]);
     const [loadingVendors, setLoadingVendors] = useState(false);
+    const [uploading, setUploading] = useState<{ image: boolean; video: boolean }>({ image: false, video: false });
+
+    const imageInputRef = React.useRef<HTMLInputElement>(null);
+    const videoInputRef = React.useRef<HTMLInputElement>(null);
     const [open, setOpen] = useState(false);
 
     const [formData, setFormData] = useState({
@@ -89,6 +94,39 @@ export const AdminBroadcast = () => {
             ...prev,
             [type === 'image' ? 'images' : 'videos']: prev[type === 'image' ? 'images' : 'videos'].filter((_, i) => i !== index)
         }));
+    };
+
+    const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, type: 'image' | 'video') => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        setUploading(prev => ({ ...prev, [type]: true }));
+        const formDataUpload = new FormData();
+        formDataUpload.append('file', file);
+
+        try {
+            const res = await api.post('/upload', formDataUpload, {
+                headers: { 'Content-Type': 'multipart/form-data' }
+            });
+
+            if (res.data.success) {
+                if (type === 'image') {
+                    setFormData(prev => ({ ...prev, images: [...prev.images, res.data.url] }));
+                } else {
+                    setFormData(prev => ({ ...prev, videos: [...prev.videos, res.data.url] }));
+                }
+                toast({ title: "Upload Success", description: `File uploaded successfully.` });
+            }
+        } catch (error: any) {
+            toast({
+                title: "Upload Failed",
+                description: error.response?.data?.error || "Failed to upload file",
+                variant: "destructive"
+            });
+        } finally {
+            setUploading(prev => ({ ...prev, [type]: false }));
+            if (e.target) e.target.value = '';
+        }
     };
 
     const handleSend = async () => {
@@ -198,6 +236,12 @@ export const AdminBroadcast = () => {
                                         <span>Product Launch</span>
                                     </div>
                                 </SelectItem>
+                                <SelectItem value="warranty" className="font-bold">
+                                    <div className="flex items-center gap-2">
+                                        <ShieldCheck className="h-4 w-4 text-blue-500" />
+                                        <span>Warranty Alerts</span>
+                                    </div>
+                                </SelectItem>
                             </SelectContent>
                         </Select>
                     </div>
@@ -214,8 +258,8 @@ export const AdminBroadcast = () => {
                     />
                 </div>
 
-                {/* 3. Media & Link (Only for Product/System) */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-4 bg-muted/30 rounded-lg border border-dashed">
+                {/* 3. Media & Link */}
+                <div className="space-y-4 p-4 bg-muted/30 rounded-lg border border-dashed">
                     <div className="space-y-2">
                         <label className="text-xs font-black uppercase tracking-widest text-muted-foreground ml-1">Redirect Link (Optional)</label>
                         <Input
@@ -226,66 +270,94 @@ export const AdminBroadcast = () => {
                         />
                     </div>
 
-                    {formData.type === 'product' && (
-                        <div className="space-y-4 md:col-span-2">
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <div className="space-y-2">
-                                    <label className="text-xs font-black uppercase tracking-widest text-muted-foreground ml-1 flex items-center gap-2">
-                                        <ImageIcon className="h-3 w-3" /> Image URLs
-                                    </label>
-                                    <div className="flex gap-2">
-                                        <Input
-                                            placeholder="https://example.com/image.jpg"
-                                            className="h-9 text-xs"
-                                            value={mediaInput.image}
-                                            onChange={(e) => setMediaInput({ ...mediaInput, image: e.target.value })}
-                                        />
-                                        <Button size="sm" variant="secondary" onClick={() => addMedia('image')}>Add</Button>
-                                    </div>
-                                    <div className="flex flex-wrap gap-2 mt-2">
-                                        {formData.images.map((img, i) => (
-                                            <div key={i} className="relative group">
-                                                <img src={img} alt="preview" className="h-10 w-10 object-cover rounded border" />
-                                                <button
-                                                    onClick={() => removeMedia('image', i)}
-                                                    className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
-                                                >
-                                                    <X className="h-2 w-2" />
-                                                </button>
-                                            </div>
-                                        ))}
-                                    </div>
+                    <div className="space-y-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div className="space-y-2">
+                                <label className="text-xs font-black uppercase tracking-widest text-muted-foreground ml-1 flex items-center gap-2">
+                                    <ImageIcon className="h-3 w-3" /> Image URLs
+                                </label>
+                                <div className="flex gap-2">
+                                    <Input
+                                        placeholder="https://example.com/image.jpg"
+                                        className="h-9 text-xs"
+                                        value={mediaInput.image}
+                                        onChange={(e) => setMediaInput({ ...mediaInput, image: e.target.value })}
+                                    />
+                                    <Button size="sm" variant="secondary" onClick={() => addMedia('image')}>Add</Button>
+                                    <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={() => imageInputRef.current?.click()}
+                                        disabled={uploading.image}
+                                    >
+                                        {uploading.image ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+                                    </Button>
+                                    <input
+                                        type="file"
+                                        ref={imageInputRef}
+                                        className="hidden"
+                                        accept="image/*"
+                                        onChange={(e) => handleFileUpload(e, 'image')}
+                                    />
                                 </div>
-                                <div className="space-y-2">
-                                    <label className="text-xs font-black uppercase tracking-widest text-muted-foreground ml-1 flex items-center gap-2">
-                                        <Video className="h-3 w-3" /> Video URLs
-                                    </label>
-                                    <div className="flex gap-2">
-                                        <Input
-                                            placeholder="https://example.com/video.mp4"
-                                            className="h-9 text-xs"
-                                            value={mediaInput.video}
-                                            onChange={(e) => setMediaInput({ ...mediaInput, video: e.target.value })}
-                                        />
-                                        <Button size="sm" variant="secondary" onClick={() => addMedia('video')}>Add</Button>
-                                    </div>
-                                    <div className="flex flex-wrap gap-2 mt-2">
-                                        {formData.videos.map((vid, i) => (
-                                            <div key={i} className="relative group bg-black/10 rounded border px-2 py-1 flex items-center">
-                                                <span className="text-[10px] max-w-[100px] truncate">{vid}</span>
-                                                <button
-                                                    onClick={() => removeMedia('video', i)}
-                                                    className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
-                                                >
-                                                    <X className="h-2 w-2" />
-                                                </button>
-                                            </div>
-                                        ))}
-                                    </div>
+                                <div className="flex flex-wrap gap-2 mt-2">
+                                    {formData.images.map((img, i) => (
+                                        <div key={i} className="relative group">
+                                            <img src={img} alt="preview" className="h-10 w-10 object-cover rounded border" />
+                                            <button
+                                                onClick={() => removeMedia('image', i)}
+                                                className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
+                                            >
+                                                <X className="h-2 w-2" />
+                                            </button>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-xs font-black uppercase tracking-widest text-muted-foreground ml-1 flex items-center gap-2">
+                                    <Video className="h-3 w-3" /> Video URLs
+                                </label>
+                                <div className="flex gap-2">
+                                    <Input
+                                        placeholder="https://example.com/video.mp4"
+                                        className="h-9 text-xs"
+                                        value={mediaInput.video}
+                                        onChange={(e) => setMediaInput({ ...mediaInput, video: e.target.value })}
+                                    />
+                                    <Button size="sm" variant="secondary" onClick={() => addMedia('video')}>Add</Button>
+                                    <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={() => videoInputRef.current?.click()}
+                                        disabled={uploading.video}
+                                    >
+                                        {uploading.video ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+                                    </Button>
+                                    <input
+                                        type="file"
+                                        ref={videoInputRef}
+                                        className="hidden"
+                                        accept="video/*"
+                                        onChange={(e) => handleFileUpload(e, 'video')}
+                                    />
+                                </div>
+                                <div className="flex flex-wrap gap-2 mt-2">
+                                    {formData.videos.map((vid, i) => (
+                                        <div key={i} className="relative group bg-black/10 rounded border px-2 py-1 flex items-center">
+                                            <span className="text-[10px] max-w-[100px] truncate">{vid}</span>
+                                            <button
+                                                onClick={() => removeMedia('video', i)}
+                                                className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
+                                            >
+                                                <X className="h-2 w-2" />
+                                            </button>
+                                        </div>
+                                    ))}
                                 </div>
                             </div>
                         </div>
-                    )}
+                    </div>
                 </div>
 
                 {/* 4. Audience Selection */}
@@ -400,6 +472,67 @@ export const AdminBroadcast = () => {
                             )}
                         </div>
                     )}
+                </div>
+
+                {/* 5. Live Preview */}
+                <div className="space-y-4 pt-6 border-t border-dashed">
+                    <div className="flex items-center justify-between">
+                        <label className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground ml-1">Live Preview (Franchise View)</label>
+                        <Badge variant="outline" className="text-[9px] font-bold py-0 h-4 border-primary/20 text-primary uppercase">Draft</Badge>
+                    </div>
+
+                    <div className="relative rounded-2xl border bg-background/30 p-5 shadow-inner overflow-hidden group/preview">
+                        <div className="absolute top-0 right-0 p-3 opacity-20 capitalize text-[10px] font-bold italic tracking-tighter">
+                            {formData.type}
+                        </div>
+
+                        <div className="flex gap-4">
+                            <div className={cn(
+                                "h-12 w-12 rounded-xl flex items-center justify-center shrink-0 border shadow-sm bg-white",
+                                formData.type === 'product' ? "text-purple-600 border-purple-100" :
+                                    formData.type === 'alert' ? "text-amber-600 border-amber-100" :
+                                        "text-blue-600 border-blue-100"
+                            )}>
+                                {formData.type === 'product' ? <Megaphone className="h-6 w-6" /> :
+                                    formData.type === 'alert' ? <AlertTriangle className="h-6 w-6" /> :
+                                        <ShieldCheck className="h-6 w-6" />}
+                            </div>
+
+                            <div className="flex-1 min-w-0">
+                                <div className="flex items-center justify-between mb-1">
+                                    <h4 className="text-sm border-0 bg-transparent font-black truncate text-foreground/90">
+                                        {formData.title || "Announcement Heading"}
+                                    </h4>
+                                    <span className="text-[9px] font-bold text-muted-foreground/60 uppercase tracking-tighter">Just Now</span>
+                                </div>
+                                <p className="text-xs text-muted-foreground/80 leading-relaxed line-clamp-2">
+                                    {formData.message || "Enter a message above to see how it will appear on franchise dashboards..."}
+                                </p>
+
+                                {(formData.images.length > 0 || formData.videos.length > 0) && (
+                                    <div className="mt-4 flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
+                                        {formData.images.map((img, i) => (
+                                            <div key={i} className="h-14 w-14 rounded-lg border bg-muted shrink-0 overflow-hidden shadow-sm transition-transform hover:scale-105 cursor-help">
+                                                <img src={img} className="h-full w-full object-cover" alt="" />
+                                            </div>
+                                        ))}
+                                        {formData.videos.map((vid, i) => (
+                                            <div key={i} className="h-14 w-14 rounded-lg border bg-primary/5 flex flex-col items-center justify-center shrink-0 shadow-sm border-primary/10">
+                                                <Video className="h-4 w-4 text-primary mb-1" />
+                                                <span className="text-[8px] font-black uppercase text-primary/60">MP4</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+
+                                {formData.link && (
+                                    <div className="mt-3 flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest text-primary opacity-60">
+                                        Link Attached <ChevronRight className="h-3 w-3" />
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
                 <Button

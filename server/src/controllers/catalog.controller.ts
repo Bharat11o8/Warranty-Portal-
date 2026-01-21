@@ -428,6 +428,22 @@ export class CatalogController {
                 message: 'Product created successfully',
                 product: { id, name }
             });
+
+            // Notify Vendors about the new product
+            try {
+                await NotificationService.broadcast({
+                    title: 'New Product Launch! 🚀',
+                    message: `Check out our new product: ${name}`,
+                    type: 'product',
+                    link: `/product/${id}`,
+                    metadata: {
+                        images: images && images.length > 0 ? [images[0]] : []
+                    },
+                    targetRole: 'vendor'
+                });
+            } catch (notifError) {
+                console.error('Failed to broadcast new product notification:', notifError);
+            }
         } catch (error: any) {
             console.error('Add product error:', error);
             res.status(500).json({ error: 'Failed to create product' });
@@ -519,6 +535,20 @@ export class CatalogController {
             });
 
             res.json({ success: true, message: 'Product updated successfully' });
+
+            // Notify Vendors about product update (optional, maybe only for major updates or price changes)
+            // For now, let's notify if it's featured or new arrival status changes, or just general update
+            try {
+                await NotificationService.broadcast({
+                    title: 'Product Update 🔔',
+                    message: `${name} details have been updated. Check it out!`,
+                    type: 'product',
+                    link: `/product/${id}`,
+                    targetRole: 'vendor'
+                });
+            } catch (notifError) {
+                console.error('Failed to broadcast product update notification:', notifError);
+            }
         } catch (error: any) {
             console.error('Update product error:', error);
             res.status(500).json({ error: 'Failed to update product' });

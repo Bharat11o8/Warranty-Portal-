@@ -28,6 +28,7 @@ import {
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import api from "@/lib/api";
+import { formatToIST } from "@/lib/utils";
 import { Trash2, Plus, Package, Pencil } from "lucide-react";
 
 interface Product {
@@ -317,7 +318,7 @@ export function ProductManagement() {
                                     </TableCell>
                                     <TableCell>{product.warranty_years}</TableCell>
                                     <TableCell>
-                                        {product.updated_at ? new Date(product.updated_at).toLocaleDateString() : '-'}
+                                        {product.updated_at ? formatToIST(product.updated_at) : '-'}
                                     </TableCell>
                                     <TableCell className="text-right">
                                         <div className="flex justify-end gap-2">

@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Search } from "lucide-react";
 import api from "@/lib/api";
+import { formatToIST } from "@/lib/utils";
 
 const ActivityLogs = () => {
     const navigate = useNavigate();
@@ -51,24 +52,7 @@ const ActivityLogs = () => {
     };
 
     // Format date/time in IST (Indian Standard Time)
-    const formatIST = (dateString: string) => {
-        const date = new Date(dateString);
-        return {
-            date: date.toLocaleDateString('en-IN', {
-                timeZone: 'Asia/Kolkata',
-                day: '2-digit',
-                month: 'short',
-                year: 'numeric'
-            }),
-            time: date.toLocaleTimeString('en-IN', {
-                timeZone: 'Asia/Kolkata',
-                hour: '2-digit',
-                minute: '2-digit',
-                second: '2-digit',
-                hour12: true
-            })
-        };
-    };
+
 
     // Filter and Sort Helper
     const filterAndSortLogs = (logs: any[]) => {
@@ -236,8 +220,7 @@ const ActivityLogs = () => {
                                         {filteredLogs.map((log: any) => (
                                             <tr key={log.id} className="border-b transition-colors hover:bg-muted/50">
                                                 <td className="p-4 align-middle">
-                                                    <div className="text-sm">{formatIST(log.created_at).date}</div>
-                                                    <div className="text-xs text-muted-foreground">{formatIST(log.created_at).time}</div>
+                                                    <div className="text-sm">{formatToIST(log.created_at)}</div>
                                                 </td>
                                                 <td className="p-4 align-middle">
                                                     <div className="font-medium">{log.admin_name || 'Unknown'}</div>

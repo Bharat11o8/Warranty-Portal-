@@ -60,7 +60,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 
 import { AdminWarrantyList } from "@/components/admin/AdminWarrantyList";
 import { formatWarrantyForExport, formatVendorForExport, formatCustomerForExport, formatManpowerForExport } from "@/lib/adminExports";
-import { downloadCSV, getWarrantyExpiration, cn } from "@/lib/utils";
+import { downloadCSV, getWarrantyExpiration, cn, formatToIST } from "@/lib/utils";
 import Header from "@/components/Header";
 import { Pagination } from "@/components/Pagination";
 import {
@@ -98,7 +98,7 @@ const CustomTooltip = ({ active, payload, label }: any) => {
                 {isBarChart && (
                     <p className="font-semibold mb-2">
                         {/^\d{4}-\d{2}$/.test(label)
-                            ? new Date(label + '-01').toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+                            ? new Date(label + '-01').toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })
                             : label}
                     </p>
                 )}
@@ -1604,7 +1604,7 @@ const AdminDashboard = () => {
                                                                             {member.removed_at && (
                                                                                 <>
                                                                                     <span>•</span>
-                                                                                    <span className="text-xs">Removed: {new Date(member.removed_at).toLocaleDateString()}</span>
+                                                                                    <span className="text-xs">Removed: {formatToIST(member.removed_at)}</span>
                                                                                 </>
                                                                             )}
                                                                         </div>
@@ -1713,7 +1713,7 @@ const AdminDashboard = () => {
                                                     </div>
                                                     <div>
                                                         <p className="text-xs text-muted-foreground">Registered</p>
-                                                        <p>{new Date(w.created_at).toLocaleDateString()}</p>
+                                                        <p>{formatToIST(w.created_at)}</p>
                                                     </div>
                                                 </div>
                                             </div>
@@ -2139,7 +2139,7 @@ const AdminDashboard = () => {
                                                                     tickLine={false}
                                                                     tick={({ x, y, payload }) => {
                                                                         const date = new Date(payload.value + '-01');
-                                                                        const label = date.toLocaleDateString('en-US', { month: 'short' });
+                                                                        const label = date.toLocaleDateString('en-IN', { month: 'short' });
                                                                         const isSelected = selectedMonth === payload.value;
                                                                         return (
                                                                             <g transform={`translate(${x},${y})`}>
@@ -2317,7 +2317,7 @@ const AdminDashboard = () => {
                                                                     tickLine={false}
                                                                     tick={({ x, y, payload }) => {
                                                                         const date = new Date(payload.value + '-01');
-                                                                        const label = date.toLocaleDateString('en-US', { month: 'short' });
+                                                                        const label = date.toLocaleDateString('en-IN', { month: 'short' });
                                                                         const isSelected = selectedMonth === payload.value;
                                                                         return (
                                                                             <g transform={`translate(${x},${y})`}>
@@ -2380,7 +2380,7 @@ const AdminDashboard = () => {
                                     <CardDescription>
                                         {overviewView === 'warranty' ? (
                                             selectedMonth ?
-                                                `Statistics for ${new Date(selectedMonth + '-01').toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}` :
+                                                `Statistics for ${new Date(selectedMonth + '-01').toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })}` :
                                                 'Warranty Statistics'
                                         ) :
                                             overviewView === 'franchise' ? 'Franchise Network' : 'User Base'}
@@ -2507,7 +2507,7 @@ const AdminDashboard = () => {
                                                             <div>
                                                                 <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">
                                                                     {selectedMonth
-                                                                        ? `Customers in ${new Date(selectedMonth + '-01').toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}`
+                                                                        ? `Customers in ${new Date(selectedMonth + '-01').toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })}`
                                                                         : 'Total Registered'}
                                                                 </p>
                                                                 <p className="text-3xl font-bold text-blue-600">
@@ -3419,7 +3419,7 @@ const AdminDashboard = () => {
                                                                     <div className="text-sm text-muted-foreground">{customer.customer_email}</div>
                                                                 </div>
                                                                 <div className="text-xs text-muted-foreground">
-                                                                    {customer.first_warranty_date ? new Date(customer.first_warranty_date).toLocaleDateString() : 'N/A'}
+                                                                    {customer.first_warranty_date ? formatToIST(customer.first_warranty_date) : 'N/A'}
                                                                 </div>
                                                             </div>
 
@@ -3553,10 +3553,10 @@ const AdminDashboard = () => {
                                                                 </td>
                                                                 <td className="p-4 align-middle">
                                                                     <div className="text-sm">
-                                                                        {customer.first_warranty_date ? new Date(customer.first_warranty_date).toLocaleDateString() : 'N/A'}
+                                                                        {customer.first_warranty_date ? formatToIST(customer.first_warranty_date) : 'N/A'}
                                                                     </div>
                                                                     <div className="text-xs text-muted-foreground">
-                                                                        {customer.first_warranty_date ? new Date(customer.first_warranty_date).toLocaleTimeString() : ''}
+                                                                        {/* Time included above */}
                                                                     </div>
                                                                 </td>
                                                                 <td className="p-4 align-middle text-right">
@@ -3717,7 +3717,7 @@ const AdminDashboard = () => {
                                                     <CardContent className="p-4">
                                                         <div className="flex justify-between items-start mb-2">
                                                             <div className="text-sm font-semibold">{log.admin_name || 'Unknown'}</div>
-                                                            <div className="text-xs text-muted-foreground">{new Date(log.created_at).toLocaleDateString()}</div>
+                                                            <div className="text-xs text-muted-foreground">{formatToIST(log.created_at)}</div>
                                                         </div>
                                                         <div className="text-xs text-muted-foreground mb-3">{log.admin_email}</div>
 
@@ -3765,8 +3765,7 @@ const AdminDashboard = () => {
                                                     {activityLogs.map((log: any) => (
                                                         <tr key={log.id} className="border-b transition-colors hover:bg-muted/50">
                                                             <td className="p-4 align-middle">
-                                                                <div className="text-sm">{new Date(log.created_at).toLocaleDateString()}</div>
-                                                                <div className="text-xs text-muted-foreground">{new Date(log.created_at).toLocaleTimeString()}</div>
+                                                                <div className="text-sm">{formatToIST(log.created_at)}</div>
                                                             </td>
                                                             <td className="p-4 align-middle">
                                                                 <div className="font-medium">{log.admin_name || 'Unknown'}</div>
@@ -3947,7 +3946,7 @@ const AdminDashboard = () => {
                                                 </div>
                                                 <div>
                                                     <p className="text-xs text-muted-foreground">Registered</p>
-                                                    <p>{new Date(w.created_at).toLocaleDateString()}</p>
+                                                    <p>{formatToIST(w.created_at)}</p>
                                                 </div>
                                             </div>
                                         </div>

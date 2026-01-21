@@ -7,14 +7,22 @@ export class NotificationController {
     static async getNotifications(req: AuthRequest, res: Response) {
         try {
             const userId = req.user?.id;
+            const includeCleared = req.query.includeCleared === 'true';
             if (!userId) return res.status(401).json({ error: 'Unauthorized' });
 
-            const [notifications]: any = await db.execute(
-                'SELECT * FROM notifications WHERE user_id = ? ORDER BY created_at DESC LIMIT 50',
-                [userId]
-            );
+            const query = includeCleared
+                ? 'SELECT * FROM notifications WHERE user_id = ? ORDER BY created_at DESC LIMIT 50'
+                : 'SELECT * FROM notifications WHERE user_id = ? AND is_cleared = FALSE ORDER BY created_at DESC LIMIT 50';
 
-            res.json({ success: true, notifications });
+            const [notifications]: any = await db.execute(query, [userId]);
+
+            // Parse metadata for each notification
+            const parsedNotifications = notifications.map((n: any) => ({
+                ...n,
+                metadata: n.metadata ? (typeof n.metadata === 'string' ? JSON.parse(n.metadata) : n.metadata) : null
+            }));
+
+            res.json({ success: true, notifications: parsedNotifications });
         } catch (error) {
             console.error('Fetch notifications error:', error);
             res.status(500).json({ error: 'Internal server error' });
@@ -57,6 +65,19 @@ export class NotificationController {
             res.json({ success: true });
         } catch (error) {
             console.error('Mark all read error:', error);
+            res.status(500).json({ error: 'Internal server error' });
+        }
+    }
+
+    static async clearAll(req: AuthRequest, res: Response) {
+        try {
+            const userId = req.user?.id;
+            if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+            await NotificationService.clearAll(userId);
+            res.json({ success: true, message: 'Notifications cleared from view' });
+        } catch (error) {
+            console.error('Clear notifications error:', error);
             res.status(500).json({ error: 'Internal server error' });
         }
     }

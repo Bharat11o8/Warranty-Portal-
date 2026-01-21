@@ -8,7 +8,7 @@ interface Notification {
     id: number;
     title: string;
     message: string;
-    type: 'product' | 'alert' | 'system';
+    type: 'product' | 'alert' | 'system' | 'posm' | 'order' | 'scheme' | 'warranty';
     link?: string;
     metadata?: {
         images?: string[];
@@ -20,11 +20,14 @@ interface Notification {
 
 interface NotificationContextType {
     notifications: Notification[];
+    fullHistory: Notification[];
     unreadCount: number;
     loading: boolean;
     markAsRead: (id: number) => Promise<void>;
     markAllAsRead: () => Promise<void>;
+    clearAllNotifications: () => Promise<void>;
     refreshNotifications: () => Promise<void>;
+    fetchFullHistory: () => Promise<void>;
 }
 
 const NotificationContext = createContext<NotificationContextType | undefined>(undefined);
@@ -33,26 +36,50 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     const { user } = useAuth();
     const { toast } = useToast();
     const [notifications, setNotifications] = useState<Notification[]>([]);
+    const [fullHistory, setFullHistory] = useState<Notification[]>([]);
     const [unreadCount, setUnreadCount] = useState(0);
     const [loading, setLoading] = useState(false);
     const [socket, setSocket] = useState<Socket | null>(null);
+
+    const parseMetadata = (notifs: Notification[]) => {
+        return notifs.map(n => ({
+            ...n,
+            metadata: n.metadata ? (typeof n.metadata === 'string' ? JSON.parse(n.metadata) : n.metadata) : null
+        }));
+    };
 
     const fetchNotifications = useCallback(async () => {
         if (!user) return;
         setLoading(true);
         try {
-            const [notifRes, countRes] = await Promise.all([
+            const [notifRes, countRes, historyRes] = await Promise.all([
                 api.get("/notifications"),
-                api.get("/notifications/unread-count")
+                api.get("/notifications/unread-count"),
+                api.get("/notifications?includeCleared=true")
             ]);
-            if (notifRes.data.success) setNotifications(notifRes.data.notifications);
+            if (notifRes.data.success) {
+                setNotifications(parseMetadata(notifRes.data.notifications));
+            }
             if (countRes.data.success) setUnreadCount(countRes.data.count);
+            if (historyRes.data.success) {
+                setFullHistory(parseMetadata(historyRes.data.notifications));
+            }
         } catch (error) {
             console.error("Failed to fetch notifications:", error);
         } finally {
             setLoading(false);
         }
     }, [user]);
+
+    const fetchFullHistory = async () => {
+        if (!user) return;
+        try {
+            const res = await api.get("/notifications?includeCleared=true");
+            if (res.data.success) setFullHistory(parseMetadata(res.data.notifications));
+        } catch (error) {
+            console.error("Failed to fetch full history:", error);
+        }
+    };
 
     useEffect(() => {
         if (user && localStorage.getItem("auth_token")) {
@@ -71,12 +98,17 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
             });
 
             newSocket.on("notification:new", (notification: Notification) => {
-                setNotifications(prev => [notification, ...prev]);
+                const parsedNotif = {
+                    ...notification,
+                    metadata: notification.metadata ? (typeof notification.metadata === 'string' ? JSON.parse(notification.metadata) : notification.metadata) : null
+                };
+                setNotifications(prev => [parsedNotif, ...prev]);
+                setFullHistory(prev => [parsedNotif, ...prev]);
                 setUnreadCount(prev => prev + 1);
 
                 toast({
-                    title: notification.title,
-                    description: notification.message,
+                    title: parsedNotif.title,
+                    description: parsedNotif.message,
                 });
 
                 // Play notification sound if desired
@@ -122,14 +154,36 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         }
     };
 
+    const clearAllNotifications = async () => {
+        try {
+            await api.delete("/notifications");
+            setNotifications([]);
+            setUnreadCount(0);
+            toast({
+                title: "Notifications cleared",
+                description: "All notifications have been removed.",
+            });
+        } catch (error) {
+            console.error("Failed to clear notifications:", error);
+            toast({
+                title: "Error",
+                description: "Failed to clear notifications.",
+                variant: "destructive"
+            });
+        }
+    };
+
     return (
         <NotificationContext.Provider value={{
             notifications,
+            fullHistory,
             unreadCount,
             loading,
             markAsRead,
             markAllAsRead,
-            refreshNotifications: fetchNotifications
+            clearAllNotifications,
+            refreshNotifications: fetchNotifications,
+            fetchFullHistory
         }}>
             {children}
         </NotificationContext.Provider>

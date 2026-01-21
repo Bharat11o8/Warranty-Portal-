@@ -1,7 +1,9 @@
+
 import { Response } from 'express';
 import db from '../config/database.js';
 import { AuthRequest } from '../middleware/auth.js';
 import { EmailService } from '../services/email.service.js';
+import { NotificationService } from '../services/notification.service.js';
 
 /**
  * Grievance Controller
@@ -116,6 +118,37 @@ class GrievanceController {
             }
 
 
+
+            // Notifications
+            try {
+                // 1. Notify Admins
+                await NotificationService.broadcast({
+                    title: `New Grievance: ${ticketId}`,
+                    message: `A new grievance has been submitted by a customer. Subject: ${subject}`,
+                    type: 'warranty',
+                    link: `/admin/grievances/${ticketId}`,
+                    targetRole: 'admin'
+                });
+
+                // 2. Notify Franchise if applicable
+                if (franchiseId) {
+                    // Find user_id for this franchise
+                    const [vendorRows]: any = await db.execute(
+                        'SELECT user_id FROM vendor_details WHERE id = ?',
+                        [franchiseId]
+                    );
+                    if (vendorRows.length > 0) {
+                        await NotificationService.notify(vendorRows[0].user_id, {
+                            title: `New Grievance Assigned: ${ticketId}`,
+                            message: `A customer has registered a grievance against your store. Details: ${subject}`,
+                            type: 'warranty',
+                            link: `/dashboard/vendor`
+                        });
+                    }
+                }
+            } catch (notifError) {
+                console.error('Failed to send grievance submission notifications:', notifError);
+            }
 
             return res.status(201).json({
                 success: true,
@@ -388,6 +421,33 @@ class GrievanceController {
                 values
             );
 
+            // Notify User (Franchise/Customer) about status update
+            try {
+                // Get the grievance owner to notify
+                const [rows]: any = await db.execute('SELECT customer_id, ticket_id FROM grievances WHERE id = ?', [id]);
+                if (rows.length > 0) {
+                    const g = rows[0];
+                    await NotificationService.notify(g.customer_id, {
+                        title: `Grievance Updated: ${g.ticket_id}`,
+                        message: `Status changed to ${status}. Details available in portal.`,
+                        type: 'warranty',
+                        link: `/grievance/view/${id}`
+                    });
+                    // Notify admins about the status change
+                    await NotificationService.broadcast({
+                        title: `Grievance ${g.ticket_id} Status Updated`,
+                        message: `Grievance ${g.ticket_id} status changed to ${status}.`,
+                        type: 'warranty',
+                        link: `/admin/grievances/${g.ticket_id}?id=${id}`, // Assuming admin url structure
+                        targetUsers: [],
+                        targetRole: 'admin'
+                    });
+                }
+            } catch (e) {
+                console.error("Failed to notify user of grievance update", e);
+            }
+
+
             return res.json({ success: true, message: 'Status updated successfully' });
 
         } catch (error: any) {
@@ -426,6 +486,21 @@ class GrievanceController {
                 `UPDATE grievances SET ${field} = ? WHERE id = ?`,
                 [remarks, id]
             );
+
+            // Notify Customer about new remarks
+            try {
+                const [rows]: any = await db.execute('SELECT customer_id, ticket_id FROM grievances WHERE id = ?', [id]);
+                if (rows.length > 0) {
+                    await NotificationService.notify(rows[0].customer_id, {
+                        title: `Update on Grievance: ${rows[0].ticket_id}`,
+                        message: `${userRole === 'admin' ? 'Admin' : 'Franchise'} has added remarks to your ticket.`,
+                        type: 'warranty',
+                        link: `/grievance/view/${id}`
+                    });
+                }
+            } catch (notifError) {
+                console.error('Failed to notify customer of remarks:', notifError);
+            }
 
             return res.json({ success: true, message: 'Remarks added successfully' });
 
@@ -480,6 +555,21 @@ class GrievanceController {
                     `UPDATE grievances SET ${updates.join(', ')} WHERE id = ?`,
                     values
                 );
+            }
+
+            // Notify Customer about admin update
+            try {
+                const [rows]: any = await db.execute('SELECT customer_id, ticket_id FROM grievances WHERE id = ?', [id]);
+                if (rows.length > 0) {
+                    await NotificationService.notify(rows[0].customer_id, {
+                        title: `Update on Grievance: ${rows[0].ticket_id}`,
+                        message: `Admin has updated your grievance details.`,
+                        type: 'warranty',
+                        link: `/grievance/view/${id}`
+                    });
+                }
+            } catch (notifError) {
+                console.error('Failed to notify customer of admin update:', notifError);
             }
 
             return res.json({ success: true, message: 'Grievance updated successfully' });

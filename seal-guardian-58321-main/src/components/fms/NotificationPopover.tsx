@@ -1,6 +1,6 @@
 
 import { useState } from "react";
-import { Bell, Check, Package, AlertTriangle, Info, MoreHorizontal, ShieldCheck, Megaphone, Trash2 } from "lucide-react";
+import { Bell, Check, Package, AlertTriangle, Info, MoreHorizontal, ShieldCheck, Megaphone, Trash2, Video, Download, ExternalLink, PlayCircle, FileVideo, Image as ImageIcon, ChevronRight } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import {
     Popover,
@@ -14,6 +14,8 @@ import {
     DialogTitle,
     DialogDescription,
 } from "@/components/ui/dialog";
+import { DownloadCloud } from "lucide-react";
+import { toast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
@@ -27,7 +29,8 @@ export const NotificationPopover = () => {
         notifications,
         unreadCount,
         markAsRead,
-        markAllAsRead
+        markAllAsRead,
+        clearAllNotifications
     } = useNotifications();
     const navigate = useNavigate();
     const [open, setOpen] = useState(false);
@@ -35,6 +38,7 @@ export const NotificationPopover = () => {
     const getIcon = (type: string) => {
         switch (type) {
             case 'product': return <Megaphone className="h-4 w-4 text-purple-600" />;
+            case 'warranty': return <ShieldCheck className="h-4 w-4 text-blue-600" />;
             case 'alert': return <AlertTriangle className="h-4 w-4 text-amber-600" />;
             case 'system': return <ShieldCheck className="h-4 w-4 text-blue-600" />;
             default: return <Info className="h-4 w-4 text-gray-600" />;
@@ -44,6 +48,7 @@ export const NotificationPopover = () => {
     const getBgColor = (type: string) => {
         switch (type) {
             case 'product': return "bg-purple-100";
+            case 'warranty': return "bg-blue-100";
             case 'alert': return "bg-amber-100";
             case 'system': return "bg-blue-100";
             default: return "bg-gray-100";
@@ -87,6 +92,25 @@ export const NotificationPopover = () => {
                 )}>
                     {notification.message}
                 </p>
+
+                {/* Media Preview in List */}
+                {notification.metadata && (
+                    (Array.isArray(notification.metadata.images) && notification.metadata.images.length > 0) ||
+                    (Array.isArray(notification.metadata.videos) && notification.metadata.videos.length > 0)
+                ) && (
+                        <div className="mt-2 flex gap-1.5 overflow-hidden">
+                            {Array.isArray(notification.metadata.images) && notification.metadata.images.slice(0, 3).map((img: string, i: number) => (
+                                <div key={i} className="h-10 w-10 rounded border bg-muted flex items-center justify-center overflow-hidden shrink-0">
+                                    <img src={img} className="h-full w-full object-cover" alt="" />
+                                </div>
+                            ))}
+                            {Array.isArray(notification.metadata.videos) && notification.metadata.videos.length > 0 && (
+                                <div className="h-10 w-10 rounded border bg-purple-500/10 flex items-center justify-center shrink-0">
+                                    <Video className="h-4 w-4 text-purple-600" />
+                                </div>
+                            )}
+                        </div>
+                    )}
             </div>
             {!notification.is_read && (
                 <div className="absolute left-0 top-0 bottom-0 w-1 bg-primary" />
@@ -129,16 +153,36 @@ export const NotificationPopover = () => {
                 <Tabs defaultValue="all" className="w-full">
                     <div className="flex items-center justify-between px-4 py-3 border-b bg-muted/30">
                         <h3 className="font-bold text-sm">Notifications</h3>
-                        {unreadCount > 0 && (
-                            <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-7 text-[10px] font-bold text-primary hover:bg-primary/10 px-2"
-                                onClick={markAllAsRead}
-                            >
-                                Mark all read <Check className="ml-1 h-3 w-3" />
-                            </Button>
-                        )}
+                        <div className="flex items-center gap-1">
+                            {unreadCount > 0 && (
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-7 text-[10px] font-bold text-primary hover:bg-primary/10 px-2"
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        markAllAsRead();
+                                    }}
+                                >
+                                    Mark all read <Check className="ml-1 h-3 w-3" />
+                                </Button>
+                            )}
+                            {notifications.length > 0 && (
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-7 text-[10px] font-bold text-destructive hover:bg-destructive/10 px-2"
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        if (window.confirm("Are you sure you want to clear all notifications?")) {
+                                            clearAllNotifications();
+                                        }
+                                    }}
+                                >
+                                    Clear all <Trash2 className="ml-1 h-3 w-3" />
+                                </Button>
+                            )}
+                        </div>
                     </div>
 
                     <TabsList className="w-full justify-start rounded-none border-b bg-transparent p-0 h-10">
@@ -197,12 +241,14 @@ export const NotificationPopover = () => {
                     {selectedNotification && (() => {
                         const bgColors = {
                             product: "bg-purple-100",
+                            warranty: "bg-blue-100",
                             alert: "bg-amber-100",
                             system: "bg-blue-100",
                             default: "bg-gray-100"
                         } as any;
                         const textColors = {
                             product: "text-purple-600",
+                            warranty: "text-blue-600",
                             alert: "text-amber-600",
                             system: "text-blue-600",
                             default: "text-gray-600"
@@ -211,6 +257,24 @@ export const NotificationPopover = () => {
                         const type = selectedNotification.type || 'default';
                         const bg = bgColors[type] || bgColors.default;
                         const text = textColors[type] || textColors.default;
+
+                        const handleDownload = async (url: string, filename: string) => {
+                            try {
+                                const response = await fetch(url);
+                                const blob = await response.blob();
+                                const blobUrl = window.URL.createObjectURL(blob);
+                                const link = document.createElement('a');
+                                link.href = blobUrl;
+                                link.download = filename || 'download';
+                                document.body.appendChild(link);
+                                link.click();
+                                document.body.removeChild(link);
+                                window.URL.revokeObjectURL(blobUrl);
+                            } catch (error) {
+                                console.error('Download failed:', error);
+                                window.open(url, '_blank');
+                            }
+                        };
 
                         return (
                             <>
@@ -248,45 +312,77 @@ export const NotificationPopover = () => {
                                     {/* Media Gallery */}
                                     {selectedNotification.metadata && (
                                         <div className="space-y-6 pt-4 border-t">
-                                            {selectedNotification.metadata.images && selectedNotification.metadata.images.length > 0 && (
+                                            {selectedNotification.metadata.images && Array.isArray(selectedNotification.metadata.images) && selectedNotification.metadata.images.length > 0 && (
                                                 <div className="space-y-3">
                                                     <h4 className="text-xs font-black uppercase tracking-wider text-muted-foreground">Attached Images</h4>
-                                                    <div className="grid grid-cols-2 gap-3">
+                                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                                         {selectedNotification.metadata.images.map((img: string, i: number) => (
-                                                            <a
-                                                                key={i}
-                                                                href={img}
-                                                                target="_blank"
-                                                                rel="noopener noreferrer"
-                                                                className="block aspect-video rounded-lg overflow-hidden border bg-muted group relative"
-                                                            >
+                                                            <div key={i} className="group relative aspect-video rounded-xl overflow-hidden border bg-muted shadow-sm hover:shadow-md transition-all duration-300">
                                                                 <img src={img} alt="" className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" />
-                                                                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors" />
-                                                            </a>
+
+                                                                {/* Image Hover Overlay */}
+                                                                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-3">
+                                                                    <a
+                                                                        href={img}
+                                                                        target="_blank"
+                                                                        rel="noopener noreferrer"
+                                                                        className="h-10 w-10 rounded-full bg-white/20 backdrop-blur-md text-white flex items-center justify-center hover:bg-white/40 transition-colors"
+                                                                        title="View Large"
+                                                                    >
+                                                                        <ExternalLink className="h-5 w-5" />
+                                                                    </a>
+                                                                    <button
+                                                                        onClick={() => handleDownload(img, `image-${i + 1}.jpg`)}
+                                                                        className="h-10 w-10 rounded-full bg-primary text-primary-foreground flex items-center justify-center hover:scale-110 transition-transform"
+                                                                        title="Download Image"
+                                                                    >
+                                                                        <Download className="h-5 w-5" />
+                                                                    </button>
+                                                                </div>
+                                                            </div>
                                                         ))}
                                                     </div>
                                                 </div>
                                             )}
 
-                                            {selectedNotification.metadata.videos && selectedNotification.metadata.videos.length > 0 && (
+                                            {selectedNotification.metadata.videos && Array.isArray(selectedNotification.metadata.videos) && selectedNotification.metadata.videos.length > 0 && (
                                                 <div className="space-y-3">
                                                     <h4 className="text-xs font-black uppercase tracking-wider text-muted-foreground">Attached Videos</h4>
-                                                    <div className="flex flex-col gap-2">
+                                                    <div className="grid grid-cols-1 gap-2">
                                                         {selectedNotification.metadata.videos.map((vid: string, i: number) => (
-                                                            <a
+                                                            <div
                                                                 key={i}
-                                                                href={vid}
-                                                                target="_blank"
-                                                                rel="noopener noreferrer"
-                                                                className="flex items-center gap-3 p-3 rounded-lg border bg-muted/30 hover:bg-muted/60 transition-colors group"
+                                                                className="flex items-center justify-between p-3 rounded-xl border bg-gradient-to-r from-muted/50 to-muted/30 hover:from-muted hover:to-muted/50 transition-all group"
                                                             >
-                                                                <div className="h-8 w-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center shrink-0 group-hover:bg-blue-600 group-hover:text-white transition-colors">
-                                                                    <Info className="h-4 w-4" />
+                                                                <div className="flex items-center gap-4">
+                                                                    <div className="h-12 w-12 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0 group-hover:bg-primary group-hover:text-primary-foreground transition-all duration-300 shadow-sm">
+                                                                        <FileVideo className="h-6 w-6" />
+                                                                    </div>
+                                                                    <div className="flex flex-col">
+                                                                        <span className="text-sm font-semibold">Video Attachment {i + 1}</span>
+                                                                        <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-bold">MP4 / WEBM Format</span>
+                                                                    </div>
                                                                 </div>
-                                                                <span className="text-sm font-medium text-blue-600 group-hover:underline">
-                                                                    Watch Video Attachment {i + 1}
-                                                                </span>
-                                                            </a>
+
+                                                                <div className="flex items-center gap-2">
+                                                                    <a
+                                                                        href={vid}
+                                                                        target="_blank"
+                                                                        rel="noopener noreferrer"
+                                                                        className="h-9 px-3 rounded-lg border bg-background hover:bg-muted text-xs font-bold flex items-center gap-2 transition-colors"
+                                                                    >
+                                                                        <PlayCircle className="h-4 w-4" /> Watch
+                                                                    </a>
+                                                                    <Button
+                                                                        size="sm"
+                                                                        variant="ghost"
+                                                                        className="h-9 w-9 p-0 rounded-lg hover:bg-primary/10 hover:text-primary transition-colors"
+                                                                        onClick={() => handleDownload(vid, `video-${i + 1}.mp4`)}
+                                                                    >
+                                                                        <Download className="h-4 w-4" />
+                                                                    </Button>
+                                                                </div>
+                                                            </div>
                                                         ))}
                                                     </div>
                                                 </div>

@@ -1,4 +1,4 @@
-import { downloadCSV } from "@/lib/utils";
+import { downloadCSV, formatToIST } from "@/lib/utils";
 
 /**
  * Format warranty data for export
@@ -11,7 +11,7 @@ export const formatWarrantyForExport = (w: any) => {
     const productName = rawProductName?.replace(/-/g, ' ').toUpperCase() || w.product_type;
 
     return {
-        Date: new Date(w.created_at).toLocaleDateString(),
+        Date: formatToIST(w.created_at),
         'Product Name': productName,
         'Product Type': w.product_type,
         'UID/Lot': w.uid || productDetails.lotNumber || 'N/A',
@@ -22,7 +22,7 @@ export const formatWarrantyForExport = (w: any) => {
         'Installer Store': productDetails.storeName || w.installer_name || 'N/A',
         'Installer Manpower': w.manpower_name || 'N/A',
         'Status': w.status?.toUpperCase() || 'N/A',
-        'Purchase Date': w.purchase_date ? new Date(w.purchase_date).toLocaleDateString() : 'N/A'
+        'Purchase Date': w.purchase_date ? formatToIST(w.purchase_date) : 'N/A'
     };
 };
 
@@ -44,7 +44,7 @@ export const formatVendorForExport = (v: any) => ({
     'Pending Warranties': v.pending_warranties || 0,
     'Disapproved Warranties': v.rejected_warranties || 0,
     'Total Warranties': v.total_warranties || 0,
-    'Joined Date': new Date(v.created_at).toLocaleDateString()
+    'Joined Date': formatToIST(v.created_at)
 });
 
 /**
@@ -58,7 +58,7 @@ export const formatCustomerForExport = (c: any) => ({
     'Disapproved Warranties': c.rejected_warranties || 0,
     'Pending Warranties': c.pending_warranties || 0,
     'Total Warranties': c.total_warranties || 0,
-    'Registered Date': new Date(c.created_at).toLocaleDateString()
+    'Registered Date': formatToIST(c.created_at)
 });
 
 /**
@@ -74,7 +74,7 @@ export const formatManpowerForExport = (m: any) => ({
     'Pending Points': m.pending_points || 0,
     'Disapproved Points': m.rejected_points || 0,
     'Total Applications': m.total_applications || 0,
-    'Joined Date': new Date(m.created_at).toLocaleDateString()
+    'Joined Date': formatToIST(m.created_at)
 });
 
 /**

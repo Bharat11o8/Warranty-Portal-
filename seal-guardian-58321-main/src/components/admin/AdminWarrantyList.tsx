@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { cn, getWarrantyExpiration } from "@/lib/utils";
+import { cn, getWarrantyExpiration, formatToIST } from "@/lib/utils";
 import {
     Check,
     Download,
@@ -84,19 +84,11 @@ export const AdminWarrantyList = ({
 
                                     </div>
                                     <p className="text-sm text-muted-foreground">
-                                        Registered on {new Date(warranty.created_at).toLocaleDateString('en-US', {
-                                            year: 'numeric',
-                                            month: 'long',
-                                            day: 'numeric'
-                                        })}
+                                        Registered on {formatToIST(warranty.created_at)}
                                     </p>
                                     {warranty.status === 'validated' && expirationDate && (
                                         <p className="text-sm text-muted-foreground mt-0.5">
-                                            Expires on {expirationDate.toLocaleDateString('en-US', {
-                                                year: 'numeric',
-                                                month: 'long',
-                                                day: 'numeric'
-                                            })}
+                                            Expires on {formatToIST(expirationDate)}
                                         </p>
                                     )}
                                 </div>
@@ -399,11 +391,11 @@ export const AdminWarrantyList = ({
                                                         </div>
                                                         <div>
                                                             <p className="text-sm text-muted-foreground">Purchase Date</p>
-                                                            <p className="font-medium">{new Date(warranty.purchase_date).toLocaleDateString()}</p>
+                                                            <p className="font-medium">{formatToIST(warranty.purchase_date)}</p>
                                                         </div>
                                                         <div>
                                                             <p className="text-sm text-muted-foreground">Registration Date</p>
-                                                            <p className="font-medium">{new Date(warranty.created_at).toLocaleDateString()}</p>
+                                                            <p className="font-medium">{formatToIST(warranty.created_at)}</p>
                                                         </div>
                                                     </div>
                                                 </div>
@@ -544,7 +536,7 @@ export const AdminWarrantyList = ({
                                                             </div>
                                                             <div>
                                                                 <p className="text-sm text-muted-foreground">Purchase Date</p>
-                                                                <p className="font-medium">{new Date(warranty.purchase_date).toLocaleDateString()}</p>
+                                                                <p className="font-medium">{formatToIST(warranty.purchase_date)}</p>
                                                             </div>
                                                             <div>
                                                                 <p className="text-sm text-muted-foreground">Manpower (Installer)</p>
