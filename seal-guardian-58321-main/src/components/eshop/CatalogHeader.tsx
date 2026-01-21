@@ -49,7 +49,23 @@ const CatalogHeader = () => {
                     fetchProducts()
                 ]);
                 setAllCategories(cats);
-                setMainCategories(cats.filter(c => !c.parentId));
+
+                // Priority sorting for main categories
+                const priority = ["seat cover", "accessories", "mat"];
+                const mainCats = cats.filter(c => !c.parentId).sort((a, b) => {
+                    const aName = a.name.toLowerCase();
+                    const bName = b.name.toLowerCase();
+
+                    const aIndex = priority.findIndex(p => aName.includes(p));
+                    const bIndex = priority.findIndex(p => bName.includes(p));
+
+                    if (aIndex !== -1 && bIndex !== -1) return aIndex - bIndex;
+                    if (aIndex !== -1) return -1;
+                    if (bIndex !== -1) return 1;
+                    return aName.localeCompare(bName);
+                });
+
+                setMainCategories(mainCats);
                 setAllProducts(prods);
             } catch (error) {
                 console.error("Error loading header data:", error);
@@ -113,66 +129,115 @@ const CatalogHeader = () => {
         return <LayoutList className="h-4 w-4 inline mr-1.5" />;
     };
 
+    // Recursive component for multilevel dropdowns
+    const NavDropdown = ({ category, allCats, level = 0 }: { category: Category, allCats: Category[], level?: number }) => {
+        const children = allCats.filter(c => c.parentId === category.id);
+        const [isHovered, setIsHovered] = useState(false);
+        const icon = level === 0 ? getCategoryIcon(category.name) : null;
+
+        return (
+            <div
+                className={`relative ${level === 0 ? 'group' : ''}`}
+                onMouseEnter={() => setIsHovered(true)}
+                onMouseLeave={() => setIsHovered(false)}
+            >
+                <Link
+                    to={`/category/${category.id}`}
+                    className={`flex items-center text-sm transition-all duration-200 ${level === 0
+                        ? 'text-gray-600 hover:text-brand-orange py-2'
+                        : 'p-2 rounded-md hover:bg-gray-50 text-gray-700 hover:text-brand-orange justify-between'
+                        }`}
+                >
+                    <span className="flex items-center">
+                        {icon}
+                        {category.name}
+                    </span>
+                    {children.length > 0 && (
+                        <ChevronDown className={`ml-1 h-3 w-3 transition-transform ${level > 0 ? '-rotate-90' : ''}`} />
+                    )}
+                </Link>
+
+                {children.length > 0 && (
+                    <div
+                        className={`absolute bg-white border rounded-lg shadow-xl py-2 min-w-[200px] transition-all duration-200 ${isHovered ? 'opacity-100 visible translate-y-0' : 'opacity-0 invisible -translate-y-2'
+                            } ${level === 0 ? 'top-full left-0 mt-1' : 'left-full top-0 ml-1'}`}
+                        style={{ zIndex: 70 + level }}
+                    >
+                        {children.map(child => (
+                            <NavDropdown key={child.id} category={child} allCats={allCats} level={level + 1} />
+                        ))}
+                    </div>
+                )}
+            </div>
+        );
+    };
+
+    // Recursive component for mobile multilevel menu
+    const MobileNavNode = ({ category, allCats, level = 0, isExpanded, onToggle, onNavigate }: {
+        category: Category;
+        allCats: Category[];
+        level?: number;
+        isExpanded: boolean;
+        onToggle: (id: string) => void;
+        onNavigate: () => void;
+    }) => {
+        const children = allCats.filter(c => c.parentId === category.id);
+        const icon = level === 0 ? getCategoryIcon(category.name) : null;
+
+        return (
+            <div className="border-b border-gray-50 last:border-0">
+                {children.length > 0 ? (
+                    <>
+                        <button
+                            onClick={() => onToggle(category.id)}
+                            className={`flex items-center justify-between w-full text-sm py-2.5 px-3 transition-colors ${isExpanded ? 'bg-gray-50 text-brand-orange' : 'text-gray-600 hover:bg-gray-50'
+                                }`}
+                            style={{ paddingLeft: `${level * 1.5 + 0.75}rem` }}
+                        >
+                            <span className="flex items-center">
+                                {icon}
+                                <span className={level === 0 ? 'font-medium' : ''}>{category.name}</span>
+                            </span>
+                            <ChevronDown className={`h-4 w-4 transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`} />
+                        </button>
+                        <div className={`overflow-hidden transition-all duration-300 ${isExpanded ? 'max-h-[1000px] opacity-100' : 'max-h-0 opacity-0'}`}>
+                            {children.map(child => (
+                                <MobileNavNode
+                                    key={child.id}
+                                    category={child}
+                                    allCats={allCats}
+                                    level={level + 1}
+                                    isExpanded={mobileExpandedCategory === child.id}
+                                    onToggle={onToggle}
+                                    onNavigate={onNavigate}
+                                />
+                            ))}
+                        </div>
+                    </>
+                ) : (
+                    <Link
+                        to={`/category/${category.id}`}
+                        onClick={onNavigate}
+                        className="flex items-center text-sm text-gray-600 py-2.5 px-3 hover:bg-gray-50 transition-colors"
+                        style={{ paddingLeft: `${level * 1.5 + 0.75}rem` }}
+                    >
+                        {icon}
+                        <span>{category.name}</span>
+                    </Link>
+                )}
+            </div>
+        );
+    };
+
     return (
         <div className="bg-white border-b">
             <div className="container mx-auto px-4">
                 {/* Desktop: Categories left, Search right - single row */}
                 <nav className="hidden md:flex items-center justify-between py-2">
                     <div className="flex items-center space-x-6">
-                        {mainCategories.map((category) => {
-                            const subcategories = allCategories.filter(c => c.parentId === category.id);
-                            const icon = getCategoryIcon(category.name);
-
-                            if (subcategories.length > 0) {
-                                return (
-                                    <div
-                                        key={category.id}
-                                        className="relative group"
-                                        onMouseEnter={() => setHoveredCategory(category.id)}
-                                        onMouseLeave={() => setHoveredCategory(null)}
-                                    >
-                                        <Link
-                                            to={`/category/${category.id}`}
-                                            className="flex items-center text-sm text-gray-600 hover:text-brand-orange transition-colors py-2"
-                                        >
-                                            {icon}
-                                            {category.name}
-                                            <ChevronDown className="ml-1 h-3 w-3" />
-                                        </Link>
-                                        <div
-                                            className={`absolute top-full left-0 w-64 bg-white border rounded-md shadow-lg transition-all duration-200 ${hoveredCategory === category.id
-                                                ? 'opacity-100 visible translate-y-0'
-                                                : 'opacity-0 invisible -translate-y-2'
-                                                }`}
-                                            style={{ zIndex: 60 }}
-                                        >
-                                            <div className="p-2">
-                                                {subcategories.map((subcategory) => (
-                                                    <Link
-                                                        key={subcategory.id}
-                                                        to={`/category/${subcategory.id}`}
-                                                        className="block text-sm rounded-md p-2 hover:bg-gray-100 transition-colors"
-                                                    >
-                                                        {subcategory.name}
-                                                    </Link>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    </div>
-                                );
-                            } else {
-                                return (
-                                    <Link
-                                        key={category.id}
-                                        to={`/category/${category.id}`}
-                                        className="flex items-center text-sm text-gray-600 hover:text-brand-orange px-2 py-2 rounded-md transition-colors"
-                                    >
-                                        {icon}
-                                        {category.name}
-                                    </Link>
-                                );
-                            }
-                        })}
+                        {mainCategories.map((category) => (
+                            <NavDropdown key={category.id} category={category} allCats={allCategories} />
+                        ))}
                     </div>
 
                     {/* Search on right */}
@@ -234,48 +299,17 @@ const CatalogHeader = () => {
 
                 {/* Mobile menu */}
                 {isMobileMenuOpen && (
-                    <nav className="md:hidden py-2 border-t">
-                        {mainCategories.map((category) => {
-                            const subcategories = allCategories.filter(c => c.parentId === category.id);
-                            const icon = getCategoryIcon(category.name);
-                            return (
-                                <div key={category.id}>
-                                    {subcategories.length > 0 ? (
-                                        <>
-                                            <button
-                                                onClick={() => toggleMobileCategory(category.id)}
-                                                className="flex items-center justify-between w-full text-sm text-gray-600 py-2 px-3 hover:bg-gray-50"
-                                            >
-                                                <span className="flex items-center">{icon}{category.name}</span>
-                                                <ChevronDown className={`h-3 w-3 transition-transform ${mobileExpandedCategory === category.id ? 'rotate-180' : ''}`} />
-                                            </button>
-                                            {mobileExpandedCategory === category.id && (
-                                                <div className="pl-6">
-                                                    {subcategories.map((sub) => (
-                                                        <Link
-                                                            key={sub.id}
-                                                            to={`/category/${sub.id}`}
-                                                            onClick={() => setIsMobileMenuOpen(false)}
-                                                            className="block text-sm text-gray-500 py-1.5 hover:text-brand-orange"
-                                                        >
-                                                            {sub.name}
-                                                        </Link>
-                                                    ))}
-                                                </div>
-                                            )}
-                                        </>
-                                    ) : (
-                                        <Link
-                                            to={`/category/${category.id}`}
-                                            onClick={() => setIsMobileMenuOpen(false)}
-                                            className="flex items-center text-sm text-gray-600 py-2 px-3 hover:bg-gray-50"
-                                        >
-                                            {icon}{category.name}
-                                        </Link>
-                                    )}
-                                </div>
-                            );
-                        })}
+                    <nav className="md:hidden py-1 border-t bg-white">
+                        {mainCategories.map((category) => (
+                            <MobileNavNode
+                                key={category.id}
+                                category={category}
+                                allCats={allCategories}
+                                isExpanded={mobileExpandedCategory === category.id}
+                                onToggle={toggleMobileCategory}
+                                onNavigate={() => setIsMobileMenuOpen(false)}
+                            />
+                        ))}
                     </nav>
                 )}
             </div>
