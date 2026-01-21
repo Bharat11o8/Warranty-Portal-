@@ -870,4 +870,257 @@ export class EmailService {
       })
     });
   }
+
+  /**
+   * Send grievance assignment email to an external team member
+   * Subject: "Customer Grievance - {Category} at {Store}"
+   */
+  static async sendGrievanceAssignmentEmail(
+    assigneeEmail: string,
+    assigneeName: string,
+    grievance: {
+      ticket_id: string;
+      category: string;
+      sub_category?: string | null;
+      subject: string;
+      description: string;
+      customer_name: string;
+      franchise_name?: string | null;
+      franchise_address?: string | null;
+      franchise_city?: string | null;
+      attachments?: string | string[];
+      created_at: string;
+    },
+    remarks?: string
+  ): Promise<boolean> {
+    // Category display mapping
+    const categoryLabels: Record<string, string> = {
+      product_issue: 'Product Issue',
+      billing_issue: 'Billing Issue',
+      store_issue: 'Store/Dealer Issue',
+      manpower_issue: 'Manpower Issue',
+      service_issue: 'Service Issue',
+      warranty_issue: 'Warranty Issue',
+      other: 'Other',
+    };
+
+    const categoryDisplay = categoryLabels[grievance.category] || grievance.category;
+    const storeName = grievance.franchise_name || 'Unknown Store';
+    const subject = `Customer Grievance - ${categoryDisplay} at ${storeName}`;
+
+    // Parse attachments
+    let attachmentUrls: string[] = [];
+    if (grievance.attachments) {
+      try {
+        attachmentUrls = typeof grievance.attachments === 'string'
+          ? JSON.parse(grievance.attachments)
+          : grievance.attachments;
+      } catch {
+        if (typeof grievance.attachments === 'string' && grievance.attachments.startsWith('http')) {
+          attachmentUrls = [grievance.attachments];
+        }
+      }
+    }
+
+    const attachmentsHtml = attachmentUrls.length > 0
+      ? `
+        <div style="margin-top: 20px;">
+          <p style="font-weight: 600; margin-bottom: 10px;">📎 Attachments:</p>
+          <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+            ${attachmentUrls.map((url, i) => `
+              <a href="${this.escapeHtml(url)}" target="_blank" style="display: inline-block; padding: 8px 16px; background: #f0f0f0; border-radius: 6px; text-decoration: none; color: #333; font-size: 14px;">
+                📄 Attachment ${i + 1}
+              </a>
+            `).join('')}
+          </div>
+        </div>
+      `
+      : '';
+
+    const htmlContent = `
+      <p>Hi <strong>${this.escapeHtml(assigneeName)}</strong>,</p>
+      <p>You have been assigned to handle the following customer grievance:</p>
+
+      <div class="info-box" style="background: #f8f9fa; border-left: 4px solid #FFB400; padding: 20px; margin: 20px 0; border-radius: 4px;">
+        <table style="width: 100%; border-collapse: collapse;">
+          <tr>
+            <td style="padding: 8px 0; font-weight: 600; width: 140px; color: #666;">Ticket ID:</td>
+            <td style="padding: 8px 0;"><code style="background: #e9ecef; padding: 2px 8px; border-radius: 4px;">${this.escapeHtml(grievance.ticket_id)}</code></td>
+          </tr>
+          <tr>
+            <td style="padding: 8px 0; font-weight: 600; color: #666;">Category:</td>
+            <td style="padding: 8px 0;">${this.escapeHtml(categoryDisplay)}${grievance.sub_category ? ` > ${this.escapeHtml(grievance.sub_category)}` : ''}</td>
+          </tr>
+          <tr>
+            <td style="padding: 8px 0; font-weight: 600; color: #666;">Customer:</td>
+            <td style="padding: 8px 0;">${this.escapeHtml(grievance.customer_name)}</td>
+          </tr>
+          <tr>
+            <td style="padding: 8px 0; font-weight: 600; color: #666;">Store:</td>
+            <td style="padding: 8px 0;">
+              ${this.escapeHtml(storeName)}
+              ${grievance.franchise_address ? `<br><span style="color: #888; font-size: 13px;">${this.escapeHtml(grievance.franchise_address)}</span>` : ''}
+              ${grievance.franchise_city ? `<br><span style="color: #888; font-size: 13px;">${this.escapeHtml(grievance.franchise_city)}</span>` : ''}
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 8px 0; font-weight: 600; color: #666;">Date Submitted:</td>
+            <td style="padding: 8px 0;">${new Date(grievance.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}</td>
+          </tr>
+        </table>
+      </div>
+
+      <div style="margin-top: 20px;">
+        <p style="font-weight: 600; margin-bottom: 10px;">📋 Subject:</p>
+        <p style="background: #fff3cd; padding: 12px 16px; border-radius: 6px; margin: 0;">${this.escapeHtml(grievance.subject)}</p>
+      </div>
+
+      <div style="margin-top: 20px;">
+        <p style="font-weight: 600; margin-bottom: 10px;">📝 Description:</p>
+        <div style="background: #f8f9fa; padding: 16px; border-radius: 6px; white-space: pre-wrap; font-size: 14px; line-height: 1.6;">${this.escapeHtml(grievance.description)}</div>
+      </div>
+
+      ${attachmentsHtml}
+
+      ${remarks ? `
+      <div style="margin-top: 20px;">
+        <p style="font-weight: 600; margin-bottom: 10px;">💬 Remarks from Admin:</p>
+        <div style="background: #e8f4fd; padding: 16px; border-radius: 6px; border-left: 4px solid #2196F3; font-size: 14px; line-height: 1.6;">${this.escapeHtml(remarks)}</div>
+      </div>
+      ` : ''}
+
+      <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee;">
+        <p style="color: #666; font-size: 14px;">Please review this grievance and take appropriate action. You can contact Noida Office for more details.</p>
+      </div>
+    `;
+
+    return await this.sendWithRetry(
+      async () => {
+        await transporter.sendMail({
+          from: process.env.EMAIL_FROM,
+          to: assigneeEmail,
+          subject: subject,
+          html: this.getHtmlTemplate({
+            title: '📢 Customer Grievance',
+            content: htmlContent,
+            headerColorStart: '#FFB400',
+            headerColorEnd: '#FF9000'
+          })
+        });
+      },
+      `Grievance assignment email to ${assigneeEmail} for ${grievance.ticket_id}`
+    );
+  }
+
+  /**
+   * Send confirmation email to customer when grievance is submitted
+   */
+  static async sendGrievanceConfirmationEmail(
+    customerEmail: string,
+    customerName: string,
+    grievance: {
+      ticket_id: string;
+      category: string;
+      subject: string;
+      description: string;
+      store_name?: string;
+      created_at: string;
+    }
+  ): Promise<boolean> {
+    const categoryLabels: Record<string, string> = {
+      product_issue: 'Product Issue',
+      billing_issue: 'Billing Issue',
+      store_issue: 'Store/Dealer Issue',
+      manpower_issue: 'Manpower Issue',
+      service_issue: 'Service Issue',
+      warranty_issue: 'Warranty Issue',
+      other: 'Other'
+    };
+
+    const categoryDisplay = categoryLabels[grievance.category] || grievance.category;
+    const submissionDate = new Date(grievance.created_at).toLocaleString('en-IN', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+
+    const htmlContent = `
+      <p style="font-size: 16px; margin-bottom: 20px;">Dear <strong>${this.escapeHtml(customerName)}</strong>,</p>
+      
+      <div class="success-box">
+        <h3>✅ Grievance Submitted Successfully</h3>
+        <p style="font-size: 14px; margin: 0;">Your concern has been registered with us.</p>
+      </div>
+      
+      <div class="info-box" style="background: #f8f9fa;">
+        <p style="font-size: 20px; text-align: center; margin: 0;">
+          <strong>Ticket ID:</strong> 
+          <span style="color: #FFB400; font-weight: bold; font-size: 22px;">${this.escapeHtml(grievance.ticket_id)}</span>
+        </p>
+        <p style="text-align: center; font-size: 12px; color: #666; margin-top: 5px;">
+          Please save this ID for future reference
+        </p>
+      </div>
+      
+      <h3 style="color: #333; border-bottom: 2px solid #FFB400; padding-bottom: 10px; margin-top: 25px;">📋 Submission Details</h3>
+      
+      <table style="width: 100%; border-collapse: collapse; margin: 15px 0;">
+        <tr style="border-bottom: 1px solid #eee;">
+          <td style="padding: 12px 0; color: #666; width: 40%;">Category</td>
+          <td style="padding: 12px 0; font-weight: 500;">${this.escapeHtml(categoryDisplay)}</td>
+        </tr>
+        <tr style="border-bottom: 1px solid #eee;">
+          <td style="padding: 12px 0; color: #666;">Subject</td>
+          <td style="padding: 12px 0; font-weight: 500;">${this.escapeHtml(grievance.subject)}</td>
+        </tr>
+        ${grievance.store_name ? `
+        <tr style="border-bottom: 1px solid #eee;">
+          <td style="padding: 12px 0; color: #666;">Store/Dealer</td>
+          <td style="padding: 12px 0; font-weight: 500;">${this.escapeHtml(grievance.store_name)}</td>
+        </tr>
+        ` : ''}
+        <tr>
+          <td style="padding: 12px 0; color: #666;">Submitted On</td>
+          <td style="padding: 12px 0; font-weight: 500;">${submissionDate}</td>
+        </tr>
+      </table>
+      
+      <div style="background: #e8f5e9; border-radius: 8px; padding: 15px; margin: 20px 0;">
+        <h4 style="color: #2e7d32; margin: 0 0 10px 0;">📌 What happens next?</h4>
+        <ul style="margin: 0; padding-left: 20px; color: #333;">
+          <li>Our team will review your grievance within <strong>24-48 hours</strong></li>
+          <li>You will receive updates via email as we work on your case</li>
+          <li>You can track your grievance status in your dashboard</li>
+        </ul>
+      </div>
+      
+      <p style="font-size: 14px; color: #666; margin-top: 25px;">
+        If you have any urgent queries, please contact us at <a href="mailto:support@autoformindia.com" style="color: #FFB400;">support@autoformindia.com</a>
+      </p>
+      
+      <p style="margin-top: 25px; font-size: 14px;">
+        Thank you for reaching out to us.<br/>
+        <strong>Team Autoform India</strong>
+      </p>
+    `;
+
+    return this.sendWithRetry(
+      async () => {
+        await transporter.sendMail({
+          from: process.env.EMAIL_FROM,
+          to: customerEmail,
+          subject: `Grievance Registered - ${grievance.ticket_id} | Autoform India`,
+          html: this.getHtmlTemplate({
+            title: '🎫 Grievance Registered',
+            content: htmlContent,
+            headerColorStart: '#4CAF50',
+            headerColorEnd: '#45a049'
+          })
+        });
+      },
+      `Grievance confirmation email to ${customerEmail} for ${grievance.ticket_id}`
+    );
+  }
 }

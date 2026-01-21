@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, RefreshCw, MessageSquare, Search, Paperclip, Store, Users } from "lucide-react";
+import { Loader2, RefreshCw, MessageSquare, Search, Paperclip, Store, Users, Mail, Send, Clock } from "lucide-react";
 
 interface Grievance {
     id: number;
@@ -31,8 +31,19 @@ interface Grievance {
     customer_feedback: string | null;
     created_at: string;
     resolved_at: string | null;
+    status_updated_at: string | null;
     franchise_address?: string;
     franchise_city?: string;
+}
+
+interface AssignmentRecord {
+    id: number;
+    assignee_name: string;
+    assignee_email: string;
+    remarks: string | null;
+    assignment_type: 'initial' | 'follow_up';
+    email_sent_at: string;
+    sent_by_name: string | null;
 }
 
 const CATEGORIES: Record<string, string> = {
@@ -66,6 +77,15 @@ const AdminGrievances = () => {
     // Filters
     const [searchQuery, setSearchQuery] = useState("");
     const [statusFilter, setStatusFilter] = useState("all");
+
+    // Assignment Email State
+    const [assigneeName, setAssigneeName] = useState("");
+    const [assigneeEmail, setAssigneeEmail] = useState("");
+    const [assigneeRemarks, setAssigneeRemarks] = useState("");
+    const [sendingEmail, setSendingEmail] = useState(false);
+    const [assignmentHistory, setAssignmentHistory] = useState<AssignmentRecord[]>([]);
+    const [loadingHistory, setLoadingHistory] = useState(false);
+    const [dialogTab, setDialogTab] = useState<'details' | 'assignment'>('details');
 
     const fetchGrievances = async () => {
         setLoading(true);
@@ -113,10 +133,28 @@ const AdminGrievances = () => {
         setFilteredGrievances(result);
     }, [searchQuery, statusFilter, grievances]);
 
-    const handleOpenDetail = (g: Grievance) => {
+    const handleOpenDetail = async (g: Grievance) => {
         setSelectedGrievance(g);
         setAdminRemarks(g.admin_remarks || "");
         setAdminNotes(g.admin_notes || "");
+        setAssigneeName(g.assigned_to || "");
+        setAssigneeEmail("");
+        setAssigneeRemarks("");
+        setDialogTab('details');
+        setAssignmentHistory([]);
+
+        // Fetch assignment history
+        setLoadingHistory(true);
+        try {
+            const response = await api.get(`/grievance/${g.id}/assignments`);
+            if (response.data.success) {
+                setAssignmentHistory(response.data.data);
+            }
+        } catch (error) {
+            console.error('Failed to fetch assignment history:', error);
+        } finally {
+            setLoadingHistory(false);
+        }
     };
 
     const handleSaveChanges = async () => {
@@ -290,22 +328,28 @@ const AdminGrievances = () => {
                             <table className="w-full">
                                 <thead className="bg-muted/50">
                                     <tr>
+                                        <th className="text-left p-3 text-sm font-medium w-12">S.No</th>
+                                        <th className="text-left p-3 text-sm font-medium">Date</th>
                                         <th className="text-left p-3 text-sm font-medium">Ticket</th>
                                         <th className="text-left p-3 text-sm font-medium">Customer</th>
                                         <th className="text-left p-3 text-sm font-medium">Franchise</th>
                                         <th className="text-left p-3 text-sm font-medium">Category</th>
                                         <th className="text-left p-3 text-sm font-medium">Status</th>
                                         <th className="text-left p-3 text-sm font-medium">Assigned To</th>
-                                        <th className="text-left p-3 text-sm font-medium">Date</th>
+                                        <th className="text-left p-3 text-sm font-medium">Last Update</th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {filteredGrievances.map((g) => (
+                                    {filteredGrievances.map((g, index) => (
                                         <tr
                                             key={g.id}
                                             className="border-t hover:bg-muted/30 cursor-pointer transition-colors"
                                             onClick={() => handleOpenDetail(g)}
                                         >
+                                            <td className="p-3 text-sm text-muted-foreground">{index + 1}</td>
+                                            <td className="p-3 text-sm">
+                                                {new Date(g.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+                                            </td>
                                             <td className="p-3 font-mono text-sm">{g.ticket_id}</td>
                                             <td className="p-3">{g.customer_name}</td>
                                             <td className="p-3 text-sm text-muted-foreground">{g.franchise_name || "-"}</td>
@@ -317,18 +361,13 @@ const AdminGrievances = () => {
                                                     {g.status.replace("_", " ")}
                                                 </Badge>
                                             </td>
-                                            <td className="p-3" onClick={(e) => e.stopPropagation()}>
-                                                <div className="flex items-center gap-2">
-                                                    <Input
-                                                        defaultValue={g.assigned_to || ""}
-                                                        onBlur={(e) => handleAssign(g.id, e.target.value)}
-                                                        className="h-8 min-w-[120px]"
-                                                        placeholder="Unassigned"
-                                                    />
-                                                </div>
+                                            <td className="p-3 text-sm">
+                                                {g.assigned_to || <span className="text-muted-foreground">Unassigned</span>}
                                             </td>
-                                            <td className="p-3 text-sm text-muted-foreground">
-                                                {new Date(g.created_at).toLocaleDateString()}
+                                            <td className="p-3 text-xs text-muted-foreground">
+                                                {g.status_updated_at ? new Date(g.status_updated_at).toLocaleString('en-IN', {
+                                                    day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit'
+                                                }) : '-'}
                                             </td>
                                         </tr>
                                     ))}
@@ -366,172 +405,243 @@ const AdminGrievances = () => {
                                 <DialogDescription>{selectedGrievance.subject}</DialogDescription>
                             </DialogHeader>
 
-                            <div className="grid md:grid-cols-2 gap-4 mt-4">
-                                {/* Customer & Franchise Info */}
-                                <div className="p-4 bg-muted rounded-lg">
-                                    <h4 className="font-semibold mb-2 flex items-center gap-2">
-                                        <Users className="h-4 w-4" />
-                                        Customer
-                                    </h4>
-                                    <div className="text-sm space-y-1">
-                                        <p>{selectedGrievance.customer_name}</p>
-                                        <p className="text-muted-foreground">{selectedGrievance.customer_email}</p>
-                                    </div>
-                                </div>
-                                <div className="p-4 bg-muted rounded-lg">
-                                    <h4 className="font-semibold mb-2 flex items-center gap-2">
-                                        <Store className="h-4 w-4" />
-                                        Franchise
-                                    </h4>
-                                    <div className="text-sm space-y-1">
-                                        <p className="font-medium">{selectedGrievance.franchise_name || "Not specified"}</p>
-                                        {selectedGrievance.franchise_address && (
-                                            <p className="text-muted-foreground text-xs">{selectedGrievance.franchise_address}</p>
+                            {/* Sub-Tabs */}
+                            <Tabs value={dialogTab} onValueChange={(v) => setDialogTab(v as 'details' | 'assignment')} className="mt-4">
+                                <TabsList className="grid w-full grid-cols-2">
+                                    <TabsTrigger value="details">Details</TabsTrigger>
+                                    <TabsTrigger value="assignment" className="flex items-center gap-2">
+                                        Assignment
+                                        {assignmentHistory.length > 0 && (
+                                            <Badge variant="secondary" className="h-5 px-1.5 text-xs">{assignmentHistory.length}</Badge>
                                         )}
-                                        {selectedGrievance.franchise_city && (
-                                            <p className="text-muted-foreground text-xs">{selectedGrievance.franchise_city}</p>
-                                        )}
+                                    </TabsTrigger>
+                                </TabsList>
+
+                                {/* Details Tab */}
+                                <TabsContent value="details" className="mt-4 space-y-4">
+                                    <div className="grid md:grid-cols-2 gap-4">
+                                        <div className="p-4 bg-muted rounded-lg">
+                                            <h4 className="font-semibold mb-2 flex items-center gap-2">
+                                                <Users className="h-4 w-4" />
+                                                Customer
+                                            </h4>
+                                            <div className="text-sm space-y-1">
+                                                <p>{selectedGrievance.customer_name}</p>
+                                                <p className="text-muted-foreground">{selectedGrievance.customer_email}</p>
+                                            </div>
+                                        </div>
+                                        <div className="p-4 bg-muted rounded-lg">
+                                            <h4 className="font-semibold mb-2 flex items-center gap-2">
+                                                <Store className="h-4 w-4" />
+                                                Franchise
+                                            </h4>
+                                            <div className="text-sm space-y-1">
+                                                <p className="font-medium">{selectedGrievance.franchise_name || "Not specified"}</p>
+                                                {selectedGrievance.franchise_address && (
+                                                    <p className="text-muted-foreground text-xs">{selectedGrievance.franchise_address}</p>
+                                                )}
+                                                {selectedGrievance.franchise_city && (
+                                                    <p className="text-muted-foreground text-xs">{selectedGrievance.franchise_city}</p>
+                                                )}
+                                            </div>
+                                        </div>
                                     </div>
-                                </div>
-                            </div>
 
-                            {/* Issue Details */}
-                            <div className="mt-4">
-                                <h4 className="font-semibold mb-2">Issue Details</h4>
-                                <p className="text-sm text-muted-foreground">
-                                    {CATEGORIES[selectedGrievance.category]}
-                                    {selectedGrievance.sub_category && ` > ${selectedGrievance.sub_category}`}
-                                </p>
-                                <p className="text-sm mt-2">{selectedGrievance.description}</p>
+                                    <div>
+                                        <h4 className="font-semibold mb-2">Issue Details</h4>
+                                        <div className="space-y-2 text-sm">
+                                            <p><strong>Category:</strong> {CATEGORIES[selectedGrievance.category] || selectedGrievance.category}</p>
+                                            {selectedGrievance.sub_category && (
+                                                <p><strong>Sub-Category:</strong> {selectedGrievance.sub_category}</p>
+                                            )}
+                                            <p className="whitespace-pre-wrap bg-muted p-3 rounded">{selectedGrievance.description}</p>
+                                        </div>
+                                    </div>
 
-                                {selectedGrievance.attachments && (() => {
-                                    try {
-                                        let attachments = [];
+                                    {selectedGrievance.attachments && (() => {
                                         try {
-                                            attachments = JSON.parse(selectedGrievance.attachments);
-                                        } catch {
-                                            if (typeof selectedGrievance.attachments === 'string' && selectedGrievance.attachments.startsWith('[')) {
-                                                // Try parsing again if it looks like an array
-                                                attachments = JSON.parse(selectedGrievance.attachments);
-                                            } else {
-                                                // If it's a simple string URL
-                                                attachments = [selectedGrievance.attachments];
-                                            }
-                                        }
-
-                                        if (Array.isArray(attachments) && attachments.length > 0) {
-                                            return (
-                                                <div className="mt-4">
-                                                    <h4 className="font-semibold mb-2 flex items-center gap-2">
-                                                        <Paperclip className="h-4 w-4" />
-                                                        Attachments
-                                                    </h4>
-                                                    <div className="flex flex-wrap gap-2">
-                                                        {attachments.map((url, index) => (
-                                                            <div key={index} className="relative group">
-                                                                <a href={url} target="_blank" rel="noopener noreferrer" className="block">
-                                                                    <div className="h-20 w-20 rounded-md border overflow-hidden bg-muted">
-                                                                        <img
-                                                                            src={url}
-                                                                            alt={`Attachment ${index + 1}`}
-                                                                            className="h-full w-full object-cover transition-transform group-hover:scale-105"
-                                                                            onError={(e) => {
-                                                                                (e.target as HTMLImageElement).style.display = 'none';
-                                                                                (e.target as HTMLImageElement).parentElement!.innerText = 'File';
-                                                                            }}
-                                                                        />
-                                                                    </div>
+                                            const attachments = JSON.parse(selectedGrievance.attachments || "[]");
+                                            if (Array.isArray(attachments) && attachments.length > 0) {
+                                                return (
+                                                    <div>
+                                                        <h4 className="font-semibold mb-2 flex items-center gap-2">
+                                                            <Paperclip className="h-4 w-4" />
+                                                            Attachments
+                                                        </h4>
+                                                        <div className="flex flex-wrap gap-2">
+                                                            {attachments.map((url: string, idx: number) => (
+                                                                <a key={idx} href={url} target="_blank" rel="noopener noreferrer"
+                                                                    className="text-sm px-3 py-1 bg-primary/10 text-primary rounded hover:bg-primary/20">
+                                                                    Attachment {idx + 1}
                                                                 </a>
-                                                            </div>
-                                                        ))}
+                                                            ))}
+                                                        </div>
                                                     </div>
-                                                </div>
-                                            );
-                                        }
-                                    } catch (e) {
-                                        console.error("Failed to parse attachments", e);
-                                    }
-                                    return null;
-                                })()}
-                            </div>
+                                                );
+                                            }
+                                        } catch { return null; }
+                                        return null;
+                                    })()}
 
-                            {/* Franchise Remarks */}
-                            {selectedGrievance.franchise_remarks && (
-                                <div className="p-4 bg-amber-50 dark:bg-amber-950 rounded-lg">
-                                    <h4 className="font-semibold mb-1">Franchise Remarks</h4>
-                                    <p className="text-sm">{selectedGrievance.franchise_remarks}</p>
-                                </div>
-                            )}
-
-                            {/* Customer Feedback */}
-                            {selectedGrievance.customer_rating && (
-                                <div className="p-4 bg-green-50 dark:bg-green-950 rounded-lg">
-                                    <h4 className="font-semibold mb-1">Customer Feedback</h4>
-                                    <div className="flex items-center gap-2">
-                                        <span>Rating: {"⭐".repeat(selectedGrievance.customer_rating)}</span>
-                                    </div>
-                                    {selectedGrievance.customer_feedback && (
-                                        <p className="text-sm mt-1">{selectedGrievance.customer_feedback}</p>
+                                    {selectedGrievance.franchise_remarks && (
+                                        <div className="p-4 bg-amber-50 dark:bg-amber-950 rounded-lg">
+                                            <h4 className="font-semibold mb-1">Franchise Remarks</h4>
+                                            <p className="text-sm">{selectedGrievance.franchise_remarks}</p>
+                                        </div>
                                     )}
-                                </div>
-                            )}
 
-                            {/* Status Override */}
-                            <div className="flex flex-wrap gap-2 mt-4">
-                                <span className="text-sm font-medium mr-2">Quick Actions:</span>
-                                {["under_review", "in_progress", "resolved", "rejected"].map(status => (
-                                    <Button
-                                        key={status}
-                                        size="sm"
-                                        variant={selectedGrievance.status === status ? "default" : "outline"}
-                                        onClick={() => handleStatusLocalUpdate(status)}
-                                    >
-                                        {status.replace("_", " ")}
+                                    {selectedGrievance.customer_rating && (
+                                        <div className="p-4 bg-green-50 dark:bg-green-950 rounded-lg">
+                                            <h4 className="font-semibold mb-1">Customer Feedback</h4>
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-yellow-500">{"★".repeat(selectedGrievance.customer_rating)}</span>
+                                                <span className="text-muted-foreground text-sm">{selectedGrievance.customer_rating}/5</span>
+                                            </div>
+                                            {selectedGrievance.customer_feedback && (
+                                                <p className="text-sm mt-1">{selectedGrievance.customer_feedback}</p>
+                                            )}
+                                        </div>
+                                    )}
+
+                                    <div className="flex flex-wrap gap-2">
+                                        <span className="text-sm font-medium mr-2">Quick Actions:</span>
+                                        {["under_review", "in_progress", "resolved", "rejected"].map(status => (
+                                            <Button key={status} size="sm"
+                                                variant={selectedGrievance.status === status ? "default" : "outline"}
+                                                onClick={() => handleStatusLocalUpdate(status)}>
+                                                {status.replace("_", " ")}
+                                            </Button>
+                                        ))}
+                                    </div>
+
+                                    <div>
+                                        <label className="text-sm font-medium">Admin Remarks (Visible to Vendor)</label>
+                                        <Textarea value={adminRemarks} onChange={(e) => setAdminRemarks(e.target.value)}
+                                            placeholder="Add reply or public notes..." rows={3} className="mt-1" />
+                                    </div>
+
+                                    <div>
+                                        <div className="flex justify-between">
+                                            <label className="text-sm font-medium">Internal Notes (Private)</label>
+                                            <span className="text-xs text-muted-foreground">{adminNotes.length}/1000</span>
+                                        </div>
+                                        <Textarea value={adminNotes} onChange={(e) => setAdminNotes(e.target.value)}
+                                            maxLength={1000} placeholder="Private observations, hidden from vendor..."
+                                            rows={3} className="mt-1 bg-yellow-50/50" />
+                                    </div>
+
+                                    <Button onClick={handleSaveChanges} disabled={updating} className="w-full">
+                                        {updating ? (<><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Saving...</>) : "Save Changes"}
                                     </Button>
-                                ))}
-                            </div>
+                                </TabsContent>
 
-                            {/* Admin Remarks */}
-                            <div className="mt-4">
-                                <label className="text-sm font-medium">Admin Remarks (Visible to Vendor)</label>
-                                <Textarea
-                                    value={adminRemarks}
-                                    onChange={(e) => setAdminRemarks(e.target.value)}
-                                    placeholder="Add reply or public notes..."
-                                    rows={3}
-                                    className="mt-1"
-                                />
-                            </div>
+                                {/* Assignment Tab */}
+                                <TabsContent value="assignment" className="mt-4 space-y-4">
+                                    <div className="p-4 border rounded-lg bg-blue-50/50 dark:bg-blue-950/20">
+                                        <h4 className="font-semibold mb-3 flex items-center gap-2">
+                                            <Mail className="h-4 w-4" />
+                                            Send Assignment Email
+                                        </h4>
+                                        <div className="grid md:grid-cols-2 gap-3">
+                                            <div>
+                                                <label className="text-xs text-muted-foreground">Assignee Name</label>
+                                                <Input value={assigneeName} onChange={(e) => setAssigneeName(e.target.value)}
+                                                    placeholder="Enter name" className="mt-1" />
+                                            </div>
+                                            <div>
+                                                <label className="text-xs text-muted-foreground">Assignee Email</label>
+                                                <Input type="email" value={assigneeEmail} onChange={(e) => setAssigneeEmail(e.target.value)}
+                                                    placeholder="email@example.com" className="mt-1" />
+                                            </div>
+                                        </div>
+                                        <div className="mt-3">
+                                            <label className="text-xs text-muted-foreground">Remarks for Assignee (Optional)</label>
+                                            <Textarea value={assigneeRemarks} onChange={(e) => setAssigneeRemarks(e.target.value)}
+                                                placeholder="Any additional notes or instructions..." rows={2} className="mt-1" />
+                                        </div>
+                                        <Button
+                                            onClick={async () => {
+                                                if (!assigneeName.trim() || !assigneeEmail.trim()) {
+                                                    toast({ title: "Missing Info", description: "Please enter both name and email", variant: "destructive" });
+                                                    return;
+                                                }
+                                                setSendingEmail(true);
+                                                try {
+                                                    const response = await api.post(`/grievance/${selectedGrievance.id}/send-assignment-email`, {
+                                                        assigneeName: assigneeName.trim(),
+                                                        assigneeEmail: assigneeEmail.trim(),
+                                                        remarks: assigneeRemarks.trim() || undefined,
+                                                        assignmentType: assignmentHistory.length === 0 ? 'initial' : 'follow_up'
+                                                    });
+                                                    if (response.data.success) {
+                                                        toast({ title: "Email Sent", description: response.data.message });
+                                                        setSelectedGrievance(prev => prev ? { ...prev, assigned_to: assigneeName.trim() } : null);
+                                                        setGrievances(prev => prev.map(g => g.id === selectedGrievance.id ? { ...g, assigned_to: assigneeName.trim() } : g));
+                                                        setFilteredGrievances(prev => prev.map(g => g.id === selectedGrievance.id ? { ...g, assigned_to: assigneeName.trim() } : g));
+                                                        const historyResponse = await api.get(`/grievance/${selectedGrievance.id}/assignments`);
+                                                        if (historyResponse.data.success) setAssignmentHistory(historyResponse.data.data);
+                                                        setAssigneeEmail("");
+                                                        setAssigneeRemarks("");
+                                                    }
+                                                } catch (error: any) {
+                                                    toast({ title: "Error", description: error.response?.data?.error || "Failed to send email", variant: "destructive" });
+                                                } finally {
+                                                    setSendingEmail(false);
+                                                }
+                                            }}
+                                            disabled={sendingEmail || !assigneeName.trim() || !assigneeEmail.trim()}
+                                            className="w-full mt-3"
+                                        >
+                                            {sendingEmail ? (<><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Sending...</>) :
+                                                (<><Send className="h-4 w-4 mr-2" /> {assignmentHistory.length === 0 ? 'Send Initial Assignment' : 'Send Follow-up'}</>)}
+                                        </Button>
+                                    </div>
 
-                            <div className="mt-4">
-                                <div className="flex justify-between">
-                                    <label className="text-sm font-medium flex items-center gap-2">
-                                        Internal Notes (Private)
-                                    </label>
-                                    <span className="text-xs text-muted-foreground">
-                                        {adminNotes.length}/1000
-                                    </span>
-                                </div>
-                                <Textarea
-                                    value={adminNotes}
-                                    onChange={(e) => setAdminNotes(e.target.value)}
-                                    maxLength={1000}
-                                    placeholder="Private observations, hidden from vendor..."
-                                    rows={3}
-                                    className="mt-1 bg-yellow-50/50"
-                                />
-                            </div>
-
-                            <Button onClick={handleSaveChanges} disabled={updating} className="w-full mt-4">
-                                {updating ? (
-                                    <>
-                                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                                        Saving...
-                                    </>
-                                ) : (
-                                    "Save Changes"
-                                )}
-                            </Button>
+                                    <div>
+                                        <h4 className="font-semibold mb-3 flex items-center gap-2">
+                                            <Clock className="h-4 w-4" />
+                                            Assignment History
+                                        </h4>
+                                        {loadingHistory ? (
+                                            <div className="flex items-center justify-center py-8">
+                                                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                                            </div>
+                                        ) : assignmentHistory.length === 0 ? (
+                                            <div className="text-center py-8 text-muted-foreground text-sm border border-dashed rounded-lg">
+                                                No assignments yet. Send the first assignment above.
+                                            </div>
+                                        ) : (
+                                            <div className="space-y-3">
+                                                {assignmentHistory.map((record) => (
+                                                    <div key={record.id}
+                                                        className={`p-3 rounded-lg border-l-4 ${record.assignment_type === 'initial'
+                                                            ? 'bg-blue-50 dark:bg-blue-950/30 border-l-blue-500'
+                                                            : 'bg-amber-50 dark:bg-amber-950/30 border-l-amber-500'}`}>
+                                                        <div className="flex items-center justify-between mb-1">
+                                                            <div className="flex items-center gap-2">
+                                                                <Badge variant="outline" className="text-xs">
+                                                                    {record.assignment_type === 'initial' ? '🔵 Initial' : '🟡 Follow-up'}
+                                                                </Badge>
+                                                                <span className="font-medium text-sm">{record.assignee_name}</span>
+                                                            </div>
+                                                            <span className="text-xs text-muted-foreground">
+                                                                {new Date(record.email_sent_at).toLocaleString('en-IN', {
+                                                                    day: 'numeric', month: 'short', year: 'numeric',
+                                                                    hour: '2-digit', minute: '2-digit'
+                                                                })}
+                                                            </span>
+                                                        </div>
+                                                        <p className="text-xs text-muted-foreground">{record.assignee_email}</p>
+                                                        {record.remarks && (
+                                                            <p className="text-sm mt-2 p-2 bg-white/50 dark:bg-black/20 rounded">"{record.remarks}"</p>
+                                                        )}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+                                </TabsContent>
+                            </Tabs>
                         </>
                     )}
                 </DialogContent>

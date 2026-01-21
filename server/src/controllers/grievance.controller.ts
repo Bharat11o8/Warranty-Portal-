@@ -1,6 +1,7 @@
 import { Response } from 'express';
 import db from '../config/database.js';
 import { AuthRequest } from '../middleware/auth.js';
+import { EmailService } from '../services/email.service.js';
 
 /**
  * Grievance Controller
@@ -80,6 +81,39 @@ class GrievanceController {
                     JSON.stringify(attachmentUrls)
                 ]
             );
+
+            // Send confirmation email
+            try {
+                // Fetch customer details
+                const [userRows]: any = await db.execute('SELECT name, email FROM profiles WHERE id = ?', [userId]);
+                const customerName = userRows[0]?.name || 'Customer';
+                const customerEmail = userRows[0]?.email || req.user?.email;
+
+                // Fetch store name if franchiseId is present
+                let storeName: string | undefined;
+                if (franchiseId) {
+                    const [storeRows]: any = await db.execute('SELECT store_name FROM vendor_details WHERE id = ?', [franchiseId]);
+                    storeName = storeRows[0]?.store_name;
+                }
+
+                // Send email asynchronously
+                EmailService.sendGrievanceConfirmationEmail(
+                    customerEmail,
+                    customerName,
+                    {
+                        ticket_id: ticketId,
+                        category,
+                        subject,
+                        description,
+                        store_name: storeName,
+                        created_at: new Date().toISOString()
+                    }
+                ).catch((err: any) => console.error('Failed to send grievance confirmation email:', err));
+
+            } catch (emailError) {
+                console.error('Error preparing grievance email:', emailError);
+                // Don't fail the request if email fails
+            }
 
 
 
@@ -424,6 +458,7 @@ class GrievanceController {
             if (status) {
                 updates.push('status = ?');
                 values.push(status);
+                updates.push('status_updated_at = NOW()');
                 if (status === 'resolved' || status === 'rejected') {
                     updates.push('resolved_at = NOW()');
                 }
@@ -506,6 +541,152 @@ class GrievanceController {
             return res.status(500).json({
                 success: false,
                 error: 'Failed to submit rating'
+            });
+        }
+    }
+
+    /**
+     * Send grievance assignment email to external team member
+     * POST /api/grievance/:id/send-assignment-email
+     */
+    sendAssignmentEmail = async (req: AuthRequest, res: Response) => {
+        try {
+            const { id } = req.params;
+            const { assigneeName, assigneeEmail, remarks } = req.body;
+            const userRole = req.user?.role;
+
+            // Admin only
+            if (userRole !== 'admin') {
+                return res.status(403).json({ success: false, error: 'Admin access required' });
+            }
+
+            // Validate inputs
+            if (!assigneeName || !assigneeEmail) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'Assignee name and email are required'
+                });
+            }
+
+            // Basic email format validation
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            if (!emailRegex.test(assigneeEmail)) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'Invalid email format'
+                });
+            }
+
+            // Fetch grievance with all required data
+            const [rows]: any = await db.execute(
+                `SELECT g.*, 
+                p.name as customer_name, 
+                p.email as customer_email,
+                vd.store_name as franchise_name,
+                vd.address as franchise_address,
+                vd.city as franchise_city
+         FROM grievances g
+         LEFT JOIN profiles p ON g.customer_id = p.id
+         LEFT JOIN vendor_details vd ON g.franchise_id = vd.id
+         WHERE g.id = ?`,
+                [id]
+            );
+
+            if (!rows || rows.length === 0) {
+                return res.status(404).json({ success: false, error: 'Grievance not found' });
+            }
+
+            const grievance = rows[0];
+
+            // Update assigned_to field
+            await db.execute(
+                'UPDATE grievances SET assigned_to = ? WHERE id = ?',
+                [assigneeName, id]
+            );
+
+            // Send email
+            const { EmailService } = await import('../services/email.service.js');
+            const emailSent = await EmailService.sendGrievanceAssignmentEmail(
+                assigneeEmail,
+                assigneeName,
+                {
+                    ticket_id: grievance.ticket_id,
+                    category: grievance.category,
+                    sub_category: grievance.sub_category,
+                    subject: grievance.subject,
+                    description: grievance.description,
+                    customer_name: grievance.customer_name,
+                    franchise_name: grievance.franchise_name,
+                    franchise_address: grievance.franchise_address,
+                    franchise_city: grievance.franchise_city,
+                    attachments: grievance.attachments,
+                    created_at: grievance.created_at
+                },
+                remarks || undefined
+            );
+
+            if (!emailSent) {
+                return res.status(500).json({
+                    success: false,
+                    error: 'Failed to send email. Please try again.'
+                });
+            }
+
+            // Save assignment record to database
+            const assignmentType = req.body.assignmentType || 'initial';
+            const adminName = 'Admin';
+
+            await db.execute(
+                `INSERT INTO grievance_assignments 
+                 (grievance_id, assignee_name, assignee_email, remarks, assignment_type, sent_by, sent_by_name)
+                 VALUES (?, ?, ?, ?, ?, ?, ?)`,
+                [id, assigneeName, assigneeEmail, remarks || null, assignmentType, req.user?.id, adminName]
+            );
+
+            return res.json({
+                success: true,
+                message: `Email sent successfully to ${assigneeEmail}`
+            });
+
+        } catch (error: any) {
+            console.error('Send assignment email error:', error);
+            return res.status(500).json({
+                success: false,
+                error: 'Failed to send assignment email'
+            });
+        }
+    }
+
+    /**
+     * Get assignment history for a grievance
+     * GET /api/grievance/:id/assignments
+     */
+    getAssignmentHistory = async (req: AuthRequest, res: Response) => {
+        try {
+            const { id } = req.params;
+            const userRole = req.user?.role;
+
+            // Only admin can view assignment history
+            if (userRole !== 'admin') {
+                return res.status(403).json({ success: false, error: 'Admin access required' });
+            }
+
+            const [assignments] = await db.execute(
+                `SELECT id, assignee_name, assignee_email, remarks, assignment_type, 
+                        email_sent_at, sent_by, sent_by_name
+                 FROM grievance_assignments 
+                 WHERE grievance_id = ?
+                 ORDER BY email_sent_at DESC`,
+                [id]
+            );
+
+            return res.json({ success: true, data: assignments });
+
+        } catch (error: any) {
+            console.error('Get assignment history error:', error);
+            return res.status(500).json({
+                success: false,
+                error: 'Failed to fetch assignment history'
             });
         }
     }
