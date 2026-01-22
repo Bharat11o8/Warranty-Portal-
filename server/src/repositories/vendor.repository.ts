@@ -1,4 +1,5 @@
 import { BaseRepository } from './base.repository.js';
+import { getISTTimestamp } from '../config/database.js';
 import type { RowDataPacket, PoolConnection } from 'mysql2/promise';
 
 /**
@@ -115,8 +116,8 @@ export class VendorRepository extends BaseRepository<VendorDetails> {
         connection?: PoolConnection
     ): Promise<void> {
         await this.execute(
-            'UPDATE vendor_verification SET is_verified = ?, verified_at = NOW() WHERE user_id = ?',
-            [isVerified, userId],
+            'UPDATE vendor_verification SET is_verified = ?, verified_at = ? WHERE user_id = ?',
+            [isVerified, getISTTimestamp(), userId],
             connection
         );
     }

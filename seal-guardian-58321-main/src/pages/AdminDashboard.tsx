@@ -59,6 +59,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 import { AdminWarrantyList } from "@/components/admin/AdminWarrantyList";
+import { OldWarranties } from "@/components/admin/OldWarranties";
 import { formatWarrantyForExport, formatVendorForExport, formatCustomerForExport, formatManpowerForExport } from "@/lib/adminExports";
 import { downloadCSV, getWarrantyExpiration, cn, formatToIST } from "@/lib/utils";
 import Header from "@/components/Header";
@@ -165,6 +166,7 @@ const AdminDashboard = () => {
     const [vendorRejectReason, setVendorRejectReason] = useState("");
     const [processingVendor, setProcessingVendor] = useState<string | null>(null);
     const [vendorWarrantyFilter, setVendorWarrantyFilter] = useState<'all' | 'validated' | 'rejected' | 'pending'>('all');
+    const [vendorDetailTab, setVendorDetailTab] = useState<'warranties' | 'manpower'>('warranties');
     const [customerWarrantyFilter, setCustomerWarrantyFilter] = useState<'all' | 'validated' | 'rejected' | 'pending'>('all');
 
     // View Details Loading States
@@ -773,6 +775,11 @@ const AdminDashboard = () => {
         }
     };
 
+    const openRejectDialog = (warrantyId: string) => {
+        setSelectedWarrantyId(warrantyId);
+        setRejectDialogOpen(true);
+    };
+
     // Detailed Customer View
     if (viewingCustomer && selectedCustomer) {
         return (
@@ -984,6 +991,45 @@ const AdminDashboard = () => {
                         </CardContent>
                     </Card>
                 </main>
+
+                {/* Rejection Dialog for Customer View */}
+                {rejectDialogOpen && (
+                    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+                        <div className="bg-background p-6 rounded-lg w-full max-w-md shadow-lg">
+                            <h3 className="text-lg font-semibold mb-4">Reject Warranty</h3>
+                            <p className="text-sm text-muted-foreground mb-4">
+                                Please provide a reason for rejecting this warranty registration.
+                            </p>
+                            <textarea
+                                className="w-full min-h-[100px] p-3 rounded-md border border-input bg-background text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                                placeholder="Reason for rejection..."
+                                value={rejectReason}
+                                onChange={(e) => setRejectReason(e.target.value)}
+                                disabled={processingWarranty === selectedWarrantyId}
+                            />
+                            <div className="flex justify-end gap-2 mt-4">
+                                <Button
+                                    variant="outline"
+                                    onClick={() => setRejectDialogOpen(false)}
+                                    disabled={processingWarranty === selectedWarrantyId}
+                                >
+                                    Cancel
+                                </Button>
+                                <Button
+                                    variant="destructive"
+                                    onClick={() => selectedWarrantyId && handleUpdateStatus(selectedWarrantyId, 'rejected', rejectReason)}
+                                    disabled={!rejectReason.trim() || processingWarranty === selectedWarrantyId}
+                                >
+                                    {processingWarranty === selectedWarrantyId ? (
+                                        <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Rejecting...</>
+                                    ) : (
+                                        'Reject Warranty'
+                                    )}
+                                </Button>
+                            </div>
+                        </div>
+                    </div>
+                )}
             </div>
         );
     }
@@ -1036,10 +1082,7 @@ const AdminDashboard = () => {
         }
     };
 
-    const openRejectDialog = (warrantyId: string) => {
-        setSelectedWarrantyId(warrantyId);
-        setRejectDialogOpen(true);
-    };
+
 
     // Calculate vendor counts for sub-tabs based on their warranty statuses
     const approvedVendorsCount = vendors.filter(vendor => vendor.is_verified).length;
@@ -1131,21 +1174,63 @@ const AdminDashboard = () => {
                         ← Back to Vendors
                     </Button>
 
-                    <div className="mb-8">
-                        <h1 className="text-3xl font-bold mb-2">{selectedVendor.store_name}</h1>
-                        <div className="flex gap-4 text-muted-foreground">
-                            <div className="flex items-center gap-2">
-                                <User className="h-4 w-4" />
-                                {selectedVendor.contact_name}
-                            </div>
-                            <div className="flex items-center gap-2">
-                                <Store className="h-4 w-4" />
-                                {selectedVendor.city}, {selectedVendor.state}
+                    {/* Enhanced Vendor Header */}
+                    <Card className="mb-6 overflow-hidden">
+                        <div className="bg-gradient-to-r from-slate-700 to-slate-800 p-6 text-white">
+                            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                                <div>
+                                    <h1 className="text-2xl md:text-3xl font-bold mb-1">{selectedVendor.store_name}</h1>
+                                    <div className="flex items-center gap-2 text-white/80">
+                                        <MapPin className="h-4 w-4" />
+                                        <span>{selectedVendor.address}, {selectedVendor.city}, {selectedVendor.state}</span>
+                                    </div>
+                                </div>
+                                <Badge
+                                    className={cn(
+                                        "text-sm px-3 py-1",
+                                        selectedVendor.is_verified
+                                            ? "bg-green-500 hover:bg-green-600"
+                                            : "bg-yellow-500 hover:bg-yellow-600 text-black"
+                                    )}
+                                >
+                                    {selectedVendor.is_verified ? '✓ Verified Franchise' : 'Pending Verification'}
+                                </Badge>
                             </div>
                         </div>
-                    </div>
+                        <CardContent className="p-4">
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
+                                    <div className="h-10 w-10 rounded-full bg-purple-100 flex items-center justify-center">
+                                        <User className="h-5 w-5 text-purple-600" />
+                                    </div>
+                                    <div>
+                                        <p className="text-xs text-muted-foreground">Contact Person</p>
+                                        <p className="font-medium">{selectedVendor.contact_name || 'N/A'}</p>
+                                    </div>
+                                </div>
+                                <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
+                                    <div className="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center">
+                                        <Mail className="h-5 w-5 text-blue-600" />
+                                    </div>
+                                    <div>
+                                        <p className="text-xs text-muted-foreground">Email</p>
+                                        <p className="font-medium text-sm truncate max-w-[180px]">{selectedVendor.email || selectedVendor.contact_email || 'N/A'}</p>
+                                    </div>
+                                </div>
+                                <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
+                                    <div className="h-10 w-10 rounded-full bg-green-100 flex items-center justify-center">
+                                        <Phone className="h-5 w-5 text-green-600" />
+                                    </div>
+                                    <div>
+                                        <p className="text-xs text-muted-foreground">Phone</p>
+                                        <p className="font-medium">{selectedVendor.phone || selectedVendor.contact_phone || 'N/A'}</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </CardContent>
+                    </Card>
 
-                    <Tabs defaultValue="warranties" className="space-y-4">
+                    <Tabs value={vendorDetailTab} onValueChange={(v) => setVendorDetailTab(v as 'warranties' | 'manpower')} className="space-y-4">
                         <TabsList className="grid w-full grid-cols-2 h-auto">
                             <TabsTrigger value="warranties">Warranties ({selectedVendor.warranties?.length || 0})</TabsTrigger>
                             <TabsTrigger value="manpower">Manpower ({selectedVendor.manpower?.length || 0})</TabsTrigger>
@@ -1997,6 +2082,10 @@ const AdminDashboard = () => {
                             Announcements
                         </TabsTrigger>
                         <TabsTrigger value="admins">Admins</TabsTrigger>
+                        <TabsTrigger value="old-warranties">
+                            <Package className="h-4 w-4 mr-2" />
+                            Old Warranties
+                        </TabsTrigger>
                         <TabsTrigger value="activity-logs">Logs</TabsTrigger>
                     </TabsList>
 
@@ -3805,6 +3894,10 @@ const AdminDashboard = () => {
                                 )}
                             </CardContent>
                         </Card>
+                    </TabsContent>
+
+                    <TabsContent value="old-warranties" className="space-y-4">
+                        <OldWarranties />
                     </TabsContent>
 
                     <TabsContent value="announcements">

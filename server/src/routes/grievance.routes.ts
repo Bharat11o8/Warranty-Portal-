@@ -47,6 +47,10 @@ router.put('/:id/rating', authenticateToken, GrievanceController.addRating);
 // Vendor routes
 router.get('/vendor', authenticateToken, GrievanceController.getVendorGrievances);
 
+// Franchise grievance routes (for vendors to submit their own grievances)
+router.post('/franchise', authenticateToken, handleUpload, GrievanceController.submitFranchiseGrievance);
+router.get('/franchise/submitted', authenticateToken, GrievanceController.getFranchiseSubmittedGrievances);
+
 // Admin routes
 router.get('/admin', authenticateToken, GrievanceController.getAllGrievances);
 

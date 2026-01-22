@@ -35,6 +35,9 @@ interface Grievance {
     status_updated_at: string | null;
     franchise_address?: string;
     franchise_city?: string;
+    source_type?: 'customer' | 'franchise';
+    department?: string;
+    department_details?: string;
 }
 
 interface AssignmentRecord {
@@ -86,7 +89,9 @@ const AdminGrievances = () => {
     const [sendingEmail, setSendingEmail] = useState(false);
     const [assignmentHistory, setAssignmentHistory] = useState<AssignmentRecord[]>([]);
     const [loadingHistory, setLoadingHistory] = useState(false);
+
     const [dialogTab, setDialogTab] = useState<'details' | 'assignment'>('details');
+    const [activeTab, setActiveTab] = useState("customer");
 
     const fetchGrievances = async () => {
         setLoading(true);
@@ -94,7 +99,6 @@ const AdminGrievances = () => {
             const response = await api.get("/grievance/admin");
             if (response.data.success) {
                 setGrievances(response.data.data);
-                setFilteredGrievances(response.data.data);
             }
         } catch (error: any) {
             toast({
@@ -112,7 +116,15 @@ const AdminGrievances = () => {
     }, []);
 
     useEffect(() => {
-        let result = grievances;
+        let result = grievances.filter(g => {
+            // Filter by Tab (Source Type)
+            if (activeTab === 'franchise') {
+                return g.source_type === 'franchise';
+            } else {
+                // Customer tab shows 'customer' or anything undefined (legacy)
+                return g.source_type !== 'franchise';
+            }
+        });
 
         // Search filter
         if (searchQuery) {
@@ -132,7 +144,7 @@ const AdminGrievances = () => {
         }
 
         setFilteredGrievances(result);
-    }, [searchQuery, statusFilter, grievances]);
+    }, [searchQuery, statusFilter, grievances, activeTab]);
 
     const handleOpenDetail = async (g: Grievance) => {
         setSelectedGrievance(g);
@@ -222,10 +234,20 @@ const AdminGrievances = () => {
     };
 
     const getStats = () => {
-        const total = grievances.length;
-        const open = grievances.filter(g => !["resolved", "rejected"].includes(g.status)).length;
-        const resolved = grievances.filter(g => ["resolved", "rejected"].includes(g.status)).length;
-        const avgRating = grievances.filter(g => g.customer_rating).reduce((acc, g) => acc + (g.customer_rating || 0), 0) / (grievances.filter(g => g.customer_rating).length || 1);
+        // Filter grievances based on active tab
+        const tabGrievances = grievances.filter(g =>
+            activeTab === 'franchise'
+                ? g.source_type === 'franchise'
+                : g.source_type !== 'franchise'
+        );
+
+        const total = tabGrievances.length;
+        const open = tabGrievances.filter(g => !["resolved", "rejected"].includes(g.status)).length;
+        const resolved = tabGrievances.filter(g => ["resolved", "rejected"].includes(g.status)).length;
+        const ratedGrievances = tabGrievances.filter(g => g.customer_rating);
+        const avgRating = ratedGrievances.length > 0
+            ? ratedGrievances.reduce((acc, g) => acc + (g.customer_rating || 0), 0) / ratedGrievances.length
+            : 0;
         return { total, open, resolved, avgRating: avgRating.toFixed(1) };
     };
 
@@ -253,143 +275,145 @@ const AdminGrievances = () => {
             </div>
 
             {/* Tabs Structure */}
-            <Tabs defaultValue="customer" className="space-y-6">
-                <TabsList>
-                    <TabsTrigger value="customer">Customer Grievances</TabsTrigger>
-                    <TabsTrigger value="franchise">Franchise Grievances (Coming Soon)</TabsTrigger>
-                </TabsList>
 
-                <TabsContent value="customer" className="space-y-6">
-                    {/* Stats Row */}
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                        <Card>
-                            <CardContent className="pt-6">
-                                <p className="text-3xl font-bold">{stats.total}</p>
-                                <p className="text-sm text-muted-foreground">Total Grievances</p>
-                            </CardContent>
-                        </Card>
-                        <Card>
-                            <CardContent className="pt-6">
-                                <p className="text-3xl font-bold text-amber-500">{stats.open}</p>
-                                <p className="text-sm text-muted-foreground">Open Cases</p>
-                            </CardContent>
-                        </Card>
-                        <Card>
-                            <CardContent className="pt-6">
-                                <p className="text-3xl font-bold text-green-500">{stats.resolved}</p>
-                                <p className="text-sm text-muted-foreground">Resolved</p>
-                            </CardContent>
-                        </Card>
-                        <Card>
-                            <CardContent className="pt-6">
-                                <p className="text-3xl font-bold text-green-500">⭐ {stats.avgRating}</p>
-                                <p className="text-sm text-muted-foreground">Avg. Rating</p>
-                            </CardContent>
-                        </Card>
-                    </div>
-
-                    {/* Filters */}
-                    <div className="flex flex-wrap gap-4">
-                        <div className="flex-1 min-w-[200px]">
-                            <div className="relative">
-                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                                <Input
-                                    placeholder="Search by ticket, customer, franchise, category..."
-                                    value={searchQuery}
-                                    onChange={(e) => setSearchQuery(e.target.value)}
-                                    className="pl-10"
-                                />
-                            </div>
-                        </div>
-                        <Select value={statusFilter} onValueChange={setStatusFilter}>
-                            <SelectTrigger className="w-[150px]">
-                                <SelectValue placeholder="Status" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="all">All Status</SelectItem>
-                                <SelectItem value="submitted">Submitted</SelectItem>
-                                <SelectItem value="under_review">Under Review</SelectItem>
-                                <SelectItem value="in_progress">In Progress</SelectItem>
-                                <SelectItem value="resolved">Resolved</SelectItem>
-                                <SelectItem value="rejected">Rejected</SelectItem>
-                            </SelectContent>
-                        </Select>
-                    </div>
-
-                    {/* Grievances Table/List */}
-                    {filteredGrievances.length === 0 ? (
-                        <Card>
-                            <CardContent className="py-12 text-center">
-                                <MessageSquare className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                                <p className="text-muted-foreground">No grievances found</p>
-                            </CardContent>
-                        </Card>
-                    ) : (
-                        <div className="border rounded-lg overflow-hidden">
-                            <table className="w-full">
-                                <thead className="bg-muted/50">
-                                    <tr>
-                                        <th className="text-left p-3 text-sm font-medium w-12">S.No</th>
-                                        <th className="text-left p-3 text-sm font-medium">Date</th>
-                                        <th className="text-left p-3 text-sm font-medium">Ticket</th>
-                                        <th className="text-left p-3 text-sm font-medium">Customer</th>
-                                        <th className="text-left p-3 text-sm font-medium">Franchise</th>
-                                        <th className="text-left p-3 text-sm font-medium">Category</th>
-                                        <th className="text-left p-3 text-sm font-medium">Status</th>
-                                        <th className="text-left p-3 text-sm font-medium">Assigned To</th>
-                                        <th className="text-left p-3 text-sm font-medium">Last Update</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {filteredGrievances.map((g, index) => (
-                                        <tr
-                                            key={g.id}
-                                            className="border-t hover:bg-muted/30 cursor-pointer transition-colors"
-                                            onClick={() => handleOpenDetail(g)}
-                                        >
-                                            <td className="p-3 text-sm text-muted-foreground">{index + 1}</td>
-                                            <td className="p-3 text-sm">
-                                                {new Date(g.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
-                                            </td>
-                                            <td className="p-3 font-mono text-sm">{g.ticket_id}</td>
-                                            <td className="p-3">{g.customer_name}</td>
-                                            <td className="p-3 text-sm text-muted-foreground">{g.franchise_name || "-"}</td>
-                                            <td className="p-3">
-                                                <Badge variant="outline">{CATEGORIES[g.category] || g.category}</Badge>
-                                            </td>
-                                            <td className="p-3">
-                                                <Badge className={STATUS_COLORS[g.status]}>
-                                                    {g.status.replace("_", " ")}
-                                                </Badge>
-                                            </td>
-                                            <td className="p-3 text-sm">
-                                                {g.assigned_to || <span className="text-muted-foreground">Unassigned</span>}
-                                            </td>
-                                            <td className="p-3 text-xs text-muted-foreground">
-                                                {g.status_updated_at ? new Date(g.status_updated_at).toLocaleString('en-IN', {
-                                                    day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit'
-                                                }) : '-'}
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
-                    )}
-                </TabsContent>
-
-                <TabsContent value="franchise">
+            {/* Stats Row */}
+            <div className={`grid grid-cols-2 ${activeTab === 'customer' ? 'md:grid-cols-4' : 'md:grid-cols-3'} gap-4`}>
+                <Card>
+                    <CardContent className="pt-6">
+                        <p className="text-3xl font-bold">{stats.total}</p>
+                        <p className="text-sm text-muted-foreground">Total Grievances</p>
+                    </CardContent>
+                </Card>
+                <Card>
+                    <CardContent className="pt-6">
+                        <p className="text-3xl font-bold text-amber-500">{stats.open}</p>
+                        <p className="text-sm text-muted-foreground">Open Cases</p>
+                    </CardContent>
+                </Card>
+                <Card>
+                    <CardContent className="pt-6">
+                        <p className="text-3xl font-bold text-green-500">{stats.resolved}</p>
+                        <p className="text-sm text-muted-foreground">Resolved</p>
+                    </CardContent>
+                </Card>
+                {activeTab === 'customer' && (
                     <Card>
-                        <CardContent className="py-12 text-center">
-                            <Store className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                            <h3 className="text-lg font-semibold mb-2">Franchise Grievances</h3>
-                            <p className="text-muted-foreground">
-                                Functionality to manage grievances raised by franchises is coming soon.
-                            </p>
+                        <CardContent className="pt-6">
+                            <p className="text-3xl font-bold text-green-500">⭐ {stats.avgRating}</p>
+                            <p className="text-sm text-muted-foreground">Avg. Rating</p>
                         </CardContent>
                     </Card>
-                </TabsContent>
+                )}
+            </div>
+
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+                <TabsList className="bg-muted/50 p-1 rounded-lg mb-6 w-full md:w-auto inline-flex">
+                    <TabsTrigger
+                        value="customer"
+                        className="flex-1 md:flex-none px-6 py-2.5 rounded-md text-sm font-medium data-[state=active]:bg-white data-[state=active]:shadow-sm transition-all flex items-center gap-2"
+                    >
+                        <Users className="h-4 w-4" />
+                        Customer Grievances
+                    </TabsTrigger>
+                    <TabsTrigger
+                        value="franchise"
+                        className="flex-1 md:flex-none px-6 py-2.5 rounded-md text-sm font-medium data-[state=active]:bg-white data-[state=active]:shadow-sm transition-all flex items-center gap-2"
+                    >
+                        <Store className="h-4 w-4" />
+                        Franchise Grievances
+                    </TabsTrigger>
+                </TabsList>
             </Tabs>
+
+            <div className="flex flex-col md:flex-row gap-4 mb-6 justify-between items-center">
+                <div className="flex gap-2 w-full md:w-auto">
+                    <div className="relative w-full md:w-[300px]">
+                        <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                        <Input
+                            placeholder="Search by ticket, name, category..."
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            className="pl-10"
+                        />
+                    </div>
+                </div>
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                    <SelectTrigger className="w-[150px]">
+                        <SelectValue placeholder="Status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="all">All Status</SelectItem>
+                        <SelectItem value="submitted">Submitted</SelectItem>
+                        <SelectItem value="under_review">Under Review</SelectItem>
+                        <SelectItem value="in_progress">In Progress</SelectItem>
+                        <SelectItem value="resolved">Resolved</SelectItem>
+                        <SelectItem value="rejected">Rejected</SelectItem>
+                    </SelectContent>
+                </Select>
+            </div>
+
+            {/* Grievances Table/List */}
+            {filteredGrievances.length === 0 ? (
+                <Card>
+                    <CardContent className="py-12 text-center">
+                        <MessageSquare className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                        <p className="text-muted-foreground">No grievances found</p>
+                    </CardContent>
+                </Card>
+            ) : (
+                <div className="border rounded-lg overflow-hidden">
+                    <table className="w-full">
+                        <thead className="bg-muted/50">
+                            <tr>
+                                <th className="text-left p-3 text-sm font-medium w-12">S.No</th>
+                                <th className="text-left p-3 text-sm font-medium">Date</th>
+                                <th className="text-left p-3 text-sm font-medium">Ticket</th>
+                                <th className="text-left p-3 text-sm font-medium">
+                                    {activeTab === 'customer' ? 'Customer' : 'Raised By'}
+                                </th>
+                                <th className="text-left p-3 text-sm font-medium">
+                                    {activeTab === 'customer' ? 'Franchise' : 'To Department'}
+                                </th>
+                                <th className="text-left p-3 text-sm font-medium">Category</th>
+                                <th className="text-left p-3 text-sm font-medium">Status</th>
+                                <th className="text-left p-3 text-sm font-medium">Assigned To</th>
+                                <th className="text-left p-3 text-sm font-medium">Last Update</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {filteredGrievances.map((g, index) => (
+                                <tr
+                                    key={g.id}
+                                    className="border-t hover:bg-muted/30 cursor-pointer transition-colors"
+                                    onClick={() => handleOpenDetail(g)}
+                                >
+                                    <td className="p-3 text-sm text-muted-foreground">{index + 1}</td>
+                                    <td className="p-3 text-sm">
+                                        {formatToIST(g.created_at)}
+                                    </td>
+                                    <td className="p-3 font-mono text-sm">{g.ticket_id}</td>
+                                    <td className="p-3">{g.customer_name}</td>
+                                    <td className="p-3 text-sm text-muted-foreground">{g.franchise_name || "-"}</td>
+                                    <td className="p-3">
+                                        <Badge variant="outline">{CATEGORIES[g.category] || g.category}</Badge>
+                                    </td>
+                                    <td className="p-3">
+                                        <Badge className={STATUS_COLORS[g.status]}>
+                                            {g.status.replace("_", " ")}
+                                        </Badge>
+                                    </td>
+                                    <td className="p-3 text-sm">
+                                        {g.assigned_to || <span className="text-muted-foreground">Unassigned</span>}
+                                    </td>
+                                    <td className="p-3 text-xs text-muted-foreground">
+                                        {g.status_updated_at ? formatToIST(g.status_updated_at) : '-'}
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            )}
 
             {/* Detail Dialog */}
             <Dialog open={!!selectedGrievance} onOpenChange={() => setSelectedGrievance(null)}>
@@ -420,42 +444,81 @@ const AdminGrievances = () => {
 
                                 {/* Details Tab */}
                                 <TabsContent value="details" className="mt-4 space-y-4">
-                                    <div className="grid md:grid-cols-2 gap-4">
+                                    {/* For Franchise Grievances - show clean "Raised By" section */}
+                                    {selectedGrievance.source_type === 'franchise' ? (
                                         <div className="p-4 bg-muted rounded-lg">
-                                            <h4 className="font-semibold mb-2 flex items-center gap-2">
-                                                <Users className="h-4 w-4" />
-                                                Customer
-                                            </h4>
-                                            <div className="text-sm space-y-1">
-                                                <p>{selectedGrievance.customer_name}</p>
-                                                <p className="text-muted-foreground">{selectedGrievance.customer_email}</p>
-                                            </div>
-                                        </div>
-                                        <div className="p-4 bg-muted rounded-lg">
-                                            <h4 className="font-semibold mb-2 flex items-center gap-2">
+                                            <h4 className="font-semibold mb-4 flex items-center gap-2 text-base border-b pb-2">
                                                 <Store className="h-4 w-4" />
-                                                Franchise
+                                                Raised By
                                             </h4>
-                                            <div className="text-sm space-y-1">
-                                                <p className="font-medium">{selectedGrievance.franchise_name || "Not specified"}</p>
-                                                {selectedGrievance.franchise_address && (
-                                                    <p className="text-muted-foreground text-xs">{selectedGrievance.franchise_address}</p>
+                                            <div className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm">
+                                                <div>
+                                                    <p className="text-muted-foreground text-xs mb-1">Store Name</p>
+                                                    <p className="font-medium">{selectedGrievance.customer_name}</p>
+                                                </div>
+                                                <div>
+                                                    <p className="text-muted-foreground text-xs mb-1">Email</p>
+                                                    <p className="font-medium">{selectedGrievance.customer_email}</p>
+                                                </div>
+                                                {selectedGrievance.franchise_name && (
+                                                    <div>
+                                                        <p className="text-muted-foreground text-xs mb-1">Grievance For (Department)</p>
+                                                        <p className="font-medium text-primary">{selectedGrievance.franchise_name}</p>
+                                                    </div>
                                                 )}
-                                                {selectedGrievance.franchise_city && (
-                                                    <p className="text-muted-foreground text-xs">{selectedGrievance.franchise_city}</p>
+                                                {(selectedGrievance.franchise_address || selectedGrievance.franchise_city) && (
+                                                    <div className="col-span-2">
+                                                        <p className="text-muted-foreground text-xs mb-1">Address</p>
+                                                        <p className="font-medium">
+                                                            {[selectedGrievance.franchise_address, selectedGrievance.franchise_city].filter(Boolean).join(', ')}
+                                                        </p>
+                                                    </div>
                                                 )}
                                             </div>
                                         </div>
-                                    </div>
+                                    ) : (
+                                        /* For Customer Grievances - show Customer and Franchise sections */
+                                        <div className="grid md:grid-cols-2 gap-4">
+                                            <div className="p-4 bg-muted rounded-lg">
+                                                <h4 className="font-semibold mb-2 flex items-center gap-2">
+                                                    <Users className="h-4 w-4" />
+                                                    Customer
+                                                </h4>
+                                                <div className="text-sm space-y-1">
+                                                    <p>{selectedGrievance.customer_name}</p>
+                                                    <p className="text-muted-foreground">{selectedGrievance.customer_email}</p>
+                                                </div>
+                                            </div>
+                                            <div className="p-4 bg-muted rounded-lg">
+                                                <h4 className="font-semibold mb-2 flex items-center gap-2">
+                                                    <Store className="h-4 w-4" />
+                                                    Franchise
+                                                </h4>
+                                                <div className="text-sm space-y-1">
+                                                    <p className="font-medium">{selectedGrievance.franchise_name || "Not specified"}</p>
+                                                    {selectedGrievance.franchise_address && (
+                                                        <p className="text-muted-foreground text-xs">{selectedGrievance.franchise_address}</p>
+                                                    )}
+                                                    {selectedGrievance.franchise_city && (
+                                                        <p className="text-muted-foreground text-xs">{selectedGrievance.franchise_city}</p>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
 
                                     <div>
                                         <h4 className="font-semibold mb-2">Issue Details</h4>
-                                        <div className="space-y-2 text-sm">
+                                        <div className="space-y-3 text-sm">
                                             <p><strong>Category:</strong> {CATEGORIES[selectedGrievance.category] || selectedGrievance.category}</p>
                                             {selectedGrievance.sub_category && (
                                                 <p><strong>Sub-Category:</strong> {selectedGrievance.sub_category}</p>
                                             )}
-                                            <p className="whitespace-pre-wrap bg-muted p-3 rounded">{selectedGrievance.description}</p>
+                                            <p><strong>Subject:</strong> {selectedGrievance.subject}</p>
+                                            <div>
+                                                <p className="mb-1"><strong>Description:</strong></p>
+                                                <p className="whitespace-pre-wrap bg-muted p-3 rounded">{selectedGrievance.description || "No description provided"}</p>
+                                            </div>
                                         </div>
                                     </div>
 

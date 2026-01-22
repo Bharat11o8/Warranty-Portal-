@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import db from '../config/database.js';
+import db, { getISTTimestamp } from '../config/database.js';
 import { EmailService } from '../services/email.service.js';
 import { ActivityLogService } from '../services/activity-log.service.js';
 import { NotificationService } from '../services/notification.service.js';
@@ -258,8 +258,8 @@ export class AdminController {
 
             // Update verification status
             await db.execute(
-                'UPDATE vendor_verification SET is_verified = ?, verified_at = NOW() WHERE user_id = ?',
-                [is_verified, id]
+                'UPDATE vendor_verification SET is_verified = ?, verified_at = ? WHERE user_id = ?',
+                [is_verified, getISTTimestamp(), id]
             );
 
             // Send email notification

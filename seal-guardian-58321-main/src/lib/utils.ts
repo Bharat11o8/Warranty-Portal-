@@ -81,7 +81,33 @@ export function getWarrantyExpiration(createdAt: string | Date | null | undefine
 export function formatToIST(dateInput: string | Date | number | undefined | null): string {
   if (!dateInput) return "N/A";
 
-  const date = new Date(dateInput);
+  let date: Date;
+
+  // Handle MySQL datetime strings (e.g., "2026-01-22 10:00:00" or "2026-01-22T10:00:00.000Z")
+  if (typeof dateInput === 'string') {
+    // Check if it's already an ISO string with timezone (ends with Z or has offset)
+    if (dateInput.endsWith('Z') || /[+-]\d{2}:\d{2}$/.test(dateInput)) {
+      // It's a UTC timestamp, convert to IST
+      date = new Date(dateInput);
+    } else {
+      // MySQL datetime format without timezone - treat as already IST
+      // Just parse it and display as-is without timezone conversion
+      const cleanDate = dateInput.replace(' ', 'T');
+      date = new Date(cleanDate);
+      // Format without timezone conversion since it's already IST
+      return date.toLocaleString('en-IN', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true
+      });
+    }
+  } else {
+    date = new Date(dateInput);
+  }
+
   if (isNaN(date.getTime())) return "Invalid Date";
 
   return date.toLocaleString('en-IN', {

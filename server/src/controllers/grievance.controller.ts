@@ -1,6 +1,6 @@
 
 import { Response } from 'express';
-import db from '../config/database.js';
+import db, { getISTTimestamp } from '../config/database.js';
 import { AuthRequest } from '../middleware/auth.js';
 import { EmailService } from '../services/email.service.js';
 import { NotificationService } from '../services/notification.service.js';
@@ -203,6 +203,164 @@ class GrievanceController {
     }
 
     /**
+     * Submit a new grievance (Franchise/Vendor)
+     * POST /api/grievance/franchise
+     */
+    submitFranchiseGrievance = async (req: AuthRequest, res: Response) => {
+        try {
+            const userId = req.user?.id;
+            if (!userId) {
+                return res.status(401).json({ success: false, error: 'Unauthorized' });
+            }
+
+            const { department, departmentDetails, category, subject, description, attachments } = req.body;
+
+            // Validation
+            if (!department || !category || !subject || !description) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'Department, category, subject, and description are required'
+                });
+            }
+
+            // Validate department
+            const validDepartments = ['plant', 'distributor', 'asm'];
+            if (!validDepartments.includes(department.toLowerCase())) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'Invalid department. Must be Plant, Distributor, or ASM'
+                });
+            }
+
+            // Require details for Distributor and ASM
+            if (['distributor', 'asm'].includes(department.toLowerCase()) && !departmentDetails) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'Name/details are required for Distributor and ASM'
+                });
+            }
+
+            // Get franchise details
+            const [vendorRows]: any = await db.execute(
+                'SELECT id, store_name, store_email as email FROM vendor_details WHERE user_id = ?',
+                [userId]
+            );
+
+            if (vendorRows.length === 0) {
+                return res.status(403).json({
+                    success: false,
+                    error: 'Franchise account not found'
+                });
+            }
+
+            const vendor = vendorRows[0];
+            const ticketId = this.generateTicketId();
+
+            // Insert grievance
+            await db.execute(
+                `INSERT INTO grievances 
+                (ticket_id, customer_id, source_type, department, department_details, category, subject, description, attachments, status, created_at, status_updated_at)
+                VALUES (?, ?, 'franchise', ?, ?, ?, ?, ?, ?, 'submitted', ?, ?)`,
+                [
+                    ticketId,
+                    userId,
+                    department.toLowerCase(),
+                    departmentDetails || null,
+                    category,
+                    subject,
+                    description,
+                    attachments ? JSON.stringify(attachments) : null,
+                    getISTTimestamp(),
+                    getISTTimestamp()
+                ]
+            );
+
+            // Create notification for admin
+            try {
+                await db.execute(
+                    `INSERT INTO notifications (user_id, title, message, type, link, created_at) 
+                     SELECT id, ?, ?, 'warning', ?, ? 
+                     FROM profiles WHERE role = 'admin'`,
+                    [
+                        `🏪 Franchise Grievance: ${ticketId}`,
+                        `Franchise "${vendor.store_name}" submitted a grievance to ${department}. Subject: ${subject}`,
+                        `/admin/grievances/${ticketId}`,
+                        getISTTimestamp()
+                    ]
+                );
+            } catch (notifError) {
+                console.error('Failed to send franchise grievance notification:', notifError);
+            }
+
+            // Send confirmation email to franchise
+            try {
+                await EmailService.sendFranchiseGrievanceConfirmationEmail(
+                    vendor.email,
+                    vendor.store_name,
+                    {
+                        ticket_id: ticketId,
+                        category,
+                        subject,
+                        department,
+                        department_details: departmentDetails
+                    }
+                );
+            } catch (emailError) {
+                console.error('Failed to send franchise grievance confirmation email:', emailError);
+            }
+
+            return res.status(201).json({
+                success: true,
+                message: 'Grievance submitted successfully',
+                data: { ticketId }
+            });
+
+        } catch (error: any) {
+            console.error('Submit franchise grievance error:', error.message, error.code, error.sqlMessage);
+            return res.status(500).json({
+                success: false,
+                error: 'Failed to submit grievance: ' + (error.sqlMessage || error.message)
+            });
+        }
+    }
+
+    /**
+     * Get franchise's submitted grievances
+     * GET /api/grievance/franchise/submitted
+     */
+    getFranchiseSubmittedGrievances = async (req: AuthRequest, res: Response) => {
+        try {
+            const userId = req.user?.id;
+            if (!userId) {
+                return res.status(401).json({ success: false, error: 'Unauthorized' });
+            }
+
+            const [grievances] = await db.execute(
+                `SELECT g.*, 
+                    CASE 
+                        WHEN g.department = 'plant' THEN 'Plant'
+                        WHEN g.department = 'distributor' THEN CONCAT('Distributor: ', COALESCE(g.department_details, 'N/A'))
+                        WHEN g.department = 'asm' THEN CONCAT('ASM: ', COALESCE(g.department_details, 'N/A'))
+                        ELSE g.department
+                    END as department_display
+                FROM grievances g
+                WHERE g.customer_id = ? AND g.source_type = 'franchise'
+                ORDER BY g.created_at DESC`,
+                [userId]
+            );
+
+            return res.json({ success: true, data: grievances });
+
+        } catch (error: any) {
+            console.error('Get franchise submitted grievances error:', error);
+            return res.status(500).json({
+                success: false,
+                error: 'Failed to fetch submitted grievances'
+            });
+        }
+    }
+
+    /**
      * Get grievances for a franchise (Vendor)
      * GET /api/grievance/vendor
      */
@@ -264,14 +422,27 @@ class GrievanceController {
 
             const [grievances] = await db.execute(
                 `SELECT g.*, 
-                p.name as customer_name, 
-                p.email as customer_email,
-                vd.store_name as franchise_name,
-                vd.address as franchise_address,
-                vd.city as franchise_city
+                CASE 
+                    WHEN g.source_type = 'franchise' THEN vd_franchise.store_name
+                    ELSE p.name 
+                END as customer_name,
+                
+                CASE 
+                    WHEN g.source_type = 'franchise' THEN vd_franchise.store_email
+                    ELSE p.email 
+                END as customer_email,
+
+                CASE 
+                    WHEN g.source_type = 'franchise' THEN CONCAT(UPPER(COALESCE(g.department, '')), COALESCE(CONCAT(' - ', g.department_details), ''))
+                    ELSE vd_customer.store_name 
+                END as franchise_name,
+                
+                COALESCE(vd_customer.address, vd_franchise.address) as franchise_address,
+                COALESCE(vd_customer.city, vd_franchise.city) as franchise_city
          FROM grievances g
          LEFT JOIN profiles p ON g.customer_id = p.id
-         LEFT JOIN vendor_details vd ON g.franchise_id = vd.id
+         LEFT JOIN vendor_details vd_customer ON g.franchise_id = vd_customer.id
+         LEFT JOIN vendor_details vd_franchise ON g.source_type = 'franchise' AND g.customer_id = vd_franchise.user_id
          ORDER BY 
            CASE g.priority 
              WHEN 'urgent' THEN 1 
@@ -401,7 +572,8 @@ class GrievanceController {
                 values.push(status);
 
                 if (status === 'resolved' || status === 'rejected') {
-                    updates.push('resolved_at = NOW()');
+                    updates.push('resolved_at = ?');
+                    values.push(getISTTimestamp());
                 }
             }
 
@@ -533,9 +705,11 @@ class GrievanceController {
             if (status) {
                 updates.push('status = ?');
                 values.push(status);
-                updates.push('status_updated_at = NOW()');
+                updates.push('status_updated_at = ?');
+                values.push(getISTTimestamp());
                 if (status === 'resolved' || status === 'rejected') {
-                    updates.push('resolved_at = NOW()');
+                    updates.push('resolved_at = ?');
+                    values.push(getISTTimestamp());
                 }
             }
 

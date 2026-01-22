@@ -17,6 +17,7 @@ if (process.env.NODE_ENV !== 'production') {
   console.log('User:', process.env.DB_USER);
   console.log('Database:', process.env.DB_NAME);
   console.log('Port:', process.env.DB_PORT);
+  console.log('Timezone:', 'local (system)');
 }
 
 /**
@@ -35,6 +36,11 @@ const pool = mysql.createPool({
   database: process.env.DB_NAME,
   port: parseInt(process.env.DB_PORT || '3306'),
 
+  // Timezone Configuration
+  // 'local' means use the Node.js process timezone
+  // This ensures dates inserted match your system time
+  timezone: 'local',
+
   // Connection Pool Settings (environment-configurable)
   waitForConnections: true,
   connectionLimit: parseInt(process.env.DB_POOL_SIZE || '2'),
@@ -50,16 +56,56 @@ const pool = mysql.createPool({
   idleTimeout: parseInt(process.env.DB_IDLE_TIMEOUT || '60000'),
 });
 
-// Test connection on startup (only in development)
-if (process.env.NODE_ENV !== 'production') {
-  pool.getConnection()
-    .then(conn => {
+// Set global timezone and test connection on startup
+(async () => {
+  try {
+    const conn = await pool.getConnection();
+
+    // Set session timezone to IST for this connection
+    await conn.query("SET time_zone = '+05:30'");
+
+    if (process.env.NODE_ENV !== 'production') {
+      const [rows]: any = await conn.query("SELECT NOW() as db_now, @@session.time_zone as session_tz, @@global.time_zone as global_tz");
       console.log('✅ Database connection successful');
-      conn.release();
-    })
-    .catch(err => {
-      console.error('❌ Database connection failed:', err.message);
-    });
+      console.log('⏰ DB Now:', rows[0].db_now);
+      console.log('🌍 Session TZ:', rows[0].session_tz, '| Global TZ:', rows[0].global_tz);
+    }
+
+    conn.release();
+  } catch (err: any) {
+    console.error('❌ Database connection failed:', err.message);
+  }
+})();
+
+/**
+ * Get current timestamp in IST (Indian Standard Time) as MySQL datetime string
+ * Use this instead of NOW() in SQL queries to ensure correct timezone
+ * 
+ * @returns string in format 'YYYY-MM-DD HH:MM:SS'
+ */
+export function getISTTimestamp(): string {
+  const now = new Date();
+  // IST is UTC+5:30
+  const istOffset = 5.5 * 60 * 60 * 1000; // 5.5 hours in milliseconds
+  const istTime = new Date(now.getTime() + istOffset);
+
+  const year = istTime.getUTCFullYear();
+  const month = String(istTime.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(istTime.getUTCDate()).padStart(2, '0');
+  const hours = String(istTime.getUTCHours()).padStart(2, '0');
+  const minutes = String(istTime.getUTCMinutes()).padStart(2, '0');
+  const seconds = String(istTime.getUTCSeconds()).padStart(2, '0');
+
+  return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+}
+
+/**
+ * Get current date in IST as MySQL date string
+ * 
+ * @returns string in format 'YYYY-MM-DD'
+ */
+export function getISTDate(): string {
+  return getISTTimestamp().split(' ')[0];
 }
 
 export default pool;

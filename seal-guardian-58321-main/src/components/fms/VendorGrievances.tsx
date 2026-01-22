@@ -8,7 +8,8 @@ import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, RefreshCw, MessageSquare, AlertCircle, CheckCircle, Clock, Users, Building2, Package, Receipt, Store, Wrench, ShieldCheck, HelpCircle, Paperclip } from "lucide-react";
+import { Loader2, RefreshCw, MessageSquare, AlertCircle, CheckCircle, Clock, Users, Building2, Package, Receipt, Store, Wrench, ShieldCheck, HelpCircle, Paperclip, Plus, X, Upload, Factory, Truck, UserCheck } from "lucide-react";
+import { compressImage, isCompressibleImage } from "@/lib/imageCompression";
 
 interface Grievance {
     id: number;
@@ -65,6 +66,38 @@ const VendorGrievances = () => {
     const [remarks, setRemarks] = useState("");
     const [updating, setUpdating] = useState(false);
 
+    // My Grievance state
+    const [myGrievances, setMyGrievances] = useState<any[]>([]);
+    const [loadingMyGrievances, setLoadingMyGrievances] = useState(false);
+    const [showNewGrievanceForm, setShowNewGrievanceForm] = useState(false);
+    const [submitting, setSubmitting] = useState(false);
+
+    // Form state
+    const [department, setDepartment] = useState("");
+    const [departmentDetails, setDepartmentDetails] = useState("");
+    const [category, setCategory] = useState("");
+    const [subject, setSubject] = useState("");
+    const [description, setDescription] = useState("");
+    const [attachment1, setAttachment1] = useState<File | null>(null);
+    const [attachment2, setAttachment2] = useState<File | null>(null);
+    const [attachment3, setAttachment3] = useState<File | null>(null);
+    const [compressing, setCompressing] = useState(false);
+
+    const FRANCHISE_CATEGORIES = [
+        { value: "product_issue", label: "Product Issue" },
+        { value: "warranty_issue", label: "Warranty Issue" },
+        { value: "logistics_issue", label: "Logistics Issue" },
+        { value: "stock_issue", label: "Stock Issue" },
+        { value: "software_issue", label: "Software/Portal Issue" },
+        { value: "other", label: "Other" },
+    ];
+
+    const DEPARTMENTS = [
+        { value: "plant", label: "Plant", icon: Factory, requiresDetails: false },
+        { value: "distributor", label: "Distributor", icon: Truck, requiresDetails: true },
+        { value: "asm", label: "ASM", icon: UserCheck, requiresDetails: true },
+    ];
+
     const fetchGrievances = async () => {
         setLoading(true);
         try {
@@ -83,9 +116,116 @@ const VendorGrievances = () => {
         }
     };
 
+    const fetchMyGrievances = async () => {
+        setLoadingMyGrievances(true);
+        try {
+            const response = await api.get("/grievance/franchise/submitted");
+            if (response.data.success) {
+                setMyGrievances(response.data.data);
+            }
+        } catch (error: any) {
+            console.error("Failed to fetch my grievances", error);
+        } finally {
+            setLoadingMyGrievances(false);
+        }
+    };
+
     useEffect(() => {
         fetchGrievances();
+        fetchMyGrievances();
     }, []);
+
+    const handleAttachmentChange = async (
+        e: React.ChangeEvent<HTMLInputElement>,
+        setter: React.Dispatch<React.SetStateAction<File | null>>
+    ) => {
+        if (e.target.files && e.target.files[0]) {
+            const file = e.target.files[0];
+            if (isCompressibleImage(file)) {
+                setCompressing(true);
+                try {
+                    const compressed = await compressImage(file);
+                    setter(compressed);
+                    toast({ title: "Image Compressed", description: "Image optimized for upload." });
+                } catch (error) {
+                    console.error("Compression failed", error);
+                    setter(file); // Fallback
+                } finally {
+                    setCompressing(false);
+                }
+            } else {
+                setter(file);
+            }
+        }
+    };
+
+    const handleSubmitGrievance = async () => {
+        if (!department || !category || !subject.trim() || !description.trim()) {
+            toast({
+                title: "Missing Fields",
+                description: "Please fill in all required fields",
+                variant: "destructive"
+            });
+            return;
+        }
+
+        const selectedDept = DEPARTMENTS.find(d => d.value === department);
+        if (selectedDept?.requiresDetails && !departmentDetails.trim()) {
+            toast({
+                title: "Missing Details",
+                description: `Please provide Name/Details for ${selectedDept.label}`,
+                variant: "destructive"
+            });
+            return;
+        }
+
+        setSubmitting(true);
+        try {
+            const formData = new FormData();
+            formData.append('department', department);
+            if (departmentDetails) formData.append('departmentDetails', departmentDetails);
+            formData.append('category', category);
+            formData.append('subject', subject);
+            formData.append('description', description);
+
+            if (attachment1) formData.append('attachments', attachment1);
+            if (attachment2) formData.append('attachments', attachment2);
+            if (attachment3) formData.append('attachments', attachment3);
+
+            const response = await api.post('/grievance/franchise', formData, {
+                headers: { 'Content-Type': 'multipart/form-data' }
+            });
+
+            if (response.data.success) {
+                toast({
+                    title: "Grievance Submitted",
+                    description: "Your grievance has been submitted successfully.",
+                    className: "bg-green-500 text-white"
+                });
+                setShowNewGrievanceForm(false);
+                // Reset form
+                setDepartment("");
+                setDepartmentDetails("");
+                setCategory("");
+                setSubject("");
+                setDescription("");
+                setAttachment1(null);
+                setAttachment2(null);
+                setAttachment3(null);
+                // Refresh list
+                fetchMyGrievances();
+            }
+        } catch (error: any) {
+            console.error("Submit grievance error:", error);
+            toast({
+                title: "Submission Failed",
+                description: error.response?.data?.error || "Failed to submit grievance",
+                variant: "destructive"
+            });
+        } finally {
+            setSubmitting(false);
+        }
+    };
 
     const handleOpenDetail = (g: Grievance) => {
         setSelectedGrievance(g);
@@ -337,20 +477,231 @@ const VendorGrievances = () => {
                     </Dialog>
                 </TabsContent>
 
-                {/* My Grievance Tab Content - Placeholder */}
+                {/* My Grievance Tab Content */}
                 <TabsContent value="my" className="mt-0 outline-none">
-                    <Card className="border-dashed">
-                        <CardContent className="py-16 text-center">
-                            <Building2 className="h-16 w-16 mx-auto text-muted-foreground/30 mb-4" />
-                            <h3 className="text-xl font-semibold mb-2">My Grievances</h3>
-                            <p className="text-muted-foreground max-w-md mx-auto">
-                                This section will allow you to submit grievances to Autoform India regarding any issues you face as a franchise partner.
-                            </p>
-                            <p className="text-sm text-muted-foreground/70 mt-4">
-                                Coming Soon
-                            </p>
-                        </CardContent>
-                    </Card>
+                    <div className="flex justify-end mb-4 gap-2">
+                        <Button variant="outline" size="sm" onClick={fetchMyGrievances}>
+                            <RefreshCw className="h-4 w-4 mr-2" />
+                            Refresh
+                        </Button>
+                        <Button size="sm" onClick={() => setShowNewGrievanceForm(true)}>
+                            <Plus className="h-4 w-4 mr-2" />
+                            Add New Grievance
+                        </Button>
+                    </div>
+
+                    {loadingMyGrievances ? (
+                        <div className="flex items-center justify-center p-12">
+                            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                        </div>
+                    ) : myGrievances.length === 0 ? (
+                        <Card className="border-dashed">
+                            <CardContent className="py-12 text-center">
+                                <MessageSquare className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                                <p className="text-muted-foreground">You haven't submitted any grievances yet</p>
+                                <Button variant="link" onClick={() => setShowNewGrievanceForm(true)}>
+                                    Submit your first grievance
+                                </Button>
+                            </CardContent>
+                        </Card>
+                    ) : (
+                        <div className="space-y-3">
+                            {myGrievances.map((g) => {
+                                const categoryConfig = CATEGORY_CONFIG[g.category] || CATEGORY_CONFIG['other'];
+                                const CategoryIcon = categoryConfig.icon;
+
+                                return (
+                                    <div
+                                        key={g.id}
+                                        className={`flex items-center gap-4 p-4 bg-white rounded-r-xl rounded-l-md border-l-[6px] shadow-sm ${categoryConfig.border}`}
+                                    >
+                                        <div className={`h-12 w-12 rounded-xl flex items-center justify-center shrink-0 ${categoryConfig.bg} ${categoryConfig.text}`}>
+                                            <CategoryIcon className="w-6 h-6" />
+                                        </div>
+
+                                        <div className="flex-1 min-w-0">
+                                            <div className="flex items-center gap-2 mb-1">
+                                                <span className="font-mono text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded">{g.ticket_id}</span>
+                                                <Badge variant="outline" className={`${STATUS_CONFIG[g.status]?.color?.replace('bg-', 'text-')} border-0 bg-transparent font-semibold pl-0`}>
+                                                    • {STATUS_CONFIG[g.status]?.label}
+                                                </Badge>
+                                                <Badge variant="secondary" className="text-xs">
+                                                    To: {g.department_display || g.department?.toUpperCase()}
+                                                </Badge>
+                                            </div>
+                                            <h3 className="font-semibold text-base truncate">{g.subject}</h3>
+                                            <p className="text-sm text-muted-foreground truncate">
+                                                {CATEGORIES[g.category] || g.category}
+                                                <span className="text-xs opacity-60 ml-2">• {formatToIST(g.created_at)}</span>
+                                            </p>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
+
+                    {/* New Grievance Dialog */}
+                    <Dialog open={showNewGrievanceForm} onOpenChange={setShowNewGrievanceForm}>
+                        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+                            <DialogHeader>
+                                <DialogTitle>Submit New Grievance</DialogTitle>
+                                <DialogDescription>
+                                    Report an issue to Plant, Distributor, or ASM.
+                                </DialogDescription>
+                            </DialogHeader>
+
+                            <div className="space-y-4 mt-4">
+                                {/* Department Selection */}
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                    {DEPARTMENTS.map((dept) => {
+                                        const Icon = dept.icon;
+                                        const isSelected = department === dept.value;
+                                        return (
+                                            <div
+                                                key={dept.value}
+                                                onClick={() => setDepartment(dept.value)}
+                                                className={`cursor-pointer rounded-lg border p-4 flex flex-col items-center gap-2 transition-all hover:bg-accent/5 ${isSelected ? 'border-primary bg-primary/5 ring-1 ring-primary' : 'border-muted'
+                                                    }`}
+                                            >
+                                                <Icon className={`h-6 w-6 ${isSelected ? 'text-primary' : 'text-muted-foreground'}`} />
+                                                <span className={`font-medium text-sm ${isSelected ? 'text-primary' : ''}`}>{dept.label}</span>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+
+                                {department && DEPARTMENTS.find(d => d.value === department)?.requiresDetails && (
+                                    <div className="animate-in fade-in slide-in-from-top-2">
+                                        <label className="text-sm font-medium mb-1.5 block">
+                                            {department === 'distributor' ? 'Distributor Name/Details' : 'ASM Name/Details'} <span className="text-red-500">*</span>
+                                        </label>
+                                        <input
+                                            type="text"
+                                            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                                            placeholder={`Enter ${department === 'distributor' ? 'distributor' : 'ASM'} name`}
+                                            value={departmentDetails}
+                                            onChange={(e) => setDepartmentDetails(e.target.value)}
+                                        />
+                                    </div>
+                                )}
+
+                                {/* Category */}
+                                <div>
+                                    <label className="text-sm font-medium mb-1.5 block">Category <span className="text-red-500">*</span></label>
+                                    <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                                        {FRANCHISE_CATEGORIES.map((cat) => (
+                                            <div
+                                                key={cat.value}
+                                                onClick={() => setCategory(cat.value)}
+                                                className={`cursor-pointer rounded-md border px-3 py-2 text-sm text-center transition-all hover:bg-accent/5 ${category === cat.value ? 'border-primary bg-primary/5 text-primary font-medium' : 'text-muted-foreground'
+                                                    }`}
+                                            >
+                                                {cat.label}
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {/* Subject */}
+                                <div>
+                                    <label className="text-sm font-medium mb-1.5 block">Subject <span className="text-red-500">*</span></label>
+                                    <input
+                                        type="text"
+                                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                                        placeholder="Brief title of the issue"
+                                        value={subject}
+                                        onChange={(e) => setSubject(e.target.value)}
+                                    />
+                                </div>
+
+                                {/* Description */}
+                                <div>
+                                    <label className="text-sm font-medium mb-1.5 block">Description <span className="text-red-500">*</span></label>
+                                    <Textarea
+                                        value={description}
+                                        onChange={(e: any) => setDescription(e.target.value)}
+                                        placeholder="Detailed description of the issue..."
+                                        rows={4}
+                                    />
+                                </div>
+
+                                {/* Attachments */}
+                                <div>
+                                    <label className="text-sm font-medium mb-2 block flex items-center gap-2">
+                                        <Paperclip className="h-4 w-4" />
+                                        Attachments (Optional - Max 3)
+                                    </label>
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                        {[
+                                            { file: attachment1, setter: setAttachment1, id: 1 },
+                                            { file: attachment2, setter: setAttachment2, id: 2 },
+                                            { file: attachment3, setter: setAttachment3, id: 3 }
+                                        ].map((slot) => (
+                                            <div key={slot.id} className="relative">
+                                                <input
+                                                    type="file"
+                                                    id={`attachment-${slot.id}`}
+                                                    className="hidden"
+                                                    accept="image/*"
+                                                    onChange={(e) => handleAttachmentChange(e, slot.setter)}
+                                                />
+                                                <label
+                                                    htmlFor={`attachment-${slot.id}`}
+                                                    className={`flex flex-col items-center justify-center border-2 border-dashed rounded-lg p-4 h-24 cursor-pointer transition-colors hover:bg-accent/5 ${slot.file ? 'border-primary bg-primary/5' : 'border-muted-foreground/20'
+                                                        }`}
+                                                >
+                                                    {slot.file ? (
+                                                        <>
+                                                            <CheckCircle className="h-6 w-6 text-primary mb-1" />
+                                                            <span className="text-xs text-primary font-medium truncate max-w-full px-2">
+                                                                {slot.file.name}
+                                                            </span>
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            <Upload className="h-6 w-6 text-muted-foreground mb-1" />
+                                                            <span className="text-xs text-muted-foreground">Upload Image</span>
+                                                        </>
+                                                    )}
+                                                </label>
+                                                {slot.file && (
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.preventDefault();
+                                                            slot.setter(null);
+                                                        }}
+                                                        className="absolute -top-2 -right-2 bg-destructive text-white rounded-full p-0.5 shadow-sm hover:bg-destructive/90"
+                                                    >
+                                                        <X className="h-3 w-3" />
+                                                    </button>
+                                                )}
+                                            </div>
+                                        ))}
+                                    </div>
+                                    <p className="text-xs text-muted-foreground mt-2">
+                                        supported formats: jpg, png, jpeg
+                                    </p>
+                                </div>
+
+                                <div className="pt-2">
+                                    <Button onClick={handleSubmitGrievance} disabled={submitting || compressing} className="w-full">
+                                        {submitting || compressing ? (
+                                            <>
+                                                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                                {compressing ? "Compressing Images..." : "Submitting..."}
+                                            </>
+                                        ) : (
+                                            "Submit Grievance"
+                                        )}
+                                    </Button>
+                                    <p className="text-xs text-center text-muted-foreground mt-2">
+                                        Your grievance will be sent to the selected department and tracked by admin.
+                                    </p>
+                                </div>
+                            </div>
+                        </DialogContent>
+                    </Dialog>
                 </TabsContent>
             </Tabs>
         </div>

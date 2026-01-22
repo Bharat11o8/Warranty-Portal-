@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import db from '../config/database.js';
+import db, { getISTTimestamp } from '../config/database.js';
 import { EmailService } from '../services/email.service.js';
 import { v4 as uuidv4 } from 'uuid';
 import { NotificationService } from '../services/notification.service.js';
@@ -164,8 +164,8 @@ export class VendorController {
 
       // Update verification status
       await db.execute(
-        'UPDATE vendor_verification SET is_verified = TRUE, verified_at = NOW() WHERE verification_token = ?',
-        [token]
+        'UPDATE vendor_verification SET is_verified = TRUE, verified_at = ? WHERE verification_token = ?',
+        [getISTTimestamp(), token]
       );
 
       // Send confirmation email to vendor with login link
