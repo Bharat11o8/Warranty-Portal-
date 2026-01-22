@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import { fetchProductById, getRelatedProducts, getCategory, Product, Category } from '@/lib/catalogService';
 
 import ProductBreadcrumbs from '@/components/product/ProductBreadcrumbs';
@@ -12,6 +12,7 @@ import { Loader2 } from 'lucide-react';
 
 const ProductPage = () => {
   const { productId } = useParams<{ productId: string }>();
+  const navigate = useNavigate();
   const [product, setProduct] = useState<Product | null>(null);
   const [relatedProducts, setRelatedProducts] = useState<Product[]>([]);
   const [category, setCategory] = useState<Category | undefined>(undefined);
@@ -82,8 +83,8 @@ const ProductPage = () => {
 
   const additionalInfoArray = Array.isArray(product.additionalInfo)
     ? product.additionalInfo
-    : typeof product.additionalInfo === 'string'
-      ? product.additionalInfo.split('\n').filter(line => line.trim() !== '')
+    : typeof (product.additionalInfo as any) === 'string'
+      ? (product.additionalInfo as any).split('\n').filter((line: string) => line.trim() !== '')
       : [];
 
   // ✅ List of product IDs that need "Onward"
@@ -104,9 +105,18 @@ const ProductPage = () => {
     <div className="bg-white min-h-screen">
       <div className="container mx-auto px-4 py-8 space-y-6">
         {/* Back to Dashboard */}
-        <Link to="/dashboard/vendor" className="inline-flex items-center text-sm text-brand-orange hover:underline">
+        <button
+          onClick={() => {
+            if (window.history.length > 1) {
+              navigate(-1);
+            } else {
+              navigate('/dashboard/vendor?tab=catalog');
+            }
+          }}
+          className="inline-flex items-center text-sm text-brand-orange hover:underline bg-transparent border-none p-0 cursor-pointer"
+        >
           ← Back to Dashboard
-        </Link>
+        </button>
 
         {/* Breadcrumbs */}
         <ProductBreadcrumbs
