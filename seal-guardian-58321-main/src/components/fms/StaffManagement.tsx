@@ -20,7 +20,8 @@ import {
     Loader2,
     History,
     LayoutGrid,
-    List
+    List,
+    RefreshCw
 } from "lucide-react";
 
 interface ManpowerManagementProps {
@@ -32,6 +33,8 @@ interface ManpowerManagementProps {
     onShowWarranties: (member: any, status: 'validated' | 'pending' | 'rejected') => void;
     editingId: string | null;
     setEditingId: (id: string | null) => void;
+    onRefresh?: () => void;
+    isRefreshing?: boolean;
 }
 
 export const StaffManagement = ({
@@ -42,7 +45,9 @@ export const StaffManagement = ({
     onDelete,
     onShowWarranties,
     editingId,
-    setEditingId
+    setEditingId,
+    onRefresh,
+    isRefreshing = false
 }: ManpowerManagementProps) => {
     const toTitleCase = (str: string) => {
         if (!str) return str;
@@ -145,6 +150,20 @@ export const StaffManagement = ({
                                 <List className="h-4 w-4" />
                             </Button>
                         </div>
+
+                        {/* Refresh Button */}
+                        {onRefresh && (
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={onRefresh}
+                                disabled={isRefreshing}
+                                className="h-11 px-6 rounded-full border-orange-100 text-orange-600 font-bold hover:bg-orange-50 transition-all flex items-center gap-2 shadow-sm"
+                            >
+                                <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+                                Refresh
+                            </Button>
+                        )}
                     </div>
                 </div>
 

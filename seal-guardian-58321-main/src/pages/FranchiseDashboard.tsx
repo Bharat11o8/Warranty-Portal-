@@ -286,6 +286,8 @@ const FranchiseDashboard = () => {
                         onReject={handleRejectWarranty}
                         warrantySearch={warrantySearch}
                         setWarrantySearch={setWarrantySearch}
+                        onRefresh={fetchAllData}
+                        isRefreshing={loading}
                     />
                 );
             case 'manpower':
@@ -299,6 +301,8 @@ const FranchiseDashboard = () => {
                         onShowWarranties={showManpowerWarranties}
                         editingId={editingId}
                         setEditingId={setEditingId}
+                        onRefresh={fetchAllData}
+                        isRefreshing={loading}
                     />
                 );
             case 'catalogue':

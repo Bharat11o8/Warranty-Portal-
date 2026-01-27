@@ -19,7 +19,8 @@ import {
     Calendar as CalendarIcon,
     ArrowUpDown,
     Check,
-    X
+    X,
+    RefreshCw
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -59,6 +60,8 @@ interface WarrantyManagementProps {
     onReject: (warranty: any) => void;
     warrantySearch: string;
     setWarrantySearch: (q: string) => void;
+    onRefresh?: () => void;
+    isRefreshing?: boolean;
 }
 
 export const WarrantyManagement = ({
@@ -69,7 +72,9 @@ export const WarrantyManagement = ({
     onVerify,
     onReject,
     warrantySearch,
-    setWarrantySearch
+    setWarrantySearch,
+    onRefresh,
+    isRefreshing = false
 }: WarrantyManagementProps) => {
     const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
     const [showFilters, setShowFilters] = useState(false);
@@ -433,7 +438,19 @@ export const WarrantyManagement = ({
         <div className="animate-in fade-in duration-700">
             <Tabs defaultValue="all" className="space-y-6">
                 {/* Top Action Bar */}
-                <div className="flex justify-end mb-4">
+                <div className="flex justify-end gap-3 mb-4">
+                    {onRefresh && (
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={onRefresh}
+                            disabled={isRefreshing}
+                            className="h-10 px-6 rounded-full border-orange-100 text-orange-600 font-bold hover:bg-orange-50 transition-all flex items-center gap-2 shadow-sm"
+                        >
+                            <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+                            Refresh
+                        </Button>
+                    )}
                     <Button
                         onClick={onExport}
                         className="h-10 px-6 rounded-full bg-[#f46617] hover:bg-[#d85512] text-white font-bold text-xs shadow-lg shadow-orange-500/20 transition-all active:scale-95 flex items-center gap-2 uppercase tracking-widest"

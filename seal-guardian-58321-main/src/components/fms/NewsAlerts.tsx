@@ -19,7 +19,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar";
 
 export const NewsAlerts = () => {
-    const { fullHistory, markAsRead, markAllAsRead } = useNotifications();
+    const { fullHistory, markAsRead, markAllAsRead, refreshNotifications, loading } = useNotifications();
     const navigate = useNavigate();
     const [searchQuery, setSearchQuery] = useState("");
     const [activeTab, setActiveTab] = useState<'all' | 'unread' | 'alert' | 'system' | 'product'>('all');
@@ -88,12 +88,12 @@ export const NewsAlerts = () => {
     const [selectedNotification, setSelectedNotification] = useState<any>(null);
 
     return (
-        <div className="max-w-4xl mx-auto space-y-6">
+        <div className="max-w-4xl mx-auto space-y-10 animate-in fade-in duration-700">
             {/* Filter Toolbar */}
-            <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4 sticky top-0 z-30 bg-white/80 backdrop-blur-xl py-4 -mx-4 px-4 border-b border-slate-50">
+            <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-6 sticky top-5 z-30 bg-white py-4 px-2 -mx-2 rounded-3xl border border-orange-100 shadow-[0_8px_30px_rgba(0,0,0,0.02)]">
 
                 {/* Tabs */}
-                <div className="flex-1 flex flex-nowrap overflow-x-auto pb-2 gap-2 bg-slate-50 p-1.5 rounded-full border border-slate-100 [&::-webkit-scrollbar]:hidden min-w-0">
+                <div className="flex-1 flex flex-nowrap overflow-x-auto gap-1 bg-white p-1 rounded-full border border-orange-100 [&::-webkit-scrollbar]:hidden min-w-0 shadow-sm">
                     {tabs.map(tab => (
                         <Button
                             key={tab.id}
@@ -101,18 +101,13 @@ export const NewsAlerts = () => {
                             size="sm"
                             onClick={() => setActiveTab(tab.id as any)}
                             className={cn(
-                                "rounded-full px-4 font-bold text-xs h-9 transition-all relative shrink-0 flex-1",
-                                activeTab === tab.id
-                                    ? "bg-white text-orange-600 shadow-sm ring-1 ring-slate-100"
-                                    : "text-slate-500 hover:text-orange-600 hover:bg-white/50"
+                                "rounded-full transition-all duration-300 font-black text-[10px] uppercase tracking-widest px-4 py-2 flex items-center gap-2",
+                                activeTab === tab.id ? "bg-orange-50/50 text-orange-600 shadow-sm" : "text-slate-400 hover:text-slate-600"
                             )}
                         >
                             {tab.label}
                             {tab.count !== undefined && tab.count > 0 && (
-                                <span className={cn(
-                                    "ml-2 px-1.5 py-0.5 rounded-full text-[9px] min-w-[1.25rem] inline-flex items-center justify-center",
-                                    activeTab === tab.id ? "bg-orange-50 text-orange-600" : "bg-slate-200 text-slate-600"
-                                )}>
+                                <span className="flex h-5 min-w-[20px] items-center justify-center rounded-full bg-orange-600 px-1 text-[8px] font-black text-white">
                                     {tab.count}
                                 </span>
                             )}

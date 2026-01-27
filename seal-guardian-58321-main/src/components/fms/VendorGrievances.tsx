@@ -268,35 +268,44 @@ const VendorGrievances = () => {
     }
 
     return (
-        <div className="space-y-6">
-            <Tabs defaultValue="customer" className="w-full">
-                <TabsList className="bg-muted/50 p-1 rounded-lg mb-6 w-full md:w-auto inline-flex">
-                    <TabsTrigger
-                        value="customer"
-                        className="flex-1 md:flex-none px-6 py-2.5 rounded-md text-sm font-medium data-[state=active]:bg-white data-[state=active]:shadow-sm transition-all flex items-center gap-2"
-                    >
-                        <Users className="h-4 w-4" />
-                        Customer Grievance
-                    </TabsTrigger>
-                    <TabsTrigger
-                        value="my"
-                        className="flex-1 md:flex-none px-6 py-2.5 rounded-md text-sm font-medium data-[state=active]:bg-white data-[state=active]:shadow-sm transition-all flex items-center gap-2"
-                    >
-                        <Building2 className="h-4 w-4" />
-                        My Grievance
-                    </TabsTrigger>
-                </TabsList>
+        <div className="animate-in fade-in duration-700">
+            <Tabs defaultValue="customer" className="w-full space-y-8">
+                <div className="flex flex-col md:flex-row justify-between items-center gap-6 sticky top-5 z-30 bg-white py-4 px-2 -mx-2 rounded-3xl border border-orange-100 shadow-[0_8px_30px_rgba(0,0,0,0.02)]">
+                    <TabsList className="bg-white p-1 rounded-full h-11 w-full md:w-auto grid grid-cols-2 md:inline-flex gap-0.5 shadow-sm border border-orange-100">
+                        <TabsTrigger
+                            value="customer"
+                            className="relative z-10 rounded-full px-8 py-2 text-sm font-bold text-slate-500 data-[state=active]:text-orange-600 data-[state=active]:bg-orange-50/50 data-[state=active]:shadow-sm transition-all duration-500 ease-out whitespace-nowrap flex items-center gap-2"
+                        >
+                            <Users className="h-4 w-4" />
+                            Customer Concerns
+                        </TabsTrigger>
+                        <TabsTrigger
+                            value="my"
+                            className="relative z-10 rounded-full px-8 py-2 text-sm font-bold text-slate-500 data-[state=active]:text-orange-600 data-[state=active]:bg-orange-50/50 data-[state=active]:shadow-sm transition-all duration-500 ease-out whitespace-nowrap flex items-center gap-2"
+                        >
+                            <Building2 className="h-4 w-4" />
+                            My Grievances
+                        </TabsTrigger>
+                    </TabsList>
 
-                {/* Customer Grievance Tab Content */}
-                <TabsContent value="customer" className="mt-0 outline-none">
-
-                    {/* Refresh Button */}
-                    <div className="flex justify-end mb-4">
-                        <Button variant="outline" size="sm" onClick={fetchGrievances}>
-                            <RefreshCw className="h-4 w-4 mr-2" />
+                    <div className="flex items-center gap-3">
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                                fetchGrievances();
+                                fetchMyGrievances();
+                            }}
+                            className="h-11 px-6 rounded-full border-orange-100 text-orange-600 font-bold hover:bg-orange-50 transition-all flex items-center gap-2 shadow-sm"
+                        >
+                            <RefreshCw className={`h-4 w-4 ${loading || loadingMyGrievances ? "animate-spin" : ""}`} />
                             Refresh
                         </Button>
                     </div>
+                </div>
+
+                {/* Customer Grievance Tab Content */}
+                <TabsContent value="customer" className="mt-0 outline-none space-y-4">
 
                     {/* Grievances List */}
                     {grievances.length === 0 ? (
@@ -316,7 +325,7 @@ const VendorGrievances = () => {
                                     <div
                                         key={g.id}
                                         onClick={() => handleOpenDetail(g)}
-                                        className={`group relative flex items-center gap-4 p-4 bg-white hover:bg-accent/5 transition-all rounded-r-xl rounded-l-md border-l-[6px] shadow-sm hover:shadow-md cursor-pointer ${categoryConfig.border}`}
+                                        className={`group relative flex items-center gap-4 p-5 bg-white hover:bg-orange-50/30 transition-all duration-300 rounded-[24px] border border-slate-100 hover:border-orange-200 shadow-sm hover:shadow-xl cursor-pointer active:scale-[0.99] ${categoryConfig.border?.replace('border-', 'border-l-[6px] border-l-')}`}
                                     >
                                         {/* Icon Box */}
                                         <div className={`h-12 w-12 rounded-xl flex items-center justify-center shrink-0 ${categoryConfig.bg} ${categoryConfig.text}`}>
@@ -478,15 +487,14 @@ const VendorGrievances = () => {
                 </TabsContent>
 
                 {/* My Grievance Tab Content */}
-                <TabsContent value="my" className="mt-0 outline-none">
-                    <div className="flex justify-end mb-4 gap-2">
-                        <Button variant="outline" size="sm" onClick={fetchMyGrievances}>
-                            <RefreshCw className="h-4 w-4 mr-2" />
-                            Refresh
-                        </Button>
-                        <Button size="sm" onClick={() => setShowNewGrievanceForm(true)}>
-                            <Plus className="h-4 w-4 mr-2" />
-                            Add New Grievance
+                <TabsContent value="my" className="mt-0 outline-none space-y-6">
+                    <div className="flex justify-end mb-2">
+                        <Button
+                            onClick={() => setShowNewGrievanceForm(true)}
+                            className="h-12 px-8 rounded-2xl bg-orange-600 hover:bg-orange-700 text-white font-black uppercase tracking-widest shadow-xl shadow-orange-600/20 transition-all active:scale-95 flex items-center gap-2"
+                        >
+                            <Plus className="h-5 w-5" />
+                            Raise New Concern
                         </Button>
                     </div>
 
@@ -513,26 +521,27 @@ const VendorGrievances = () => {
                                 return (
                                     <div
                                         key={g.id}
-                                        className={`flex items-center gap-4 p-4 bg-white rounded-r-xl rounded-l-md border-l-[6px] shadow-sm ${categoryConfig.border}`}
+                                        className={`group relative flex items-center gap-4 p-5 bg-white hover:bg-orange-50/30 transition-all duration-300 rounded-[24px] border border-slate-100 hover:border-orange-200 shadow-sm hover:shadow-xl ${categoryConfig.border?.replace('border-', 'border-l-[6px] border-l-')}`}
                                     >
-                                        <div className={`h-12 w-12 rounded-xl flex items-center justify-center shrink-0 ${categoryConfig.bg} ${categoryConfig.text}`}>
-                                            <CategoryIcon className="w-6 h-6" />
+                                        <div className={`h-14 w-14 rounded-2xl flex items-center justify-center shrink-0 shadow-sm transition-transform duration-500 group-hover:scale-110 ${categoryConfig.bg} ${categoryConfig.text}`}>
+                                            <CategoryIcon className="w-7 h-7" />
                                         </div>
 
                                         <div className="flex-1 min-w-0">
-                                            <div className="flex items-center gap-2 mb-1">
-                                                <span className="font-mono text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded">{g.ticket_id}</span>
-                                                <Badge variant="outline" className={`${STATUS_CONFIG[g.status]?.color?.replace('bg-', 'text-')} border-0 bg-transparent font-semibold pl-0`}>
+                                            <div className="flex items-center gap-2 mb-1.5">
+                                                <span className="font-mono text-[10px] font-bold text-slate-400 bg-slate-50 px-2 py-1 rounded-md border border-slate-100">{g.ticket_id}</span>
+                                                <Badge variant="outline" className={`${STATUS_CONFIG[g.status]?.color?.replace('bg-', 'text-')} border-0 bg-transparent font-black tracking-widest text-[10px] uppercase pl-0`}>
                                                     • {STATUS_CONFIG[g.status]?.label}
                                                 </Badge>
-                                                <Badge variant="secondary" className="text-xs">
+                                                <Badge variant="secondary" className="text-[10px] font-black uppercase tracking-widest bg-slate-50 text-slate-400 border-slate-100 shrink-0">
                                                     To: {g.department_display || g.department?.toUpperCase()}
                                                 </Badge>
                                             </div>
-                                            <h3 className="font-semibold text-base truncate">{g.subject}</h3>
-                                            <p className="text-sm text-muted-foreground truncate">
+                                            <h3 className="font-black text-slate-800 text-lg truncate tracking-tight group-hover:text-orange-600 transition-colors">{g.subject}</h3>
+                                            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest truncate opacity-70">
                                                 {CATEGORIES[g.category] || g.category}
-                                                <span className="text-xs opacity-60 ml-2">• {formatToIST(g.created_at)}</span>
+                                                <span className="mx-2 opacity-30">•</span>
+                                                {formatToIST(g.created_at)}
                                             </p>
                                         </div>
                                     </div>
