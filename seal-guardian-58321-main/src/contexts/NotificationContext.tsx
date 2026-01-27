@@ -4,7 +4,7 @@ import { useAuth } from "./AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import api from "@/lib/api";
 
-interface Notification {
+export interface Notification {
     id: number;
     title: string;
     message: string;

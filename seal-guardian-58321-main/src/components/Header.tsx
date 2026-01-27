@@ -6,7 +6,9 @@ import { Users, ClipboardList, Package, Menu, MessageSquareWarning } from "lucid
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { useState } from "react";
 
-const Header = () => {
+import { cn } from "@/lib/utils";
+
+const Header = ({ className }: { className?: string }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const { user } = useAuth();
@@ -126,7 +128,7 @@ const Header = () => {
   );
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b border-border bg-card/80 backdrop-blur-lg">
+    <header className={cn("sticky top-0 z-50 w-full border-b border-border bg-card/80 backdrop-blur-lg", className)}>
       <nav className="container mx-auto flex h-16 items-center justify-between px-4">
         <Link to="/" className="flex items-center space-x-2">
           <img

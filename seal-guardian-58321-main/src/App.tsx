@@ -9,21 +9,21 @@ import Home from "./pages/Home";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import Warranty from "./pages/Warranty";
-import Profile from "./pages/Profile";
 import CustomerDashboard from "./pages/CustomerDashboard";
 import FranchiseDashboard from "./pages/FranchiseDashboard";
 import AdminDashboard from "./pages/AdminDashboard";
 import AdminManagement from "./pages/AdminManagement";
 import AdminProducts from "./pages/AdminProducts";
 import ActivityLogs from "./pages/ActivityLogs";
+import GrievancePage from "./pages/GrievancePage";
+import AdminGrievancesPage from "./pages/AdminGrievancesPage";
+import CustomerLayout from "./components/layouts/CustomerLayout";
 import Terms from "./pages/Terms";
 import NotFound from "./pages/NotFound";
 import CataloguePage from "./pages/CataloguePage";
 import CategoryPage from "./pages/eshop/CategoryPage";
 import ProductPage from "./pages/eshop/ProductPage";
-import GrievancePage from "./pages/GrievancePage";
-import AdminGrievancesPage from "./pages/AdminGrievancesPage";
-import CustomerLayout from "./components/layouts/CustomerLayout";
+import Profile from "./pages/Profile";
 
 const queryClient = new QueryClient();
 
@@ -40,11 +40,10 @@ const App = () => (
               <Route path="/login" element={<Login />} />
               <Route path="/register" element={<Register />} />
               <Route path="/warranty" element={<Warranty />} />
-              <Route path="/profile" element={<Profile />} />
-
               {/* Customer Routes Layout */}
               <Route element={<CustomerLayout />}>
                 <Route path="/dashboard/customer" element={<CustomerDashboard />} />
+                <Route path="/profile" element={<Profile />} />
                 <Route path="/grievance" element={<GrievancePage />} />
                 <Route path="/terms" element={<Terms />} />
               </Route>

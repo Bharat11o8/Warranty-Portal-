@@ -21,6 +21,11 @@ interface WarrantySpecSheetProps {
 export const WarrantySpecSheet = ({ isOpen, onClose, warranty }: WarrantySpecSheetProps) => {
     if (!warranty) return null;
 
+    const toTitleCase = (str: string) => {
+        if (!str) return str;
+        return str.toLowerCase().replace(/\b\w/g, (char) => char.toUpperCase());
+    };
+
     const productDetails = typeof warranty.product_details === 'string'
         ? JSON.parse(warranty.product_details || '{}')
         : warranty.product_details || {};
@@ -31,11 +36,11 @@ export const WarrantySpecSheet = ({ isOpen, onClose, warranty }: WarrantySpecShe
     };
 
     const rawProductName = productDetails.product || productDetails.productName || warranty.product_type;
-    const productName = productNameMapping[rawProductName] || rawProductName;
+    const productName = productNameMapping[rawProductName] || toTitleCase(rawProductName);
 
     // Helper for Data Rows
     const SpecRow = ({ label, value, mono = false }: { label: string, value: string | React.ReactNode, mono?: boolean }) => (
-        <div className="flex justify-between items-center py-3 border-b border-border/50 last:border-0 hover:bg-muted/30 px-2 rounded-sm transition-colors">
+        <div className="flex justify-between items-center py-3 border-b border-orange-100 last:border-0 hover:bg-orange-50/50 px-3 rounded-lg transition-colors">
             <span className="text-sm text-muted-foreground font-medium">{label}</span>
             <span className={cn("text-sm text-foreground text-right", mono && "font-mono tracking-tight")}>{value || "N/A"}</span>
         </div>
@@ -43,21 +48,21 @@ export const WarrantySpecSheet = ({ isOpen, onClose, warranty }: WarrantySpecShe
 
     return (
         <Sheet open={isOpen} onOpenChange={onClose}>
-            <SheetContent side="bottom" className="h-[85vh] rounded-t-[20px] p-0 overflow-hidden flex flex-col bg-background/95 backdrop-blur-xl border-t border-white/10">
+            <SheetContent side="bottom" className="h-[85vh] rounded-t-[24px] p-0 overflow-hidden flex flex-col bg-white border-t border-orange-200">
                 {/* Header Section */}
-                <div className="p-6 pb-4 border-b border-border/40 bg-muted/20">
-                    <div className="w-12 h-1 bg-muted-foreground/20 rounded-full mx-auto mb-6" /> {/* Drag Handle */}
+                <div className="p-6 pb-4 border-b border-orange-100 bg-gradient-to-r from-orange-50 to-white">
+                    <div className="w-12 h-1.5 bg-orange-300 rounded-full mx-auto mb-6" /> {/* Drag Handle */}
                     <SheetHeader className="text-left space-y-1">
                         <div className="flex items-center justify-between">
-                            <Badge variant="outline" className="uppercase tracking-widest text-[10px] py-0.5 px-2 border-primary/20 text-primary/80 bg-primary/5">
+                            <Badge variant="outline" className="uppercase tracking-widest text-[10px] py-0.5 px-2.5 border-orange-200 text-orange-600 bg-orange-50 font-semibold">
                                 Warranty Details
                             </Badge>
                             <Badge variant={warranty.status === 'validated' ? 'default' : 'secondary'} className={cn(
-                                "capitalize shadow-sm",
-                                warranty.status === 'validated' && "bg-green-500/10 text-green-600 hover:bg-green-500/20 border-green-500/20 shadow-green-500/5",
-                                warranty.status === 'pending' && "bg-yellow-500/10 text-yellow-600 hover:bg-yellow-500/20 border-yellow-500/20 shadow-yellow-500/5",
-                                warranty.status === 'pending_vendor' && "bg-blue-500/10 text-blue-600 hover:bg-blue-500/20 border-blue-500/20 shadow-blue-500/5",
-                                warranty.status === 'rejected' && "bg-red-500/10 text-red-600 hover:bg-red-500/20 border-red-500/20 shadow-red-500/5"
+                                "capitalize shadow-sm font-semibold",
+                                warranty.status === 'validated' && "bg-green-100 text-green-700 hover:bg-green-100 border-green-200",
+                                warranty.status === 'pending' && "bg-amber-100 text-amber-700 hover:bg-amber-100 border-amber-200",
+                                warranty.status === 'pending_vendor' && "bg-blue-100 text-blue-700 hover:bg-blue-100 border-blue-200",
+                                warranty.status === 'rejected' && "bg-red-100 text-red-700 hover:bg-red-100 border-red-200"
                             )}>
                                 {warranty.status === 'validated' ? 'Approved' :
                                     warranty.status === 'pending_vendor' ? 'In Review' :
@@ -69,7 +74,7 @@ export const WarrantySpecSheet = ({ isOpen, onClose, warranty }: WarrantySpecShe
                             {productName.replace(/-/g, ' ')}
                         </SheetTitle>
                         <SheetDescription className="text-muted-foreground font-medium">
-                            {warranty.warranty_type} Warranty • {warranty.car_make} {warranty.car_model}
+                            {warranty.warranty_type} Warranty • {toTitleCase(warranty.car_make)} {toTitleCase(warranty.car_model)}
                         </SheetDescription>
                     </SheetHeader>
                 </div>
@@ -79,9 +84,12 @@ export const WarrantySpecSheet = ({ isOpen, onClose, warranty }: WarrantySpecShe
 
                     {/* Product & Car Details */}
                     <div className="space-y-1">
-                        <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-3 pl-1">Vehicle & Product</h4>
-                        <div className="bg-muted/20 rounded-lg p-2 border border-border/40">
-                            <SpecRow label="Make & Model" value={`${warranty.car_make} ${warranty.car_model}`} />
+                        <h4 className="text-xs font-bold text-orange-500 uppercase tracking-widest mb-3 pl-1 flex items-center gap-2">
+                            <div className="w-1 h-4 bg-gradient-to-b from-orange-500 to-orange-400 rounded-full" />
+                            Vehicle & Product
+                        </h4>
+                        <div className="bg-white rounded-xl p-2 border border-orange-100 shadow-sm">
+                            <SpecRow label="Make & Model" value={`${toTitleCase(warranty.car_make)} ${toTitleCase(warranty.car_model)}`} />
                             <SpecRow label="Product Name" value={productName} />
                             <SpecRow label="Warranty Type" value={warranty.warranty_type} />
 
@@ -105,9 +113,12 @@ export const WarrantySpecSheet = ({ isOpen, onClose, warranty }: WarrantySpecShe
 
                     {/* Customer Details */}
                     <div className="space-y-1">
-                        <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-3 pl-1">Customer Details</h4>
-                        <div className="bg-muted/20 rounded-lg p-2 border border-border/40">
-                            <SpecRow label="Customer Name" value={warranty.customer_name || productDetails.customerName || "N/A"} />
+                        <h4 className="text-xs font-bold text-orange-500 uppercase tracking-widest mb-3 pl-1 flex items-center gap-2">
+                            <div className="w-1 h-4 bg-gradient-to-b from-orange-500 to-orange-400 rounded-full" />
+                            Customer Details
+                        </h4>
+                        <div className="bg-white rounded-xl p-2 border border-orange-100 shadow-sm">
+                            <SpecRow label="Customer Name" value={toTitleCase(warranty.customer_name || productDetails.customerName) || "N/A"} />
                             <SpecRow label="Customer Email" value={warranty.customer_email || productDetails.customerEmail || "N/A"} />
                             <SpecRow label="Customer Phone" value={warranty.customer_phone || productDetails.customerPhone || "N/A"} />
                         </div>
@@ -115,8 +126,11 @@ export const WarrantySpecSheet = ({ isOpen, onClose, warranty }: WarrantySpecShe
 
                     {/* Key Dates */}
                     <div className="space-y-1">
-                        <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-3 pl-1">Important Dates</h4>
-                        <div className="bg-muted/20 rounded-lg p-2 border border-border/40">
+                        <h4 className="text-xs font-bold text-orange-500 uppercase tracking-widest mb-3 pl-1 flex items-center gap-2">
+                            <div className="w-1 h-4 bg-gradient-to-b from-orange-500 to-orange-400 rounded-full" />
+                            Important Dates
+                        </h4>
+                        <div className="bg-white rounded-xl p-2 border border-orange-100 shadow-sm">
                             <SpecRow label="Purchase Date" value={formatToIST(warranty.purchase_date)} />
                             <SpecRow label="Registered Date" value={formatToIST(warranty.created_at)} />
                             {warranty.status === 'validated' && (
@@ -141,8 +155,11 @@ export const WarrantySpecSheet = ({ isOpen, onClose, warranty }: WarrantySpecShe
 
                     {/* Store / Installer Info */}
                     <div className="space-y-1">
-                        <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-3 pl-1">Installer Details</h4>
-                        <div className="bg-muted/20 rounded-lg p-2 border border-border/40">
+                        <h4 className="text-xs font-bold text-orange-500 uppercase tracking-widest mb-3 pl-1 flex items-center gap-2">
+                            <div className="w-1 h-4 bg-gradient-to-b from-orange-500 to-orange-400 rounded-full" />
+                            Installer Details
+                        </h4>
+                        <div className="bg-white rounded-xl p-2 border border-orange-100 shadow-sm">
                             <SpecRow label="Store Name" value={productDetails.storeName || warranty.installer_name} />
                             <SpecRow
                                 label="Store Email"
@@ -159,8 +176,11 @@ export const WarrantySpecSheet = ({ isOpen, onClose, warranty }: WarrantySpecShe
                     {/* EV/PPF: Dealer Address */}
                     {warranty.product_type === 'ev-products' && productDetails.dealerAddress && (
                         <div className="space-y-1">
-                            <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-3 pl-1">Dealer Information</h4>
-                            <div className="bg-muted/20 rounded-lg p-3 border border-border/40">
+                            <h4 className="text-xs font-bold text-orange-500 uppercase tracking-widest mb-3 pl-1 flex items-center gap-2">
+                                <div className="w-1 h-4 bg-gradient-to-b from-orange-500 to-orange-400 rounded-full" />
+                                Dealer Information
+                            </h4>
+                            <div className="bg-white rounded-xl p-3 border border-orange-100 shadow-sm">
                                 <p className="text-sm text-foreground">{productDetails.dealerAddress}</p>
                             </div>
                         </div>
@@ -169,7 +189,10 @@ export const WarrantySpecSheet = ({ isOpen, onClose, warranty }: WarrantySpecShe
                     {/* Documents Section - Seat Cover: Invoice */}
                     {warranty.product_type === 'seat-cover' && productDetails.invoiceFileName && (
                         <div className="space-y-1">
-                            <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-3 pl-1">Documentation</h4>
+                            <h4 className="text-xs font-bold text-orange-500 uppercase tracking-widest mb-3 pl-1 flex items-center gap-2">
+                                <div className="w-1 h-4 bg-gradient-to-b from-orange-500 to-orange-400 rounded-full" />
+                                Documentation
+                            </h4>
                             <Button variant="outline" className="w-full justify-between h-12 bg-background/50 hover:bg-blue-50 hover:border-blue-200 border-input/50 transition-colors" onClick={() => {
                                 const url = typeof productDetails.invoiceFileName === 'string' && productDetails.invoiceFileName.startsWith('http')
                                     ? productDetails.invoiceFileName
@@ -188,7 +211,10 @@ export const WarrantySpecSheet = ({ isOpen, onClose, warranty }: WarrantySpecShe
                     {/* Documents Section - EV/PPF: Photo Links */}
                     {warranty.product_type === 'ev-products' && productDetails.photos && (
                         <div className="space-y-1">
-                            <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-3 pl-1">Installation Photos</h4>
+                            <h4 className="text-xs font-bold text-orange-500 uppercase tracking-widest mb-3 pl-1 flex items-center gap-2">
+                                <div className="w-1 h-4 bg-gradient-to-b from-orange-500 to-orange-400 rounded-full" />
+                                Installation Photos
+                            </h4>
                             <div className="grid grid-cols-2 gap-2">
                                 {productDetails.photos.lhs && (
                                     <Button variant="outline" size="sm" className="justify-between h-10 bg-background/50 hover:bg-blue-50 hover:border-blue-200 border-input/50 transition-colors" onClick={() => window.open(productDetails.photos.lhs, '_blank')}>
@@ -246,8 +272,8 @@ export const WarrantySpecSheet = ({ isOpen, onClose, warranty }: WarrantySpecShe
 
                 </div>
                 {/* Footer Area (Close) */}
-                <div className="p-6 border-t border-border/40 bg-background/95 backdrop-blur">
-                    <Button className="w-full h-12 text-base font-medium border-2 hover:bg-muted/50 transition-all" onClick={onClose} variant="outline">Close</Button>
+                <div className="p-6 border-t border-orange-100 bg-gradient-to-r from-orange-50/50 to-white">
+                    <Button className="w-full h-12 text-base font-semibold border-2 border-orange-200 text-orange-600 bg-white hover:bg-orange-50 hover:border-orange-300 transition-all rounded-xl" onClick={onClose} variant="outline">Done</Button>
                 </div>
             </SheetContent>
         </Sheet>

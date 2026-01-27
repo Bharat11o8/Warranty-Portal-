@@ -5,17 +5,21 @@ import { useToast } from "@/hooks/use-toast";
 import api from "@/lib/api";
 import { Loader2, Plus, Download } from "lucide-react";
 import { downloadCSV, cn, formatToIST } from "@/lib/utils";
+import { fetchProducts, Product } from '@/lib/catalogService';
+import { useNotifications } from "@/contexts/NotificationContext";
 
 // Components
 import { DashboardSidebar, FmsModule } from "@/components/fms/DashboardSidebar";
 import { ModuleLayout } from "@/components/fms/ModuleLayout";
 import { StatsOverview } from "@/components/fms/StatsOverview";
+import { FranchiseHome } from "@/components/fms/FranchiseHome";
 import { WarrantyManagement } from "@/components/fms/WarrantyManagement";
 import { StaffManagement } from "@/components/fms/StaffManagement";
 import VendorCatalog from "@/components/eshop/VendorCatalog";
 import { NewsAlerts } from "@/components/fms/NewsAlerts";
 import { ComingSoon } from "@/components/fms/ComingSoon";
 import VendorGrievances from "@/components/fms/VendorGrievances";
+import Profile from "./Profile";
 import { Button } from "@/components/ui/button";
 
 // Existing Components for Modals
@@ -28,12 +32,15 @@ import { Badge } from "@/components/ui/badge";
 const FranchiseDashboard = () => {
     const { user, loading: authLoading } = useAuth();
     const { toast } = useToast();
-    const [activeModule, setActiveModule] = useState<FmsModule>('overview');
+    const { fullHistory } = useNotifications();
+    const [activeModule, setActiveModule] = useState<FmsModule>('home');
+    const [isCollapsed, setIsCollapsed] = useState(false);
 
     // Data States
     const [warranties, setWarranties] = useState<any[]>([]);
     const [manpowerList, setManpowerList] = useState<any[]>([]);
     const [pastManpowerList, setPastManpowerList] = useState<any[]>([]);
+    const [products, setProducts] = useState<Product[]>([]);
     const [loading, setLoading] = useState(true);
     const [warrantyPagination, setWarrantyPagination] = useState({ currentPage: 1, totalPages: 1, totalCount: 0, limit: 30, hasNextPage: false, hasPrevPage: false });
 
@@ -64,11 +71,14 @@ const FranchiseDashboard = () => {
     const fetchAllData = async () => {
         setLoading(true);
         try {
-            const [warrantyRes, manpowerRes, pastManpowerRes] = await Promise.all([
+            const [warrantyRes, manpowerRes, pastManpowerRes, prods] = await Promise.all([
                 api.get('/warranty?limit=100'),
                 api.get('/vendor/manpower?active=true'),
-                api.get('/vendor/manpower?active=false')
+                api.get('/vendor/manpower?active=false'),
+                fetchProducts()
             ]);
+
+            setProducts(prods);
 
             if (warrantyRes.data.success) {
                 setWarranties(warrantyRes.data.warranties);
@@ -212,7 +222,7 @@ const FranchiseDashboard = () => {
     };
 
     if (authLoading) return (
-        <div className="h-screen w-full flex flex-col items-center justify-center bg-background gap-4">
+        <div className="h-screen w-full flex flex-col items-center justify-center bg-white gap-4">
             <Loader2 className="h-10 w-10 text-primary animate-spin" />
             <p className="text-sm font-bold text-muted-foreground uppercase tracking-widest animate-pulse">Initializing FMS...</p>
         </div>
@@ -221,27 +231,49 @@ const FranchiseDashboard = () => {
     if (user.role !== "vendor") return <Navigate to="/" />;
 
     const renderModule = () => {
+        // Pre-calculate data for Home module
+        const homeStats = {
+            total: warranties.length,
+            approved: warranties.filter(w => w.status === 'validated').length,
+            pending: warranties.filter(w => w.status === 'pending_vendor').length,
+            manpower: manpowerList.length
+        };
+
+        const recentActivityData = warranties
+            .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+            .slice(0, 5)
+            .map(w => {
+                const toTitleCase = (str: string) => {
+                    if (!str) return str;
+                    return str.toLowerCase().replace(/\b\w/g, (char) => char.toUpperCase());
+                };
+                return {
+                    time: formatToIST(w.created_at),
+                    action: w.status === 'validated' ? 'Warranty Approved' :
+                        w.status === 'rejected' ? 'Warranty Rejected' : 'New Registration',
+                    sub: `${toTitleCase(w.customer_name)} • ${toTitleCase(w.car_make)}`,
+                    status: w.status === 'validated' ? 'success' :
+                        w.status === 'rejected' ? 'warning' : 'primary'
+                };
+            });
+
+        // New Arrivals: Latest 8 products
+        const newProducts = [...products].sort((a, b) => b.id.localeCompare(a.id)).slice(0, 8);
+
+        // Platform Updates: Latest 3 alert/system/product notifications
+        const latestUpdates = fullHistory
+            .filter(n => n.type === 'alert' || n.type === 'system' || n.type === 'product')
+            .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+            .slice(0, 3);
+
         switch (activeModule) {
-            case 'overview':
-                return <StatsOverview
-                    stats={{
-                        total: warranties.length,
-                        approved: warranties.filter(w => w.status === 'validated').length,
-                        pending: warranties.filter(w => w.status === 'pending_vendor').length,
-                        manpower: manpowerList.length
-                    }}
-                    recentActivity={warranties
-                        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-                        .slice(0, 5)
-                        .map(w => ({
-                            time: formatToIST(w.created_at),
-                            action: w.status === 'validated' ? 'Warranty Approved' :
-                                w.status === 'rejected' ? 'Warranty Rejected' : 'New Registration',
-                            sub: `${w.customer_name} • ${w.car_make}`,
-                            status: w.status === 'validated' ? 'success' :
-                                w.status === 'rejected' ? 'warning' : 'primary'
-                        }))
-                    }
+            case 'home':
+                return <FranchiseHome
+                    stats={homeStats}
+                    recentActivity={recentActivityData}
+                    onNavigate={setActiveModule}
+                    newProducts={newProducts}
+                    latestUpdates={latestUpdates}
                 />;
             case 'warranty':
                 return (
@@ -275,6 +307,8 @@ const FranchiseDashboard = () => {
                 return <NewsAlerts />;
             case 'grievances':
                 return <VendorGrievances />;
+            case 'profile':
+                return <Profile embedded={true} />;
             case 'orders':
             case 'offers':
             case 'audit':
@@ -282,13 +316,19 @@ const FranchiseDashboard = () => {
             case 'posm':
                 return <ComingSoon title={activeModule.charAt(0).toUpperCase() + activeModule.slice(1)} />;
             default:
-                return <StatsOverview stats={{}} />;
+                return <FranchiseHome
+                    stats={homeStats}
+                    recentActivity={recentActivityData}
+                    onNavigate={setActiveModule}
+                    newProducts={newProducts}
+                    latestUpdates={latestUpdates}
+                />;
         }
     };
 
     const getModuleTitle = () => {
         const titles: Record<string, string> = {
-            overview: "Executive Overview",
+            home: "Channel Partner Home",
             warranty: "Warranty Management",
             manpower: "Manpower Control",
             catalogue: "Product Catalogue",
@@ -298,22 +338,32 @@ const FranchiseDashboard = () => {
             offers: "Offers & Schemes",
             audit: "Audit & Compliance",
             targets: "Targets & Achievements",
-            posm: "POSM Requirements"
+            posm: "POSM Requirements",
+            profile: "My Profile"
         };
         return titles[activeModule] || "Dashboard";
     };
 
+    const getModuleActions = () => {
+        // Registration buttons removed per requirements
+        return null;
+    };
+
     return (
-        <div className="flex h-screen bg-background">
+        <div className="flex h-screen bg-[#fffaf5]">
             <DashboardSidebar
                 activeModule={activeModule}
                 onModuleChange={setActiveModule}
+                isCollapsed={isCollapsed}
+                onToggleCollapse={() => setIsCollapsed(!isCollapsed)}
             />
 
-            <div className="flex-1 overflow-hidden relative">
+            <div className="flex-1 flex flex-col overflow-hidden relative">
                 <ModuleLayout
                     title={getModuleTitle()}
-                    description={activeModule === 'overview' ? `Welcome back, ${user.name}` : undefined}
+                    description={activeModule === 'home' ? `Welcome back, ${user.name}` : undefined}
+                    isCollapsed={isCollapsed}
+                    actions={getModuleActions()}
                 >
                     {loading ? (
                         <div className="flex flex-col items-center justify-center h-[400px] gap-4">

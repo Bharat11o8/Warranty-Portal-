@@ -3,16 +3,17 @@ import { formatToIST } from "@/lib/utils";
 
 const Terms = () => {
   return (
-    <div className="min-h-screen bg-gradient-to-b from-background to-muted/30">
-
-      <main className="container mx-auto px-4 py-12">
-        <Card className="max-w-4xl mx-auto">
-          <CardHeader>
-            <CardTitle className="text-3xl">Warranty Terms and Conditions</CardTitle>
+    <div className="relative py-12 px-4 md:px-10">
+      <main className="container mx-auto relative z-10">
+        <Card className="max-w-4xl mx-auto bg-white border border-orange-100 shadow-[0_10px_40px_rgba(0,0,0,0.03)] rounded-[40px] overflow-hidden">
+          <div className="h-2 bg-gradient-to-r from-orange-500 to-orange-600 w-full" />
+          <CardHeader className="pt-10 px-8 md:px-12 text-center">
+            <CardTitle className="text-4xl md:text-5xl font-black text-slate-900 tracking-tighter mb-2">Terms & <span className="text-orange-600">Conditions</span></CardTitle>
+            <p className="text-slate-400 font-bold text-sm uppercase tracking-widest">Effective and enforceable in India</p>
           </CardHeader>
-          <CardContent className="space-y-6">
-            <div className="space-y-3 p-4 bg-amber-50 border-l-4 border-amber-500 rounded">
-              <p className="font-bold text-lg">This Warranty Is Only Valid for Products Purchased from Autoform and being used in India Only.</p>
+          <CardContent className="space-y-8 p-8 md:p-12">
+            <div className="space-y-4 p-8 bg-orange-50 border-l-8 border-orange-500 rounded-3xl">
+              <p className="font-black text-xl text-orange-700 leading-tight">This Warranty Is Only Valid for Products Purchased from Autoform and being used in India Only.</p>
               <p className="font-semibold">The Artificial Leather (PU/PVC) Used for the Fabrication of Products is Manufactured by Autoform.</p>
               <p className="font-semibold">The Warranty Period Will Start From the Date of Purchase and Ends After Two Years.</p>
               <p>For the Purpose of This Limited Warranty, the Date of Purchase Is the Date Indicated on the Original Bill of Sale or Receipted Invoice of the Product.</p>

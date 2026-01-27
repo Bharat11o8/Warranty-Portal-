@@ -33,7 +33,7 @@ const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
         {/* Swinging NEW Tag - Only if no rating (treated as New) or explicitly new */}
         {!product.rating && (
           <div className="hanging-tag">
-            <div className="hanging-tag-body">NEW</div>
+            <div className="hanging-tag-body"></div>
           </div>
         )}
 

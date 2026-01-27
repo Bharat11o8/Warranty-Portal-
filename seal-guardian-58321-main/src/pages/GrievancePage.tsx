@@ -281,29 +281,28 @@ const GrievancePage = () => {
     const selectedCategory = CATEGORIES.find(c => c.value === category);
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 dark:from-slate-900 dark:via-slate-900 dark:to-slate-800">
-            <div className="container mx-auto py-8 px-4 max-w-4xl">
+        <div className="relative py-12 px-4 md:px-10">
+            <div className="container mx-auto max-w-4xl relative z-10">
                 {/* Back Button - Top Left */}
                 {/* Header Section */}
-                <div className="mb-8 text-center">
-                    <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 mb-4 shadow-lg">
-                        <MessageSquare className="h-8 w-8 text-white" />
-                    </div>
-                    <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
-                        Grievance Portal
+                <div className="mb-8 text-center px-4">
+                    <h1 className="text-4xl md:text-6xl font-black text-slate-900 tracking-tighter mb-4">
+                        Support <span className="text-orange-600">Hub</span>
                     </h1>
-                    <p className="text-muted-foreground mt-2">Submit and track your complaints</p>
+                    <p className="text-slate-500 text-lg font-bold max-w-2xl mx-auto">
+                        Need assistance? Raise a ticket and our team will get back to you.
+                    </p>
                 </div>
 
                 <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-                    <TabsList className="grid w-full grid-cols-2 max-w-md mx-auto bg-white/50 dark:bg-slate-800/50 backdrop-blur-sm border shadow-sm">
-                        <TabsTrigger value="list" className="data-[state=active]:bg-white dark:data-[state=active]:bg-slate-700 data-[state=active]:shadow-sm">
+                    <TabsList className="grid w-full grid-cols-2 max-w-md mx-auto bg-white border border-orange-100 shadow-sm rounded-2xl overflow-hidden h-14 p-1">
+                        <TabsTrigger value="list" className="rounded-xl data-[state=active]:bg-orange-600 data-[state=active]:text-white text-slate-400 font-bold transition-all duration-300">
                             <RefreshCw className="h-4 w-4 mr-2" />
-                            My Grievances
+                            My Tickets
                         </TabsTrigger>
-                        <TabsTrigger value="new" className="data-[state=active]:bg-white dark:data-[state=active]:bg-slate-700 data-[state=active]:shadow-sm">
+                        <TabsTrigger value="new" className="rounded-xl data-[state=active]:bg-orange-600 data-[state=active]:text-white text-slate-400 font-bold transition-all duration-300">
                             <Send className="h-4 w-4 mr-2" />
-                            Submit New
+                            Raise Ticket
                         </TabsTrigger>
                     </TabsList>
 
@@ -317,13 +316,31 @@ const GrievancePage = () => {
                         </div>
 
                         {loading ? (
-                            <div className="flex justify-center py-12">
-                                <Loader2 className="h-8 w-8 animate-spin" />
+                            <div className="space-y-4">
+                                {[1, 2, 3].map((i) => (
+                                    <div key={i} className="bg-white rounded-xl border border-slate-100 overflow-hidden">
+                                        <div className="p-6 space-y-4">
+                                            <div className="flex justify-between items-start">
+                                                <div className="space-y-2">
+                                                    <div className="h-5 w-48 bg-slate-200 rounded animate-pulse" />
+                                                    <div className="h-3 w-32 bg-slate-100 rounded animate-pulse" />
+                                                </div>
+                                                <div className="flex gap-2">
+                                                    <div className="h-6 w-20 bg-slate-100 rounded-full animate-pulse" />
+                                                </div>
+                                            </div>
+                                            <div className="h-3 w-40 bg-slate-100 rounded animate-pulse" />
+                                            <div className="h-4 w-full bg-slate-50 rounded animate-pulse" />
+                                            <div className="h-4 w-3/4 bg-slate-50 rounded animate-pulse" />
+                                        </div>
+                                    </div>
+                                ))}
                             </div>
                         ) : grievances.length === 0 ? (
-                            <Card>
-                                <CardContent className="py-12 text-center">
-                                    <p className="text-muted-foreground">No grievances submitted yet</p>
+                            <Card className="glass-morphism border-none">
+                                <CardContent className="py-20 text-center">
+                                    <MessageSquare className="h-16 w-16 text-slate-600 mx-auto mb-4 opacity-50" />
+                                    <p className="text-slate-400 text-lg">No active tickets found</p>
                                     <Button className="mt-4" onClick={() => setActiveTab("new")}>
                                         Submit Your First Grievance
                                     </Button>

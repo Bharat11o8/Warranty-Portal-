@@ -1,54 +1,56 @@
 import { ReactNode } from "react";
-import { Search, HelpCircle } from "lucide-react";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { NotificationPopover } from "./NotificationPopover";
+import { HelpPopover } from "./HelpPopover";
 
 interface ModuleLayoutProps {
     title: string;
     description?: string;
     children: ReactNode;
     actions?: ReactNode;
+    isCollapsed?: boolean;
 }
 
-export const ModuleLayout = ({ title, description, children, actions }: ModuleLayoutProps) => {
+export const ModuleLayout = ({ title, description, children, actions, isCollapsed }: ModuleLayoutProps) => {
     return (
-        <div className="flex flex-col h-full">
-            {/* Module Header */}
-            <header className="sticky top-0 z-20 bg-background/80 backdrop-blur-md border-b px-8 py-4 flex items-center justify-between">
-                <div>
-                    <h2 className="text-2xl font-bold tracking-tight text-foreground">{title}</h2>
-                    {description && <p className="text-sm text-muted-foreground mt-0.5 font-medium">{description}</p>}
-                </div>
-
-                <div className="flex items-center gap-4">
-                    <div className="relative hidden md:block">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                        <Input
-                            placeholder="Universal search..."
-                            className="pl-9 w-64 bg-muted/50 border-0 focus-visible:ring-primary/20 rounded-full h-9"
-                        />
-                    </div>
-
-                    <div className="flex items-center gap-1 border-l pl-4 ml-2">
-                        <NotificationPopover />
-                        <Button variant="ghost" size="icon" className="rounded-full h-9 w-9 text-muted-foreground hover:text-primary">
-                            <HelpCircle className="h-4 w-4" />
-                        </Button>
-                    </div>
-
-                    {actions && (
-                        <div className="border-l pl-4 hidden sm:block">
-                            {actions}
+        <div className="flex-1 min-h-0 flex flex-col min-w-0 relative bg-[#fffaf5]">
+            <main
+                className={cn(
+                    "flex-1 min-h-0 bg-white border border-orange-100 rounded-[40px] shadow-[0_15px_50px_rgba(0,0,0,0.03)] relative mr-4 md:mr-6 my-4 md:my-6 ml-3 flex flex-col overflow-hidden"
+                )}
+            >
+                <div className="flex-1 w-full h-full overflow-y-auto custom-scrollbar flex flex-col">
+                    {/* Branding Header Area - Exactly like Customer Side */}
+                    <div className="px-8 md:px-10 pt-10 flex flex-col md:flex-row md:items-start justify-between gap-6 shrink-0">
+                        <div className="flex flex-col gap-4">
+                            <h1 className="font-black tracking-tight leading-none" style={{ fontSize: '3rem' }}>
+                                <span className="bg-gradient-to-r from-slate-800 to-slate-900 bg-clip-text text-transparent uppercase">Partner</span>
+                                <span className="bg-gradient-to-r from-orange-500 to-orange-600 bg-clip-text text-transparent ml-3 uppercase">Portal</span>
+                            </h1>
+                            <div className="flex gap-3 items-center">
+                                <div className="h-1.5 w-12 bg-black rounded-full" />
+                                <p className="text-xs font-black text-slate-500 tracking-[0.2em] uppercase opacity-70">
+                                    {title} • {description || "Management Suite"}
+                                </p>
+                                <div className="h-1.5 w-12 bg-gradient-to-r from-orange-500 to-orange-600 rounded-full" />
+                            </div>
                         </div>
-                    )}
-                </div>
-            </header>
 
-            {/* Module Content */}
-            <main className="flex-1 overflow-y-auto p-8 bg-muted/10">
-                <div className="max-w-[1400px] mx-auto animate-in fade-in slide-in-from-bottom-2 duration-500">
-                    {children}
+                        <div className="flex items-center gap-4">
+                            {actions}
+                            <div className="h-12 border-l border-slate-100 pl-4 flex items-center gap-2">
+                                <NotificationPopover />
+                                <HelpPopover />
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Module Content Area */}
+                    <div className="flex-1 p-8 md:p-10 pt-12 md:pt-14">
+                        <div className="max-w-[1500px] mx-auto animate-in fade-in slide-in-from-bottom-2 duration-700">
+                            {children}
+                        </div>
+                    </div>
                 </div>
             </main>
         </div>

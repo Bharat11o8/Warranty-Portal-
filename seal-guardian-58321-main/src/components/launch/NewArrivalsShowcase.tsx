@@ -54,9 +54,9 @@ const NewArrivalsShowcase: React.FC<NewArrivalsShowcaseProps> = ({
                                 className="group block h-full"
                             >
                                 <div className="glass-card-premium h-full flex flex-col rounded-3xl overflow-visible relative">
-                                    {/* Hanging NEW Tag */}
+                                    {/* Swinging NEW Tag */}
                                     <div className="hanging-tag">
-                                        <div className="hanging-tag-body">NEW</div>
+                                        <div className="hanging-tag-body"></div>
                                     </div>
 
                                     {/* Product Image - White background friendly */}

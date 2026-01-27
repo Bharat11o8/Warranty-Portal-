@@ -19,79 +19,117 @@ interface StatCardProps {
     change?: string;
     trend?: 'up' | 'down';
     icon: any;
-    color: string;
+    color?: string;
     description?: string;
 }
 
-const StatCard = ({ title, value, change, trend, icon: Icon, color, description }: StatCardProps) => (
-    <Card className="overflow-hidden hover:shadow-2xl transition-all duration-500 group border-border/40 shadow-sm bg-card/60 backdrop-blur-sm relative">
-        <CardContent className="p-6">
-            <div className="flex justify-between items-start">
-                <div className={cn("p-3 rounded-2xl border-0 shadow-lg ring-4 ring-white/10", color)}>
-                    <Icon className="h-6 w-6 text-white" />
+const StatCard = ({ title, value, change, trend, icon: Icon, color, description, type }: StatCardProps & { type?: 'red' | 'blue' | 'purple' | 'slate' }) => {
+    const isRed = type === 'red';
+    const isBlue = type === 'blue';
+    const isPurple = type === 'purple';
+
+    return (
+        <div className={cn(
+            "relative group flex items-center gap-6 p-6 md:p-8 min-h-[160px] rounded-[32px] border transition-all duration-500 hover:shadow-2xl overflow-hidden",
+            isRed ? "border-red-50 bg-gradient-to-br from-red-50/50 to-white hover:shadow-red-500/5 shadow-sm" :
+                isBlue ? "border-blue-100 bg-gradient-to-r from-white via-white to-blue-50/30 hover:shadow-blue-500/10" :
+                    isPurple ? "border-purple-100 bg-gradient-to-r from-white via-white to-purple-50/30 hover:shadow-purple-500/10" :
+                        "border-slate-100 bg-gradient-to-r from-white via-white to-slate-50/30 hover:shadow-slate-500/10"
+        )}>
+            {/* Background Decorations */}
+            <div className={cn(
+                "absolute top-0 right-0 w-40 h-40 rounded-full blur-2xl -mr-16 -mt-16 group-hover:scale-125 transition-transform duration-700",
+                isRed ? "bg-red-100/40" : isBlue ? "bg-blue-100/40" : isPurple ? "bg-purple-100/40" : "bg-slate-100/40"
+            )} />
+
+            {/* Icon Container */}
+            <div className="relative shrink-0">
+                <div className={cn(
+                    "w-20 h-20 md:w-24 md:h-24 rounded-3xl border flex items-center justify-center shadow-lg transition-all duration-500 group-hover:scale-105",
+                    isRed ? "bg-red-50 border-red-100 shadow-none text-red-500" :
+                        isBlue ? "bg-blue-50 border-blue-200/60 shadow-blue-500/10" :
+                            isPurple ? "bg-purple-50 border-purple-200/60 shadow-purple-500/10" :
+                                "bg-slate-50 border-slate-200/60 shadow-slate-500/10"
+                )}>
+                    <Icon className={cn(
+                        "h-8 w-8 md:h-10 md:w-10 transition-transform duration-500 group-hover:scale-110",
+                        isRed ? "text-red-500" : isBlue ? "text-blue-500" : isPurple ? "text-purple-500" : "text-slate-500"
+                    )} />
                 </div>
                 {change && (
                     <div className={cn(
-                        "flex items-center gap-1 text-[10px] font-black px-2.5 py-1 rounded-full uppercase tracking-tighter",
-                        trend === 'up' ? "bg-green-500/10 text-green-600 ring-1 ring-green-500/20" : "bg-red-500/10 text-red-600 ring-1 ring-red-500/20"
+                        "absolute -top-2 -right-2 px-2.5 py-1 text-[9px] font-black uppercase tracking-wider rounded-full shadow-lg",
+                        trend === 'up' ? "bg-green-500 text-white shadow-green-500/30" : "bg-red-500 text-white shadow-red-500/30"
                     )}>
-                        {trend === 'up' ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
                         {change}
                     </div>
                 )}
             </div>
-            <div className="mt-5">
-                <h3 className="text-3xl font-black tracking-tighter text-foreground">{value}</h3>
-                <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-[0.15em] mt-1">{title}</p>
-                {description && <p className="text-[10px] text-muted-foreground/60 mt-2 font-medium line-clamp-1">{description}</p>}
+
+            {/* Content */}
+            <div className="flex-1 text-left relative z-10">
+                <div className="flex items-center gap-3 mb-3">
+                    {/* Red Vertical Bar for Red Card */}
+                    {isRed && <div className="h-8 w-1 bg-red-500 rounded-full" />}
+
+                    {!isRed && (
+                        <div className={cn(
+                            "w-1 h-6 rounded-full",
+                            isBlue ? "bg-blue-500" : isPurple ? "bg-purple-500" : "bg-slate-500"
+                        )} />
+                    )}
+                    <span className={cn(
+                        "text-[10px] font-bold uppercase tracking-[0.2em] leading-tight",
+                        isRed ? "text-red-500" : isBlue ? "text-blue-500" : isPurple ? "text-purple-500" : "text-slate-500"
+                    )}>{title}</span>
+                </div>
+                <h3 className="text-3xl font-black text-slate-900 tracking-tighter leading-none mb-2">{value}</h3>
+                <p className="text-xs text-slate-500 font-medium leading-tight">{description}</p>
             </div>
-            <div className="absolute -right-6 -bottom-6 opacity-5 group-hover:scale-110 group-hover:opacity-10 transition-all duration-700">
-                <Icon className="h-28 w-28" />
-            </div>
-        </CardContent>
-    </Card>
-);
+        </div>
+    );
+};
 
 const cn = (...classes: string[]) => classes.filter(Boolean).join(' ');
 
 export const StatsOverview = ({ stats, recentActivity = [] }: { stats: any, recentActivity?: any[] }) => {
     return (
-        <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
+        <div className="space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-700">
             {/* Primary Stats Grid */}
-            <div className="grid gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="grid gap-6 grid-cols-1 lg:grid-cols-2 xl:grid-cols-4">
                 <StatCard
-                    title="Total Registrations"
+                    title="Total Entries"
                     value={stats.total || "0"}
                     change="+14%"
                     trend="up"
                     icon={Activity}
-                    color="bg-slate-800 shadow-slate-800/20"
-                    description="Lifetime warranty applications"
+                    type="slate"
+                    description="Lifetime warranty applications under your portal"
                 />
                 <StatCard
-                    title="Verified Work"
+                    title="Verified Done"
                     value={stats.approved || "0"}
                     change="+8%"
                     trend="up"
                     icon={ShieldCheck}
-                    color="bg-green-600 shadow-green-600/20"
-                    description="Approved by head office"
+                    type="red"
+                    description="Warranties approved and secured for longevity"
                 />
                 <StatCard
-                    title="Awaiting Action"
+                    title="Action Needed"
                     value={stats.pending || "0"}
                     icon={Clock}
-                    color="bg-blue-600 shadow-blue-600/20"
-                    description="Requires your verification"
+                    type="blue"
+                    description="Awaiting your professional verification"
                 />
                 <StatCard
-                    title="Field Experts"
+                    title="Field Fleet"
                     value={stats.manpower || "0"}
                     change="+1"
                     trend="up"
                     icon={Users}
-                    color="bg-purple-600 shadow-purple-600/20"
-                    description="Active trained applicators"
+                    type="purple"
+                    description="Active trained applicators in your team"
                 />
             </div>
 
