@@ -20,8 +20,11 @@ const ProductActions: React.FC<ProductActionsProps> = ({ productId, productName,
 
   return (
     <div className="space-y-4">
-      <Button variant="outline" className="w-full" onClick={handleWhatsAppShare}>
-        <Share2 className="mr-2 h-4 w-4" />
+      <Button
+        className="w-full h-12 bg-brand-orange hover:bg-brand-orange/90 text-white font-black uppercase tracking-widest text-xs rounded-xl shadow-lg shadow-brand-orange/20 transition-all duration-300 hover:scale-[1.02] active:scale-[0.98]"
+        onClick={handleWhatsAppShare}
+      >
+        <Share2 className="mr-2 h-5 w-5" />
         Share on WhatsApp
       </Button>
     </div>

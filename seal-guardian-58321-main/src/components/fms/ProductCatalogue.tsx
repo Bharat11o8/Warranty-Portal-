@@ -6,6 +6,7 @@ import api from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import { ProductCard } from "../catalog/ProductCard";
 import { CategoryCard } from "../catalog/CategoryCard";
+import { Pagination } from "./Pagination";
 
 interface Category {
     id: string;
@@ -32,6 +33,8 @@ export const ProductCatalogue = () => {
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState("");
     const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+    const [currentPage, setCurrentPage] = useState(1);
+    const [rowsPerPage, setRowsPerPage] = useState(12); // Grid of 4
 
     const fetchData = async () => {
         setLoading(true);
@@ -60,6 +63,11 @@ export const ProductCatalogue = () => {
         fetchData();
     }, []);
 
+    // Reset to page 1 when category or search changes
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [selectedCategory, searchTerm]);
+
     const filteredProducts = products.filter(product => {
         const matchesSearch = product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
             (product.description?.short && product.description.short.toLowerCase().includes(searchTerm.toLowerCase()));
@@ -67,6 +75,9 @@ export const ProductCatalogue = () => {
         if (searchTerm && matchesSearch && matchesCategory) console.log("Product matches:", product.name);
         return matchesSearch && matchesCategory;
     });
+
+    const paginatedProducts = filteredProducts.slice((currentPage - 1) * rowsPerPage, currentPage * rowsPerPage);
+    const totalPages = Math.ceil(filteredProducts.length / rowsPerPage);
 
     console.log("Rendering filteredProducts count:", filteredProducts.length);
 
@@ -160,13 +171,28 @@ export const ProductCatalogue = () => {
                     </div>
                 ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                        {filteredProducts.map(product => (
+                        {paginatedProducts.map(product => (
                             <ProductCard
                                 key={product.id}
                                 product={product}
                                 categoryName={categories.find(c => c.id === product.category_id)?.name}
                             />
                         ))}
+                    </div>
+                )}
+
+                {totalPages > 0 && (
+                    <div className="mt-12 flex justify-end pb-8 border-t border-slate-50 pt-12">
+                        <Pagination
+                            currentPage={currentPage}
+                            totalPages={totalPages}
+                            onPageChange={setCurrentPage}
+                            rowsPerPage={rowsPerPage}
+                            onRowsPerPageChange={(rows) => {
+                                setRowsPerPage(rows);
+                                setCurrentPage(1);
+                            }}
+                        />
                     </div>
                 )}
             </div>

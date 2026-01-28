@@ -10,11 +10,26 @@ export class NotificationController {
             const includeCleared = req.query.includeCleared === 'true';
             if (!userId) return res.status(401).json({ error: 'Unauthorized' });
 
-            const query = includeCleared
-                ? 'SELECT * FROM notifications WHERE user_id = ? ORDER BY created_at DESC LIMIT 50'
-                : 'SELECT * FROM notifications WHERE user_id = ? AND is_cleared = FALSE ORDER BY created_at DESC LIMIT 50';
+            // Pagination parameters
+            const page = parseInt(req.query.page as string) || 1;
+            const limit = parseInt(req.query.limit as string) || 30;
+            const offset = (page - 1) * limit;
 
-            const [notifications]: any = await db.execute(query, [userId]);
+            // Base WHERE clause
+            const whereClause = includeCleared
+                ? 'WHERE user_id = ?'
+                : 'WHERE user_id = ? AND is_cleared = FALSE';
+
+            // Get total count
+            const [countResult]: any = await db.execute(
+                `SELECT COUNT(*) as total FROM notifications ${whereClause}`,
+                [userId]
+            );
+            const totalCount = countResult[0].total;
+            const totalPages = Math.ceil(totalCount / limit);
+
+            const query = `SELECT * FROM notifications ${whereClause} ORDER BY created_at DESC LIMIT ? OFFSET ?`;
+            const [notifications]: any = await db.execute(query, [userId, limit, offset]);
 
             // Parse metadata for each notification
             const parsedNotifications = notifications.map((n: any) => ({
@@ -22,7 +37,18 @@ export class NotificationController {
                 metadata: n.metadata ? (typeof n.metadata === 'string' ? JSON.parse(n.metadata) : n.metadata) : null
             }));
 
-            res.json({ success: true, notifications: parsedNotifications });
+            res.json({
+                success: true,
+                notifications: parsedNotifications,
+                pagination: {
+                    currentPage: page,
+                    totalPages,
+                    totalCount,
+                    limit,
+                    hasNextPage: page < totalPages,
+                    hasPrevPage: page > 1
+                }
+            });
         } catch (error) {
             console.error('Fetch notifications error:', error);
             res.status(500).json({ error: 'Internal server error' });

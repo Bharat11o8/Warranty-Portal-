@@ -335,6 +335,19 @@ class GrievanceController {
                 return res.status(401).json({ success: false, error: 'Unauthorized' });
             }
 
+            // Pagination parameters
+            const page = parseInt(req.query.page as string) || 1;
+            const limit = parseInt(req.query.limit as string) || 30;
+            const offset = (page - 1) * limit;
+
+            // Get total count
+            const [countResult]: any = await db.execute(
+                'SELECT COUNT(*) as total FROM grievances WHERE customer_id = ? AND source_type = "franchise"',
+                [userId]
+            );
+            const totalCount = countResult[0].total;
+            const totalPages = Math.ceil(totalCount / limit);
+
             const [grievances] = await db.execute(
                 `SELECT g.*, 
                     CASE 
@@ -345,11 +358,23 @@ class GrievanceController {
                     END as department_display
                 FROM grievances g
                 WHERE g.customer_id = ? AND g.source_type = 'franchise'
-                ORDER BY g.created_at DESC`,
-                [userId]
+                ORDER BY g.created_at DESC
+                LIMIT ? OFFSET ?`,
+                [userId, limit, offset]
             );
 
-            return res.json({ success: true, data: grievances });
+            return res.json({
+                success: true,
+                data: grievances,
+                pagination: {
+                    currentPage: page,
+                    totalPages,
+                    totalCount,
+                    limit,
+                    hasNextPage: page < totalPages,
+                    hasPrevPage: page > 1
+                }
+            });
 
         } catch (error: any) {
             console.error('Get franchise submitted grievances error:', error);
@@ -383,22 +408,48 @@ class GrievanceController {
 
             const franchiseId = vendorRows[0].id;
 
+            // Pagination parameters
+            const page = parseInt(req.query.page as string) || 1;
+            const limit = parseInt(req.query.limit as string) || 30;
+            const offset = (page - 1) * limit;
+
+            // Get total count
+            const [countResult]: any = await db.execute(
+                'SELECT COUNT(*) as total FROM grievances WHERE franchise_id = ?',
+                [franchiseId]
+            );
+            const totalCount = countResult[0].total;
+            const totalPages = Math.ceil(totalCount / limit);
+
             const [grievances] = await db.execute(
                 `SELECT g.*, p.name as customer_name, p.email as customer_email, p.phone_number as customer_phone
          FROM grievances g
          LEFT JOIN profiles p ON g.customer_id = p.id
          WHERE g.franchise_id = ?
-         ORDER BY g.created_at DESC`,
-                [franchiseId]
+         ORDER BY g.created_at DESC
+         LIMIT ? OFFSET ?`,
+                [franchiseId, limit, offset]
             );
 
             // Sanitization: Remove admin_notes
             const sanitizedGrievances = (grievances as any[]).map(g => {
                 const { admin_notes, ...rest } = g;
+                rest.attachments = typeof g.attachments === 'string' ? JSON.parse(g.attachments) : g.attachments;
                 return rest;
             });
 
-            return res.json({ success: true, data: sanitizedGrievances });
+            return res.json({
+                success: true,
+                data: sanitizedGrievances,
+                pagination: {
+                    currentPage: page,
+                    totalPages,
+                    totalCount,
+                    limit,
+                    hasNextPage: page < totalPages,
+                    hasPrevPage: page > 1
+                }
+            });
 
         } catch (error: any) {
             console.error('Get vendor grievances error:', error);

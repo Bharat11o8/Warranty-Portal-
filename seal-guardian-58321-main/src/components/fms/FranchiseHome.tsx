@@ -98,14 +98,25 @@ const BANNERS = [
 
 export const FranchiseHome = ({ stats, recentActivity = [], onNavigate, newProducts = [], latestUpdates = [] }: FranchiseHomeProps) => {
     const [currentBanner, setCurrentBanner] = useState(0);
+    const [currentProductIndex, setCurrentProductIndex] = useState(0);
 
-    // Auto-play carousel
+    // Auto-play carousels
     useEffect(() => {
-        const timer = setInterval(() => {
+        const bannerTimer = setInterval(() => {
             setCurrentBanner((prev) => (prev + 1) % BANNERS.length);
         }, 6000);
-        return () => clearInterval(timer);
-    }, []);
+
+        const productTimer = setInterval(() => {
+            if (newProducts.length > 0) {
+                setCurrentProductIndex((prev) => (prev + 1) % newProducts.length);
+            }
+        }, 2000);
+
+        return () => {
+            clearInterval(bannerTimer);
+            clearInterval(productTimer);
+        };
+    }, [newProducts.length]);
 
     const nextBanner = () => setCurrentBanner((prev) => (prev + 1) % BANNERS.length);
     const prevBanner = () => setCurrentBanner((prev) => (prev - 1 + BANNERS.length) % BANNERS.length);
@@ -125,7 +136,7 @@ export const FranchiseHome = ({ stats, recentActivity = [], onNavigate, newProdu
                     <div
                         key={banner.id}
                         className={cn(
-                            "absolute inset-0 transition-all duration-1000 ease-in-out flex flex-col md:flex-row items-center px-10 py-20 md:py-24 gap-12",
+                            "absolute inset-0 transition-all duration-1000 ease-in-out flex flex-col md:flex-row items-center px-6 md:px-10 py-10 md:py-24 gap-8 md:gap-12",
                             index === currentBanner ? "opacity-100 translate-x-0 z-10" : "opacity-0 translate-x-20 z-0 pointer-events-none"
                         )}
                     >
@@ -149,7 +160,7 @@ export const FranchiseHome = ({ stats, recentActivity = [], onNavigate, newProdu
                             </div>
 
                             <h1 className={cn(
-                                "text-5xl md:text-7xl font-black text-slate-900 tracking-tighter leading-[0.9] transition-all duration-700 delay-500",
+                                "text-4xl sm:text-5xl md:text-7xl font-black text-slate-900 tracking-tighter leading-[0.9] transition-all duration-700 delay-500",
                                 index === currentBanner ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"
                             )}>
                                 {banner.title.split('.').map((part, i) => (
@@ -161,40 +172,40 @@ export const FranchiseHome = ({ stats, recentActivity = [], onNavigate, newProdu
                             </h1>
 
                             <p className={cn(
-                                "text-lg text-slate-500 font-medium max-w-xl leading-relaxed transition-all duration-700 delay-700",
+                                "text-sm md:text-lg text-slate-500 font-medium max-w-xl leading-relaxed transition-all duration-700 delay-700",
                                 index === currentBanner ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"
                             )}>
                                 {banner.description}
                             </p>
 
                             <div className={cn(
-                                "flex flex-wrap items-center justify-center md:justify-start gap-4 pt-4 transition-all duration-700 delay-[900ms]",
+                                "flex flex-col items-stretch md:flex-row md:items-center justify-center md:justify-start gap-3 pt-4 transition-all duration-700 delay-[900ms] w-full max-w-[300px] mx-auto md:mx-0 md:max-w-none",
                                 index === currentBanner ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"
                             )}>
                                 <Button
                                     onClick={() => onNavigate('catalogue')}
                                     className={cn(
-                                        "h-14 px-8 rounded-2xl text-white font-black uppercase tracking-widest shadow-xl group transition-all duration-300",
+                                        "h-11 md:h-14 px-5 md:px-8 rounded-2xl text-white font-black uppercase tracking-widest shadow-xl group transition-all duration-300 text-[10px] md:text-xs w-full md:w-auto",
                                         banner.accent === 'orange' ? "bg-orange-600 hover:bg-orange-700 shadow-orange-600/20" :
                                             banner.accent === 'blue' ? "bg-blue-600 hover:bg-blue-700 shadow-blue-600/20" :
                                                 "bg-purple-600 hover:bg-purple-700 shadow-purple-600/20"
                                     )}
                                 >
-                                    {banner.cta}
-                                    <ChevronRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />
+                                    <span className="flex-1 text-center md:flex-none">{banner.cta}</span>
+                                    <ChevronRight className="ml-2 h-4 w-4 md:h-5 md:w-5 group-hover:translate-x-1 transition-transform" />
                                 </Button>
-                                <Button variant="outline" className="h-14 px-8 rounded-2xl border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-black uppercase tracking-widest shadow-sm">
-                                    Watch Tutorial
-                                    <Play className="ml-2 h-4 w-4 fill-slate-700" />
+                                <Button variant="outline" className="h-11 md:h-14 px-5 md:px-8 rounded-2xl border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-black uppercase tracking-widest shadow-sm text-[10px] md:text-xs w-full md:w-auto">
+                                    <span className="flex-1 text-center md:flex-none">Watch Tutorial</span>
+                                    <Play className="ml-2 h-3 w-3 md:h-4 md:w-4 fill-slate-700" />
                                 </Button>
                             </div>
                         </div>
 
                         <div className={cn(
-                            "flex-1 relative transition-all duration-1000 delay-500",
+                            "flex-1 relative transition-all duration-1000 delay-500 w-full md:w-auto",
                             index === currentBanner ? "opacity-100 scale-100" : "opacity-0 scale-90"
                         )}>
-                            <div className="relative w-full aspect-square md:aspect-video rounded-[32px] overflow-hidden border border-slate-100 shadow-2xl group/img bg-slate-50">
+                            <div className="relative w-full aspect-[4/3] md:aspect-video rounded-[24px] md:rounded-[32px] overflow-hidden border border-slate-100 shadow-2xl group/img bg-slate-50">
                                 <img
                                     src={banner.image}
                                     alt={banner.title}
@@ -202,17 +213,17 @@ export const FranchiseHome = ({ stats, recentActivity = [], onNavigate, newProdu
                                 />
                                 <div className="absolute inset-0 bg-gradient-to-t from-white/80 via-transparent to-transparent" />
 
-                                <div className="absolute bottom-6 left-6 p-4 rounded-2xl bg-white/80 backdrop-blur-xl border border-white flex items-center gap-4 shadow-xl">
+                                <div className="absolute bottom-4 md:bottom-6 left-4 md:left-6 p-3 md:p-4 rounded-xl md:rounded-2xl bg-white/80 backdrop-blur-xl border border-white flex items-center gap-3 md:gap-4 shadow-xl">
                                     <div className={cn(
-                                        "h-12 w-12 rounded-xl flex items-center justify-center text-white shadow-lg",
+                                        "h-10 w-10 md:h-12 md:w-12 rounded-lg md:rounded-xl flex items-center justify-center text-white shadow-lg",
                                         banner.accent === 'orange' ? "bg-orange-500" :
                                             banner.accent === 'blue' ? "bg-blue-500" : "bg-purple-500"
                                     )}>
-                                        <Star className="h-6 w-6 fill-white" />
+                                        <Star className="h-5 w-5 md:h-6 md:w-6 fill-white" />
                                     </div>
                                     <div>
-                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Premium Selection</p>
-                                        <p className="text-sm font-black text-slate-900 uppercase tracking-tight">Luxury Collections</p>
+                                        <p className="text-[8px] md:text-[10px] font-black text-slate-400 uppercase tracking-widest">Premium Selection</p>
+                                        <p className="text-xs md:text-sm font-black text-slate-900 uppercase tracking-tight">Luxury Collections</p>
                                     </div>
                                 </div>
                             </div>
@@ -220,9 +231,9 @@ export const FranchiseHome = ({ stats, recentActivity = [], onNavigate, newProdu
                     </div>
                 ))}
 
-                {/* Carousel Controls - Repositioned to bottom-right */}
-                <div className="absolute bottom-10 right-10 md:right-20 z-20 flex items-center gap-6">
-                    <div className="flex gap-2">
+                {/* Carousel Controls - Repositioned for mobile */}
+                <div className="absolute bottom-8 right-6 md:right-20 z-20 flex items-center gap-4 md:gap-6">
+                    <div className="hidden sm:flex gap-2">
                         {BANNERS.map((_, i) => (
                             <button
                                 key={i}
@@ -239,24 +250,24 @@ export const FranchiseHome = ({ stats, recentActivity = [], onNavigate, newProdu
                             variant="outline"
                             size="icon"
                             onClick={prevBanner}
-                            className="h-10 w-10 rounded-xl border-slate-200 bg-white hover:bg-slate-50 text-slate-600 shadow-sm"
+                            className="h-8 w-8 md:h-9 md:w-9 rounded-full border-white/40 bg-white/40 backdrop-blur-md hover:bg-white/60 text-slate-800 shadow-lg transition-all active:scale-95"
                         >
-                            <ChevronLeft className="h-5 w-5" />
+                            <ChevronLeft className="h-4 w-4 md:h-5 md:w-5" />
                         </Button>
                         <Button
                             variant="outline"
                             size="icon"
                             onClick={nextBanner}
-                            className="h-10 w-10 rounded-xl border-slate-200 bg-white hover:bg-slate-50 text-slate-600 shadow-sm"
+                            className="h-8 w-8 md:h-9 md:w-9 rounded-full border-white/40 bg-white/40 backdrop-blur-md hover:bg-white/60 text-slate-800 shadow-lg transition-all active:scale-95"
                         >
-                            <ChevronRight className="h-5 w-5" />
+                            <ChevronRight className="h-4 w-4 md:h-5 md:w-5" />
                         </Button>
                     </div>
                 </div>
             </section>
 
             {/* Quick Stats Banner */}
-            <div className="grid gap-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-4">
+            <div className="grid gap-4 sm:gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
                 <StatCard
                     title="Total Applications"
                     value={stats.total || "0"}
@@ -303,31 +314,58 @@ export const FranchiseHome = ({ stats, recentActivity = [], onNavigate, newProdu
                         </Button>
                     </div>
 
-                    <div className="relative h-[320px] rounded-[40px] bg-gradient-to-br from-slate-50 to-orange-50/30 border border-orange-100 overflow-hidden group">
+                    <div className="relative h-[340px] rounded-[40px] bg-gradient-to-br from-slate-50 to-orange-50/30 border border-orange-100 overflow-hidden group">
                         {newProducts.length > 0 ? (
                             <>
                                 {/* Swinging NEW Tag */}
-                                <div className="hanging-tag">
+                                <div className="hanging-tag z-20">
                                     <div className="hanging-tag-body"></div>
                                 </div>
-                                <div className="absolute inset-0 p-8 flex flex-col justify-end z-10 bg-gradient-to-t from-white via-transparent to-transparent">
-                                    <div className="inline-flex w-fit px-3 py-1 rounded-full bg-orange-500 text-white text-[9px] font-black uppercase tracking-widest mb-3">New Arrival</div>
-                                    <h3 className="text-3xl font-black text-slate-900 mb-2 leading-none uppercase">{newProducts[0].name}</h3>
-                                    <p className="text-xs font-bold text-slate-500 max-w-xs mb-6 uppercase tracking-tight line-clamp-2">
-                                        {Array.isArray(newProducts[0].description) ? newProducts[0].description[0] : newProducts[0].description}
-                                    </p>
-                                    <Button
-                                        onClick={() => onNavigate('catalogue')}
-                                        className="w-fit h-11 px-6 rounded-xl bg-slate-900 text-white font-black uppercase tracking-widest text-[10px]"
+
+                                {newProducts.map((product, index) => (
+                                    <div
+                                        key={product.id}
+                                        className={cn(
+                                            "absolute inset-0 transition-all duration-700 ease-in-out flex items-center",
+                                            index === currentProductIndex ? "opacity-100 translate-x-0 z-10" : "opacity-0 translate-x-10 z-0 pointer-events-none"
+                                        )}
                                     >
-                                        Learn More
-                                    </Button>
+                                        <div className="absolute inset-x-8 bottom-8 top-auto md:inset-0 md:p-8 flex flex-col justify-end z-10 bg-gradient-to-t from-white via-transparent to-transparent">
+                                            <div className="inline-flex w-fit px-3 py-1 rounded-full bg-orange-500 text-white text-[9px] font-black uppercase tracking-widest mb-3">New Arrival</div>
+                                            <h3 className="text-3xl font-black text-slate-900 mb-2 leading-none uppercase">{product.name}</h3>
+                                            <p className="text-xs font-bold text-slate-500 max-w-xs mb-6 uppercase tracking-tight line-clamp-2">
+                                                {Array.isArray(product.description) ? product.description[0] : product.description}
+                                            </p>
+                                            <Button
+                                                onClick={() => onNavigate('catalogue')}
+                                                className="w-fit h-11 px-6 rounded-xl bg-slate-900 text-white font-black uppercase tracking-widest text-[10px]"
+                                            >
+                                                Learn More
+                                            </Button>
+                                        </div>
+                                        <div className="absolute right-0 top-0 h-full w-2/3 flex items-center justify-center p-4">
+                                            <img
+                                                src={product.images[0]}
+                                                alt={product.name}
+                                                className="h-full w-full object-contain group-hover:scale-110 transition-transform duration-700"
+                                            />
+                                        </div>
+                                    </div>
+                                ))}
+
+                                {/* Product Carousel Dots */}
+                                <div className="absolute top-8 right-8 z-20 flex gap-1.5 px-3 py-1.5 rounded-full bg-white/50 backdrop-blur-sm border border-white/50">
+                                    {newProducts.map((_, i) => (
+                                        <button
+                                            key={i}
+                                            onClick={() => setCurrentProductIndex(i)}
+                                            className={cn(
+                                                "h-1 transition-all duration-500 rounded-full",
+                                                i === currentProductIndex ? "w-4 bg-orange-500" : "w-1 bg-slate-300 hover:bg-slate-400"
+                                            )}
+                                        />
+                                    ))}
                                 </div>
-                                <img
-                                    src={newProducts[0].images[0]}
-                                    alt={newProducts[0].name}
-                                    className="absolute right-0 top-0 h-full w-2/3 object-contain group-hover:scale-110 transition-transform duration-700 p-4"
-                                />
                             </>
                         ) : (
                             <div className="h-full w-full flex items-center justify-center p-8 bg-slate-50">

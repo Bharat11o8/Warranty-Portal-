@@ -10,10 +10,37 @@ import { Link } from 'react-router-dom';
 import { Shield, Zap, Award, Truck, Loader2 } from 'lucide-react';
 import CatalogHeader from '@/components/eshop/CatalogHeader';
 import TabbedProductShowcase from '@/components/eshop/TabbedProductShowcase';
+import { cn } from "@/lib/utils";
 
 const VendorCatalog = () => {
     const [products, setProducts] = useState<Product[]>([]);
     const [loading, setLoading] = useState(true);
+    const [activeSlide, setActiveSlide] = useState(0);
+
+    const heroSlides = [
+        {
+            highlight: "Seat Covers",
+            description: "Experience ultimate luxury and comfort with our custom-fit premium seat covers.",
+            link: "/category/4-wheeler-seat-cover"
+        },
+        {
+            highlight: "Accessories",
+            description: "Transform your vehicle with our range of high-performance automotive accessories.",
+            link: "/category/4-wheeler-accessories"
+        },
+        {
+            highlight: "Premium Mats",
+            description: "Keep your car clean and stylish with our all-weather custom-fit floor mats.",
+            link: "/category/mat"
+        }
+    ];
+
+    useEffect(() => {
+        const interval = setInterval(() => {
+            setActiveSlide((prev) => (prev + 1) % heroSlides.length);
+        }, 4000);
+        return () => clearInterval(interval);
+    }, []);
 
     useEffect(() => {
         const loadData = async () => {
@@ -61,29 +88,56 @@ const VendorCatalog = () => {
             {/* Category Header with Search and Dropdowns */}
             <CatalogHeader />
 
-            {/* Hero Section - Clean Light Theme */}
-            <section className="pt-12 md:pt-16 pb-4 bg-gradient-to-b from-gray-50 to-white">
+            {/* Hero Section - Auto-playing Carousel */}
+            <section className="pt-20 md:pt-6 pb-4 bg-gradient-to-b from-gray-50 to-white relative overflow-hidden">
                 <div className="container mx-auto px-4">
-                    <ScrollReveal animation="fadeInUp" className="text-center mb-12">
-                        <span className="inline-block px-4 py-2 mb-6 text-sm font-semibold text-brand-orange bg-brand-orange/10 rounded-full uppercase tracking-wider">
-                            ✨ New Collection
-                        </span>
-                        <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-gray-900 mb-6 leading-tight">
-                            Premium Automotive<br />
-                            <span className="text-brand-orange">Accessories</span>
-                        </h1>
-                        <p className="text-xl text-gray-600 max-w-2xl mx-auto mb-8">
-                            Elevate your driving experience with our carefully crafted collection of high-quality automotive accessories.
-                        </p>
-                        <div className="flex justify-center">
-                            <button
-                                onClick={() => document.getElementById('featured-section')?.scrollIntoView({ behavior: 'smooth' })}
-                                className="px-8 py-4 bg-gray-900 text-white font-semibold rounded-full hover:bg-brand-orange transition-all duration-300 hover:shadow-lg"
+                    <div className="relative min-h-[420px] md:min-h-[460px] flex flex-col items-center justify-center">
+                        {heroSlides.map((slide, index) => (
+                            <div
+                                key={index}
+                                className={cn(
+                                    "absolute inset-0 flex flex-col items-center justify-center text-center transition-all duration-1000 ease-in-out",
+                                    activeSlide === index ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8 pointer-events-none"
+                                )}
                             >
-                                Explore Products
-                            </button>
-                        </div>
-                    </ScrollReveal>
+                                <span className="inline-block px-4 py-2 mb-6 text-sm font-semibold text-brand-orange bg-brand-orange/10 rounded-full uppercase tracking-wider animate-in fade-in slide-in-from-bottom-2 duration-700">
+                                    ✨ New Collection
+                                </span>
+                                <h1 className="text-4xl md:text-5xl lg:text-7xl font-bold text-gray-900 mb-6 leading-tight">
+                                    Premium Automotive<br />
+                                    <span className="text-brand-orange">{slide.highlight}</span>
+                                </h1>
+                                <p className="text-lg md:text-xl text-gray-600 max-w-2xl mx-auto mb-10 font-medium leading-relaxed">
+                                    {slide.description}
+                                </p>
+                                <div className="flex flex-col items-center gap-6">
+                                    <Link
+                                        to={slide.link}
+                                        className="px-10 py-4 bg-gray-900 text-white font-bold rounded-full hover:bg-brand-orange transition-all duration-300 hover:shadow-2xl hover:scale-105 active:scale-95 shadow-xl shadow-gray-200"
+                                    >
+                                        Explore {slide.highlight}
+                                    </Link>
+
+                                    {/* Slide Indicators */}
+                                    <div className="flex gap-2.5 mt-4">
+                                        {heroSlides.map((_, i) => (
+                                            <button
+                                                key={i}
+                                                onClick={() => setActiveSlide(i)}
+                                                className={cn(
+                                                    "w-2.5 h-2.5 rounded-full transition-all duration-500",
+                                                    activeSlide === i
+                                                        ? "bg-brand-orange w-8 shadow-lg shadow-brand-orange/20"
+                                                        : "bg-gray-200 hover:bg-gray-300"
+                                                )}
+                                                aria-label={`Go to slide ${i + 1}`}
+                                            />
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
                 </div>
             </section>
 

@@ -17,9 +17,9 @@ const formatContent = (content: string[] | undefined) => {
   ));
 };
 
-const ProductDetailTabs: React.FC<ProductDetailTabsProps> = ({ 
-  description, 
-  additionalInfo 
+const ProductDetailTabs: React.FC<ProductDetailTabsProps> = ({
+  description,
+  additionalInfo
 }) => {
   return (
     <Tabs defaultValue="description" className="mt-12">

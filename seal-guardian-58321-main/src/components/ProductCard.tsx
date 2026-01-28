@@ -4,112 +4,114 @@ import { Product, ProductPrice } from '@/types/catalog';
 import { AspectRatio } from '@/components/ui/aspect-ratio';
 
 interface ProductCardProps {
-  product: Product;
+    product: Product;
 }
 
 const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
-  // Check if the product has multiple prices (2-row and/or 3-row)
-  const hasMultiplePrices =
-    typeof product.price === 'object' &&
-    (product.price.twoRow || product.price.threeRow);
+    // Check if the product has multiple prices (2-row and/or 3-row)
+    const hasMultiplePrices =
+        typeof product.price === 'object' &&
+        (product.price.twoRow || product.price.threeRow);
 
-  // List of product IDs that need "Price Onward"
-  const onwardPriceProductIds = [
-    'led-head-lamp-for-carE',
-    'led-fog-lampE',
-    'car-mobile-chargerE',
-    'snail-horn',
-    'car-charger',
-    'led-head-lamp-for-car',
-    'led-fog-lamp',
-    'snail-hornu'
-  ];
+    // List of product IDs that need "Price Onward"
+    const onwardPriceProductIds = [
+        'led-head-lamp-for-carE',
+        'led-fog-lampE',
+        'car-mobile-chargerE',
+        'snail-horn',
+        'car-charger',
+        'led-head-lamp-for-car',
+        'led-fog-lamp',
+        'snail-hornu'
+    ];
 
-  const showPriceOnward = onwardPriceProductIds.includes(product.id);
+    const showPriceOnward = onwardPriceProductIds.includes(product.id);
 
-  return (
-    <Link to={`/product/${product.id}`} className="group block h-full">
-      <div className="glass-card-premium rounded-2xl h-full flex flex-col relative overflow-visible">
-        {/* Swinging NEW Tag - Only if no rating (treated as New) or explicitly new */}
-        {!product.rating && (
-          <div className="hanging-tag">
-            <div className="hanging-tag-body"></div>
-          </div>
-        )}
-
-        {/* Product Image */}
-        <AspectRatio ratio={1 / 1} className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-t-2xl overflow-hidden">
-          <img
-            src={product.images[0]}
-            alt={product.name}
-            className="object-contain w-full h-full p-4 transition-transform duration-500 group-hover:scale-110"
-          />
-        </AspectRatio>
-
-        {/* Product Details */}
-        <div className="p-5 flex-grow flex flex-col">
-          {/* Rating */}
-          <div className="flex items-center mb-3">
-            {[...Array(5)].map((_, i) => (
-              <svg
-                key={i}
-                className={`w-4 h-4 ${i < Math.round(product.rating || 0)
-                  ? 'text-brand-yellow'
-                  : 'text-gray-300'
-                  }`}
-                fill="currentColor"
-                viewBox="0 0 20 20"
-              >
-                <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-              </svg>
-            ))}
-            {product.rating && (
-              <span className="ml-1 text-xs text-gray-500">
-                {product.rating.toFixed(1)}
-              </span>
-            )}
-          </div>
-
-          {/* Product Name */}
-          <h3 className="font-semibold text-gray-900 text-lg line-clamp-2 mb-3 group-hover:text-brand-orange transition-colors">
-            {product.name}
-          </h3>
-
-          {/* Price Display */}
-          <div className="mt-auto">
-            {hasMultiplePrices ? (
-              <div className="text-brand-orange font-bold space-y-1 text-sm">
-                {(product.price as ProductPrice).twoRow && (
-                  <p>
-                    2 Row: ₹{(product.price as ProductPrice).twoRow?.toLocaleString()}{' '}
-                    {showPriceOnward && <span className="text-gray-500 font-normal">onwards</span>}
-                  </p>
+    return (
+        <Link to={`/product/${product.id}`} className="group block h-full">
+            <div className="bg-white rounded-[32px] h-full flex flex-col relative overflow-hidden border border-gray-100 hover:shadow-2xl transition-all duration-500 group">
+                {/* Swinging NEW Tag - Only if no rating (treated as New) or explicitly new */}
+                {!product.rating && (
+                    <div className="hanging-tag">
+                        <div className="hanging-tag-body"></div>
+                    </div>
                 )}
-                {(product.price as ProductPrice).threeRow && (
-                  <p>
-                    3 Row: ₹{(product.price as ProductPrice).threeRow?.toLocaleString()}{' '}
-                    {showPriceOnward && <span className="text-gray-500 font-normal">onwards</span>}
-                  </p>
-                )}
-              </div>
-            ) : (
-              <p className="font-bold text-brand-orange text-lg">
-                ₹{typeof product.price === 'number'
-                  ? product.price.toLocaleString()
-                  : product.price.default?.toLocaleString()}{' '}
-                {showPriceOnward && <span className="text-gray-500 font-normal text-sm">onwards</span>}
-              </p>
-            )}
-          </div>
 
-          {/* Stock Status */}
-          {!product.inStock && (
-            <div className="mt-2 text-sm text-red-500 font-medium">Out of stock</div>
-          )}
-        </div>
-      </div>
-    </Link>
-  );
+                {/* Product Image Area */}
+                <AspectRatio ratio={1 / 1} className="bg-gray-50/50 rounded-t-[32px] overflow-hidden group-hover:bg-gray-100/50 transition-colors duration-500">
+                    <img
+                        src={product.images[0]}
+                        alt={product.name}
+                        className="object-contain w-full h-full p-6 transition-transform duration-700 group-hover:scale-110"
+                    />
+                </AspectRatio>
+
+                {/* Product Details */}
+                <div className="p-6 flex-grow flex flex-col items-start text-left gap-4">
+
+                    <div className="space-y-2 w-full">
+                        {/* Product Name - Bolder and Natural Wrap on Mobile, Elegant on Desktop */}
+                        <h3 className="text-xl md:text-lg font-black text-brand-orange md:text-gray-900 leading-[1.2] tracking-tight group-hover:text-brand-orange transition-colors">
+                            {product.name}
+                        </h3>
+
+                        {/* Product Description - More elegant spacing */}
+                        {product.description && (
+                            <p className="text-xs md:text-sm text-gray-400 font-medium line-clamp-3 leading-snug">
+                                {Array.isArray(product.description)
+                                    ? product.description[0]
+                                    : product.description.split('\n')[0]}
+                            </p>
+                        )}
+                    </div>
+
+                    {/* Footer Row: Price Pill & Enhanced Action */}
+                    <div className="mt-auto pt-6 w-full flex items-center justify-between gap-4">
+                        <div className="flex flex-col gap-2">
+                            {hasMultiplePrices ? (
+                                <div className="flex flex-col gap-2">
+                                    {(product.price as ProductPrice).twoRow && (
+                                        <div className="px-4 py-2 bg-gray-100 rounded-full flex items-center gap-3">
+                                            <span className="text-[10px] font-black uppercase text-gray-400 tracking-widest">2 Row</span>
+                                            <span className="text-base font-black text-brand-orange">₹{(product.price as ProductPrice).twoRow?.toLocaleString()}</span>
+                                        </div>
+                                    )}
+                                    {(product.price as ProductPrice).threeRow && (
+                                        <div className="px-4 py-2 bg-gray-100 rounded-full flex items-center gap-3">
+                                            <span className="text-[10px] font-black uppercase text-gray-400 tracking-widest">3 Row</span>
+                                            <span className="text-base font-black text-brand-orange">₹{(product.price as ProductPrice).threeRow?.toLocaleString()}</span>
+                                        </div>
+                                    )}
+                                </div>
+                            ) : (
+                                <div className="px-5 py-2.5 bg-gray-100 rounded-full flex items-center gap-2">
+                                    {showPriceOnward && (
+                                        <span className="text-[9px] font-bold uppercase text-gray-400 tracking-wider">From</span>
+                                    )}
+                                    <span className="text-base md:text-lg font-black text-brand-orange">
+                                        ₹{typeof product.price === 'number'
+                                            ? product.price.toLocaleString()
+                                            : product.price.default?.toLocaleString()}
+                                    </span>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Enhanced Action Icon - High Impact for Mobile */}
+                        <div className="w-14 h-14 md:w-12 md:h-12 rounded-full bg-brand-orange md:bg-gray-900 text-white flex items-center justify-center transform transition-all duration-300 group-hover:bg-brand-orange group-hover:translate-x-1 group-hover:shadow-lg shadow-md md:shadow-none">
+                            <svg className="w-6 h-6 md:w-5 md:h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M14 5l7 7-7 7M3 12h18" />
+                            </svg>
+                        </div>
+                    </div>
+                </div>
+                {/* Stock Status */}
+                {!product.inStock && (
+                    <div className="mt-2 text-sm text-red-500 font-medium pb-4">Out of stock</div>
+                )}
+            </div>
+        </Link>
+    );
 };
 
 export default ProductCard;

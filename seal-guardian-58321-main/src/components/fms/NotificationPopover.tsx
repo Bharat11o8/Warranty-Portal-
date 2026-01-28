@@ -24,7 +24,7 @@ import { useNotifications } from "@/contexts/NotificationContext";
 import { cn } from "@/lib/utils";
 import { formatDistanceToNow, format } from "date-fns";
 
-export const NotificationPopover = () => {
+export const NotificationPopover = ({ onNavigate }: { onNavigate?: (module: any) => void }) => {
     const {
         notifications,
         unreadCount,
@@ -149,7 +149,12 @@ export const NotificationPopover = () => {
                     )}
                 </Button>
             </PopoverTrigger>
-            <PopoverContent className="w-[380px] p-0 overflow-hidden shadow-xl border-border/60" align="end" sideOffset={8}>
+            <PopoverContent
+                className="w-[min(calc(100vw-2rem),380px)] p-0 overflow-hidden shadow-2xl border-orange-100/50 bg-white/95 backdrop-blur-xl animate-in fade-in zoom-in-95 duration-200"
+                align="end"
+                sideOffset={12}
+                collisionPadding={16}
+            >
                 <Tabs defaultValue="all" className="w-full">
                     <div className="flex items-center justify-between px-4 py-3 border-b bg-muted/30">
                         <h3 className="font-bold text-sm">Notifications</h3>
@@ -226,7 +231,11 @@ export const NotificationPopover = () => {
                             className="w-full h-8 text-xs font-bold text-muted-foreground hover:text-primary transition-colors"
                             onClick={() => {
                                 setOpen(false);
-                                navigate('/news-alerts');
+                                if (onNavigate) {
+                                    onNavigate('news');
+                                } else {
+                                    navigate('/news-alerts');
+                                }
                             }}
                         >
                             View All Activity
