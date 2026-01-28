@@ -86,11 +86,17 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
             fetchNotifications();
 
             // Initialize Socket
-            const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+            const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+            // Socket.io expects the root URL, not the /api path. Strip /api if present.
+            const baseUrl = apiUrl.endsWith('/api') ? apiUrl.slice(0, -4) : apiUrl;
+
+            console.log("🔌 Initializing Socket.io connection to:", baseUrl);
+
             const newSocket = io(baseUrl, {
                 auth: {
                     token: localStorage.getItem("auth_token")
-                }
+                },
+                transports: ['websocket', 'polling'] // Force websocket first if possible
             });
 
             newSocket.on("connect", () => {

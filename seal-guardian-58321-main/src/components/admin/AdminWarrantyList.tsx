@@ -1,9 +1,11 @@
+import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn, getWarrantyExpiration, formatToIST } from "@/lib/utils";
+import { WarrantySpecSheet } from "@/components/warranty/WarrantySpecSheet";
 import {
     Check,
     Download,
@@ -275,6 +277,8 @@ export const AdminWarrantyList = ({
     onApprove,
     onReject
 }: AdminWarrantyListProps) => {
+    const [selectedWarranty, setSelectedWarranty] = useState<any>(null);
+
     if (items.length === 0) {
         return (
             <div className="text-center py-12 border rounded-lg border-dashed">
@@ -328,36 +332,16 @@ export const AdminWarrantyList = ({
                                             </p>
                                         </div>
 
-                                        {/* Mobile Eye Button - Triggers details dialog */}
+                                        {/* Mobile Eye Button - Triggers details sheet */}
                                         <div className="md:hidden">
-                                            <Dialog>
-                                                <DialogTrigger asChild>
-                                                    <Button size="icon" variant="ghost" className="h-8 w-8 text-slate-500">
-                                                        <Eye className="h-5 w-5" />
-                                                    </Button>
-                                                </DialogTrigger>
-                                                <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
-                                                    {/* This duplicates the content from the grid below. Ideally we extract the DialogContent to a shared component or reuse the one below. 
-                                                        To avoid massive refactor, I will copy the DialogContent structure here or just render the reused content if I extract it. 
-                                                        Wait, the Dialog below handles it. I can't trigger the Dialog below easily from here without state.
-                                                        
-                                                        BETTER APPROACH:
-                                                        Leave the current Dialog where it is, but on mobile, MOVE the View button to be visible/prominent.
-                                                        Or simply duplicate the Dialog wrapper here. Since I am in a map loop, duplicating the content is safe enough for now.
-                                                    */}
-                                                    <DialogHeader>
-                                                        <DialogTitle className="text-2xl">Warranty Registration Details</DialogTitle>
-                                                        <DialogDescription>
-                                                            Complete information for {productName.replace(/-/g, ' ')}
-                                                        </DialogDescription>
-                                                    </DialogHeader>
-                                                    <WarrantyDetailsView
-                                                        warranty={warranty}
-                                                        productName={productName}
-                                                        productDetails={productDetails}
-                                                    />
-                                                </DialogContent>
-                                            </Dialog>
+                                            <Button
+                                                size="icon"
+                                                variant="ghost"
+                                                className="h-8 w-8 text-slate-500"
+                                                onClick={() => setSelectedWarranty(warranty)}
+                                            >
+                                                <Eye className="h-5 w-5" />
+                                            </Button>
                                         </div>
                                     </div>
 
@@ -702,6 +686,15 @@ export const AdminWarrantyList = ({
                     </Card>
                 );
             })}
-        </div>
+
+
+            {/* Mobile Details Sheet */}
+            <WarrantySpecSheet
+                isOpen={!!selectedWarranty}
+                onClose={() => setSelectedWarranty(null)}
+                warranty={selectedWarranty}
+                isMobile={true}
+            />
+        </div >
     );
 };

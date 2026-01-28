@@ -335,8 +335,8 @@ export const AdminWarranties = () => {
                     </TabsList>
                 </Tabs>
 
-                <div className="flex flex-wrap gap-2 items-center">
-                    <div className="relative group w-full md:w-64">
+                <div className="flex w-full md:w-auto gap-2 items-center">
+                    <div className="relative group flex-1 md:w-64">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 group-focus-within:text-orange-500 transition-colors" />
                         <input
                             type="text"
@@ -372,10 +372,10 @@ export const AdminWarranties = () => {
                         size="sm"
                         onClick={() => fetchWarranties(true)}
                         disabled={isRefreshing}
-                        className="gap-2 text-[#f46617] border border-[#f46617]/20 hover:bg-orange-50 h-9 rounded-full px-4 font-bold"
+                        className="gap-2 text-[#f46617] border border-[#f46617]/20 hover:bg-orange-50 h-9 rounded-full px-3 md:px-4 font-bold shrink-0"
                     >
                         <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
-                        Refresh
+                        <span className="hidden md:inline">Refresh</span>
                     </Button>
 
                     <Button

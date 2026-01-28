@@ -91,42 +91,19 @@ export const AdminLayout = () => {
 
     return (
         <div className="flex flex-col md:flex-row h-screen bg-[#fffaf5] overflow-hidden">
-            {/* Mobile Header */}
-            <div className="md:hidden h-16 bg-white border-b border-orange-50 flex items-center justify-between px-4 shrink-0 relative">
-                {/* Left: Hamburger */}
-                <Sheet open={isMobileMenuOpen} onOpenChange={setIsMobileMenuOpen}>
-                    <SheetTrigger asChild>
-                        <Button variant="ghost" size="icon" className="-ml-2">
-                            <Menu className="h-6 w-6 text-slate-600" />
-                        </Button>
-                    </SheetTrigger>
-                    <SheetContent side="left" className="p-0 w-72 border-r-orange-100 bg-white">
-                        <SidebarContent
-                            activeModule={activeModule}
-                            onModuleChange={(module) => {
-                                setActiveModule(module);
-                                setIsMobileMenuOpen(false);
-                            }}
-                            isCollapsed={false}
-                        />
-                    </SheetContent>
-                </Sheet>
-
-                {/* Center: Logo */}
-                <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
-                    <img src="/autoform-logo.png" alt="Autoform" className="h-8 w-auto" />
-                </div>
-
-                {/* Right: Profile */}
-                <Button
-                    variant="ghost"
-                    size="icon"
-                    className="-mr-2 text-slate-600"
-                    onClick={() => setActiveModule('profile')}
-                >
-                    <User className="h-5 w-5" />
-                </Button>
-            </div>
+            {/* Mobile Menu Sheet */}
+            <Sheet open={isMobileMenuOpen} onOpenChange={setIsMobileMenuOpen}>
+                <SheetContent side="left" className="p-0 w-72 border-r-orange-100 bg-white">
+                    <SidebarContent
+                        activeModule={activeModule}
+                        onModuleChange={(module) => {
+                            setActiveModule(module);
+                            setIsMobileMenuOpen(false);
+                        }}
+                        isCollapsed={false}
+                    />
+                </SheetContent>
+            </Sheet>
 
             {/* Desktop Sidebar */}
             <AdminSidebar
@@ -144,6 +121,8 @@ export const AdminLayout = () => {
                     actions={
                         <AdminCommandPalette onNavigate={setActiveModule} />
                     }
+                    onMenuToggle={() => setIsMobileMenuOpen(true)}
+                    onProfileClick={() => setActiveModule('profile')}
                 >
                     {renderModule()}
                 </AdminModuleLayout>

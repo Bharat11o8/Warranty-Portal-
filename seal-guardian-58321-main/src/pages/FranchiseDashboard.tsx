@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Navigate } from "react-router-dom";
+import { Navigate, useOutletContext } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import api from "@/lib/api";
@@ -30,11 +30,21 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { WarrantySpecSheet } from "@/components/warranty/WarrantySpecSheet";
 import { Badge } from "@/components/ui/badge";
 
+interface DashboardContext {
+    activeModule: FmsModule;
+    setActiveModule: (module: FmsModule) => void;
+}
+
 const FranchiseDashboard = () => {
     const { user, loading: authLoading } = useAuth();
     const { toast } = useToast();
     const { fullHistory } = useNotifications();
-    const [activeModule, setActiveModule] = useState<FmsModule>('home');
+    const context = useOutletContext<DashboardContext>();
+    const [localActiveModule, setLocalActiveModule] = useState<FmsModule>('home');
+
+    // Use context state if available (from Layout), otherwise fallback to local state
+    const activeModule = context?.activeModule || localActiveModule;
+    const setActiveModule = context?.setActiveModule || setLocalActiveModule;
     const [isCollapsed, setIsCollapsed] = useState(false);
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 

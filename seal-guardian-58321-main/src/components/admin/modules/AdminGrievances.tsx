@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import api from "@/lib/api";
-import { formatToIST } from "@/lib/utils";
+import { formatToIST, cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -10,7 +10,8 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, RefreshCw, MessageSquare, Search, Paperclip, Store, Users, Mail, Send, Clock, Eye } from "lucide-react";
+import { Loader2, RefreshCw, MessageSquare, Search, Paperclip, Store, Users, Mail, Send, Clock, Eye, Filter } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 
 interface Grievance {
     id: number;
@@ -242,7 +243,6 @@ export const AdminGrievances = () => {
     return (
         <div className="space-y-6">
             {/* Stats Row */}
-            {/* Stats Row */}
             <div className={`grid grid-cols-2 ${activeTab === 'customer' ? 'md:grid-cols-4' : 'md:grid-cols-3'} gap-3 md:gap-4`}>
                 <Card className="border-orange-100 shadow-sm">
                     <CardContent className="pt-4 md:pt-6 p-4 md:p-6">
@@ -274,48 +274,72 @@ export const AdminGrievances = () => {
 
             <div className="flex flex-col xl:flex-row gap-4 justify-between items-start xl:items-center">
                 <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full xl:w-auto">
-                    <TabsList className="bg-white border border-orange-100 p-1 rounded-lg w-full md:w-auto inline-flex">
+                    <TabsList className="bg-white border border-orange-100 p-1 rounded-lg w-full md:w-auto grid grid-cols-2 md:inline-flex">
                         <TabsTrigger
                             value="customer"
-                            className="flex-1 md:flex-none px-6 data-[state=active]:bg-orange-50 data-[state=active]:text-orange-700 data-[state=active]:border-orange-200 transition-all flex items-center gap-2"
+                            className="px-4 md:px-6 data-[state=active]:bg-orange-50 data-[state=active]:text-orange-700 data-[state=active]:border-orange-200 transition-all flex items-center justify-center gap-2"
                         >
                             <Users className="h-4 w-4" />
-                            Customer Grievances
+                            <span className="truncate">Customer</span>
                         </TabsTrigger>
                         <TabsTrigger
                             value="franchise"
-                            className="flex-1 md:flex-none px-6 data-[state=active]:bg-orange-50 data-[state=active]:text-orange-700 data-[state=active]:border-orange-200 transition-all flex items-center gap-2"
+                            className="px-4 md:px-6 data-[state=active]:bg-orange-50 data-[state=active]:text-orange-700 data-[state=active]:border-orange-200 transition-all flex items-center justify-center gap-2"
                         >
                             <Store className="h-4 w-4" />
-                            Franchise Grievances
+                            <span className="truncate">Franchise</span>
                         </TabsTrigger>
                     </TabsList>
                 </Tabs>
 
-                <div className="flex flex-col sm:flex-row gap-4 w-full xl:w-auto">
-                    <div className="relative flex-1 min-w-[200px]">
+                <div className="flex w-full md:w-auto gap-2 items-center">
+                    <div className="relative flex-1 md:w-[300px]">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
                         <Input
-                            placeholder="Search by ticket, name, category..."
+                            placeholder="Search..."
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
-                            className="pl-10 border-orange-100 focus:border-orange-200"
+                            className="pl-9 h-10 border-orange-100 focus:border-orange-200 rounded-lg text-sm"
                         />
                     </div>
-                    <Select value={statusFilter} onValueChange={setStatusFilter}>
-                        <SelectTrigger className="w-full sm:w-[150px] border-orange-100">
-                            <SelectValue placeholder="Status" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="all">All Status</SelectItem>
-                            <SelectItem value="submitted">Submitted</SelectItem>
-                            <SelectItem value="under_review">Under Review</SelectItem>
-                            <SelectItem value="in_progress">In Progress</SelectItem>
-                            <SelectItem value="resolved">Resolved</SelectItem>
-                            <SelectItem value="rejected">Rejected</SelectItem>
-                        </SelectContent>
-                    </Select>
-                    <Button variant="outline" onClick={fetchGrievances} className="border-orange-100 hover:bg-orange-50">
+
+                    {/* Mobile: Filter Icon Dropdown */}
+                    <div className="md:hidden">
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                                <Button variant="outline" size="icon" className={cn("h-10 w-10 border-orange-100 bg-white", statusFilter !== 'all' && "text-orange-600 border-orange-200 bg-orange-50")}>
+                                    <Filter className="h-4 w-4" />
+                                </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                                <DropdownMenuItem onClick={() => setStatusFilter("all")}>All Status</DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => setStatusFilter("submitted")}>Submitted</DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => setStatusFilter("under_review")}>Under Review</DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => setStatusFilter("in_progress")}>In Progress</DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => setStatusFilter("resolved")}>Resolved</DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => setStatusFilter("rejected")}>Rejected</DropdownMenuItem>
+                            </DropdownMenuContent>
+                        </DropdownMenu>
+                    </div>
+
+                    {/* Desktop: Select Dropdown */}
+                    <div className="hidden md:block">
+                        <Select value={statusFilter} onValueChange={setStatusFilter}>
+                            <SelectTrigger className="w-[150px] border-orange-100 h-10">
+                                <SelectValue placeholder="Status" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">All Status</SelectItem>
+                                <SelectItem value="submitted">Submitted</SelectItem>
+                                <SelectItem value="under_review">Under Review</SelectItem>
+                                <SelectItem value="in_progress">In Progress</SelectItem>
+                                <SelectItem value="resolved">Resolved</SelectItem>
+                                <SelectItem value="rejected">Rejected</SelectItem>
+                            </SelectContent>
+                        </Select>
+                    </div>
+
+                    <Button variant="outline" size="icon" onClick={fetchGrievances} className="h-10 w-10 border-orange-100 hover:bg-orange-50 shrink-0">
                         <RefreshCw className="h-4 w-4" />
                     </Button>
                 </div>

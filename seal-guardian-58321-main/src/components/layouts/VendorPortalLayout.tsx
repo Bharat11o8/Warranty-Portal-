@@ -35,7 +35,7 @@ const VendorPortalLayout = () => {
         if (module === 'home') navigate('/dashboard/vendor');
         else if (module === 'catalogue') navigate('/catalogue');
         else if (module === 'profile') navigate('/profile');
-        else if (module === 'grievances') navigate('/grievance');
+
         else {
             // Support other modules if they have routes, otherwise just set active (handles dashboard's state-based modules)
             navigate('/dashboard/vendor');
@@ -81,7 +81,7 @@ const VendorPortalLayout = () => {
                     onNavigate={handleModuleChange}
                     onMenuToggle={() => setIsMobileMenuOpen(true)}
                 >
-                    <Outlet context={{ setActiveModule }} />
+                    <Outlet context={{ activeModule, setActiveModule }} />
                 </ModuleLayout>
 
                 {/* Mobile Menu Drawer - Ported from FranchiseDashboard */}
