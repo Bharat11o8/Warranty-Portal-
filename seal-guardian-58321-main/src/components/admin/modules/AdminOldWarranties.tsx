@@ -41,7 +41,7 @@ interface Pagination {
     hasPrevPage: boolean;
 }
 
-export function OldWarranties() {
+export function AdminOldWarranties() {
     const { toast } = useToast();
     const [warranties, setWarranties] = useState<OldWarranty[]>([]);
     const [stats, setStats] = useState<Stats | null>(null);

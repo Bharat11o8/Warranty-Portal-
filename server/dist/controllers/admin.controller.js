@@ -1,4 +1,4 @@
-import db from '../config/database.js';
+import db, { getISTTimestamp } from '../config/database.js';
 import { EmailService } from '../services/email.service.js';
 import { ActivityLogService } from '../services/activity-log.service.js';
 import { NotificationService } from '../services/notification.service.js';
@@ -227,7 +227,7 @@ export class AdminController {
             }
             const vendorData = vendor[0];
             // Update verification status
-            await db.execute('UPDATE vendor_verification SET is_verified = ?, verified_at = NOW() WHERE user_id = ?', [is_verified, id]);
+            await db.execute('UPDATE vendor_verification SET is_verified = ?, verified_at = ? WHERE user_id = ?', [is_verified, getISTTimestamp(), id]);
             // Send email notification
             try {
                 if (is_verified) {
@@ -436,8 +436,19 @@ export class AdminController {
                             message: status === 'validated'
                                 ? `The warranty for ${warrantyData.customer_name} (${warrantyData.uid}) has been approved.`
                                 : `The warranty for ${warrantyData.customer_name} (${warrantyData.uid}) was rejected. Reason: ${rejectionReason}`,
-                            type: status === 'validated' ? 'system' : 'alert',
-                            link: `/dashboard/vendor` // Or a deeper link if available
+                            type: 'warranty',
+                            link: `/dashboard/vendor`
+                        });
+                    }
+                    // 4. Notify Customer
+                    if (warrantyData.user_id) {
+                        await NotificationService.notify(warrantyData.user_id, {
+                            title: status === 'validated' ? 'Warranty Validated! ✓' : 'Warranty Rejected ✗',
+                            message: status === 'validated'
+                                ? `Your warranty for ${warrantyData.uid} has been validated by AutoForm.`
+                                : `Your warranty for ${warrantyData.uid} was rejected. Reason: ${rejectionReason}`,
+                            type: 'warranty',
+                            link: `/dashboard/customer`
                         });
                     }
                 }

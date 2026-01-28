@@ -11,7 +11,8 @@ import Register from "./pages/Register";
 import Warranty from "./pages/Warranty";
 import CustomerDashboard from "./pages/CustomerDashboard";
 import FranchiseDashboard from "./pages/FranchiseDashboard";
-import AdminDashboard from "./pages/AdminDashboard";
+// import AdminDashboard from "./pages/AdminDashboard"; // Legacy
+import { AdminLayout } from "@/components/admin/layout/AdminLayout";
 import AdminManagement from "./pages/AdminManagement";
 import AdminProducts from "./pages/AdminProducts";
 import ActivityLogs from "./pages/ActivityLogs";
@@ -49,7 +50,7 @@ const App = () => (
               </Route>
 
               <Route path="/dashboard/vendor" element={<FranchiseDashboard />} />
-              <Route path="/dashboard/admin" element={<AdminDashboard />} />
+              <Route path="/dashboard/admin" element={<AdminLayout />} />
               <Route path="/admin/manage" element={<AdminManagement />} />
               <Route path="/admin/products" element={<AdminProducts />} />
               <Route path="/admin/activity-logs" element={<ActivityLogs />} />

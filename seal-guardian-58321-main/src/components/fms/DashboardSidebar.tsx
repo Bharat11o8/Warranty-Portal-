@@ -52,9 +52,9 @@ const SidebarItem = ({ icon: Icon, label, active, onClick, badge, comingSoon, is
         disabled={comingSoon}
         className={cn(
             "w-full flex items-center transition-all duration-300 group relative",
-            isCollapsed ? "h-12 px-0 justify-center rounded-2xl" : "h-11 px-3 gap-3 rounded-[32px]",
+            isCollapsed ? "h-12 px-0 justify-center rounded-2xl" : "h-11 px-3 gap-3 rounded-[32px] hover:translate-x-1",
             active
-                ? "text-orange-600 bg-orange-50/50 border border-orange-100"
+                ? "text-orange-600 bg-orange-50 border border-orange-100"
                 : "text-slate-500 hover:bg-slate-50 border border-transparent",
             comingSoon && "opacity-50 cursor-not-allowed filter grayscale"
         )}
@@ -127,7 +127,7 @@ export const DashboardSidebar = ({ activeModule, onModuleChange, isCollapsed, on
                 { id: 'home' as const, label: "Home", icon: Home },
                 {
                     id: 'warranty' as const,
-                    label: "Warranty Mgmt",
+                    label: "Warranty Management",
                     icon: ShieldCheck,
                     badge: getBadgeCount('warranty') > 0 ? getBadgeCount('warranty').toString() : undefined
                 },
@@ -168,7 +168,7 @@ export const DashboardSidebar = ({ activeModule, onModuleChange, isCollapsed, on
             label: "Team & Performance",
             items: [
                 { id: 'manpower' as const, label: "Manpower Control", icon: Users },
-                { id: 'targets' as const, label: "Targets & Achiev.", icon: Target },
+                { id: 'targets' as const, label: "Targets & Achievements", icon: Target },
             ]
         },
         {
@@ -252,7 +252,7 @@ export const DashboardSidebar = ({ activeModule, onModuleChange, isCollapsed, on
             {/* Profile Section */}
             <div className="p-3 border-t border-orange-50 space-y-2 shrink-0 overflow-visible">
                 <div className={cn(
-                    "flex items-center rounded-2xl bg-slate-50/80 border border-slate-100 transition-all duration-300 hover:border-orange-200 hover:bg-orange-50/50 cursor-pointer group relative",
+                    "flex items-center rounded-2xl bg-slate-50 border border-slate-100 transition-all duration-300 hover:border-orange-200 hover:bg-orange-50 cursor-pointer group relative",
                     isCollapsed ? "p-2 justify-center" : "p-3 gap-3"
                 )}
                     onClick={() => onModuleChange('profile')}

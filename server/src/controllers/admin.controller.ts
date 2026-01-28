@@ -627,7 +627,8 @@ export class AdminController {
                     p.email as submitted_by_email,
                     ur.role as submitted_by_role,
                     m.name as manpower_name_from_db,
-                    vd.store_name as vendor_store_name
+                    vd.store_name as vendor_store_name,
+                    vd.store_email as vendor_store_email
                 FROM warranty_registrations wr
                 LEFT JOIN profiles p ON wr.user_id = p.id
                 LEFT JOIN user_roles ur ON p.id = ur.user_id
