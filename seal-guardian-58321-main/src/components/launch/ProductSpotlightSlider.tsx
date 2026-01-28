@@ -49,13 +49,19 @@ const ProductSpotlightSlider: React.FC<ProductSpotlightSliderProps> = ({
     if (!currentProduct) return null;
 
     return (
-        <section id="featured-section" className="py-12 md:py-16 bg-white relative overflow-hidden">
+        <section id="featured-section" className="py-8 md:py-16 bg-white relative overflow-hidden">
             <div className="container mx-auto px-4">
                 {/* Section Header */}
-                <ScrollReveal animation="fadeInUp" className="text-center mb-8">
-                    <h2 className="text-3xl md:text-4xl font-bold text-gray-900">
-                        Featured Products
+                <ScrollReveal animation="fadeInUp" className="text-center mb-12 flex flex-col items-center">
+                    <span className="inline-block px-3 py-1 mb-4 text-[10px] font-black uppercase tracking-[0.2em] text-brand-orange bg-brand-orange/5 border border-brand-orange/10 rounded-full">
+                        ✨ Exclusive Selection
+                    </span>
+                    <h2 className="text-3xl md:text-5xl font-black text-gray-900 tracking-tighter mb-4">
+                        Featured <span className="text-brand-orange">Collections</span>
                     </h2>
+                    <p className="text-sm md:text-base text-gray-400 font-bold max-w-lg mx-auto leading-relaxed">
+                        Handpicked automotive excellence tailored for your premium driving experience.
+                    </p>
                 </ScrollReveal>
 
                 {/* Slider Container */}
@@ -118,7 +124,7 @@ const ProductSpotlightSlider: React.FC<ProductSpotlightSliderProps> = ({
                                 )}
 
                                 {/* Price Display */}
-                                <div className="flex items-baseline gap-2 justify-center lg:justify-start">
+                                <div className="flex items-baseline gap-2 justify-center lg:justify-start pb-4">
                                     <span className="text-sm text-gray-500">
                                         {isMultiPrice(currentProduct) ? 'Starting at' : 'Price'}
                                     </span>
@@ -138,22 +144,6 @@ const ProductSpotlightSlider: React.FC<ProductSpotlightSliderProps> = ({
                                         </span>
                                     ))}
                                 </div>
-
-                                {/* CTA */}
-                                <Link
-                                    to={`/product/${currentProduct.id}`}
-                                    className="inline-flex items-center gap-2 px-6 sm:px-8 py-3 sm:py-4 bg-gray-900 text-white text-sm sm:text-base font-semibold rounded-full hover:bg-brand-orange transition-all duration-300 group"
-                                >
-                                    View Product
-                                    <svg
-                                        className="w-5 h-5 transition-transform group-hover:translate-x-1"
-                                        fill="none"
-                                        viewBox="0 0 24 24"
-                                        stroke="currentColor"
-                                    >
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
-                                    </svg>
-                                </Link>
                             </div>
                         </div>
                     </div>
@@ -176,7 +166,7 @@ const ProductSpotlightSlider: React.FC<ProductSpotlightSliderProps> = ({
                                     className={`rounded-full transition-all duration-300 ${index === currentIndex
                                         ? 'bg-brand-orange'
                                         : 'bg-gray-400'
-                                        } ${!isVisible ? 'hidden sm:block' : ''}`}
+                                        }`}
                                     style={{
                                         width: index === currentIndex ? '16px' : '6px',
                                         height: '6px',

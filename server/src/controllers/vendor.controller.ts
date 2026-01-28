@@ -415,6 +415,9 @@ export class VendorController {
     try {
       const userId = (req as any).user?.id;
       const { active } = req.query; // 'true', 'false', or 'all'
+      const page = parseInt(req.query.page as string) || 1;
+      const limit = parseInt(req.query.limit as string) || 30;
+      const offset = (page - 1) * limit;
 
       if (!userId) {
         return res.status(401).json({ error: 'User not authenticated' });
@@ -434,12 +437,21 @@ export class VendorController {
 
       // Build WHERE clause based on active filter
       let whereClause = 'm.vendor_id = ?';
+      const params: any[] = [vendorId];
+
       if (active === 'true') {
         whereClause += ' AND m.is_active = TRUE';
       } else if (active === 'false') {
         whereClause += ' AND m.is_active = FALSE';
       }
-      // If active === 'all', show both active and inactive
+
+      // Get total count
+      const [countResult]: any = await db.execute(
+        `SELECT COUNT(*) as total FROM manpower m WHERE ${whereClause}`,
+        params
+      );
+      const totalCount = countResult[0].total;
+      const totalPages = Math.ceil(totalCount / limit);
 
       // Get manpower list with application count (optimized to avoid N+1 queries)
       const [manpower]: any = await db.execute(
@@ -455,13 +467,22 @@ export class VendorController {
     WHERE ${whereClause}
     GROUP BY m.id
     ORDER BY m.is_active DESC, m.name ASC
+    LIMIT ? OFFSET ?
   `,
-        [vendorId]
+        [...params, limit, offset]
       );
 
       res.json({
         success: true,
-        manpower
+        manpower,
+        pagination: {
+          currentPage: page,
+          totalPages,
+          totalCount,
+          limit,
+          hasNextPage: page < totalPages,
+          hasPrevPage: page > 1
+        }
       });
     } catch (error: any) {
       console.error('Get manpower error:', error);

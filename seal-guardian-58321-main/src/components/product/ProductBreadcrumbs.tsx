@@ -18,7 +18,7 @@ const ProductBreadcrumbs: React.FC<ProductBreadcrumbsProps> = ({
   return (
     <div className="text-sm breadcrumbs">
       <ul className="flex items-center space-x-2">
-        <li><Link to="/" className="text-muted-foreground hover:text-foreground">Home</Link></li>
+        <li><Link to="/catalogue" className="text-muted-foreground hover:text-foreground">Home</Link></li>
         <ChevronRight className="h-4 w-4 text-muted-foreground" />
 
         {parentCategory && (

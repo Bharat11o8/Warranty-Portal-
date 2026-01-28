@@ -9,6 +9,7 @@ import ProductActions from '@/components/product/ProductActions';
 import ProductDetailTabs from '@/components/product/ProductDetailTabs';
 import RelatedProducts from '@/components/product/RelatedProducts';
 import { Loader2 } from 'lucide-react';
+import CatalogHeader from '@/components/eshop/CatalogHeader';
 
 const ProductPage = () => {
   const { productId } = useParams<{ productId: string }>();
@@ -67,11 +68,14 @@ const ProductPage = () => {
 
   if (!product) {
     return (
-      <div className="text-center py-20">
-        <h2 className="text-2xl font-bold mb-4">Product Not Found</h2>
-        <Link to="/dashboard/vendor" className="text-brand-orange hover:underline">
-          Return to Dashboard
-        </Link>
+      <div className="text-center py-20 text-white">
+        <CatalogHeader />
+        <div className="py-20">
+          <h2 className="text-2xl font-bold mb-4 text-gray-900">Product Not Found</h2>
+          <Link to="/dashboard/vendor" className="text-brand-orange hover:underline">
+            Return to Dashboard
+          </Link>
+        </div>
       </div>
     );
   }
@@ -102,22 +106,8 @@ const ProductPage = () => {
   const showPriceOnward = onwardPriceProductIds.includes(product.id);
 
   return (
-    <div className="bg-white min-h-screen">
-      <div className="container mx-auto px-4 py-8 space-y-6">
-        {/* Back to Dashboard */}
-        <button
-          onClick={() => {
-            if (window.history.length > 1) {
-              navigate(-1);
-            } else {
-              navigate('/dashboard/vendor?tab=catalog');
-            }
-          }}
-          className="inline-flex items-center text-sm text-brand-orange hover:underline bg-transparent border-none p-0 cursor-pointer"
-        >
-          ← Back to Dashboard
-        </button>
-
+    <div className="space-y-6">
+      <div className="container mx-auto py-8 space-y-6">
         {/* Breadcrumbs */}
         <ProductBreadcrumbs
           productName={product.name}
@@ -126,7 +116,7 @@ const ProductPage = () => {
         />
 
         {/* Product Display */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 lg:gap-16">
           {/* Product Images */}
           <ProductImageGallery
             images={variationImages}
@@ -134,45 +124,54 @@ const ProductPage = () => {
           />
 
           {/* Product Info */}
-          <div className="glass-card-premium rounded-2xl p-6 !transform-none hover:!transform-none">
-            <h1 className="text-3xl font-bold mb-2 text-gray-900">{product.name}</h1>
+          <div className="glass-card-premium rounded-3xl p-6 md:p-8 !transform-none hover:!transform-none border border-gray-100 shadow-sm">
+            <h1 className="text-2xl md:text-4xl font-black mb-4 text-gray-900 tracking-tighter leading-tight">{product.name}</h1>
 
             {/* Rating */}
-            <div className="mb-4">
+            <div className="mb-6">
               <ProductRating
                 rating={product.rating}
                 reviewCount={product.reviews?.length || 0}
+                size="md"
               />
             </div>
 
             {/* Price display updated for variations */}
-            <div className="mb-6">
+            <div className="mb-8">
               {selectedVariation ? (
-                <p className="text-2xl font-bold text-primary">
-                  <span className="text-sm text-black">Price: </span>
-                  ₹{Number(selectedVariation.price).toFixed(2)}{' '}
-                  {showPriceOnward && (
-                    <span className="text-xs text-gray-500 align-middle">Onwards</span>
-                  )}
-                </p>
+                <div className="flex items-baseline gap-2">
+                  <span className="text-[10px] font-black uppercase text-gray-400 tracking-widest">Price</span>
+                  <p className="text-2xl md:text-3xl font-black text-brand-orange">
+                    ₹{Number(selectedVariation.price).toLocaleString()}{' '}
+                    {showPriceOnward && (
+                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider align-middle ml-2">From</span>
+                    )}
+                  </p>
+                </div>
               ) : typeof product.price === 'number' ? (
-                <p className="text-2xl font-bold text-primary">
-                  <span className="text-sm text-black">Price: </span>
-                  ₹{Number(product.price).toFixed(2)}{' '}
-                  {showPriceOnward && (
-                    <span className="text-xs text-gray-500 align-middle">Onwards</span>
-                  )}
-                </p>
+                <div className="flex items-baseline gap-2">
+                  <span className="text-[10px] font-black uppercase text-gray-400 tracking-widest">Price</span>
+                  <p className="text-2xl md:text-3xl font-black text-brand-orange">
+                    ₹{Number(product.price).toLocaleString()}{' '}
+                    {showPriceOnward && (
+                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider align-middle ml-2">From</span>
+                    )}
+                  </p>
+                </div>
               ) : (
-                <div className="text-2xl font-bold text-primary space-y-1">
-                  <p>
-                    <span className="text-sm text-black">2 Row Price: </span>
-                    ₹{Number(product.price.twoRow).toFixed(2)}{' '}
-                  </p>
-                  <p>
-                    <span className="text-sm text-black">3 Row Price: </span>
-                    ₹{Number(product.price.threeRow).toFixed(2)}{' '}
-                  </p>
+                <div className="space-y-4">
+                  <div className="flex items-center gap-4 bg-gray-50 p-4 rounded-2xl border border-gray-100">
+                    <span className="text-[10px] font-black uppercase text-gray-400 tracking-widest min-w-[60px]">2 Row</span>
+                    <p className="text-xl md:text-2xl font-black text-brand-orange">
+                      ₹{Number(product.price.twoRow).toLocaleString()}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-4 bg-gray-50 p-4 rounded-2xl border border-gray-100">
+                    <span className="text-[10px] font-black uppercase text-gray-400 tracking-widest min-w-[60px]">3 Row</span>
+                    <p className="text-xl md:text-2xl font-black text-brand-orange">
+                      ₹{Number(product.price.threeRow).toLocaleString()}
+                    </p>
+                  </div>
                 </div>
               )}
             </div>
@@ -223,18 +222,6 @@ const ProductPage = () => {
                 </div>
               </div>
             )}
-
-            {/* Stock status */}
-            {/* <div className="mb-6">
-            <span
-              className={`px-2 py-1 text-sm rounded-full ${product.inStock
-                ? 'bg-green-100 text-green-800'
-                : 'bg-red-100 text-red-800'
-              }`}
-            >
-              {product.inStock ? 'In Stock' : 'Out of Stock'}
-            </span>
-          </div> */}
 
             {/* Product actions */}
             <ProductActions

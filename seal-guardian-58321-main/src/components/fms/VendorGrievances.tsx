@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import api from "@/lib/api";
-import { formatToIST } from "@/lib/utils";
+import { formatToIST, cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Loader2, RefreshCw, MessageSquare, AlertCircle, CheckCircle, Clock, Users, Building2, Package, Receipt, Store, Wrench, ShieldCheck, HelpCircle, Paperclip, Plus, X, Upload, Factory, Truck, UserCheck } from "lucide-react";
 import { compressImage, isCompressibleImage } from "@/lib/imageCompression";
+import { Pagination } from "./Pagination";
 
 interface Grievance {
     id: number;
@@ -72,7 +73,14 @@ const VendorGrievances = () => {
     const [showNewGrievanceForm, setShowNewGrievanceForm] = useState(false);
     const [submitting, setSubmitting] = useState(false);
 
+    // Pagination states
+    const [customerLimit, setCustomerLimit] = useState(15);
+    const [myGrievanceLimit, setMyGrievanceLimit] = useState(15);
+    const [customerPagination, setCustomerPagination] = useState({ currentPage: 1, totalPages: 1, totalCount: 0, limit: 15 });
+    const [myGrievancePagination, setMyGrievancePagination] = useState({ currentPage: 1, totalPages: 1, totalCount: 0, limit: 15 });
+
     // Form state
+    const [activeTab, setActiveTab] = useState("customer");
     const [department, setDepartment] = useState("");
     const [departmentDetails, setDepartmentDetails] = useState("");
     const [category, setCategory] = useState("");
@@ -98,12 +106,13 @@ const VendorGrievances = () => {
         { value: "asm", label: "ASM", icon: UserCheck, requiresDetails: true },
     ];
 
-    const fetchGrievances = async () => {
+    const fetchGrievances = async (page = 1, currentLimit = customerLimit) => {
         setLoading(true);
         try {
-            const response = await api.get("/grievance/vendor");
+            const response = await api.get(`/grievance/vendor?page=${page}&limit=${currentLimit}`);
             if (response.data.success) {
                 setGrievances(response.data.data);
+                if (response.data.pagination) setCustomerPagination(response.data.pagination);
             }
         } catch (error: any) {
             toast({
@@ -116,12 +125,13 @@ const VendorGrievances = () => {
         }
     };
 
-    const fetchMyGrievances = async () => {
+    const fetchMyGrievances = async (page = 1, currentLimit = myGrievanceLimit) => {
         setLoadingMyGrievances(true);
         try {
-            const response = await api.get("/grievance/franchise/submitted");
+            const response = await api.get(`/grievance/franchise/submitted?page=${page}&limit=${currentLimit}`);
             if (response.data.success) {
                 setMyGrievances(response.data.data);
+                if (response.data.pagination) setMyGrievancePagination(response.data.pagination);
             }
         } catch (error: any) {
             console.error("Failed to fetch my grievances", error);
@@ -269,26 +279,45 @@ const VendorGrievances = () => {
 
     return (
         <div className="animate-in fade-in duration-700">
-            <Tabs defaultValue="customer" className="w-full space-y-8">
-                <div className="flex flex-col md:flex-row justify-between items-center gap-6 sticky top-5 z-30 bg-white py-4 px-2 -mx-2 rounded-3xl border border-orange-100 shadow-[0_8px_30px_rgba(0,0,0,0.02)]">
-                    <TabsList className="bg-white p-1 rounded-full h-11 w-full md:w-auto grid grid-cols-2 md:inline-flex gap-0.5 shadow-sm border border-orange-100">
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full space-y-8">
+                {/* Header Container */}
+                <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4 md:gap-6 sticky top-5 z-30 bg-white py-3 md:py-4 px-3 md:px-2 -mx-3 md:-mx-2 rounded-2xl md:rounded-3xl border border-orange-100 shadow-[0_8px_30px_rgba(0,0,0,0.02)]">
+
+                    {/* Mobile: Refresh Icon Top Right */}
+                    <div className="flex md:hidden justify-end w-full absolute top-2 right-2 z-20">
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                                fetchGrievances();
+                                fetchMyGrievances();
+                            }}
+                            className="h-8 w-8 rounded-full text-orange-600 hover:bg-orange-50 p-0"
+                        >
+                            <RefreshCw className={`h-4 w-4 ${loading || loadingMyGrievances ? "animate-spin" : ""}`} />
+                        </Button>
+                    </div>
+
+                    {/* Tabs List */}
+                    <TabsList className="bg-white p-1 rounded-full h-10 md:h-11 w-full md:w-auto grid grid-cols-2 md:inline-flex gap-0.5 shadow-sm border border-orange-100 mt-6 md:mt-0">
                         <TabsTrigger
                             value="customer"
-                            className="relative z-10 rounded-full px-8 py-2 text-sm font-bold text-slate-500 data-[state=active]:text-orange-600 data-[state=active]:bg-orange-50/50 data-[state=active]:shadow-sm transition-all duration-500 ease-out whitespace-nowrap flex items-center gap-2"
+                            className="relative z-10 rounded-full px-4 md:px-8 py-1.5 md:py-2 text-[10px] md:text-sm font-black md:font-bold text-slate-500 data-[state=active]:text-orange-600 data-[state=active]:bg-orange-50/50 data-[state=active]:shadow-sm transition-all duration-500 ease-out whitespace-nowrap flex items-center justify-center gap-1.5 md:gap-2 uppercase md:normal-case"
                         >
-                            <Users className="h-4 w-4" />
-                            Customer Concerns
+                            <Users className="h-3.5 w-3.5 md:h-4 md:w-4" />
+                            Customer
                         </TabsTrigger>
                         <TabsTrigger
                             value="my"
-                            className="relative z-10 rounded-full px-8 py-2 text-sm font-bold text-slate-500 data-[state=active]:text-orange-600 data-[state=active]:bg-orange-50/50 data-[state=active]:shadow-sm transition-all duration-500 ease-out whitespace-nowrap flex items-center gap-2"
+                            className="relative z-10 rounded-full px-4 md:px-8 py-1.5 md:py-2 text-[10px] md:text-sm font-black md:font-bold text-slate-500 data-[state=active]:text-orange-600 data-[state=active]:bg-orange-50/50 data-[state=active]:shadow-sm transition-all duration-500 ease-out whitespace-nowrap flex items-center justify-center gap-1.5 md:gap-2 uppercase md:normal-case"
                         >
-                            <Building2 className="h-4 w-4" />
-                            My Grievances
+                            <Building2 className="h-3.5 w-3.5 md:h-4 md:w-4" />
+                            My Grievance
                         </TabsTrigger>
                     </TabsList>
 
-                    <div className="flex items-center gap-3">
+                    {/* Desktop Refresh Button */}
+                    <div className="hidden md:flex items-center gap-2 md:gap-3 w-full md:w-auto">
                         <Button
                             variant="outline"
                             size="sm"
@@ -296,12 +325,25 @@ const VendorGrievances = () => {
                                 fetchGrievances();
                                 fetchMyGrievances();
                             }}
-                            className="h-11 px-6 rounded-full border-orange-100 text-orange-600 font-bold hover:bg-orange-50 transition-all flex items-center gap-2 shadow-sm"
+                            className="h-10 md:h-11 flex-1 md:flex-none px-6 rounded-full border-orange-100 text-orange-600 font-bold hover:bg-orange-50 transition-all flex items-center justify-center gap-2 shadow-sm text-xs md:text-sm"
                         >
-                            <RefreshCw className={`h-4 w-4 ${loading || loadingMyGrievances ? "animate-spin" : ""}`} />
+                            <RefreshCw className={`h-3.5 w-3.5 md:h-4 md:w-4 ${loading || loadingMyGrievances ? "animate-spin" : ""}`} />
                             Refresh
                         </Button>
                     </div>
+
+                    {/* Mobile: Raise New Concern (Only for My Grievance Tab) */}
+                    {activeTab === 'my' && (
+                        <div className="flex md:hidden w-full">
+                            <Button
+                                onClick={() => setShowNewGrievanceForm(true)}
+                                className="w-full h-11 rounded-2xl bg-orange-600 hover:bg-orange-700 text-white font-black uppercase tracking-widest shadow-xl shadow-orange-600/20 transition-all active:scale-95 flex items-center justify-center gap-2 text-xs"
+                            >
+                                <Plus className="h-4 w-4" />
+                                Raise New Concern
+                            </Button>
+                        </div>
+                    )}
                 </div>
 
                 {/* Customer Grievance Tab Content */}
@@ -325,25 +367,25 @@ const VendorGrievances = () => {
                                     <div
                                         key={g.id}
                                         onClick={() => handleOpenDetail(g)}
-                                        className={`group relative flex items-center gap-4 p-5 bg-white hover:bg-orange-50/30 transition-all duration-300 rounded-[24px] border border-slate-100 hover:border-orange-200 shadow-sm hover:shadow-xl cursor-pointer active:scale-[0.99] ${categoryConfig.border?.replace('border-', 'border-l-[6px] border-l-')}`}
+                                        className={`group relative flex items-center gap-3 md:gap-4 p-4 md:p-5 bg-white hover:bg-orange-50/30 transition-all duration-300 rounded-[20px] md:rounded-[24px] border border-slate-100 hover:border-orange-200 shadow-sm hover:shadow-xl cursor-pointer active:scale-[0.99] ${categoryConfig.border?.replace('border-', 'border-l-[6px] border-l-')}`}
                                     >
                                         {/* Icon Box */}
-                                        <div className={`h-12 w-12 rounded-xl flex items-center justify-center shrink-0 ${categoryConfig.bg} ${categoryConfig.text}`}>
-                                            <CategoryIcon className="w-6 h-6" />
+                                        <div className={`h-10 w-10 md:h-12 md:w-12 rounded-lg md:rounded-xl flex items-center justify-center shrink-0 ${categoryConfig.bg} ${categoryConfig.text}`}>
+                                            <CategoryIcon className="w-5 h-5 md:w-6 md:h-6" />
                                         </div>
 
                                         {/* Content */}
                                         <div className="flex-1 min-w-0">
                                             <div className="flex items-center gap-2 mb-1">
-                                                <span className="font-mono text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded">{g.ticket_id}</span>
-                                                <Badge variant="outline" className={`${STATUS_CONFIG[g.status]?.color?.replace('bg-', 'text-')} border-0 bg-transparent font-semibold pl-0`}>
+                                                <span className="font-mono text-[9px] md:text-xs text-muted-foreground bg-slate-50 border border-slate-100 px-1.5 py-0.5 rounded uppercase font-black tracking-tight">{g.ticket_id}</span>
+                                                <Badge variant="outline" className={`${STATUS_CONFIG[g.status]?.color?.replace('bg-', 'text-')} border-0 bg-transparent font-black tracking-widest text-[9px] md:text-[10px] pl-0 uppercase`}>
                                                     • {STATUS_CONFIG[g.status]?.label}
                                                 </Badge>
                                             </div>
-                                            <h3 className="font-semibold text-base truncate">{g.subject}</h3>
-                                            <p className="text-sm text-muted-foreground truncate">
+                                            <h3 className="font-black text-slate-800 text-sm md:text-base truncate tracking-tight">{g.subject}</h3>
+                                            <p className="text-[10px] md:text-sm text-slate-400 truncate font-bold uppercase tracking-widest opacity-70">
                                                 {g.customer_name} • {CATEGORIES[g.category] || g.category}
-                                                <span className="text-xs opacity-60 ml-2">• {formatToIST(g.created_at)}</span>
+                                                <span className="text-[9px] md:text-xs opacity-60 ml-2">• {formatToIST(g.created_at)}</span>
                                             </p>
                                         </div>
 
@@ -354,6 +396,21 @@ const VendorGrievances = () => {
                                     </div>
                                 );
                             })}
+                        </div>
+                    )}
+
+                    {customerPagination.totalPages > 0 && (
+                        <div className="mt-8 flex justify-end pb-8">
+                            <Pagination
+                                currentPage={customerPagination.currentPage}
+                                totalPages={customerPagination.totalPages}
+                                onPageChange={fetchGrievances}
+                                rowsPerPage={customerLimit}
+                                onRowsPerPageChange={(rows) => {
+                                    setCustomerLimit(rows);
+                                    fetchGrievances(1, rows);
+                                }}
+                            />
                         </div>
                     )}
 
@@ -488,7 +545,7 @@ const VendorGrievances = () => {
 
                 {/* My Grievance Tab Content */}
                 <TabsContent value="my" className="mt-0 outline-none space-y-6">
-                    <div className="flex justify-end mb-2">
+                    <div className="hidden md:flex justify-end mb-2">
                         <Button
                             onClick={() => setShowNewGrievanceForm(true)}
                             className="h-12 px-8 rounded-2xl bg-orange-600 hover:bg-orange-700 text-white font-black uppercase tracking-widest shadow-xl shadow-orange-600/20 transition-all active:scale-95 flex items-center gap-2"
@@ -550,6 +607,21 @@ const VendorGrievances = () => {
                         </div>
                     )}
 
+                    {myGrievancePagination.totalPages > 0 && (
+                        <div className="mt-8 flex justify-end pb-8">
+                            <Pagination
+                                currentPage={myGrievancePagination.currentPage}
+                                totalPages={myGrievancePagination.totalPages}
+                                onPageChange={fetchMyGrievances}
+                                rowsPerPage={myGrievanceLimit}
+                                onRowsPerPageChange={(rows) => {
+                                    setMyGrievanceLimit(rows);
+                                    fetchMyGrievances(1, rows);
+                                }}
+                            />
+                        </div>
+                    )}
+
                     {/* New Grievance Dialog */}
                     <Dialog open={showNewGrievanceForm} onOpenChange={setShowNewGrievanceForm}>
                         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
@@ -570,11 +642,16 @@ const VendorGrievances = () => {
                                             <div
                                                 key={dept.value}
                                                 onClick={() => setDepartment(dept.value)}
-                                                className={`cursor-pointer rounded-lg border p-4 flex flex-col items-center gap-2 transition-all hover:bg-accent/5 ${isSelected ? 'border-primary bg-primary/5 ring-1 ring-primary' : 'border-muted'
+                                                className={`cursor-pointer rounded-xl md:rounded-lg border p-3 md:p-4 flex flex-row md:flex-col items-center justify-start md:justify-center gap-3 md:gap-2 transition-all hover:bg-accent/5 ${isSelected ? 'border-orange-500 bg-orange-50/50 ring-1 ring-orange-500/20' : 'border-slate-100'
                                                     }`}
                                             >
-                                                <Icon className={`h-6 w-6 ${isSelected ? 'text-primary' : 'text-muted-foreground'}`} />
-                                                <span className={`font-medium text-sm ${isSelected ? 'text-primary' : ''}`}>{dept.label}</span>
+                                                <div className={cn(
+                                                    "h-10 w-10 rounded-lg flex items-center justify-center shrink-0 transition-colors",
+                                                    isSelected ? "bg-orange-500 text-white shadow-lg shadow-orange-500/20" : "bg-slate-50 text-slate-400"
+                                                )}>
+                                                    <Icon className="h-5 w-5 md:h-6 md:w-6" />
+                                                </div>
+                                                <span className={`font-black text-[11px] md:text-sm uppercase tracking-widest ${isSelected ? 'text-orange-600' : 'text-slate-500'}`}>{dept.label}</span>
                                             </div>
                                         );
                                     })}
@@ -597,13 +674,13 @@ const VendorGrievances = () => {
 
                                 {/* Category */}
                                 <div>
-                                    <label className="text-sm font-medium mb-1.5 block">Category <span className="text-red-500">*</span></label>
-                                    <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                                    <label className="text-[10px] md:text-sm font-black text-slate-400 uppercase tracking-widest mb-2 block">Category <span className="text-red-500">*</span></label>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
                                         {FRANCHISE_CATEGORIES.map((cat) => (
                                             <div
                                                 key={cat.value}
                                                 onClick={() => setCategory(cat.value)}
-                                                className={`cursor-pointer rounded-md border px-3 py-2 text-sm text-center transition-all hover:bg-accent/5 ${category === cat.value ? 'border-primary bg-primary/5 text-primary font-medium' : 'text-muted-foreground'
+                                                className={`cursor-pointer rounded-xl border px-4 py-2.5 text-[10px] md:text-sm text-center font-bold tracking-tight transition-all hover:bg-orange-50 ${category === cat.value ? 'border-orange-500 bg-orange-50 text-orange-600 ring-1 ring-orange-500/10' : 'text-slate-500 border-slate-100 bg-slate-50/50'
                                                     }`}
                                             >
                                                 {cat.label}

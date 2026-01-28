@@ -7,7 +7,7 @@ import {
 } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Download, FileText, ExternalLink } from "lucide-react";
+import { Download, FileText, ExternalLink, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn, getWarrantyExpiration, formatToIST } from "@/lib/utils";
 
@@ -81,6 +81,22 @@ export const WarrantySpecSheet = ({ isOpen, onClose, warranty }: WarrantySpecShe
 
                 {/* Scrollable Content */}
                 <div className="flex-1 overflow-y-auto p-6 space-y-6">
+                    {/* Rejection Reason - Highlighted at top if rejected */}
+                    {warranty.status === 'rejected' && warranty.rejection_reason && (
+                        <div className="animate-in fade-in slide-in-from-top-2 duration-500">
+                            <h4 className="text-xs font-bold text-red-500 uppercase tracking-widest mb-3 pl-1 flex items-center gap-2">
+                                <div className="w-1 h-4 bg-red-500 rounded-full" />
+                                Rejection Information
+                            </h4>
+                            <div className="bg-red-50/50 border border-red-100 rounded-2xl p-4 flex items-start gap-3 shadow-sm">
+                                <XCircle className="h-5 w-5 text-red-500 shrink-0 mt-0.5" />
+                                <div className="min-w-0">
+                                    <p className="text-[10px] font-black text-red-700/50 uppercase tracking-widest mb-1">Reason for Rejection</p>
+                                    <p className="text-sm font-bold text-red-600 italic leading-relaxed">{warranty.rejection_reason}</p>
+                                </div>
+                            </div>
+                        </div>
+                    )}
 
                     {/* Product & Car Details */}
                     <div className="space-y-1">

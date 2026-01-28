@@ -1,7 +1,17 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Product, ProductPrice } from '@/types/catalog';
+import { Product } from '@/types/catalog';
+import { ChevronRight } from 'lucide-react';
 import ScrollReveal from './ScrollReveal';
+import ProductCard from '../ProductCard';
+import {
+    Carousel,
+    CarouselContent,
+    CarouselItem,
+    CarouselNext,
+    CarouselPrevious,
+    type CarouselApi
+} from "@/components/ui/carousel";
 
 interface NewArrivalsShowcaseProps {
     products: Product[];
@@ -14,113 +24,76 @@ const NewArrivalsShowcase: React.FC<NewArrivalsShowcaseProps> = ({
     title = 'New Arrivals',
     subtitle = 'Discover our latest premium automotive accessories',
 }) => {
-    // Helper to get display price
-    const getDisplayPrice = (product: Product) => {
-        if (typeof product.price === 'number') {
-            return product.price.toLocaleString();
-        }
-        const priceObj = product.price as ProductPrice;
-        return priceObj.twoRow?.toLocaleString() || priceObj.threeRow?.toLocaleString() || priceObj.default?.toLocaleString() || '0';
-    };
+    const [api, setApi] = React.useState<CarouselApi>();
 
-    const isMultiPrice = (product: Product) => typeof product.price !== 'number';
+    // Auto-advance logic
+    React.useEffect(() => {
+        if (!api) return;
+        const interval = setInterval(() => {
+            api.scrollNext();
+        }, 4000);
+        return () => clearInterval(interval);
+    }, [api]);
 
     return (
-        <section className="py-12 md:py-16 bg-gradient-to-b from-gray-50 to-white">
+        <section className="py-12 md:py-16 bg-gradient-to-b from-gray-50 to-white overflow-hidden">
             <div className="container mx-auto px-4">
                 {/* Section Header */}
-                <ScrollReveal animation="fadeInUp" className="text-center mb-10">
-                    <span className="inline-block px-4 py-2 mb-4 text-sm font-medium text-brand-orange bg-brand-orange/10 rounded-full uppercase tracking-wider">
-                        Just Launched
-                    </span>
-                    <h2 className="text-4xl md:text-5xl lg:text-6xl font-bold text-gray-900 mb-4">
-                        {title}
-                    </h2>
-                    <p className="text-xl text-gray-600 max-w-2xl mx-auto">
+                <ScrollReveal animation="fadeInUp" className="text-center mb-10 flex flex-col items-center">
+                    <div className="flex items-center justify-between w-full md:justify-center mb-6">
+                        <div className="flex flex-col items-start md:items-center gap-1.5 flex-1">
+                            <span className="inline-block px-3 py-1 mb-1 text-[10px] font-black uppercase tracking-[0.2em] text-brand-orange bg-brand-orange/5 border border-brand-orange/10 rounded-full">
+                                ✨ Just Launched
+                            </span>
+                            <div className="flex items-center gap-3">
+                                <div className="w-1.5 h-6 bg-brand-orange rounded-full" />
+                                <h2 className="text-3xl md:text-6xl font-black text-gray-900 tracking-tighter uppercase leading-none">
+                                    {title.split(' ')[0]} <span className="text-brand-orange/90 font-medium lowercase italic">{title.split(' ').slice(1).join(' ')}</span>
+                                </h2>
+                            </div>
+                        </div>
+
+                        {/* Mobile View All */}
+                        <Link
+                            to="/category/new-arrivals"
+                            className="md:hidden inline-flex items-center gap-1 text-[10px] font-black uppercase text-brand-orange/80 hover:text-brand-orange transition-colors"
+                        >
+                            View All
+                            <ChevronRight className="w-3 h-3" />
+                        </Link>
+                    </div>
+                    <p className="hidden md:block text-xl text-gray-400 font-medium max-w-2xl mx-auto leading-relaxed">
                         {subtitle}
                     </p>
                 </ScrollReveal>
 
-                {/* Products Grid - Light Cards */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 md:gap-8">
-                    {products.slice(0, 8).map((product, index) => (
-                        <ScrollReveal
-                            key={product.id}
-                            animation="fadeInUp"
-                            delay={index * 100}
-                        >
-                            <Link
-                                to={`/product/${product.id}`}
-                                className="group block h-full"
-                            >
-                                <div className="glass-card-premium h-full flex flex-col rounded-3xl overflow-visible relative">
-                                    {/* Swinging NEW Tag */}
-                                    <div className="hanging-tag">
-                                        <div className="hanging-tag-body"></div>
-                                    </div>
-
-                                    {/* Product Image - White background friendly */}
-                                    <div className="aspect-square p-6 flex items-center justify-center overflow-hidden bg-white rounded-t-3xl">
-                                        <img
-                                            src={product.images[0]}
-                                            alt={product.name}
-                                            className="w-full h-full object-contain transition-transform duration-700 group-hover:scale-110"
-                                        />
-                                    </div>
-
-                                    {/* Product Info */}
-                                    <div className="p-6 pt-4 flex-grow flex flex-col">
-                                        {/* Rating */}
-                                        <div className="flex items-center gap-1 mb-2">
-                                            {[...Array(5)].map((_, i) => (
-                                                <svg
-                                                    key={i}
-                                                    className={`w-4 h-4 ${i < Math.round(product.rating || 0)
-                                                        ? 'text-brand-yellow'
-                                                        : 'text-gray-300'
-                                                        }`}
-                                                    fill="currentColor"
-                                                    viewBox="0 0 20 20"
-                                                >
-                                                    <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                                                </svg>
-                                            ))}
-                                            <span className="text-xs text-gray-400 ml-1">
-                                                {product.rating?.toFixed(1) || 'New'}
-                                            </span>
-                                        </div>
-
-                                        {/* Product Name */}
-                                        <h3 className="text-lg font-semibold text-gray-900 mb-1 line-clamp-2 group-hover:text-brand-orange transition-colors">
-                                            {product.name}
-                                        </h3>
-
-                                        {/* Description Bullet Points */}
-                                        {product.description && (
-                                            <ul className="text-xs text-gray-500 mb-2 space-y-0.5 list-disc list-inside">
-                                                {(Array.isArray(product.description)
-                                                    ? product.description
-                                                    : product.description.split('\n').filter(line => line.trim())
-                                                ).slice(0, 2).map((item: string, idx: number) => (
-                                                    <li key={idx} className="line-clamp-1">{item}</li>
-                                                ))}
-                                            </ul>
-                                        )}
-
-                                        {/* Price */}
-                                        <div className="flex items-baseline gap-2 mt-auto">
-                                            <span className="text-xl font-bold text-brand-orange">
-                                                ₹{getDisplayPrice(product)}
-                                            </span>
-                                            {isMultiPrice(product) && (
-                                                <span className="text-xs text-gray-500">onwards</span>
-                                            )}
-                                        </div>
-                                    </div>
-                                </div>
-                            </Link>
-                        </ScrollReveal>
-                    ))}
+                {/* Products Carousel */}
+                <div className="relative -mx-4 md:mx-0">
+                    <Carousel
+                        setApi={setApi}
+                        opts={{
+                            align: "start",
+                            loop: true,
+                        }}
+                        className="w-full"
+                    >
+                        <CarouselContent className="-ml-4 md:-ml-6">
+                            {products.slice(0, 8).map((product, index) => (
+                                <CarouselItem
+                                    key={product.id}
+                                    className="pl-2 md:pl-6 basis-full md:basis-1/2 lg:basis-1/3"
+                                >
+                                    <ScrollReveal
+                                        animation="fadeInUp"
+                                        delay={index * 100}
+                                        className="h-full"
+                                    >
+                                        <ProductCard product={product} />
+                                    </ScrollReveal>
+                                </CarouselItem>
+                            ))}
+                        </CarouselContent>
+                    </Carousel>
                 </div>
 
                 {/* View All Link */}

@@ -28,6 +28,7 @@ import {
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { fetchCategories, fetchProducts, Product, Category } from '@/lib/catalogService';
+import { cn } from "@/lib/utils";
 
 const CatalogHeader = () => {
     const [searchTerm, setSearchTerm] = useState('');
@@ -39,6 +40,7 @@ const CatalogHeader = () => {
     const [mainCategories, setMainCategories] = useState<Category[]>([]);
     const [allCategories, setAllCategories] = useState<Category[]>([]);
     const [allProducts, setAllProducts] = useState<Product[]>([]);
+    const [isMobileSearchOpen, setIsMobileSearchOpen] = useState(false);
     const searchRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
@@ -111,7 +113,13 @@ const CatalogHeader = () => {
 
     const toggleMobileMenu = () => {
         setIsMobileMenuOpen(!isMobileMenuOpen);
+        setIsMobileSearchOpen(false); // Close search if menu opens
         setMobileExpandedCategory(null);
+    };
+
+    const toggleMobileSearch = () => {
+        setIsMobileSearchOpen(!isMobileSearchOpen);
+        setIsMobileMenuOpen(false); // Close menu if search opens
     };
 
     const toggleMobileCategory = (categoryId: string) => {
@@ -132,34 +140,61 @@ const CatalogHeader = () => {
     // Recursive component for multilevel dropdowns
     const NavDropdown = ({ category, allCats, level = 0 }: { category: Category, allCats: Category[], level?: number }) => {
         const children = allCats.filter(c => c.parentId === category.id);
-        const [isHovered, setIsHovered] = useState(false);
+        const [isOpen, setIsOpen] = useState(false);
         const icon = level === 0 ? getCategoryIcon(category.name) : null;
+        const dropdownRef = useRef<HTMLDivElement>(null);
+
+        // Close dropdown when clicking outside
+        useEffect(() => {
+            const handleClickOutside = (event: MouseEvent) => {
+                if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+                    setIsOpen(false);
+                }
+            };
+            document.addEventListener('mousedown', handleClickOutside);
+            return () => document.removeEventListener('mousedown', handleClickOutside);
+        }, []);
 
         return (
             <div
+                ref={dropdownRef}
                 className={`relative ${level === 0 ? 'group' : ''}`}
-                onMouseEnter={() => setIsHovered(true)}
-                onMouseLeave={() => setIsHovered(false)}
+                onMouseEnter={() => setIsOpen(true)}
+                onMouseLeave={() => setIsOpen(false)}
             >
-                <Link
-                    to={`/category/${category.id}`}
-                    className={`flex items-center text-sm transition-all duration-200 ${level === 0
+                <div
+                    className={`flex items-center justify-between text-sm transition-all duration-200 whitespace-nowrap ${level === 0
                         ? 'text-gray-600 hover:text-brand-orange py-2'
-                        : 'p-2 rounded-md hover:bg-gray-50 text-gray-700 hover:text-brand-orange justify-between'
+                        : 'p-2 rounded-md hover:bg-gray-50 text-gray-700 hover:text-brand-orange'
                         }`}
                 >
-                    <span className="flex items-center">
+                    <Link
+                        to={`/category/${category.id}`}
+                        className="flex items-center flex-1 pr-1"
+                        onClick={() => setIsOpen(false)}
+                    >
                         {icon}
                         {category.name}
-                    </span>
+                    </Link>
+
                     {children.length > 0 && (
-                        <ChevronDown className={`ml-1 h-3 w-3 transition-transform ${level > 0 ? '-rotate-90' : ''}`} />
+                        <button
+                            onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                setIsOpen(!isOpen);
+                            }}
+                            className="p-1 ml-1 hover:bg-gray-100 rounded-full transition-colors"
+                            aria-label="Toggle submenu"
+                        >
+                            <ChevronDown className={`h-3 w-3 transition-transform ${level > 0 && !isOpen ? '-rotate-90' : ''} ${isOpen ? 'rotate-180' : ''}`} />
+                        </button>
                     )}
-                </Link>
+                </div>
 
                 {children.length > 0 && (
                     <div
-                        className={`absolute bg-white border rounded-lg shadow-xl py-2 min-w-[200px] transition-all duration-200 ${isHovered ? 'opacity-100 visible translate-y-0' : 'opacity-0 invisible -translate-y-2'
+                        className={`absolute bg-white border rounded-lg shadow-xl py-2 min-w-[200px] transition-all duration-200 ${isOpen ? 'opacity-100 visible translate-y-0' : 'opacity-0 invisible -translate-y-2'
                             } ${level === 0 ? 'top-full left-0 mt-1' : 'left-full top-0 ml-1'}`}
                         style={{ zIndex: 70 + level }}
                     >
@@ -173,23 +208,22 @@ const CatalogHeader = () => {
     };
 
     // Recursive component for mobile multilevel menu
-    const MobileNavNode = ({ category, allCats, level = 0, isExpanded, onToggle, onNavigate }: {
+    const MobileNavNode = ({ category, allCats, level = 0, onNavigate }: {
         category: Category;
         allCats: Category[];
         level?: number;
-        isExpanded: boolean;
-        onToggle: (id: string) => void;
         onNavigate: () => void;
     }) => {
         const children = allCats.filter(c => c.parentId === category.id);
         const icon = level === 0 ? getCategoryIcon(category.name) : null;
+        const [isExpanded, setIsExpanded] = useState(false);
 
         return (
             <div className="border-b border-gray-50 last:border-0">
                 {children.length > 0 ? (
                     <>
                         <button
-                            onClick={() => onToggle(category.id)}
+                            onClick={() => setIsExpanded(!isExpanded)}
                             className={`flex items-center justify-between w-full text-sm py-2.5 px-3 transition-colors ${isExpanded ? 'bg-gray-50 text-brand-orange' : 'text-gray-600 hover:bg-gray-50'
                                 }`}
                             style={{ paddingLeft: `${level * 1.5 + 0.75}rem` }}
@@ -207,8 +241,6 @@ const CatalogHeader = () => {
                                     category={child}
                                     allCats={allCats}
                                     level={level + 1}
-                                    isExpanded={mobileExpandedCategory === child.id}
-                                    onToggle={onToggle}
                                     onNavigate={onNavigate}
                                 />
                             ))}
@@ -230,25 +262,27 @@ const CatalogHeader = () => {
     };
 
     return (
-        <div className="bg-white border-b">
+        <div className="bg-white/80 backdrop-blur-xl border-b sticky top-0 z-[100]">
             <div className="container mx-auto px-4">
-                {/* Desktop: Categories left, Search right - single row */}
-                <nav className="hidden md:flex items-center justify-between py-2">
-                    <div className="flex items-center space-x-6">
-                        {mainCategories.map((category) => (
-                            <NavDropdown key={category.id} category={category} allCats={allCategories} />
-                        ))}
-                    </div>
+                {/* Desktop: Top row (Logo & Search) */}
+                <div className="hidden md:flex items-center justify-between py-2 border-b border-gray-50">
+                    <Link to="/catalogue" className="flex-shrink-0">
+                        <img
+                            src="/autoform-logo.png"
+                            alt="Autoform Logo"
+                            className="h-10 object-contain"
+                        />
+                    </Link>
 
                     {/* Search on right */}
-                    <div className="relative w-56" ref={searchRef}>
+                    <div className="relative w-56 lg:w-64" ref={searchRef}>
                         <form onSubmit={handleSearch}>
                             <div className="relative">
                                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
                                 <Input
                                     type="search"
                                     placeholder="Search products..."
-                                    className="pl-9 pr-3 h-9 text-sm border-gray-200"
+                                    className="pl-9 pr-3 h-8 text-sm border-gray-100 bg-gray-50/50 focus:bg-white transition-colors"
                                     value={searchTerm}
                                     onChange={(e) => setSearchTerm(e.target.value)}
                                     onFocus={() => searchTerm.length >= 3 && setShowSearchResults(true)}
@@ -256,7 +290,7 @@ const CatalogHeader = () => {
                             </div>
                         </form>
                         {showSearchResults && searchResults.length > 0 && (
-                            <div className="absolute top-full right-0 w-72 bg-white border rounded-md shadow-lg mt-1 max-h-72 overflow-y-auto z-50">
+                            <div className="absolute top-full right-0 w-full bg-white border rounded-md shadow-lg mt-1 max-h-72 overflow-y-auto z-50">
                                 {searchResults.map((product) => (
                                     <Link
                                         key={product.id}
@@ -276,24 +310,92 @@ const CatalogHeader = () => {
                             </div>
                         )}
                     </div>
+                </div>
+
+                {/* Desktop: Navigation Bar (Below Logo/Search) */}
+                <nav className="hidden md:flex items-center justify-start py-1.5 space-x-4 lg:space-x-8">
+                    {mainCategories.map((category) => (
+                        <NavDropdown key={category.id} category={category} allCats={allCategories} />
+                    ))}
                 </nav>
 
-                {/* Mobile: hamburger + search */}
-                <div className="md:hidden flex items-center justify-between py-2">
-                    <button onClick={toggleMobileMenu} className="p-2 text-gray-500">
-                        {isMobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+                {/* Mobile: hamburger + Logo + search */}
+                <div className="md:hidden flex items-center justify-between py-2.5 relative">
+                    {/* Left: Menu Toggle */}
+                    <button onClick={toggleMobileMenu} className="p-2 text-gray-700 hover:text-brand-orange transition-colors relative z-50">
+                        {isMobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
                     </button>
-                    <div className="relative w-40">
-                        <form onSubmit={handleSearch}>
-                            <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+
+                    {/* Center: Logo (Hidden when menu or search is open) */}
+                    {!isMobileMenuOpen && !isMobileSearchOpen && (
+                        <Link to="/catalogue" className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 animate-in fade-in duration-300">
+                            <img
+                                src="/autoform-logo.png"
+                                alt="Autoform Logo"
+                                className="h-8 object-contain"
+                            />
+                        </Link>
+                    )}
+
+                    {/* Right: Search Toggle */}
+                    <div className="flex items-center relative z-50">
+                        <button
+                            onClick={toggleMobileSearch}
+                            className={cn(
+                                "p-2 transition-all duration-300",
+                                isMobileSearchOpen ? "text-brand-orange scale-110" : "text-gray-700 hover:text-brand-orange"
+                            )}
+                        >
+                            {isMobileSearchOpen ? <X className="h-6 w-6" /> : <Search className="h-6 w-6" />}
+                        </button>
+                    </div>
+                </div>
+
+                {/* Mobile Search Bar Expansion */}
+                <div className={cn(
+                    "md:hidden overflow-hidden transition-all duration-500 ease-in-out border-t border-gray-50",
+                    isMobileSearchOpen ? "max-h-[500px] opacity-100 py-4" : "max-h-0 opacity-0 py-0"
+                )}>
+                    <div className="px-4">
+                        <form onSubmit={handleSearch} className="relative">
+                            <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
                             <Input
                                 type="search"
-                                placeholder="Search..."
-                                className="pl-7 h-8 text-sm"
+                                placeholder="Search premium accessories..."
+                                className="pl-12 pr-4 h-12 text-base rounded-2xl bg-gray-50 border-gray-100 focus:bg-white focus:ring-2 focus:ring-brand-orange/20 transition-all"
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
+                                autoFocus={isMobileSearchOpen}
                             />
                         </form>
+
+                        {/* Search Results for Mobile */}
+                        {searchTerm.length >= 2 && searchResults.length > 0 && (
+                            <div className="mt-4 space-y-2 animate-in slide-in-from-top-2 duration-300">
+                                <h4 className="text-[10px] font-black uppercase tracking-widest text-gray-400 px-1">Search Results</h4>
+                                {searchResults.map((product) => (
+                                    <Link
+                                        key={product.id}
+                                        to={`/product/${product.id}`}
+                                        className="flex items-center p-3 hover:bg-gray-50 bg-white border border-gray-100 rounded-2xl transition-all"
+                                        onClick={handleSearchResultClick}
+                                    >
+                                        <div className="w-12 h-12 bg-gray-50 rounded-xl overflow-hidden flex-shrink-0 mr-4">
+                                            <img src={product.images[0]} alt={product.name} className="w-full h-full object-cover" />
+                                        </div>
+                                        <div className="min-w-0 pr-2">
+                                            <div className="text-sm font-bold text-gray-900 truncate">{product.name}</div>
+                                            <div className="text-xs text-brand-orange font-black mt-0.5">
+                                                ₹{typeof product.price === 'number' ? product.price.toLocaleString() : 'Varies'}
+                                            </div>
+                                        </div>
+                                    </Link>
+                                ))}
+                            </div>
+                        )}
+                        {searchTerm.length >= 2 && searchResults.length === 0 && (
+                            <div className="text-center py-6 text-gray-400 italic text-sm">No results found for "{searchTerm}"</div>
+                        )}
                     </div>
                 </div>
 
@@ -305,8 +407,6 @@ const CatalogHeader = () => {
                                 key={category.id}
                                 category={category}
                                 allCats={allCategories}
-                                isExpanded={mobileExpandedCategory === category.id}
-                                onToggle={toggleMobileCategory}
                                 onNavigate={() => setIsMobileMenuOpen(false)}
                             />
                         ))}

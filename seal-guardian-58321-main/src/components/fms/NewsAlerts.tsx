@@ -17,6 +17,7 @@ import { cn } from "@/lib/utils";
 import { format, isSameDay } from "date-fns";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
+import { Pagination } from "./Pagination";
 
 export const NewsAlerts = () => {
     const { fullHistory, markAsRead, markAllAsRead, refreshNotifications, loading } = useNotifications();
@@ -24,6 +25,8 @@ export const NewsAlerts = () => {
     const [searchQuery, setSearchQuery] = useState("");
     const [activeTab, setActiveTab] = useState<'all' | 'unread' | 'alert' | 'system' | 'product'>('all');
     const [date, setDate] = useState<Date | undefined>();
+    const [currentPage, setCurrentPage] = useState(1);
+    const [rowsPerPage, setRowsPerPage] = useState(10);
 
     // Base filter: only show alert/system/product types (admin broadcasts, news)
     // Warranty notifications are shown separately in the NotificationPopover, not here
@@ -59,6 +62,9 @@ export const NewsAlerts = () => {
         return true;
     });
 
+    const paginatedItems = filteredItems.slice((currentPage - 1) * rowsPerPage, currentPage * rowsPerPage);
+    const totalPages = Math.ceil(filteredItems.length / rowsPerPage);
+
     const unreadCount = baseNotifications.filter(n => !n.is_read).length;
 
     const tabs = [
@@ -92,8 +98,8 @@ export const NewsAlerts = () => {
             {/* Filter Toolbar */}
             <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-6 sticky top-5 z-30 bg-white py-4 px-2 -mx-2 rounded-3xl border border-orange-100 shadow-[0_8px_30px_rgba(0,0,0,0.02)]">
 
-                {/* Tabs */}
-                <div className="flex-1 flex flex-nowrap overflow-x-auto gap-1 bg-white p-1 rounded-full border border-orange-100 [&::-webkit-scrollbar]:hidden min-w-0 shadow-sm">
+                {/* Tabs - Scrollable on mobile, Fixed on desktop */}
+                <div className="flex-1 flex flex-nowrap overflow-x-auto gap-1 bg-white p-1 rounded-2xl md:rounded-full border border-orange-100 [&::-webkit-scrollbar]:hidden min-w-0 shadow-sm">
                     {tabs.map(tab => (
                         <Button
                             key={tab.id}
@@ -101,13 +107,13 @@ export const NewsAlerts = () => {
                             size="sm"
                             onClick={() => setActiveTab(tab.id as any)}
                             className={cn(
-                                "rounded-full transition-all duration-300 font-black text-[10px] uppercase tracking-widest px-4 py-2 flex items-center gap-2",
+                                "rounded-full transition-all duration-300 font-extrabold md:font-black text-[9px] md:text-[10px] uppercase tracking-widest px-3 md:px-4 py-1.5 md:py-2 flex items-center gap-2 whitespace-nowrap",
                                 activeTab === tab.id ? "bg-orange-50/50 text-orange-600 shadow-sm" : "text-slate-400 hover:text-slate-600"
                             )}
                         >
                             {tab.label}
                             {tab.count !== undefined && tab.count > 0 && (
-                                <span className="flex h-5 min-w-[20px] items-center justify-center rounded-full bg-orange-600 px-1 text-[8px] font-black text-white">
+                                <span className="flex h-4 md:h-5 min-w-[16px] md:min-w-[20px] items-center justify-center rounded-full bg-orange-600 px-1 text-[7px] md:text-[8px] font-black text-white">
                                     {tab.count}
                                 </span>
                             )}
@@ -115,7 +121,7 @@ export const NewsAlerts = () => {
                     ))}
                 </div>
 
-                <div className="flex items-center gap-3 w-full xl:w-auto shrink-0">
+                <div className="flex items-center gap-2 md:gap-3 w-full xl:w-auto shrink-0">
                     {/* Date Filter */}
                     <div className="flex items-center gap-2 relative z-20 shrink-0">
                         <Popover>
@@ -124,12 +130,12 @@ export const NewsAlerts = () => {
                                     variant="outline"
                                     size="icon"
                                     className={cn(
-                                        "h-11 w-11 rounded-xl border-slate-200 bg-white hover:bg-slate-50 shadow-sm transition-all",
+                                        "h-10 w-10 md:h-11 md:w-11 rounded-xl border-slate-200 bg-white hover:bg-slate-50 shadow-sm transition-all",
                                         date && "border-orange-200 bg-orange-50 text-orange-600 ring-2 ring-orange-100"
                                     )}
                                     title={date ? format(date, "PPP") : "Filter by Date"}
                                 >
-                                    <CalendarIcon className="h-5 w-5" />
+                                    <CalendarIcon className="h-4 w-4 md:h-5 md:w-5" />
                                 </Button>
                             </PopoverTrigger>
                             <PopoverContent className="w-auto p-0" align="end">
@@ -146,22 +152,22 @@ export const NewsAlerts = () => {
                                 variant="ghost"
                                 size="icon"
                                 onClick={() => setDate(undefined)}
-                                className="h-11 w-11 rounded-xl text-slate-400 hover:text-red-500 hover:bg-red-50 bg-slate-50 border border-slate-100"
+                                className="h-10 w-10 md:h-11 md:w-11 rounded-xl text-slate-400 hover:text-red-500 hover:bg-red-50 bg-slate-50 border border-slate-100"
                                 title="Clear Date Filter"
                             >
-                                <X className="h-5 w-5" />
+                                <X className="h-4 w-4 md:h-5 md:w-5" />
                             </Button>
                         )}
                     </div>
 
                     {/* Search Bar */}
-                    <div className="relative w-40 sm:w-48 group">
-                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 group-focus-within:text-orange-500 transition-colors" />
+                    <div className="relative flex-1 xl:w-48 group">
+                        <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 group-focus-within:text-orange-500 transition-colors" />
                         <Input
                             placeholder="Search..."
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
-                            className="pl-10 h-11 rounded-xl border-slate-200 bg-slate-50 focus:bg-white focus:border-orange-200 focus:ring-4 focus:ring-orange-500/10 transition-all font-semibold"
+                            className="pl-9 mr-1 h-10 md:h-11 rounded-xl border-slate-200 bg-slate-50 focus:bg-white focus:border-orange-200 focus:ring-4 focus:ring-orange-500/10 transition-all font-semibold text-xs md:text-sm"
                         />
                     </div>
 
@@ -196,7 +202,7 @@ export const NewsAlerts = () => {
                         )}
                     </div>
                 ) : (
-                    filteredItems.map((item) => {
+                    paginatedItems.map((item) => {
                         const colors = getColors(item.type);
                         return (
                             <Card
@@ -217,25 +223,25 @@ export const NewsAlerts = () => {
                                             !item.is_read ? "bg-orange-500" : colors.bar
                                         )} />
 
-                                        <div className="p-6 flex-1 flex items-start gap-6">
+                                        <div className="p-4 md:p-6 flex-1 flex items-start gap-4 md:gap-6">
                                             <div className={cn(
-                                                "h-12 w-12 rounded-2xl flex items-center justify-center shrink-0 border shadow-sm transition-transform group-hover:scale-110 duration-500",
+                                                "h-10 w-10 md:h-12 md:w-12 rounded-xl md:rounded-2xl flex items-center justify-center shrink-0 border shadow-sm transition-transform group-hover:scale-110 duration-500",
                                                 !item.is_read ? "bg-orange-50/50 border-orange-100 text-orange-600" : "bg-slate-50 border-slate-100 text-slate-400"
                                             )}>
                                                 {getIcon(item.type)}
                                             </div>
 
                                             <div className="flex-1 min-w-0">
-                                                <div className="flex items-center justify-between mb-2">
+                                                <div className="flex flex-col md:flex-row md:items-center justify-between mb-2">
                                                     <h3 className={cn(
-                                                        "text-lg transition-colors leading-tight",
+                                                        "text-base md:text-lg transition-colors leading-tight mb-1 md:mb-0",
                                                         !item.is_read ? "font-black text-slate-800" : "font-bold text-slate-600"
                                                     )}>
                                                         {item.title}
                                                     </h3>
                                                     <div className="flex items-center gap-1.5 text-slate-400">
-                                                        <CalendarIcon className="h-3.5 w-3.5" />
-                                                        <span className="text-[10px] font-black uppercase tracking-widest">{format(new Date(item.created_at), 'dd MMM yyyy')}</span>
+                                                        <CalendarIcon className="h-3 md:h-3.5 w-3 md:w-3.5" />
+                                                        <span className="text-[9px] md:text-[10px] font-black uppercase tracking-widest">{format(new Date(item.created_at), 'dd MMM yyyy')}</span>
                                                     </div>
                                                 </div>
                                                 <p className={cn(
@@ -309,6 +315,21 @@ export const NewsAlerts = () => {
                 )}
             </div>
 
+            {totalPages > 0 && (
+                <div className="mt-8 flex justify-end pb-8">
+                    <Pagination
+                        currentPage={currentPage}
+                        totalPages={totalPages}
+                        onPageChange={setCurrentPage}
+                        rowsPerPage={rowsPerPage}
+                        onRowsPerPageChange={(rows) => {
+                            setRowsPerPage(rows);
+                            setCurrentPage(1);
+                        }}
+                    />
+                </div>
+            )}
+
             {/* Detailed View Dialog */}
             <Dialog open={!!selectedNotification} onOpenChange={(open) => !open && setSelectedNotification(null)}>
                 <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto p-0 gap-0 border-none shadow-2xl bg-white/95 backdrop-blur-xl [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-slate-200 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:hover:bg-slate-300">
@@ -335,35 +356,35 @@ export const NewsAlerts = () => {
 
                         return (
                             <>
-                                <DialogHeader className={cn("p-8 pb-6 border-b border-slate-100", colors.bg)}>
+                                <DialogHeader className={cn("p-5 md:p-8 pb-4 md:pb-6 border-b border-slate-100", colors.bg)}>
                                     <div className="flex items-start justify-between gap-4">
-                                        <div className="flex items-center gap-4">
+                                        <div className="flex items-center gap-3 md:gap-4">
                                             <div className={cn(
-                                                "h-14 w-14 rounded-2xl flex items-center justify-center shrink-0 border shadow-sm bg-white",
+                                                "h-11 w-11 md:h-14 md:w-14 rounded-xl md:rounded-2xl flex items-center justify-center shrink-0 border shadow-sm bg-white",
                                                 colors.text
                                             )}>
                                                 {getIcon(selectedNotification.type)}
                                             </div>
                                             <div>
-                                                <Badge variant="outline" className={cn("mb-2 border-0 bg-white/50 backdrop-blur-md shadow-sm font-bold tracking-widest text-[10px]", colors.text)}>
+                                                <Badge variant="outline" className={cn("mb-1 md:mb-2 border-0 bg-white/50 backdrop-blur-md shadow-sm font-bold tracking-widest text-[9px] md:text-[10px]", colors.text)}>
                                                     {selectedNotification.type.toUpperCase()}
                                                 </Badge>
-                                                <DialogTitle className="text-2xl font-black tracking-tight text-slate-800 leading-tight">
+                                                <DialogTitle className="text-xl md:text-2xl font-black tracking-tight text-slate-800 leading-tight">
                                                     {selectedNotification.title}
                                                 </DialogTitle>
                                             </div>
                                         </div>
                                     </div>
-                                    <DialogDescription className="flex items-center gap-2 mt-3 text-slate-500 font-bold ml-1 text-xs uppercase tracking-wider">
-                                        <CalendarIcon className="h-3.5 w-3.5" />
+                                    <DialogDescription className="flex items-center gap-2 mt-3 text-slate-500 font-bold ml-1 text-[10px] md:text-xs uppercase tracking-wider">
+                                        <CalendarIcon className="h-3 md:h-3.5 w-3 md:w-3.5" />
                                         {format(new Date(selectedNotification.created_at), 'PPP')}
                                         <span className="mx-1 text-slate-300">•</span>
                                         {format(new Date(selectedNotification.created_at), 'p')}
                                     </DialogDescription>
                                 </DialogHeader>
 
-                                <div className="p-8 space-y-8">
-                                    <div className="prose prose-sm max-w-none text-slate-600 leading-relaxed whitespace-pre-wrap text-base font-medium">
+                                <div className="p-5 md:p-8 space-y-6 md:space-y-8">
+                                    <div className="prose prose-sm max-w-none text-slate-600 leading-relaxed whitespace-pre-wrap text-sm md:text-base font-medium">
                                         {selectedNotification.message}
                                     </div>
 
