@@ -61,6 +61,7 @@ router.put('/:id/assign', authenticateToken, GrievanceController.assignGrievance
 router.put('/:id/admin-update', authenticateToken, GrievanceController.adminUpdateGrievance); // New route
 router.put('/:id/remarks', authenticateToken, GrievanceController.addRemarks);
 router.post('/:id/send-assignment-email', authenticateToken, GrievanceController.sendAssignmentEmail);
+router.get('/:id/remarks', authenticateToken, GrievanceController.getRemarks);
 router.get('/:id/assignments', authenticateToken, GrievanceController.getAssignmentHistory);
 
 export default router;

@@ -22,6 +22,25 @@ class GrievanceController {
     }
 
     /**
+     * Get remarks history for a grievance
+     * GET /api/grievance/:id/remarks
+     */
+    getRemarks = async (req: AuthRequest, res: Response) => {
+        try {
+            const { id } = req.params;
+            const [remarks] = await db.execute(
+                'SELECT * FROM grievance_remarks WHERE grievance_id = ? ORDER BY created_at ASC',
+                [id]
+            );
+
+            return res.json({ success: true, data: remarks });
+        } catch (error: any) {
+            console.error('Get remarks error:', error);
+            return res.status(500).json({ success: false, error: 'Failed to fetch remarks history' });
+        }
+    }
+
+    /**
      * Submit a new grievance (Customer only)
      * POST /api/grievance
      */
@@ -214,7 +233,11 @@ class GrievanceController {
                 return res.status(401).json({ success: false, error: 'Unauthorized' });
             }
 
-            const { department, departmentDetails, category, subject, description, attachments } = req.body;
+            const { department, departmentDetails, category, subject, description } = req.body;
+
+            // Get uploaded files from multer (Cloudinary)
+            const uploadedFiles = req.files as Express.Multer.File[];
+            const attachmentUrls = uploadedFiles?.map((file: any) => file.path || file.secure_url || file.url) || [];
 
             // Validation
             if (!department || !category || !subject || !description) {
@@ -270,7 +293,7 @@ class GrievanceController {
                     category,
                     subject,
                     description,
-                    attachments ? JSON.stringify(attachments) : null,
+                    JSON.stringify(attachmentUrls),
                     getISTTimestamp(),
                     getISTTimestamp()
                 ]
@@ -280,8 +303,10 @@ class GrievanceController {
             try {
                 await db.execute(
                     `INSERT INTO notifications (user_id, title, message, type, link, created_at) 
-                     SELECT id, ?, ?, 'warning', ?, ? 
-                     FROM profiles WHERE role = 'admin'`,
+                     SELECT p.id, ?, ?, 'warning', ?, ? 
+                     FROM profiles p
+                     JOIN user_roles ur ON p.id = ur.user_id
+                     WHERE ur.role = 'admin'`,
                     [
                         `🏪 Franchise Grievance: ${ticketId}`,
                         `Franchise "${vendor.store_name}" submitted a grievance to ${department}. Subject: ${subject}`,
@@ -750,6 +775,31 @@ class GrievanceController {
                 [remarks, id]
             );
 
+            // Add to remarks history
+            try {
+                let userName = userRole === 'admin' ? 'Administrator' : 'Franchise';
+                const userId = req.user?.id || 'unknown';
+
+                if (userRole === 'vendor') {
+                    const [vendorRows]: any = await db.execute(
+                        'SELECT store_name FROM vendor_details WHERE user_id = ?',
+                        [userId]
+                    );
+                    if (vendorRows.length > 0) {
+                        userName = vendorRows[0].store_name;
+                    }
+                }
+
+                await db.execute(
+                    `INSERT INTO grievance_remarks (grievance_id, added_by, added_by_name, added_by_id, remark)
+                     VALUES (?, ?, ?, ?, ?)`,
+                    [id, userRole === 'admin' ? 'admin' : 'franchise', userName, userId, remarks]
+                );
+            } catch (historyError) {
+                console.error('Failed to log remark history:', historyError);
+                // Continue as the main update succeeded
+            }
+
             // Notify Customer about new remarks
             let ticketId = id;
             try {
@@ -838,6 +888,22 @@ class GrievanceController {
                     `UPDATE grievances SET ${updates.join(', ')} WHERE id = ?`,
                     values
                 );
+
+                // Add to remarks history if admin_remarks were provided
+                if (admin_remarks) {
+                    try {
+                        const userName = 'Administrator';
+                        const userId = req.user?.id || 'admin';
+
+                        await db.execute(
+                            `INSERT INTO grievance_remarks (grievance_id, added_by, added_by_name, added_by_id, remark)
+                             VALUES (?, ?, ?, ?, ?)`,
+                            [id, 'admin', userName, userId, admin_remarks]
+                        );
+                    } catch (historyError) {
+                        console.error('Failed to log admin remark history:', historyError);
+                    }
+                }
             }
 
             // Notify Customer about admin update
