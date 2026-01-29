@@ -17,12 +17,12 @@ export const AdminModuleLayout = ({ title, description, children, actions, onMen
         <div className="flex-1 min-h-0 flex flex-col min-w-0 relative bg-[#fffaf5]">
             <main
                 className={cn(
-                    "flex-1 min-h-0 bg-white border border-orange-100 rounded-[30px] md:rounded-[40px] shadow-[0_15px_50px_rgba(0,0,0,0.03)] relative md:mr-6 md:my-6 md:ml-6 flex flex-col overflow-hidden m-4"
+                    "flex-1 min-h-0 bg-white md:border border-orange-100 rounded-none md:rounded-[40px] shadow-none md:shadow-[0_15px_50px_rgba(0,0,0,0.03)] relative md:mr-6 md:my-6 md:ml-6 flex flex-col overflow-hidden m-0"
                 )}
             >
                 <div className="flex-1 w-full h-full overflow-y-auto custom-scrollbar flex flex-col">
                     {/* Branding Header Area */}
-                    <div className="px-6 md:px-10 pt-8 md:pt-10 w-full shrink-0">
+                    <div className="px-6 md:px-10 pt-8 md:pt-10 w-full shrink-0 sticky top-0 z-50 bg-white/95 backdrop-blur-sm pb-4 transition-all">
                         <div className="max-w-[1500px] mx-auto flex flex-col gap-4 md:gap-0">
                             <div className="flex flex-row items-start justify-between gap-4 md:gap-6">
                                 <div className="flex flex-col gap-3 md:gap-4 flex-1 min-w-0">
@@ -74,7 +74,7 @@ export const AdminModuleLayout = ({ title, description, children, actions, onMen
                     </div>
 
                     {/* Module Content Area */}
-                    <div className="flex-1 p-5 md:p-10 pt-8 md:pt-14">
+                    <div className="flex-1 p-6 md:p-10 pt-8 md:pt-14">
                         <div className="max-w-[1500px] mx-auto animate-in fade-in slide-in-from-bottom-2 duration-700">
                             {children}
                         </div>

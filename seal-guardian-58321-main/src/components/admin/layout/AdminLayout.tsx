@@ -8,6 +8,8 @@ import { Loader2, Menu, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 
+import Profile from "@/pages/Profile";
+
 // Modules
 import { AdminHome } from "../modules/AdminHome";
 import { AdminWarranties } from "../modules/AdminWarranties";
@@ -23,9 +25,6 @@ import { AdminAnnouncements } from "../modules/AdminAnnouncements";
 import { AdminOldWarranties } from "../modules/AdminOldWarranties";
 import { AdminWarrantyProducts } from "../modules/AdminWarrantyProducts";
 import { AdminCommandPalette } from "../AdminCommandPalette";
-
-// Placeholder for now
-const AdminProfile = () => <div>Profile Settings (Coming Soon)</div>;
 
 export const AdminLayout = () => {
     const { user, loading } = useAuth();
@@ -64,7 +63,7 @@ export const AdminLayout = () => {
                 return <AdminWarrantyForm />;
             case 'announcements':
                 return <AdminAnnouncements />;
-            case 'profile': return <AdminProfile />;
+            case 'profile': return <Profile embedded={true} />;
             default: return <AdminHome />;
         }
     };

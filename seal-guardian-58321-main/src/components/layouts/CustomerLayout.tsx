@@ -179,7 +179,7 @@ const CustomerLayout = () => {
     }
 
     return (
-        <div className="min-h-screen bg-[#fff2e6] text-slate-800 flex overflow-hidden relative">
+        <div className="min-h-screen bg-slate-50 md:bg-[#fff2e6] text-slate-800 flex overflow-hidden relative">
             {/* Background Glow Blobs for the entire app */}
             <div className="fixed inset-0 pointer-events-none">
                 <div className="glow-blob glow-blue top-[-10%] left-[-5%] opacity-20" />
@@ -187,7 +187,7 @@ const CustomerLayout = () => {
             </div>
 
             {/* Main Padded Wrapper */}
-            <div className="flex-1 flex gap-6 p-6 h-screen overflow-hidden relative z-10">
+            <div className="flex-1 flex gap-6 p-0 md:p-6 h-screen overflow-hidden relative z-10">
 
                 {/* Desktop Sidebar Panel */}
                 <aside
@@ -368,85 +368,30 @@ const CustomerLayout = () => {
                     {/* Main Scrollable Panel */}
                     <main
                         className={cn(
-                            "flex-1 w-full bg-white border border-orange-100 rounded-[40px] shadow-[0_15px_50px_rgba(0,0,0,0.03)] overflow-y-auto custom-scrollbar relative flex flex-col"
+                            "flex-1 w-full bg-white md:border border-orange-100 rounded-none md:rounded-[40px] shadow-none md:shadow-[0_15px_50px_rgba(0,0,0,0.03)] overflow-y-auto custom-scrollbar relative flex flex-col"
                         )}
                     >
-                        <div className="flex-1 p-8 md:p-10">
+                        <div className="hidden md:flex flex-1 p-8 md:p-10 flex-col">
+                            <Outlet />
+                        </div>
+                        {/* Mobile Outlet Wrapper to control padding */}
+                        <div className="md:hidden flex-1 flex flex-col pt-16">
                             <Outlet />
                         </div>
                     </main>
                 </div>
             </div>
 
-            {/* Mobile View */}
-            <div className="md:hidden fixed top-8 right-8 z-[60]">
-                <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => setIsMobileOpen(!isMobileOpen)}
-                    className="bg-white/80 backdrop-blur-2xl border border-orange-100 rounded-3xl h-14 w-14 shadow-xl text-slate-700"
-                >
-                    {isMobileOpen ? <X className="h-8 w-8" /> : <Menu className="h-8 w-8" />}
-                </Button>
-            </div>
+            {/* Mobile Sidebar - Removed floating button, using Header toggle instead */}
+            {/* We keep the sidebar code but hide the trigger button. 
+                TODO: Connect Header toggle to this sidebar if needed, 
+                but currently Header has its own menu. 
+            */}
 
-            {/* Mobile Sidebar Overlay */}
-            {isMobileOpen && (
-                <div
-                    className="md:hidden fixed inset-0 bg-orange-900/10 backdrop-blur-md z-[50] animate-in fade-in"
-                    onClick={() => setIsMobileOpen(false)}
-                />
-            )}
-
-            {/* Mobile Sidebar */}
-            <aside className={cn(
-                "md:hidden fixed inset-y-8 left-8 w-80 z-[55] bg-white rounded-[40px] border border-orange-100 shadow-[0_20px_60px_rgba(0,0,0,0.1)] transform transition-transform duration-500 ease-in-out",
-                isMobileOpen ? "translate-x-0" : "-translate-x-[calc(100%+32px)]"
-            )}>
-                <div className="flex items-center h-24 px-10 border-b border-orange-50">
-                    <img src="/autoform-logo.png" alt="Autoform" className="h-10 w-auto" />
-                </div>
-                <nav className="p-8 space-y-4">
-                    {navItems.map((item) => (
-                        <Link key={item.path} to={item.path} onClick={() => setIsMobileOpen(false)}>
-                            <div
-                                className={cn(
-                                    "w-full flex items-center gap-5 h-16 rounded-[28px] px-6 text-xl font-bold transition-all",
-                                    isActive(item.path) ? "bg-orange-50 text-orange-600 border border-orange-200" : "text-slate-500 hover:bg-slate-50"
-                                )}
-                            >
-                                <div className={cn(
-                                    "h-12 w-12 rounded-full flex items-center justify-center transition-all",
-                                    isActive(item.path) ? "bg-orange-100 border-2 border-orange-200" : "bg-slate-100"
-                                )}>
-                                    <item.icon className="h-6 w-6" />
-                                </div>
-                                {item.label}
-                                {item.badge > 0 && (
-                                    <span className="ml-auto flex h-7 min-w-7 items-center justify-center px-2 rounded-full bg-orange-500 text-white text-xs font-bold">
-                                        {item.badge}
-                                    </span>
-                                )}
-                            </div>
-                        </Link>
-                    ))}
-                </nav>
-                <div className="absolute bottom-0 left-0 right-0 p-8 border-t border-orange-50">
-                    <Button
-                        variant="ghost"
-                        className="w-full justify-start gap-5 h-16 rounded-[28px] px-6 text-red-500 hover:text-red-600 hover:bg-red-50 text-xl font-bold transition-all"
-                        onClick={logout}
-                    >
-                        <LogOut className="h-7 w-7" />
-                        Sign Out
-                    </Button>
-                </div>
-            </aside>
-
-            {/* Mobile normal header - Hidden when sidebar is open or on desktop when sidebar is collapsed */}
-            {!isMobileOpen && !isCollapsed && (
-                <div className="md:hidden fixed top-0 left-0 right-0 p-4 z-40">
-                    <Header className="bg-white/90 backdrop-blur-2xl border border-orange-100 rounded-[24px] shadow-sm h-16" />
+            {/* Mobile normal header - Always shown on mobile now */}
+            {!isMobileOpen && (
+                <div className="md:hidden fixed top-0 left-0 right-0 z-40 bg-white/80 backdrop-blur-md border-b border-orange-100">
+                    <Header className="bg-transparent border-none shadow-none h-16" />
                 </div>
             )}
         </div>

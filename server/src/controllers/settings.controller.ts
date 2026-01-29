@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import pool from '../config/database.js';
+import { ActivityLogService } from '../services/activity-log.service.js';
 
 export const getSetting = async (req: Request, res: Response) => {
     try {
@@ -35,6 +36,23 @@ export const updateSetting = async (req: Request, res: Response) => {
         );
 
         res.json({ success: true, message: 'Setting updated successfully' });
+
+        // Log activity if user is admin
+        if (user) {
+            // Fetch admin details if not fully populated in req.user (middleware dependent)
+            // But assuming req.user has id, name, email from auth middleware
+            await ActivityLogService.log({
+                adminId: user.id,
+                adminName: user.name,
+                adminEmail: user.email,
+                actionType: 'SYSTEM_SETTING_UPDATED',
+                targetType: 'SYSTEM_SETTING',
+                targetId: key,
+                targetName: key,
+                details: { newValue: value },
+                ipAddress: req.ip || req.socket?.remoteAddress
+            });
+        }
     } catch (error) {
         console.error('Error updating setting:', error);
         res.status(500).json({ success: false, error: 'Internal server error' });

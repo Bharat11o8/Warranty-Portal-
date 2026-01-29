@@ -587,8 +587,9 @@ export class AdminController {
                 actionType: status === 'validated' ? 'WARRANTY_APPROVED' : 'WARRANTY_REJECTED',
                 targetType: 'WARRANTY',
                 targetId: warrantyData.uid,
-                targetName: warrantyData.customer_name,
+                targetName: warrantyData.uid,
                 details: {
+                    customer_name: warrantyData.customer_name,
                     product_type: warrantyData.product_type,
                     rejection_reason: rejectionReason || null
                 },

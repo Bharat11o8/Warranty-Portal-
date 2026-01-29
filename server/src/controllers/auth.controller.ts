@@ -5,6 +5,7 @@ import { v4 as uuidv4 } from 'uuid';
 import db from '../config/database.js';
 import { EmailService } from '../services/email.service.js';
 import { OTPService } from '../services/otp.service.js';
+import { ActivityLogService } from '../services/activity-log.service.js';
 import { RegisterData } from '../types/index.js';
 import dotenv from 'dotenv';
 
@@ -313,6 +314,7 @@ export class AuthController {
             {
               id: newUserId,
               email: pending.email,
+              name: pending.name,
               role: pending.role
             },
             process.env.JWT_SECRET as string,
@@ -386,6 +388,7 @@ export class AuthController {
         {
           id: user.id,
           email: user.email,
+          name: user.name,
           role: userRole
         },
         process.env.JWT_SECRET as string,
@@ -404,6 +407,18 @@ export class AuthController {
           isValidated
         }
       });
+
+      // Log Admin Login
+      if (userRole === 'admin') {
+        await ActivityLogService.log({
+          adminId: user.id,
+          adminName: user.name,
+          adminEmail: user.email,
+          actionType: 'ADMIN_LOGIN',
+          targetType: 'SYSTEM',
+          ipAddress: req.ip || req.socket?.remoteAddress
+        });
+      }
     } catch (error: any) {
       console.error('OTP verification error:', error);
       res.status(500).json({ error: 'OTP verification failed' });
@@ -602,6 +617,27 @@ export class AuthController {
           isValidated
         }
       });
+
+      // Log Admin Profile Update
+      if (userRole === 'admin') {
+        await ActivityLogService.log({
+          adminId: userId,
+          adminName: updatedUser.name,
+          adminEmail: updatedUser.email,
+          actionType: 'ADMIN_PROFILE_UPDATED',
+          targetType: 'ADMIN',
+          targetId: userId,
+          targetName: updatedUser.name,
+          details: {
+            changedFields: {
+              name: name !== currentUser[0].name ? { from: currentUser[0].name, to: name } : undefined,
+              email: email !== currentUser[0].email ? { from: currentUser[0].email, to: email } : undefined,
+              phone: phoneNumber !== currentUser[0].phone_number ? { from: currentUser[0].phone_number, to: phoneNumber } : undefined
+            }
+          },
+          ipAddress: req.ip || req.socket?.remoteAddress
+        });
+      }
     } catch (error: any) {
       console.error('Update profile error:', error);
       res.status(500).json({ error: 'Failed to update profile' });

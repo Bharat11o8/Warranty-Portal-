@@ -4,6 +4,7 @@ import db, { getISTTimestamp } from '../config/database.js';
 import { AuthRequest } from '../middleware/auth.js';
 import { EmailService } from '../services/email.service.js';
 import { NotificationService } from '../services/notification.service.js';
+import { ActivityLogService } from '../services/activity-log.service.js';
 
 /**
  * Grievance Controller
@@ -585,6 +586,24 @@ class GrievanceController {
                 [assignedTo || null, id]
             );
 
+            // Fetch ticket_id for logging
+            const [gRows]: any = await db.execute('SELECT ticket_id FROM grievances WHERE id = ?', [id]);
+            const ticketId = gRows[0]?.ticket_id || id;
+
+            // Log activity
+            const admin = req.user!;
+            await ActivityLogService.log({
+                adminId: admin.id,
+                adminName: admin.name || 'Admin',
+                adminEmail: admin.email,
+                actionType: 'GRIEVANCE_ASSIGNED',
+                targetType: 'GRIEVANCE',
+                targetId: id,
+                targetName: ticketId,
+                details: { assignedTo },
+                ipAddress: req.ip || req.socket?.remoteAddress
+            });
+
             return res.json({ success: true, message: 'Grievance assigned successfully' });
 
         } catch (error: any) {
@@ -645,11 +664,14 @@ class GrievanceController {
             );
 
             // Notify User (Franchise/Customer) about status update
+            let ticketId = id;
             try {
                 // Get the grievance owner to notify
                 const [rows]: any = await db.execute('SELECT customer_id, ticket_id FROM grievances WHERE id = ?', [id]);
+
                 if (rows.length > 0) {
                     const g = rows[0];
+                    ticketId = g.ticket_id;
                     await NotificationService.notify(g.customer_id, {
                         title: `Grievance Updated: ${g.ticket_id}`,
                         message: `Status changed to ${status}. Details available in portal.`,
@@ -670,6 +692,24 @@ class GrievanceController {
                 console.error("Failed to notify user of grievance update", e);
             }
 
+            // Log activity if admin
+            if (userRole === 'admin') {
+                const admin = req.user!;
+                await ActivityLogService.log({
+                    adminId: admin.id,
+                    adminName: admin.name || 'Admin', // Fallback if name missing (shouldn't be now)
+                    adminEmail: admin.email,
+                    actionType: 'GRIEVANCE_STATUS_UPDATED',
+                    targetType: 'GRIEVANCE',
+                    targetId: id,
+                    targetName: ticketId, // Use fetched ticketId
+                    details: {
+                        newStatus: status,
+                        newPriority: priority
+                    },
+                    ipAddress: req.ip || req.socket?.remoteAddress
+                });
+            }
 
             return res.json({ success: true, message: 'Status updated successfully' });
 
@@ -711,9 +751,11 @@ class GrievanceController {
             );
 
             // Notify Customer about new remarks
+            let ticketId = id;
             try {
                 const [rows]: any = await db.execute('SELECT customer_id, ticket_id FROM grievances WHERE id = ?', [id]);
                 if (rows.length > 0) {
+                    ticketId = rows[0].ticket_id;
                     await NotificationService.notify(rows[0].customer_id, {
                         title: `Update on Grievance: ${rows[0].ticket_id}`,
                         message: `${userRole === 'admin' ? 'Admin' : 'Franchise'} has added remarks to your ticket.`,
@@ -723,6 +765,22 @@ class GrievanceController {
                 }
             } catch (notifError) {
                 console.error('Failed to notify customer of remarks:', notifError);
+            }
+
+            // Log activity if admin
+            if (userRole === 'admin') {
+                const admin = req.user!;
+                await ActivityLogService.log({
+                    adminId: admin.id,
+                    adminName: admin.name || 'Admin',
+                    adminEmail: admin.email,
+                    actionType: 'GRIEVANCE_REMARK_ADDED',
+                    targetType: 'GRIEVANCE',
+                    targetId: id,
+                    targetName: ticketId,
+                    details: { remarks },
+                    ipAddress: req.ip || req.socket?.remoteAddress
+                });
             }
 
             return res.json({ success: true, message: 'Remarks added successfully' });
@@ -783,9 +841,11 @@ class GrievanceController {
             }
 
             // Notify Customer about admin update
+            let ticketId = id;
             try {
                 const [rows]: any = await db.execute('SELECT customer_id, ticket_id FROM grievances WHERE id = ?', [id]);
                 if (rows.length > 0) {
+                    ticketId = rows[0].ticket_id;
                     await NotificationService.notify(rows[0].customer_id, {
                         title: `Update on Grievance: ${rows[0].ticket_id}`,
                         message: `Admin has updated your grievance details.`,
@@ -797,7 +857,26 @@ class GrievanceController {
                 console.error('Failed to notify customer of admin update:', notifError);
             }
 
+            // Log activity
+            const admin = req.user!;
+            await ActivityLogService.log({
+                adminId: admin.id,
+                adminName: admin.name || 'Admin',
+                adminEmail: admin.email,
+                actionType: 'GRIEVANCE_UPDATED',
+                targetType: 'GRIEVANCE',
+                targetId: id,
+                targetName: ticketId,
+                details: {
+                    status,
+                    hasRemarks: !!admin_remarks,
+                    hasNotes: !!admin_notes
+                },
+                ipAddress: req.ip || req.socket?.remoteAddress
+            });
+
             return res.json({ success: true, message: 'Grievance updated successfully' });
+
 
         } catch (error: any) {
             console.error('Admin update error:', error);

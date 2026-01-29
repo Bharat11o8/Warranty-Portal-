@@ -147,16 +147,16 @@ export const WarrantySpecSheet = ({ isOpen, onClose, warranty }: WarrantySpecShe
                             Important Dates
                         </h4>
                         <div className="bg-white rounded-xl p-2 border border-orange-100 shadow-sm">
-                            <SpecRow label="Purchase Date" value={formatToIST(warranty.purchase_date)} />
-                            <SpecRow label="Registered Date" value={formatToIST(warranty.created_at)} />
+                            <SpecRow label="Purchase Date" value={formatToIST(warranty.purchase_date).split(',')[0]} />
+                            <SpecRow label="Registered Date" value={formatToIST(warranty.created_at).split(',')[0]} />
                             {warranty.status === 'validated' && (
                                 <>
                                     {warranty.validated_at && (
-                                        <SpecRow label="Approved Date" value={formatToIST(warranty.validated_at)} />
+                                        <SpecRow label="Approved Date" value={formatToIST(warranty.validated_at).split(',')[0]} />
                                     )}
                                     <SpecRow
                                         label="Expiration Date"
-                                        value={formatToIST(getWarrantyExpiration(warranty.validated_at || warranty.created_at, warranty.warranty_type).expirationDate)}
+                                        value={formatToIST(getWarrantyExpiration(warranty.validated_at || warranty.created_at, warranty.warranty_type).expirationDate).split(',')[0]}
                                     />
                                     <div className="flex justify-between items-center py-3 px-2 rounded-sm bg-green-500/5 mt-1 border border-green-500/10">
                                         <span className="text-sm text-green-700 font-medium">Days Remaining</span>
@@ -181,10 +181,12 @@ export const WarrantySpecSheet = ({ isOpen, onClose, warranty }: WarrantySpecShe
                                 label="Store Email"
                                 value={productDetails.storeEmail || (warranty.installer_contact?.includes('|') ? warranty.installer_contact.split('|')[0].trim() : warranty.installer_contact) || "N/A"}
                             />
-                            <SpecRow
-                                label="Store Phone"
-                                value={productDetails.dealerMobile || (warranty.installer_contact?.includes('|') ? warranty.installer_contact.split('|')[1].trim() : "") || "N/A"}
-                            />
+                            <div className="hidden md:block">
+                                <SpecRow
+                                    label="Store Phone"
+                                    value={productDetails.dealerMobile || (warranty.installer_contact?.includes('|') ? warranty.installer_contact.split('|')[1].trim() : "") || "N/A"}
+                                />
+                            </div>
                             <SpecRow label="Applicator" value={productDetails.manpowerName || warranty.manpower_name_from_db || "Standard"} />
                         </div>
                     </div>

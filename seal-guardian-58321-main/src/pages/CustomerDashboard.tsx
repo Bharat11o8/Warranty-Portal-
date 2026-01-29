@@ -477,7 +477,7 @@ const CustomerDashboard = () => {
                                             warranty.product_type === 'seat-cover' ? "text-red-500" : "text-blue-500"
                                         )}>{productName}</span>
                                         <span className="mx-2 text-slate-300">•</span>
-                                        <span className="text-xs text-slate-400 font-semibold">{formatToIST(warranty.purchase_date || warranty.created_at)}</span>
+                                        <span className="text-xs text-slate-400 font-semibold">{formatToIST(warranty.purchase_date || warranty.created_at).split(',')[0]}</span>
                                         {warranty.product_type === 'seat-cover' ? (
                                             <><span className="mx-2 text-slate-300">•</span><span className="font-mono text-xs text-slate-600">UID: {productDetails.uid || warranty.uid}</span></>
                                         ) : (
@@ -542,16 +542,30 @@ const CustomerDashboard = () => {
     };
 
     return (
-        <div className="container mx-auto px-4 md:px-8 py-8">
-            {/* Header Section - Hidden on Mobile/Small Screens */}
-            <div className="hidden md:flex flex-col gap-4 mb-14">
-                <h1 className="font-black tracking-tight leading-none" style={{ fontSize: '3em' }}>
-                    <span className="bg-gradient-to-r from-slate-800 to-slate-900 bg-clip-text text-transparent">Drive</span><span className="bg-gradient-to-r from-orange-500 to-orange-600 bg-clip-text text-transparent ml-2">Shield</span>
-                </h1>
-                <div className="flex gap-3 items-center">
-                    <div className="h-1.5 w-12 bg-black rounded-full" />
-                    <p className="text-sm font-semibold text-slate-700 tracking-wide">protect your ride in style</p>
-                    <div className="h-1.5 w-12 bg-gradient-to-r from-orange-500 to-orange-600 rounded-full" />
+        <div className="w-full md:container md:mx-auto px-3 md:px-8 py-4 md:py-8">
+            {/* Header Section */}
+            <div className="flex flex-col gap-4 mb-8 md:mb-14">
+                {/* Desktop Headline */}
+                <div className="hidden md:flex flex-col gap-4">
+                    <h1 className="font-black tracking-tight leading-none" style={{ fontSize: '3em' }}>
+                        <span className="bg-gradient-to-r from-slate-800 to-slate-900 bg-clip-text text-transparent">Drive</span><span className="bg-gradient-to-r from-orange-500 to-orange-600 bg-clip-text text-transparent ml-2">Shield</span>
+                    </h1>
+                    <div className="flex gap-3 items-center">
+                        <div className="h-1.5 w-12 bg-black rounded-full" />
+                        <p className="text-sm font-semibold text-slate-700 tracking-wide">protect your ride in style</p>
+                        <div className="h-1.5 w-12 bg-gradient-to-r from-orange-500 to-orange-600 rounded-full" />
+                    </div>
+                </div>
+
+                {/* Mobile Headline - Compact */}
+                <div className="md:hidden flex items-center justify-between">
+                    <div>
+                        <h1 className="font-black tracking-tight text-3xl">
+                            <span className="text-slate-900">Drive</span><span className="text-orange-500">Shield</span>
+                        </h1>
+                        <p className="text-xs font-medium text-slate-500 mt-1">Protect your ride in style</p>
+                    </div>
+                    {/* Optional: Add a small profile/logout button here if needed, but for now just branding */}
                 </div>
             </div>
 
@@ -559,7 +573,7 @@ const CustomerDashboard = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-12">
                 <button
                     onClick={() => setCreatingWarranty('seat-cover')}
-                    className="relative group flex items-center gap-6 p-6 md:p-8 min-h-[180px] rounded-2xl md:rounded-3xl border border-red-200/50 bg-gradient-to-r from-white via-white to-red-50/30 hover:to-red-50/60 transition-all duration-500 active:scale-[0.98] shadow-lg hover:shadow-2xl hover:shadow-red-500/15 overflow-hidden"
+                    className="relative group flex items-center gap-4 md:gap-6 p-5 md:p-8 min-h-[160px] md:min-h-[180px] rounded-2xl md:rounded-3xl border border-red-200/50 bg-gradient-to-r from-white via-white to-red-50/30 hover:to-red-50/60 transition-all duration-500 active:scale-[0.98] shadow-lg hover:shadow-2xl hover:shadow-red-500/15 overflow-hidden"
                 >
                     {/* Background Decorations */}
                     <div className="absolute top-0 right-0 w-40 h-40 bg-gradient-to-bl from-red-100/40 to-transparent rounded-full blur-2xl -mr-16 -mt-16 group-hover:scale-125 transition-transform duration-700" />
@@ -569,28 +583,28 @@ const CustomerDashboard = () => {
 
                     {/* Icon Container - Left Side */}
                     <div className="relative shrink-0">
-                        <div className="w-24 h-24 md:w-28 md:h-28 rounded-3xl bg-gradient-to-br from-red-50 to-red-100/80 border border-red-200/60 flex items-center justify-center shadow-lg shadow-red-500/10 group-hover:shadow-xl group-hover:shadow-red-500/20 group-hover:scale-105 transition-all duration-500">
-                            <img src="/seat-cover-icon.png" className="w-14 h-14 md:w-16 md:h-16 object-contain group-hover:scale-110 transition-transform duration-500" alt="Seat Cover" />
+                        <div className="w-20 h-20 md:w-28 md:h-28 rounded-2xl md:rounded-3xl bg-gradient-to-br from-red-50 to-red-100/80 border border-red-200/60 flex items-center justify-center shadow-lg shadow-red-500/10 group-hover:shadow-xl group-hover:shadow-red-500/20 group-hover:scale-105 transition-all duration-500">
+                            <img src="/seat-cover-icon.png" className="w-10 h-10 md:w-16 md:h-16 object-contain group-hover:scale-110 transition-transform duration-500" alt="Seat Cover" />
                         </div>
                         {/* Floating Badge */}
-                        <div className="absolute -top-2 -right-2 px-2.5 py-1 bg-red-500 text-white text-[10px] font-bold uppercase tracking-wider rounded-full shadow-lg shadow-red-500/30">
+                        <div className="absolute -top-2 -right-2 px-2 py-0.5 md:px-2.5 md:py-1 bg-red-500 text-white text-[9px] md:text-[10px] font-bold uppercase tracking-wider rounded-full shadow-lg shadow-red-500/30">
                             LuxeGuard
                         </div>
                     </div>
 
                     {/* Content - Right Side */}
                     <div className="flex-1 text-left relative z-10">
-                        <div className="flex items-center gap-2 mb-2">
-                            <div className="w-1 h-6 bg-gradient-to-b from-red-500 to-red-400 rounded-full" />
-                            <span className="text-[11px] font-bold text-red-500 uppercase tracking-widest">Warranty</span>
+                        <div className="flex items-center gap-2 mb-1 md:mb-2">
+                            <div className="w-1 h-5 md:h-6 bg-gradient-to-b from-red-500 to-red-400 rounded-full" />
+                            <span className="text-[10px] md:text-[11px] font-bold text-red-500 uppercase tracking-widest">Warranty</span>
                         </div>
-                        <h3 className="text-xl md:text-2xl font-black text-slate-900 mb-2 leading-tight">Seat Cover</h3>
-                        <p className="text-sm text-slate-500 leading-relaxed">Protect your vehicle interiors with premium coverage</p>
+                        <h3 className="text-lg md:text-2xl font-black text-slate-900 mb-1 md:mb-2 leading-tight">Seat Cover</h3>
+                        <p className="text-xs md:text-sm text-slate-500 leading-relaxed line-clamp-2 md:line-clamp-none">Protect your vehicle interiors with premium coverage</p>
 
                         {/* CTA Arrow */}
-                        <div className="mt-4 flex items-center gap-2 text-red-500 font-semibold text-sm group-hover:gap-3 transition-all duration-300">
+                        <div className="mt-3 md:mt-4 flex items-center gap-2 text-red-500 font-semibold text-xs md:text-sm group-hover:gap-3 transition-all duration-300">
                             <span>Register Now</span>
-                            <svg className="w-4 h-4 group-hover:translate-x-1 transition-transform duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <svg className="w-3.5 h-3.5 md:w-4 md:h-4 group-hover:translate-x-1 transition-transform duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
                             </svg>
                         </div>
@@ -599,7 +613,7 @@ const CustomerDashboard = () => {
 
                 <button
                     onClick={() => setCreatingWarranty('ppf')}
-                    className="relative group flex items-center gap-6 p-6 md:p-8 min-h-[180px] rounded-2xl md:rounded-3xl border border-blue-200/50 bg-gradient-to-r from-white via-white to-blue-50/30 hover:to-blue-50/60 transition-all duration-500 active:scale-[0.98] shadow-lg hover:shadow-2xl hover:shadow-blue-500/15 overflow-hidden"
+                    className="relative group flex items-center gap-4 md:gap-6 p-5 md:p-8 min-h-[160px] md:min-h-[180px] rounded-2xl md:rounded-3xl border border-blue-200/50 bg-gradient-to-r from-white via-white to-blue-50/30 hover:to-blue-50/60 transition-all duration-500 active:scale-[0.98] shadow-lg hover:shadow-2xl hover:shadow-blue-500/15 overflow-hidden"
                 >
                     {/* Background Decorations */}
                     <div className="absolute top-0 right-0 w-40 h-40 bg-gradient-to-bl from-blue-100/40 to-transparent rounded-full blur-2xl -mr-16 -mt-16 group-hover:scale-125 transition-transform duration-700" />
@@ -609,28 +623,28 @@ const CustomerDashboard = () => {
 
                     {/* Icon Container - Left Side */}
                     <div className="relative shrink-0">
-                        <div className="w-24 h-24 md:w-28 md:h-28 rounded-3xl bg-gradient-to-br from-blue-50 to-blue-100/80 border border-blue-200/60 flex items-center justify-center shadow-lg shadow-blue-500/10 group-hover:shadow-xl group-hover:shadow-blue-500/20 group-hover:scale-105 transition-all duration-500">
-                            <img src="/ppf-icon.png" className="w-14 h-14 md:w-16 md:h-16 object-contain group-hover:scale-110 transition-transform duration-500" alt="PPF" />
+                        <div className="w-20 h-20 md:w-28 md:h-28 rounded-2xl md:rounded-3xl bg-gradient-to-br from-blue-50 to-blue-100/80 border border-blue-200/60 flex items-center justify-center shadow-lg shadow-blue-500/10 group-hover:shadow-xl group-hover:shadow-blue-500/20 group-hover:scale-105 transition-all duration-500">
+                            <img src="/ppf-icon.png" className="w-10 h-10 md:w-16 md:h-16 object-contain group-hover:scale-110 transition-transform duration-500" alt="PPF" />
                         </div>
                         {/* Floating Badge */}
-                        <div className="absolute -top-2 -right-2 px-2.5 py-1 bg-blue-500 text-white text-[10px] font-bold uppercase tracking-wider rounded-full shadow-lg shadow-blue-500/30">
+                        <div className="absolute -top-2 -right-2 px-2 py-0.5 md:px-2.5 md:py-1 bg-blue-500 text-white text-[9px] md:text-[10px] font-bold uppercase tracking-wider rounded-full shadow-lg shadow-blue-500/30">
                             Apex Shield
                         </div>
                     </div>
 
                     {/* Content - Right Side */}
                     <div className="flex-1 text-left relative z-10">
-                        <div className="flex items-center gap-2 mb-2">
-                            <div className="w-1 h-6 bg-gradient-to-b from-blue-500 to-blue-400 rounded-full" />
-                            <span className="text-[11px] font-bold text-blue-500 uppercase tracking-widest">Warranty</span>
+                        <div className="flex items-center gap-2 mb-1 md:mb-2">
+                            <div className="w-1 h-5 md:h-6 bg-gradient-to-b from-blue-500 to-blue-400 rounded-full" />
+                            <span className="text-[10px] md:text-[11px] font-bold text-blue-500 uppercase tracking-widest">Warranty</span>
                         </div>
-                        <h3 className="text-xl md:text-2xl font-black text-slate-900 mb-2 leading-tight">Paint Protection Film</h3>
-                        <p className="text-sm text-slate-500 leading-relaxed">Premium paint protection for your vehicle exterior</p>
+                        <h3 className="text-lg md:text-2xl font-black text-slate-900 mb-1 md:mb-2 leading-tight">Paint Protection</h3>
+                        <p className="text-xs md:text-sm text-slate-500 leading-relaxed line-clamp-2 md:line-clamp-none">Premium paint protection for your vehicle exterior</p>
 
                         {/* CTA Arrow */}
-                        <div className="mt-4 flex items-center gap-2 text-blue-500 font-semibold text-sm group-hover:gap-3 transition-all duration-300">
+                        <div className="mt-3 md:mt-4 flex items-center gap-2 text-blue-500 font-semibold text-xs md:text-sm group-hover:gap-3 transition-all duration-300">
                             <span>Register Now</span>
-                            <svg className="w-4 h-4 group-hover:translate-x-1 transition-transform duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <svg className="w-3.5 h-3.5 md:w-4 md:h-4 group-hover:translate-x-1 transition-transform duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
                             </svg>
                         </div>

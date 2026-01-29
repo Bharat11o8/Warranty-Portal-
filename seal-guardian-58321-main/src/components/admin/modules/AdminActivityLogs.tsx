@@ -171,33 +171,67 @@ export const AdminActivityLogs = () => {
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-100 bg-white">
-                                    {filteredLogs.map((log: any) => (
-                                        <tr key={log.id} className="hover:bg-slate-50/50 transition-colors">
-                                            <td className="px-6 py-4 whitespace-nowrap text-slate-600">
-                                                {formatToIST(log.created_at)}
-                                            </td>
-                                            <td className="px-6 py-4">
-                                                <div className="font-medium text-slate-900">{log.admin_name || 'Unknown'}</div>
-                                                <div className="text-xs text-slate-400">{log.admin_email}</div>
-                                            </td>
-                                            <td className="px-6 py-4">
-                                                <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${log.action_type.includes('APPROVED') || log.action_type.includes('CREATED')
+                                    {filteredLogs.map((log: any) => {
+                                        // Helper to format details
+                                        const getActionDetails = (log: any) => {
+                                            const details = typeof log.details === 'string' ? JSON.parse(log.details) : log.details;
+                                            if (!details) return null;
+
+                                            if (log.action_type === 'GRIEVANCE_STATUS_UPDATED') {
+                                                return <div className="text-xs text-slate-500 mt-1">Status: <span className="font-medium">{details.newStatus}</span></div>;
+                                            }
+                                            if (log.action_type === 'GRIEVANCE_ASSIGNED') {
+                                                if (!details.assignedTo) return <div className="text-xs text-slate-500 mt-1">Unassigned</div>;
+                                                return <div className="text-xs text-slate-500 mt-1">Assigned to: <span className="font-medium">{details.assignedTo}</span></div>;
+                                            }
+                                            if (log.action_type === 'GRIEVANCE_REMARK_ADDED') {
+                                                return <div className="text-xs text-slate-500 mt-1 italic">"{details.remarks?.substring(0, 30)}{details.remarks?.length > 30 ? '...' : ''}"</div>;
+                                            }
+                                            if (log.action_type === 'GRIEVANCE_UPDATED') {
+                                                const updates = [];
+                                                if (details.status) updates.push(`Status: ${details.status}`);
+                                                if (details.hasRemarks) updates.push('Added Remarks');
+                                                if (details.hasNotes) updates.push('Added Internal Notes');
+                                                return <div className="text-xs text-slate-500 mt-1">{updates.join(', ') || 'Updated details'}</div>;
+                                            }
+                                            if (log.action_type === 'SYSTEM_SETTING_UPDATED') {
+                                                return <div className="text-xs text-slate-500 mt-1">Value updated</div>;
+                                            }
+                                            if (log.action_type === 'BROADCAST_SENT') {
+                                                return <div className="text-xs text-slate-500 mt-1">To: {details.targetRole}</div>;
+                                            }
+                                            return null;
+                                        };
+
+                                        return (
+                                            <tr key={log.id} className="hover:bg-slate-50/50 transition-colors">
+                                                <td className="px-6 py-4 whitespace-nowrap text-slate-600">
+                                                    {formatToIST(log.created_at)}
+                                                </td>
+                                                <td className="px-6 py-4">
+                                                    <div className="font-medium text-slate-900">{log.admin_name || 'Unknown'}</div>
+                                                    <div className="text-xs text-slate-400">{log.admin_email}</div>
+                                                </td>
+                                                <td className="px-6 py-4">
+                                                    <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${log.action_type.includes('APPROVED') || log.action_type.includes('CREATED')
                                                         ? 'bg-green-100 text-green-700'
                                                         : log.action_type.includes('REJECTED')
                                                             ? 'bg-red-100 text-red-700'
                                                             : log.action_type.includes('DELETED')
                                                                 ? 'bg-gray-100 text-gray-700'
                                                                 : 'bg-blue-100 text-blue-700'
-                                                    }`}>
-                                                    {log.action_type.replace(/_/g, ' ')}
-                                                </span>
-                                            </td>
-                                            <td className="px-6 py-4">
-                                                <div className="text-slate-700 font-medium">{log.target_type}</div>
-                                                <div className="text-xs text-slate-500 truncate max-w-[200px]">{log.target_name || log.target_id || 'N/A'}</div>
-                                            </td>
-                                        </tr>
-                                    ))}
+                                                        }`}>
+                                                        {log.action_type.replace(/_/g, ' ')}
+                                                    </span>
+                                                    {getActionDetails(log)}
+                                                </td>
+                                                <td className="px-6 py-4">
+                                                    <div className="text-slate-700 font-medium">{log.target_type}</div>
+                                                    <div className="text-xs text-slate-500 truncate max-w-[200px]">{log.target_name || log.target_id || 'N/A'}</div>
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
                                 </tbody>
                             </table>
                         </div>

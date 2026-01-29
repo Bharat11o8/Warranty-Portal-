@@ -24,8 +24,8 @@ const Terms = () => {
   }, []);
 
   return (
-    <div className="relative py-12 px-4 md:px-10">
-      <main className="container mx-auto relative z-10">
+    <div className="relative py-6 px-4 md:py-12 md:px-10">
+      <main className="w-full md:container mx-auto relative z-10">
         <Card className="max-w-4xl mx-auto bg-white border border-orange-100 shadow-[0_10px_40px_rgba(0,0,0,0.03)] rounded-[40px] overflow-hidden">
           <div className="h-2 bg-gradient-to-r from-orange-500 to-orange-600 w-full" />
           <CardHeader className="pt-10 px-8 md:px-12 text-center">

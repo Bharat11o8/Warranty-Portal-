@@ -468,6 +468,9 @@ export function AdminProducts() {
                 <DialogContent>
                     <DialogHeader>
                         <DialogTitle>{editingCat ? 'Edit Category' : 'Add Category'}</DialogTitle>
+                        <DialogDescription className="sr-only">
+                            {editingCat ? 'Modify existing product category details' : 'Create a new product category'}
+                        </DialogDescription>
                     </DialogHeader>
                     <div className="space-y-4 py-4">
                         <div className="space-y-2">
@@ -505,6 +508,9 @@ export function AdminProducts() {
                 <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
                     <DialogHeader>
                         <DialogTitle>{editingProd ? 'Edit Product' : 'Add Product'}</DialogTitle>
+                        <DialogDescription className="sr-only">
+                            {editingProd ? 'Modify existing product details' : 'Add a new product to the catalog'}
+                        </DialogDescription>
                     </DialogHeader>
                     {/* Simplified Form for brevity - reusing logic from CatalogManagement but with updated UI style */}
                     <div className="space-y-6 py-4">
@@ -576,7 +582,7 @@ export function AdminProducts() {
             <AlertDialog open={!!deleteDialog} onOpenChange={() => setDeleteDialog(null)}>
                 <AlertDialogContent>
                     <AlertDialogHeader>
-                        <DialogTitle>Confirm Deletion</DialogTitle>
+                        <AlertDialogTitle>Confirm Deletion</AlertDialogTitle>
                         <AlertDialogDescription>Are you sure you want to delete this {deleteDialog?.type}? This action cannot be undone.</AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>

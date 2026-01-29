@@ -281,8 +281,8 @@ const GrievancePage = () => {
     const selectedCategory = CATEGORIES.find(c => c.value === category);
 
     return (
-        <div className="relative py-12 px-4 md:px-10">
-            <div className="container mx-auto max-w-4xl relative z-10">
+        <div className="relative py-6 px-4 md:py-12 md:px-10">
+            <div className="w-full md:container mx-auto max-w-4xl relative z-10">
                 {/* Back Button - Top Left */}
                 {/* Header Section */}
                 <div className="mb-8 text-center px-4">
@@ -308,7 +308,7 @@ const GrievancePage = () => {
 
                     {/* List Tab */}
                     <TabsContent value="list" className="mt-6">
-                        <div className="flex justify-end mb-4">
+                        <div className="hidden md:flex justify-end mb-4">
                             <Button variant="outline" size="sm" onClick={fetchGrievances} disabled={loading}>
                                 <RefreshCw className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`} />
                                 Refresh
@@ -453,11 +453,11 @@ const GrievancePage = () => {
                     {/* Submit New Tab */}
                     <TabsContent value="new" className="mt-6">
                         <Card className="shadow-xl border-0 bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm overflow-hidden">
-                            <div className="h-1 bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500" />
+                            <div className="h-1 bg-gradient-to-r from-orange-500 via-orange-600 to-red-500" />
                             <CardHeader className="pb-4">
                                 <div className="flex items-center gap-3">
-                                    <div className="p-2 rounded-lg bg-blue-100 dark:bg-blue-900/30">
-                                        <HelpCircle className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                                    <div className="p-2 rounded-lg bg-orange-100 dark:bg-orange-900/30">
+                                        <HelpCircle className="h-5 w-5 text-orange-600 dark:text-orange-400" />
                                     </div>
                                     <div>
                                         <CardTitle className="text-xl">Submit a Grievance</CardTitle>
@@ -678,7 +678,7 @@ const GrievancePage = () => {
                                     <Button
                                         type="submit"
                                         disabled={submitting || compressing}
-                                        className="w-full h-12 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-medium shadow-lg hover:shadow-xl transition-all"
+                                        className="w-full h-12 bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-700 hover:to-red-700 text-white font-medium shadow-lg hover:shadow-xl transition-all"
                                     >
                                         {submitting ? (
                                             <>

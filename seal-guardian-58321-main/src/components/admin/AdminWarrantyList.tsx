@@ -79,11 +79,11 @@ const WarrantyDetailsView = ({ warranty, productName, productDetails }: Warranty
                     </div>
                     <div>
                         <p className="text-sm text-muted-foreground">Purchase Date</p>
-                        <p className="font-medium">{formatToIST(warranty.purchase_date)}</p>
+                        <p className="font-medium">{formatToIST(warranty.purchase_date).split(',')[0]}</p>
                     </div>
                     <div>
                         <p className="text-sm text-muted-foreground">Registration Date</p>
-                        <p className="font-medium">{formatToIST(warranty.created_at)}</p>
+                        <p className="font-medium">{formatToIST(warranty.created_at).split(',')[0]}</p>
                     </div>
                 </div>
             </div>
@@ -220,14 +220,14 @@ const WarrantyDetailsView = ({ warranty, productName, productDetails }: Warranty
                         </div>
                         <div>
                             <p className="text-sm text-muted-foreground">Store Email</p>
-                            <p className="font-medium">{productDetails.storeEmail || warranty.installer_contact}</p>
+                            <p className="font-medium break-all">{productDetails.storeEmail || warranty.installer_contact}</p>
+                        </div>
+                        <div className="hidden md:block">
+                            <p className="text-sm text-muted-foreground">Store Phone</p>
+                            <p className="font-medium">{productDetails.storePhone || 'N/A'}</p>
                         </div>
                         <div>
-                            <p className="text-sm text-muted-foreground">Purchase Date</p>
-                            <p className="font-medium">{formatToIST(warranty.purchase_date)}</p>
-                        </div>
-                        <div>
-                            <p className="text-sm text-muted-foreground">Manpower (Installer)</p>
+                            <p className="text-sm text-muted-foreground">Applicator</p>
                             <p className="font-medium">
                                 {productDetails.manpowerName ||
                                     warranty.manpower_name_from_db ||
@@ -347,11 +347,11 @@ export const AdminWarrantyList = ({
 
                                     {/* Desktop Dates */}
                                     <p className="hidden md:block text-sm text-muted-foreground mt-1">
-                                        Registered on {formatToIST(warranty.created_at)}
+                                        Registered on {formatToIST(warranty.created_at).split(',')[0]}
                                     </p>
                                     {warranty.status === 'validated' && expirationDate && (
                                         <p className="hidden md:block text-sm text-muted-foreground mt-0.5">
-                                            Expires on {formatToIST(expirationDate)}
+                                            Expires on {formatToIST(expirationDate).split(',')[0]}
                                         </p>
                                     )}
                                 </div>
