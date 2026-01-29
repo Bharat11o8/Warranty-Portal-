@@ -2,6 +2,7 @@ import { Response } from 'express';
 import { AuthRequest } from '../middleware/auth.js';
 import db from '../config/database.js';
 import { NotificationService } from '../services/notification.service.js';
+import { ActivityLogService } from '../services/activity-log.service.js';
 
 export class NotificationController {
     static async getNotifications(req: AuthRequest, res: Response) {
@@ -131,6 +132,25 @@ export class NotificationController {
             });
 
             res.json({ success: true, message: 'Broadcast sent successfully' });
+
+            // Log activity
+            const admin = req.user;
+            if (admin) {
+                await ActivityLogService.log({
+                    adminId: admin.id,
+                    adminName: admin.name,
+                    adminEmail: admin.email,
+                    actionType: 'BROADCAST_SENT',
+                    targetType: 'BROADCAST',
+                    details: {
+                        title,
+                        type: type || 'system',
+                        targetRole: req.body.targetRole || 'all',
+                        targetCount: targetUsers?.length
+                    },
+                    ipAddress: req.ip || req.socket?.remoteAddress
+                });
+            }
         } catch (error) {
             console.error('Broadcast error:', error);
             res.status(500).json({ error: 'Internal server error' });

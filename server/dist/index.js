@@ -15,7 +15,11 @@ import warrantyRoutes from './routes/warranty.routes.js';
 import adminRoutes from './routes/admin.routes.js';
 import publicRoutes from './routes/public.routes.js';
 import catalogRoutes from './routes/catalog.routes.js';
+import grievanceRoutes from './routes/grievance.routes.js';
 import notificationRoutes from './routes/notification.routes.js';
+import uploadRoutes from './routes/upload.routes.js';
+import oldWarrantiesRoutes from './routes/old-warranties.routes.js';
+import settingsRoutes from './routes/settings.routes.js';
 import { initSocket } from './socket.js';
 // Get current directory for ES modules
 const __filename = fileURLToPath(import.meta.url);
@@ -68,7 +72,7 @@ app.use(cors({
         }
     },
     credentials: true,
-    methods: ['GET', 'HEAD', 'OPTIONS', 'POST', 'PUT', 'DELETE'],
+    methods: ['GET', 'HEAD', 'OPTIONS', 'POST', 'PUT', 'PATCH', 'DELETE'],
     allowedHeaders: ['Origin', 'X-Requested-With', 'Content-Type', 'Accept', 'Authorization', 'X-Request-Id']
 }));
 // ===========================================
@@ -97,7 +101,11 @@ app.use('/api/warranty', generalApiLimiter, warrantyRoutes);
 app.use('/api/admin', generalApiLimiter, adminRoutes);
 app.use('/api/public', generalApiLimiter, publicRoutes);
 app.use('/api/catalog', generalApiLimiter, catalogRoutes);
+app.use('/api/grievance', generalApiLimiter, grievanceRoutes);
 app.use('/api/notifications', generalApiLimiter, notificationRoutes);
+app.use('/api/upload', generalApiLimiter, uploadRoutes);
+app.use('/api/admin/old-warranties', generalApiLimiter, oldWarrantiesRoutes);
+app.use('/api/settings', generalApiLimiter, settingsRoutes);
 // ===========================================
 // ERROR HANDLING
 // ===========================================

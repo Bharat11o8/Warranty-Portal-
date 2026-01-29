@@ -6,7 +6,7 @@
 
 CREATE TABLE IF NOT EXISTS old_warranties_seatcovers (
   id INT AUTO_INCREMENT PRIMARY KEY,
-  uid VARCHAR(50) NOT NULL,
+  uid VARCHAR(50),
   customer_name VARCHAR(255),
   customer_email VARCHAR(255),
   customer_mobile VARCHAR(20),

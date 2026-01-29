@@ -107,30 +107,34 @@ All colors MUST be HSL.
   }
 }
 
-/* Professional Light Theme & Modern Utilities */
-.glass-morphism {
-  background: rgba(255, 255, 255, 0.7);
-  backdrop-filter: blur(20px) saturate(180%);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.07);
+/* Premium E-Shop Styles */
+.glass-card-premium {
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.95) 0%, rgba(255, 255, 255, 0.85) 100%);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  box-shadow:
+    0 4px 6px -1px rgba(0, 0, 0, 0.1),
+    0 2px 4px -1px rgba(0, 0, 0, 0.06),
+    inset 0 0 20px rgba(255, 255, 255, 0.5);
 }
 
-.glass-morphism-dark {
-  background: rgba(15, 23, 42, 0.6);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
+.dark .glass-card-premium {
+  background: linear-gradient(145deg, rgba(30, 41, 59, 0.95) 0%, rgba(15, 23, 42, 0.9) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow:
+    0 4px 6px -1px rgba(0, 0, 0, 0.3),
+    inset 0 0 20px rgba(255, 255, 255, 0.05);
 }
 
-.bg-mesh-dark {
-  background-color: #fff2e6;
-  background-image: 
-    radial-gradient(at 0% 0%, rgba(255, 255, 255, 0.8) 0, transparent 50%),
-    radial-gradient(at 100% 100%, rgba(255, 242, 230, 0.5) 0, transparent 50%);
+.text-gradient-premium {
+  background: linear-gradient(135deg, hsl(217 91% 60%), hsl(270 50% 50%));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
 }
 
+<<<<<<< HEAD
 .glow-blob {
   position: absolute;
   width: 600px;
@@ -250,14 +254,17 @@ All colors MUST be HSL.
 .warranty-card-premium {
   background: rgba(255, 255, 255, 0.03);
   border: 1px solid rgba(255, 255, 255, 0.05);
+=======
+.card-hover-effect {
+>>>>>>> 8efbc0f8fc30dfabf2c006f00a89a1d8ecd2ed9b
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.warranty-card-premium:hover {
-  background: rgba(255, 255, 255, 0.07);
-  border-color: rgba(255, 255, 255, 0.15);
+.card-hover-effect:hover {
   transform: translateY(-2px);
-  box-shadow: 0 10px 20px -5px rgba(0, 0, 0, 0.3);
+  box-shadow:
+    0 20px 25px -5px rgba(0, 0, 0, 0.1),
+    0 10px 10px -5px rgba(0, 0, 0, 0.04);
 }
 
 /* Form Styles */
@@ -317,62 +324,29 @@ input[type="reset"] {
   transform-origin: top center;
 }
 
-/* ============================================
-   Hanging Swinging NEW Tag - Clean Design
-   ============================================ */
 .hanging-tag {
   position: absolute;
-  top: 8px;
-  right: 8px;
+  top: -4px;
+  right: 1.5rem;
+  /* Top Right as requested */
   z-index: 20;
-  pointer-events: none;
-  transform-origin: top right;
-  animation: tag-swing 3.5s ease-in-out infinite;
+  transform-origin: top center;
+  animation: swing 2s ease-in-out infinite;
 }
 
-/* Tag body - smaller rounded rectangle */
 .hanging-tag-body {
-  position: relative;
-  width: 20px;
-  height: 42px;
-  background: linear-gradient(135deg, #ff8c3a 0%, #f97316 50%, #ea580c 100%);
-  border-radius: 3px 3px 4px 4px;
-  box-shadow: 1px 2px 6px rgba(0, 0, 0, 0.2);
-  transform: rotate(-35deg);
-  transform-origin: top left;
-}
-
-/* White hole near top - smaller */
-.hanging-tag-body::before {
-  content: '';
-  position: absolute;
-  top: 4px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 4px;
-  height: 4px;
-  background: white;
-  border-radius: 50%;
-}
-
-/* NEW text - vertical column layout */
-.hanging-tag-body::after {
-  content: 'N\A E\A W';
-  white-space: pre;
-  position: absolute;
-  top: 55%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  font-size: 6px;
-  font-weight: 900;
-  line-height: 1.15;
-  text-align: center;
-  font-family: system-ui, -apple-system, sans-serif;
+  background-color: #dc2626;
+  /* bg-red-600 */
   color: white;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  padding: 0.25rem 0.5rem;
+  border-radius: 0 0 0.375rem 0.375rem;
+  /* rounded-b-md */
+  box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1);
+  /* shadow-lg */
+  border-left: 1px solid #991b1b;
+  border-right: 1px solid #991b1b;
+  border-bottom: 1px solid #991b1b;
 }
-
-@keyframes tag-swing {
-  0%, 100% { transform: rotate(-3deg); }
-  50% { transform: rotate(3deg); }
-}
-

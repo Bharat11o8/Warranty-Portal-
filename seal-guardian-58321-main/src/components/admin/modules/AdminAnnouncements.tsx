@@ -17,7 +17,7 @@ import api from "@/lib/api";
 import { Badge } from "@/components/ui/badge";
 import React from "react";
 
-export const AdminBroadcast = () => {
+export const AdminAnnouncements = () => {
     const { toast } = useToast();
     const [loading, setLoading] = useState(false);
     const [vendors, setVendors] = useState<any[]>([]);
