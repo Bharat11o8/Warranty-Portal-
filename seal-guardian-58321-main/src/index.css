@@ -254,9 +254,9 @@ All colors MUST be HSL.
 .warranty-card-premium {
   background: rgba(255, 255, 255, 0.03);
   border: 1px solid rgba(255, 255, 255, 0.05);
-=======
+}
+
 .card-hover-effect {
->>>>>>> 8efbc0f8fc30dfabf2c006f00a89a1d8ecd2ed9b
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
