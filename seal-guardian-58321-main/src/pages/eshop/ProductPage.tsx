@@ -11,8 +11,16 @@ import RelatedProducts from '@/components/product/RelatedProducts';
 import { Loader2 } from 'lucide-react';
 import CatalogHeader from '@/components/eshop/CatalogHeader';
 
-const ProductPage = () => {
-  const { productId } = useParams<{ productId: string }>();
+interface ProductPageProps {
+  productId?: string;
+  embedded?: boolean;
+  isDashboard?: boolean;
+}
+
+const ProductPage: React.FC<ProductPageProps> = ({ productId: propProductId, embedded = false, isDashboard = false }) => {
+  const { productId: paramsProductId } = useParams<{ productId: string }>();
+  const productId = propProductId || paramsProductId;
+
   const navigate = useNavigate();
   const [product, setProduct] = useState<Product | null>(null);
   const [relatedProducts, setRelatedProducts] = useState<Product[]>([]);
@@ -68,9 +76,9 @@ const ProductPage = () => {
 
   if (!product) {
     return (
-      <div className="text-center py-20 text-white">
-        <CatalogHeader />
-        <div className="py-20">
+      <div className="text-center bg-white min-h-screen">
+        <CatalogHeader isDashboard={isDashboard} />
+        <div className="py-20 text-gray-900">
           <h2 className="text-2xl font-bold mb-4 text-gray-900">Product Not Found</h2>
           <Link to="/dashboard/vendor" className="text-brand-orange hover:underline">
             Return to Dashboard
@@ -106,8 +114,9 @@ const ProductPage = () => {
   const showPriceOnward = onwardPriceProductIds.includes(product.id);
 
   return (
-    <div className="space-y-6">
-      <div className="container mx-auto py-8 space-y-6">
+    <div className="bg-white min-h-screen">
+      <CatalogHeader isDashboard={isDashboard} />
+      <div className={`container mx-auto px-4 ${embedded ? 'py-4' : 'py-8'} space-y-6`}>
         {/* Breadcrumbs */}
         <ProductBreadcrumbs
           productName={product.name}

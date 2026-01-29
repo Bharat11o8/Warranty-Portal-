@@ -3,9 +3,9 @@ import { Navigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import api from "@/lib/api";
-import { Loader2, Plus, Download } from "lucide-react";
+import { Loader2, Plus, Download, X, ChevronRight } from "lucide-react";
 import { downloadCSV, cn, formatToIST } from "@/lib/utils";
-import { fetchProducts, Product } from '@/lib/catalogService';
+import { fetchProducts, Product, fetchCategories, Category } from '@/lib/catalogService';
 import { useNotifications } from "@/contexts/NotificationContext";
 
 import { DashboardSidebar, FmsModule, menuGroups, SidebarItem } from "@/components/fms/DashboardSidebar";
@@ -15,10 +15,13 @@ import { FranchiseHome } from "@/components/fms/FranchiseHome";
 import { WarrantyManagement } from "@/components/fms/WarrantyManagement";
 import { StaffManagement } from "@/components/fms/StaffManagement";
 import VendorCatalog from "@/components/eshop/VendorCatalog";
+import CatalogHeader from "@/components/eshop/CatalogHeader";
 import { NewsAlerts } from "@/components/fms/NewsAlerts";
 import { ComingSoon } from "@/components/fms/ComingSoon";
 import VendorGrievances from "@/components/fms/VendorGrievances";
 import Profile from "./Profile";
+import CategoryPage from "./eshop/CategoryPage";
+import ProductPage from "./eshop/ProductPage";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { LogOut } from "lucide-react";
@@ -43,6 +46,7 @@ const FranchiseDashboard = () => {
     const [manpowerList, setManpowerList] = useState<any[]>([]);
     const [pastManpowerList, setPastManpowerList] = useState<any[]>([]);
     const [products, setProducts] = useState<Product[]>([]);
+    const [categories, setCategories] = useState<Category[]>([]);
     const [loading, setLoading] = useState(true);
     const [warrantyLimit, setWarrantyLimit] = useState(10);
     const [manpowerLimit, setManpowerLimit] = useState(10);
@@ -59,6 +63,50 @@ const FranchiseDashboard = () => {
     const [selectedModel, setSelectedModel] = useState<string>('all');
     const [dateRange, setDateRange] = useState<any | undefined>();
     const [activeStatusTab, setActiveStatusTab] = useState<string>('all');
+    const [viewingProductId, setViewingProductId] = useState<string | null>(null);
+    const [viewingCategoryId, setViewingCategoryId] = useState<string | null>(null);
+    const [expandedMobileCategory, setExpandedMobileCategory] = useState<string | null>(null);
+
+    useEffect(() => {
+        const scrollContainer = document.getElementById('main-dashboard-content-area');
+        if (scrollContainer) {
+            scrollContainer.scrollTo({ top: 0, behavior: 'auto' });
+        }
+    }, [activeModule, viewingProductId, viewingCategoryId]);
+
+    // Global interceptor for product and category links to keep user in dashboard
+    useEffect(() => {
+        const handleGlobalClick = (e: MouseEvent) => {
+            const anchor = (e.target as HTMLElement).closest('a');
+            if (anchor) {
+                const href = anchor.getAttribute('href');
+                if (href && !href.includes('?')) {
+                    if (href.startsWith('/product/')) {
+                        const productId = href.split('/').pop();
+                        if (productId) {
+                            e.preventDefault();
+                            setViewingProductId(productId);
+                            setViewingCategoryId(null);
+                        }
+                    } else if (href.startsWith('/category/')) {
+                        const categoryId = href.split('/').pop();
+                        if (categoryId) {
+                            e.preventDefault();
+                            setViewingCategoryId(categoryId);
+                            setViewingProductId(null);
+                        }
+                    } else if (href === '/catalogue') {
+                        e.preventDefault();
+                        if (activeModule !== 'catalogue') setActiveModule('catalogue');
+                        setViewingProductId(null);
+                        setViewingCategoryId(null);
+                    }
+                }
+            }
+        };
+        document.addEventListener('click', handleGlobalClick, true); // Use capture phase
+        return () => document.removeEventListener('click', handleGlobalClick, true);
+    }, [activeModule]);
 
     // Modal/Dialog States
     const [registrationType, setRegistrationType] = useState<'ev' | 'seat-cover' | null>(null);
@@ -80,14 +128,16 @@ const FranchiseDashboard = () => {
     const fetchAllData = async () => {
         setLoading(true);
         try {
-            const [warrantyRes, manpowerRes, pastManpowerRes, prods] = await Promise.all([
+            const [warrantyRes, manpowerRes, pastManpowerRes, prods, cats] = await Promise.all([
                 api.get(`/warranty?limit=${warrantyLimit}&page=1`),
                 api.get(`/vendor/manpower?active=true&limit=${manpowerLimit}&page=1`),
                 api.get(`/vendor/manpower?active=false&limit=${pastManpowerLimit}&page=1`),
-                fetchProducts()
+                fetchProducts(),
+                fetchCategories()
             ]);
 
             setProducts(prods);
+            setCategories(cats);
 
             if (warrantyRes.data.success) {
                 setWarranties(warrantyRes.data.warranties);
@@ -460,7 +510,20 @@ const FranchiseDashboard = () => {
                     />
                 );
             case 'catalogue':
-                return <VendorCatalog />;
+                if (viewingProductId) {
+                    return <ProductPage productId={viewingProductId} embedded={true} isDashboard={true} />;
+                }
+                if (viewingCategoryId) {
+                    return <CategoryPage categoryId={viewingCategoryId} embedded={true} isDashboard={true} />;
+                }
+                return (
+                    <div className="-mt-8 md:-mt-14">
+                        <CatalogHeader isDashboard={true} />
+                        <div className="mt-4">
+                            <VendorCatalog />
+                        </div>
+                    </div>
+                );
             case 'news':
                 return <NewsAlerts />;
             case 'grievances':
@@ -484,104 +547,269 @@ const FranchiseDashboard = () => {
         }
     };
 
-
     const getModuleTitle = () => {
-        // This is now handled by VendorPortalLayout, but kept here if used locally
         const titles: Record<string, string> = {
             home: "Channel Partner Home",
             warranty: "Warranty Management",
             manpower: "Manpower Control",
             catalogue: "Product Catalogue",
             news: "News & Alerts",
+            orders: "Order Management",
             grievances: "Grievance Redressal",
+            offers: "Offers & Schemes",
+            audit: "Audit & Compliance",
+            targets: "Targets & Achievements",
+            posm: "POSM Requirements",
             profile: "My Profile"
         };
         return titles[activeModule] || "Dashboard";
     };
 
+    const getModuleActions = () => {
+        // Registration buttons removed per requirements
+        return null;
+    };
 
     return (
-        <div className="w-full h-full">
-            {loading ? (
-                <div className="flex flex-col items-center justify-center h-[400px] gap-4">
-                    <Loader2 className="h-8 w-8 text-primary animate-spin" />
-                    <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Synchronizing Module...</p>
-                </div>
-            ) : renderModule()}
+        <div className="flex h-screen bg-[#fffaf5]">
+            <DashboardSidebar
+                activeModule={activeModule}
+                onModuleChange={setActiveModule}
+                isCollapsed={isCollapsed}
+                onToggleCollapse={() => setIsCollapsed(!isCollapsed)}
+            />
 
-            {/* Modals for Registration */}
-            <Dialog open={!!registrationType} onOpenChange={() => setRegistrationType(null)}>
-                <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-                    <DialogHeader>
-                        <DialogTitle className="text-2xl font-bold">
-                            {registrationType === 'ev' ? 'PPF / EV Product Registration' : 'Seat Cover Registration'}
-                        </DialogTitle>
-                    </DialogHeader>
-                    {registrationType === 'ev' ? (
-                        <EVProductsForm onSuccess={() => { setRegistrationType(null); fetchAllData(); }} />
-                    ) : (
-                        <SeatCoverForm onSuccess={() => { setRegistrationType(null); fetchAllData(); }} />
-                    )}
-                </DialogContent>
-            </Dialog>
-
-            {/* Spec Sheet Modal */}
-            <Dialog open={!!selectedWarranty} onOpenChange={() => setSelectedWarranty(null)}>
-                <DialogContent className="max-w-4xl p-0 overflow-hidden border-0">
-                    {selectedWarranty && (
-                        <div className="max-h-[85vh] overflow-y-auto custom-scrollbar">
-                            <WarrantySpecSheet
-                                warranty={selectedWarranty}
-                                isOpen={!!selectedWarranty}
-                                onClose={() => setSelectedWarranty(null)}
-                            />
+            <div className="flex-1 flex flex-col overflow-hidden relative">
+                <ModuleLayout
+                    title={getModuleTitle()}
+                    description={activeModule === 'home' ? `Welcome back, ${user.name}` : undefined}
+                    isCollapsed={isCollapsed}
+                    actions={getModuleActions()}
+                    onNavigate={setActiveModule}
+                    onMenuToggle={() => setIsMobileMenuOpen(true)}
+                >
+                    {loading ? (
+                        <div className="flex flex-col items-center justify-center h-[400px] gap-4">
+                            <Loader2 className="h-8 w-8 text-primary animate-spin" />
+                            <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Synchronizing Module...</p>
                         </div>
-                    )}
-                </DialogContent>
-            </Dialog>
+                    ) : renderModule()}
+                </ModuleLayout>
 
-            {/* Manpower Warranty Details Dialog */}
-            <Dialog open={manpowerWarrantyDialogOpen} onOpenChange={setManpowerWarrantyDialogOpen}>
-                <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
-                    <DialogHeader>
-                        <DialogTitle className="text-xl font-bold">
-                            {manpowerWarrantyDialogData.member?.name} - {manpowerWarrantyDialogData.status === 'validated' ? 'Approved' : manpowerWarrantyDialogData.status === 'rejected' ? 'Disapproved' : 'Pending'} Warranties
-                        </DialogTitle>
-                        <DialogDescription>
-                            {manpowerWarrantyDialogData.warranties.length} entries found
-                        </DialogDescription>
-                    </DialogHeader>
-                    <div className="mt-6 space-y-4">
-                        {manpowerWarrantyDialogData.warranties.length === 0 ? (
-                            <p className="text-center py-12 text-muted-foreground font-medium">No warranties found in this category.</p>
+                {/* Modals for Registration */}
+                <Dialog open={!!registrationType} onOpenChange={() => setRegistrationType(null)}>
+                    <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+                        <DialogHeader>
+                            <DialogTitle className="text-2xl font-bold">
+                                {registrationType === 'ev' ? 'PPF / EV Product Registration' : 'Seat Cover Registration'}
+                            </DialogTitle>
+                        </DialogHeader>
+                        {registrationType === 'ev' ? (
+                            <EVProductsForm onSuccess={() => { setRegistrationType(null); fetchAllData(); }} />
                         ) : (
-                            manpowerWarrantyDialogData.warranties.map((w: any) => (
-                                <div key={w.id} className="p-4 border rounded-xl bg-muted/30 hover:bg-muted/50 transition-all group">
-                                    <div className="flex justify-between items-start mb-3">
-                                        <div>
-                                            <p className="font-bold text-base group-hover:text-primary transition-colors">{w.customer_name}</p>
-                                            <p className="text-xs text-muted-foreground font-medium">{w.customer_phone}</p>
+                            <SeatCoverForm onSuccess={() => { setRegistrationType(null); fetchAllData(); }} />
+                        )}
+                    </DialogContent>
+                </Dialog>
+
+                {/* Spec Sheet Modal */}
+                <Dialog open={!!selectedWarranty} onOpenChange={() => setSelectedWarranty(null)}>
+                    <DialogContent className="max-w-4xl p-0 overflow-hidden border-0">
+                        {selectedWarranty && (
+                            <div className="max-h-[85vh] overflow-y-auto custom-scrollbar">
+                                <WarrantySpecSheet
+                                    warranty={selectedWarranty}
+                                    isOpen={!!selectedWarranty}
+                                    onClose={() => setSelectedWarranty(null)}
+                                />
+                            </div>
+                        )}
+                    </DialogContent>
+                </Dialog>
+
+                {/* Manpower Warranty Details Dialog */}
+                <Dialog open={manpowerWarrantyDialogOpen} onOpenChange={setManpowerWarrantyDialogOpen}>
+                    <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+                        <DialogHeader>
+                            <DialogTitle className="text-xl font-bold">
+                                {manpowerWarrantyDialogData.member?.name} - {manpowerWarrantyDialogData.status === 'validated' ? 'Approved' : manpowerWarrantyDialogData.status === 'rejected' ? 'Disapproved' : 'Pending'} Warranties
+                            </DialogTitle>
+                            <DialogDescription>
+                                {manpowerWarrantyDialogData.warranties.length} entries found
+                            </DialogDescription>
+                        </DialogHeader>
+                        <div className="mt-6 space-y-4">
+                            {manpowerWarrantyDialogData.warranties.length === 0 ? (
+                                <p className="text-center py-12 text-muted-foreground font-medium">No warranties found in this category.</p>
+                            ) : (
+                                manpowerWarrantyDialogData.warranties.map((w: any) => (
+                                    <div key={w.id} className="p-4 border rounded-xl bg-muted/30 hover:bg-muted/50 transition-all group">
+                                        <div className="flex justify-between items-start mb-3">
+                                            <div>
+                                                <p className="font-bold text-base group-hover:text-primary transition-colors">{w.customer_name}</p>
+                                                <p className="text-xs text-muted-foreground font-medium">{w.customer_phone}</p>
+                                            </div>
+                                            <Badge variant="outline" className="bg-background/80 font-bold uppercase text-[10px]">
+                                                {w.product_type}
+                                            </Badge>
                                         </div>
-                                        <Badge variant="outline" className="bg-background/80 font-bold uppercase text-[10px]">
-                                            {w.product_type}
-                                        </Badge>
+                                        <div className="grid grid-cols-2 gap-4 text-xs">
+                                            <div>
+                                                <p className="text-muted-foreground mb-1 uppercase tracking-tighter font-bold">Vehicle</p>
+                                                <p className="font-semibold">{w.car_make} {w.car_model}</p>
+                                            </div>
+                                            <div>
+                                                <p className="text-muted-foreground mb-1 uppercase tracking-tighter font-bold">Date</p>
+                                                <p className="font-semibold">{formatToIST(w.created_at)}</p>
+                                            </div>
+                                        </div>
                                     </div>
-                                    <div className="grid grid-cols-2 gap-4 text-xs">
-                                        <div>
-                                            <p className="text-muted-foreground mb-1 uppercase tracking-tighter font-bold">Vehicle</p>
-                                            <p className="font-semibold">{w.car_make} {w.car_model}</p>
-                                        </div>
-                                        <div>
-                                            <p className="text-muted-foreground mb-1 uppercase tracking-tighter font-bold">Date</p>
-                                            <p className="font-semibold">{formatToIST(w.created_at)}</p>
-                                        </div>
+                                ))
+                            )}
+                        </div>
+                    </DialogContent>
+                </Dialog>
+
+
+                {/* Mobile Menu Drawer */}
+                <Sheet open={isMobileMenuOpen} onOpenChange={setIsMobileMenuOpen}>
+                    <SheetContent side="left" className="w-80 p-0 border-none bg-white rounded-r-[40px] flex flex-col">
+                        <SheetHeader className="p-8 border-b border-orange-50 shrink-0">
+                            <div className="flex items-center justify-between">
+                                <img
+                                    src="/autoform-logo.png"
+                                    alt="Autoform Logo"
+                                    className="h-8 object-contain"
+                                />
+                                <SheetTitle className="sr-only">Navigation Menu</SheetTitle>
+                            </div>
+                        </SheetHeader>
+
+                        <nav className="flex-1 py-6 px-4 space-y-8 overflow-y-auto custom-scrollbar">
+                            {menuGroups.map((group) => (
+                                <div key={group.label} className="space-y-3">
+                                    <h2 className="px-4 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">
+                                        {group.label}
+                                    </h2>
+                                    <div className="space-y-1">
+                                        {group.items.map((item) => (
+                                            <div key={item.id} className="space-y-1">
+                                                <SidebarItem
+                                                    icon={item.icon}
+                                                    label={item.label}
+                                                    active={activeModule === item.id}
+                                                    onClick={() => {
+                                                        setActiveModule(item.id);
+                                                        if (item.id !== 'catalogue') setIsMobileMenuOpen(false);
+                                                    }}
+                                                    comingSoon={item.comingSoon}
+                                                />
+                                                {item.id === 'catalogue' && activeModule === 'catalogue' && (
+                                                    <div className="pl-12 py-1 space-y-1 animate-in slide-in-from-top-2 duration-300">
+                                                        <button
+                                                            onClick={() => {
+                                                                setViewingProductId(null);
+                                                                setViewingCategoryId(null);
+                                                                setIsMobileMenuOpen(false);
+                                                            }}
+                                                            className={cn(
+                                                                "w-full text-left py-2 px-3 text-[11px] font-bold uppercase tracking-wider rounded-xl transition-colors",
+                                                                (!viewingProductId && !viewingCategoryId) ? "bg-orange-600 text-white" : "text-slate-500 hover:bg-slate-50"
+                                                            )}
+                                                        >
+                                                            All Products
+                                                        </button>
+                                                        {(() => {
+                                                            const priority = ["seat cover", "accessories", "mat"];
+                                                            const mainCats = categories.filter(c => !c.parentId).sort((a, b) => {
+                                                                const aName = a.name.toLowerCase();
+                                                                const bName = b.name.toLowerCase();
+                                                                const aIdx = priority.findIndex(p => aName.includes(p));
+                                                                const bIdx = priority.findIndex(p => bName.includes(p));
+                                                                if (aIdx !== -1 && bIdx !== -1) return aIdx - bIdx;
+                                                                if (aIdx !== -1) return -1;
+                                                                if (bIdx !== -1) return 1;
+                                                                return aName.localeCompare(bName);
+                                                            });
+
+                                                            return mainCats.map(mainCat => {
+                                                                const hasSub = categories.some(sc => sc.parentId === mainCat.id);
+                                                                const isExpanded = expandedMobileCategory === mainCat.id;
+
+                                                                return (
+                                                                    <div key={mainCat.id} className="space-y-1">
+                                                                        <button
+                                                                            onClick={() => {
+                                                                                setViewingCategoryId(mainCat.id);
+                                                                                if (hasSub) {
+                                                                                    setExpandedMobileCategory(isExpanded ? null : mainCat.id);
+                                                                                } else {
+                                                                                    setIsMobileMenuOpen(false);
+                                                                                }
+                                                                            }}
+                                                                            className={cn(
+                                                                                "w-full flex items-center justify-between py-2.5 px-3 text-[11px] font-bold uppercase tracking-wider rounded-xl transition-all",
+                                                                                viewingCategoryId === mainCat.id ? "bg-orange-500 text-white" : "text-slate-600 hover:bg-slate-50"
+                                                                            )}
+                                                                        >
+                                                                            <span>{mainCat.name}</span>
+                                                                            {hasSub && (
+                                                                                <ChevronRight className={cn(
+                                                                                    "h-3 w-3 transition-transform duration-300",
+                                                                                    isExpanded ? "rotate-90" : ""
+                                                                                )} />
+                                                                            )}
+                                                                        </button>
+
+                                                                        {hasSub && isExpanded && (
+                                                                            <div className="pl-4 py-1 space-y-1 border-l-2 border-orange-100 ml-3 animate-in fade-in slide-in-from-top-2 duration-300">
+                                                                                {categories.filter(sc => sc.parentId === mainCat.id).map(subCat => (
+                                                                                    <button
+                                                                                        key={subCat.id}
+                                                                                        onClick={() => {
+                                                                                            setViewingCategoryId(subCat.id);
+                                                                                            setIsMobileMenuOpen(false);
+                                                                                        }}
+                                                                                        className={cn(
+                                                                                            "w-full text-left py-2 px-3 text-[10px] font-bold uppercase tracking-tighter rounded-lg transition-colors",
+                                                                                            viewingCategoryId === subCat.id ? "text-orange-600 bg-orange-50" : "text-slate-400 hover:text-slate-600 hover:bg-slate-50"
+                                                                                        )}
+                                                                                    >
+                                                                                        {subCat.name}
+                                                                                    </button>
+                                                                                ))}
+                                                                            </div>
+                                                                        )}
+                                                                    </div>
+                                                                );
+                                                            });
+                                                        })()}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        ))}
                                     </div>
                                 </div>
-                            ))
-                        )}
-                    </div>
-                </DialogContent>
-            </Dialog>
+                            ))}
+                        </nav>
+
+                        <div className="p-4 border-t border-orange-50 space-y-2 shrink-0">
+                            <Button
+                                variant="ghost"
+                                className="w-full h-12 justify-start gap-4 px-4 rounded-[32px] transition-all text-slate-400 hover:text-red-500 hover:bg-red-50"
+                                onClick={() => {
+                                    const { logout } = useAuth(); // Local access or use outer scope
+                                    logout();
+                                    setIsMobileMenuOpen(false);
+                                }}
+                            >
+                                <LogOut className="h-5 w-5" />
+                                <span className="font-bold text-sm">Sign Out</span>
+                            </Button>
+                        </div>
+                    </SheetContent>
+                </Sheet>
+            </div>
         </div>
     );
 };

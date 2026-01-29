@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import api from "@/lib/api";
-import { formatToIST } from "@/lib/utils";
+import { formatToIST, cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, RefreshCw, MessageSquare, Search, Paperclip, Store, Users, Mail, Send, Clock } from "lucide-react";
+import { Loader2, RefreshCw, MessageSquare, Search, Paperclip, Store, Users, Mail, Send, Clock, Plus } from "lucide-react";
 
 interface Grievance {
     id: number;
@@ -48,6 +48,16 @@ interface AssignmentRecord {
     assignment_type: 'initial' | 'follow_up';
     email_sent_at: string;
     sent_by_name: string | null;
+}
+
+interface GrievanceRemark {
+    id: number;
+    grievance_id: number;
+    added_by: 'franchise' | 'admin';
+    added_by_name: string;
+    added_by_id: string;
+    remark: string;
+    created_at: string;
 }
 
 const CATEGORIES: Record<string, string> = {
@@ -89,6 +99,8 @@ const AdminGrievances = () => {
     const [sendingEmail, setSendingEmail] = useState(false);
     const [assignmentHistory, setAssignmentHistory] = useState<AssignmentRecord[]>([]);
     const [loadingHistory, setLoadingHistory] = useState(false);
+    const [remarksHistory, setRemarksHistory] = useState<GrievanceRemark[]>([]);
+    const [loadingRemarks, setLoadingRemarks] = useState(false);
 
     const [dialogTab, setDialogTab] = useState<'details' | 'assignment'>('details');
     const [activeTab, setActiveTab] = useState("customer");
@@ -146,15 +158,33 @@ const AdminGrievances = () => {
         setFilteredGrievances(result);
     }, [searchQuery, statusFilter, grievances, activeTab]);
 
+    const fetchRemarksHistory = async (grievanceId: number) => {
+        setLoadingRemarks(true);
+        try {
+            const response = await api.get(`/grievance/${grievanceId}/remarks`);
+            if (response.data.success) {
+                setRemarksHistory(response.data.data);
+            }
+        } catch (error) {
+            console.error("Failed to fetch remarks history", error);
+        } finally {
+            setLoadingRemarks(false);
+        }
+    };
+
     const handleOpenDetail = async (g: Grievance) => {
         setSelectedGrievance(g);
-        setAdminRemarks(g.admin_remarks || "");
+        setAdminRemarks(""); // Clear input when opening
         setAdminNotes(g.admin_notes || "");
         setAssigneeName(g.assigned_to || "");
         setAssigneeEmail("");
         setAssigneeRemarks("");
         setDialogTab('details');
         setAssignmentHistory([]);
+        setRemarksHistory([]);
+
+        // Fetch remarks history
+        fetchRemarksHistory(g.id);
 
         // Fetch assignment history
         setLoadingHistory(true);
@@ -173,8 +203,8 @@ const AdminGrievances = () => {
     const handleSaveChanges = async () => {
         if (!selectedGrievance) return;
 
-        // Validation: Public remarks mandatory for Resolved/Rejected
-        if (["resolved", "rejected"].includes(selectedGrievance.status) && !adminRemarks.trim()) {
+        // Validation: Public remarks mandatory for Resolved/Rejected if no previous remarks exist
+        if (["resolved", "rejected"].includes(selectedGrievance.status) && !adminRemarks.trim() && remarksHistory.length === 0) {
             toast({
                 title: "Validation Error",
                 description: "Public remarks are required when resolving or rejecting.",
@@ -187,17 +217,45 @@ const AdminGrievances = () => {
         try {
             await api.put(`/grievance/${selectedGrievance.id}/admin-update`, {
                 status: selectedGrievance.status,
-                admin_remarks: adminRemarks,
+                admin_remarks: adminRemarks.trim() || undefined,
                 admin_notes: adminNotes
             });
 
-            toast({ title: "Saved", description: "Changes saved successfully" });
-            setSelectedGrievance(null);
+            toast({ title: "Saved", description: "Grievance status and remarks updated" });
+
+            // If they just updated or added remarks, refresh the history instead of closing
+            if (adminRemarks.trim()) {
+                setAdminRemarks("");
+                fetchRemarksHistory(selectedGrievance.id);
+            } else {
+                setSelectedGrievance(null);
+            }
             fetchGrievances();
         } catch (error: any) {
             toast({
                 title: "Error",
                 description: error.response?.data?.error || "Failed to save changes",
+                variant: "destructive",
+            });
+        } finally {
+            setUpdating(false);
+        }
+    };
+
+    const handlePostRemark = async () => {
+        if (!selectedGrievance || !adminRemarks.trim()) return;
+
+        setUpdating(true);
+        try {
+            await api.put(`/grievance/${selectedGrievance.id}/remarks`, { remarks: adminRemarks.trim() });
+            toast({ title: "Remark Posted", description: "Your response has been added to history" });
+            setAdminRemarks("");
+            fetchRemarksHistory(selectedGrievance.id);
+            fetchGrievances(); // Refresh list to update counts
+        } catch (error: any) {
+            toast({
+                title: "Error",
+                description: error.response?.data?.error || "Failed to post remark",
                 variant: "destructive",
             });
         } finally {
@@ -547,28 +605,47 @@ const AdminGrievances = () => {
                                         return null;
                                     })()}
 
-                                    {selectedGrievance.franchise_remarks && (
-                                        <div className="p-4 bg-amber-50 dark:bg-amber-950 rounded-lg">
-                                            <h4 className="font-semibold mb-1">Franchise Remarks</h4>
-                                            <p className="text-sm">{selectedGrievance.franchise_remarks}</p>
-                                        </div>
-                                    )}
+                                    {/* Response History / Remarks Log */}
+                                    <div className="space-y-4 pt-4 border-t">
+                                        <h4 className="font-semibold flex items-center gap-2">
+                                            <Clock className="h-4 w-4" />
+                                            Response History
+                                        </h4>
 
-                                    {selectedGrievance.customer_rating && (
-                                        <div className="p-4 bg-green-50 dark:bg-green-950 rounded-lg">
-                                            <h4 className="font-semibold mb-1">Customer Feedback</h4>
-                                            <div className="flex items-center gap-2">
-                                                <span className="text-yellow-500">{"★".repeat(selectedGrievance.customer_rating)}</span>
-                                                <span className="text-muted-foreground text-sm">{selectedGrievance.customer_rating}/5</span>
+                                        {loadingRemarks ? (
+                                            <div className="flex items-center gap-2 text-sm text-muted-foreground p-4">
+                                                <Loader2 className="h-4 w-4 animate-spin" />
+                                                Loading history...
                                             </div>
-                                            {selectedGrievance.customer_feedback && (
-                                                <p className="text-sm mt-1">{selectedGrievance.customer_feedback}</p>
-                                            )}
-                                        </div>
-                                    )}
+                                        ) : remarksHistory.length === 0 ? (
+                                            <div className="bg-muted/30 rounded-lg p-6 text-center border border-dashed">
+                                                <p className="text-sm text-muted-foreground">No response recorded yet</p>
+                                            </div>
+                                        ) : (
+                                            <div className="space-y-3 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
+                                                {remarksHistory.map((remark) => (
+                                                    <div key={remark.id} className={`p-3 rounded-lg border text-sm ${remark.added_by === 'admin'
+                                                        ? "bg-blue-50/50 dark:bg-blue-950/20 border-blue-100"
+                                                        : "bg-amber-50/50 dark:bg-amber-950/20 border-amber-100 ml-6"
+                                                        }`}>
+                                                        <div className="flex items-center justify-between mb-1">
+                                                            <span className={`text-[10px] font-bold uppercase px-1.5 py-0.5 rounded ${remark.added_by === 'admin' ? "bg-blue-100 text-blue-700" : "bg-amber-100 text-amber-700"
+                                                                }`}>
+                                                                {remark.added_by_name} ({remark.added_by})
+                                                            </span>
+                                                            <span className="text-[10px] text-muted-foreground">
+                                                                {formatToIST(remark.created_at)}
+                                                            </span>
+                                                        </div>
+                                                        <p className="leading-relaxed">{remark.remark}</p>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
 
-                                    <div className="flex flex-wrap gap-2">
-                                        <span className="text-sm font-medium mr-2">Quick Actions:</span>
+                                    <div className="flex flex-wrap gap-2 pt-2">
+                                        <span className="text-sm font-medium mr-2">Update Status:</span>
                                         {["under_review", "in_progress", "resolved", "rejected"].map(status => (
                                             <Button key={status} size="sm"
                                                 variant={selectedGrievance.status === status ? "default" : "outline"}
@@ -579,9 +656,19 @@ const AdminGrievances = () => {
                                     </div>
 
                                     <div>
-                                        <label className="text-sm font-medium">Admin Remarks (Visible to Vendor)</label>
+                                        <label className="text-sm font-medium">Add Public Remark (Visible to Franchise & Customer)</label>
                                         <Textarea value={adminRemarks} onChange={(e) => setAdminRemarks(e.target.value)}
-                                            placeholder="Add reply or public notes..." rows={3} className="mt-1" />
+                                            placeholder="Add a new response or resolution details..." rows={3} className="mt-1" />
+                                        <Button
+                                            size="sm"
+                                            variant="secondary"
+                                            onClick={handlePostRemark}
+                                            disabled={updating || !adminRemarks.trim()}
+                                            className="mt-2 w-full bg-blue-50 hover:bg-blue-100 text-blue-700 border-blue-200"
+                                        >
+                                            {updating ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Plus className="h-4 w-4 mr-2" />}
+                                            Post Official Remark
+                                        </Button>
                                     </div>
 
                                     <div>

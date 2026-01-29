@@ -24,7 +24,7 @@ export const ModuleLayout = ({ title, description, children, actions, isCollapse
                     "flex-1 min-h-0 bg-white border border-orange-100 rounded-[30px] md:rounded-[40px] shadow-[0_15px_50px_rgba(0,0,0,0.03)] relative md:mr-6 md:my-6 md:ml-6 flex flex-col overflow-hidden m-4"
                 )}
             >
-                <div className="flex-1 w-full h-full overflow-y-auto custom-scrollbar flex flex-col">
+                <div id="main-dashboard-content-area" className="flex-1 w-full h-full overflow-y-auto custom-scrollbar flex flex-col">
                     {/* Branding Header Area - Exactly like Customer Side */}
                     <div className="px-6 md:px-10 pt-8 md:pt-10 w-full shrink-0">
                         <div className="max-w-[1500px] mx-auto flex flex-col gap-4 md:gap-0">

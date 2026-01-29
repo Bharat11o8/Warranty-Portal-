@@ -24,7 +24,6 @@ import CataloguePage from "./pages/CataloguePage";
 import CategoryPage from "./pages/eshop/CategoryPage";
 import ProductPage from "./pages/eshop/ProductPage";
 import Profile from "./pages/Profile";
-import VendorPortalLayout from "./components/layouts/VendorPortalLayout";
 
 const queryClient = new QueryClient();
 
@@ -54,17 +53,10 @@ const App = () => (
               <Route path="/admin/manage" element={<AdminManagement />} />
               <Route path="/admin/products" element={<AdminProducts />} />
               <Route path="/admin/activity-logs" element={<ActivityLogs />} />
+              <Route path="/catalogue" element={<CataloguePage />} />
+              <Route path="/category/:categoryId" element={<CategoryPage />} />
+              <Route path="/product/:productId" element={<ProductPage />} />
               <Route path="/admin/grievances" element={<AdminGrievancesPage />} />
-
-              {/* Vendor Portal Layout - Consistent Sidebar for Dashboard & Catalogue */}
-              <Route element={<VendorPortalLayout />}>
-                <Route path="/dashboard/vendor" element={<FranchiseDashboard />} />
-                <Route path="/catalogue" element={<CataloguePage />} />
-                <Route path="/category/:categoryId" element={<CategoryPage />} />
-                <Route path="/product/:productId" element={<ProductPage />} />
-                <Route path="/profile" element={<Profile />} />
-              </Route>
-
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
             </Routes>

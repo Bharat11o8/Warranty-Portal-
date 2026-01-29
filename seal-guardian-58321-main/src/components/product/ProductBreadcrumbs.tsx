@@ -16,34 +16,34 @@ const ProductBreadcrumbs: React.FC<ProductBreadcrumbsProps> = ({
   parentCategory
 }) => {
   return (
-    <div className="text-sm breadcrumbs">
-      <ul className="flex items-center space-x-2">
-        <li><Link to="/catalogue" className="text-muted-foreground hover:text-foreground">Home</Link></li>
-        <ChevronRight className="h-4 w-4 text-muted-foreground" />
+    <div className="text-sm overflow-x-auto no-scrollbar py-2">
+      <ul className="flex items-center space-x-2 whitespace-nowrap">
+        <li className="flex items-center gap-2">
+          <Link to="/catalogue" className="text-muted-foreground hover:text-brand-orange transition-colors font-medium">Catalogue</Link>
+          <ChevronRight className="h-3 w-3 text-slate-300" />
+        </li>
 
         {parentCategory && (
-          <>
-            <li>
-              <Link to={`/category/${parentCategory.id}`} className="text-muted-foreground hover:text-foreground">
-                {parentCategory.name}
-              </Link>
-            </li>
-            <ChevronRight className="h-4 w-4 text-muted-foreground" />
-          </>
+          <li className="flex items-center gap-2">
+            <Link to={`/category/${parentCategory.id}`} className="text-muted-foreground hover:text-brand-orange transition-colors font-medium">
+              {parentCategory.name}
+            </Link>
+            <ChevronRight className="h-3 w-3 text-slate-300" />
+          </li>
         )}
 
         {category && (
-          <>
-            <li>
-              <Link to={`/category/${category.id}`} className="text-muted-foreground hover:text-foreground">
-                {category.name}
-              </Link>
-            </li>
-            <ChevronRight className="h-4 w-4 text-muted-foreground" />
-          </>
+          <li className="flex items-center gap-2">
+            <Link to={`/category/${category.id}`} className="text-muted-foreground hover:text-brand-orange transition-colors font-medium">
+              {category.name}
+            </Link>
+            <ChevronRight className="h-3 w-3 text-slate-300" />
+          </li>
         )}
 
-        <li className="font-medium">{productName}</li>
+        <li className="font-bold text-slate-900 truncate max-w-[200px] md:max-w-[400px]" title={productName}>
+          {productName}
+        </li>
       </ul>
     </div>
   );

@@ -640,7 +640,7 @@ const CustomerDashboard = () => {
 
             {/* Tabs & Search Section */}
             <Tabs defaultValue="approved" className="space-y-6">
-                <div className="flex flex-col md:flex-row gap-4 items-center justify-between mb-6 sticky top-20 md:top-4 z-30 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 py-2">
+                <div className="flex flex-col md:flex-row gap-4 items-center justify-between mb-6 sticky top-0 z-30 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 py-2">
                     {/* Filter Tabs */}
                     <div className="w-full md:w-auto overflow-x-auto pb-2 md:pb-0 scrollbar-none order-2 md:order-1">
                         <TabsList className="relative bg-slate-100/80 p-1 rounded-full h-10 md:h-11 w-full md:w-auto grid grid-cols-3 md:inline-flex gap-0.5 shadow-inner">

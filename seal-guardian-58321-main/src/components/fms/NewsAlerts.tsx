@@ -96,7 +96,7 @@ export const NewsAlerts = () => {
     return (
         <div className="max-w-4xl mx-auto space-y-10 animate-in fade-in duration-700">
             {/* Filter Toolbar */}
-            <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-6 sticky top-5 z-30 bg-white py-4 px-2 -mx-2 rounded-3xl border border-orange-100 shadow-[0_8px_30px_rgba(0,0,0,0.02)]">
+            <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-6 sticky top-0 z-30 bg-white py-4 px-2 -mx-2 rounded-3xl border border-orange-100 shadow-[0_8px_30px_rgba(0,0,0,0.02)]">
 
                 {/* Tabs - Scrollable on mobile, Fixed on desktop */}
                 <div className="flex-1 flex flex-nowrap overflow-x-auto gap-1 bg-white p-1 rounded-2xl md:rounded-full border border-orange-100 [&::-webkit-scrollbar]:hidden min-w-0 shadow-sm">

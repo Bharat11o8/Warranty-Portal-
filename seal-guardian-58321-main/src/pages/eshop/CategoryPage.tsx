@@ -6,8 +6,16 @@ import CategoryCard from '@/components/CategoryCard';
 import CatalogHeader from '@/components/eshop/CatalogHeader';
 import { ChevronRight, Loader2 } from 'lucide-react';
 
-const CategoryPage = () => {
-  const { categoryId } = useParams<{ categoryId: string }>();
+interface CategoryPageProps {
+  categoryId?: string;
+  embedded?: boolean;
+  isDashboard?: boolean;
+}
+
+const CategoryPage: React.FC<CategoryPageProps> = ({ categoryId: propCategoryId, embedded = false, isDashboard = false }) => {
+  const { categoryId: paramsCategoryId } = useParams<{ categoryId: string }>();
+  const categoryId = propCategoryId || paramsCategoryId;
+
   const [category, setCategory] = useState<any>(null);
   const [products, setProducts] = useState<Product[]>([]);
   const [subcategories, setSubcategories] = useState<Category[]>([]);
@@ -68,50 +76,99 @@ const CategoryPage = () => {
   }
 
   if (!category) {
-    return <div className="text-center py-20 text-2xl font-bold">Category not found</div>;
+    return (
+      <div className="bg-white min-h-screen text-center">
+        <CatalogHeader isDashboard={isDashboard} />
+        <div className="text-2xl font-bold py-20 text-gray-900">Category not found</div>
+      </div>
+    );
   }
 
   return (
-    <div className="space-y-6">
-      <div className="container mx-auto py-8 space-y-6">
+    <div className="bg-white min-h-screen">
+      <CatalogHeader isDashboard={isDashboard} />
+      <div className={`container mx-auto px-4 ${embedded ? 'py-4' : 'py-8'} space-y-6`}>
         {/* Breadcrumbs */}
-        <div className="text-sm breadcrumbs">
-          <ul className="flex items-center space-x-2">
-            <li>
-              <Link to="/dashboard/vendor" className="text-muted-foreground hover:text-foreground">
+        <div className="text-sm overflow-x-auto no-scrollbar py-2">
+          <ul className="flex items-center space-x-2 whitespace-nowrap">
+            <li className="flex items-center gap-2">
+              <Link to="/catalogue" className="text-muted-foreground hover:text-brand-orange transition-colors font-medium">
                 Catalogue
               </Link>
+              <ChevronRight className="h-3 w-3 text-slate-300" />
             </li>
-            <ChevronRight className="h-4 w-4 text-muted-foreground" />
             {parentCategory && (
-              <>
-                <li>
-                  <Link
-                    to={`/category/${parentCategory.id}`}
-                    className="text-muted-foreground hover:text-foreground"
-                  >
-                    {parentCategory.name}
-                  </Link>
-                </li>
-                <ChevronRight className="h-4 w-4 text-muted-foreground" />
-              </>
+              <li className="flex items-center gap-2">
+                <Link
+                  to={`/category/${parentCategory.id}`}
+                  className="text-muted-foreground hover:text-brand-orange transition-colors font-medium"
+                >
+                  {parentCategory.name}
+                </Link>
+                <ChevronRight className="h-3 w-3 text-slate-300" />
+              </li>
             )}
-            <li className="font-medium">{category.name}</li>
+            <li className="font-bold text-slate-900 truncate max-w-[200px] md:max-w-[400px]" title={category.name}>
+              {category.name}
+            </li>
           </ul>
         </div>
 
-        {/* Category Header */}
-        <div className="glass-card-premium rounded-2xl p-8 mb-8">
-          <h1 className="text-4xl font-bold mb-4 text-gray-900">{category.name}</h1>
-          {category.description && (
-            <p className="text-lg text-gray-600">{category.description}</p>
-          )}
+        {/* Premium Clean Category Header */}
+        <div className="relative overflow-hidden rounded-[1.5rem] bg-orange-50/20 p-6 md:p-8 mb-8 border border-orange-100/50 group/hero">
+          {/* Subtle Decorative Accents */}
+          <div className="absolute top-0 right-0 w-1/4 h-full bg-gradient-to-l from-white to-transparent pointer-events-none" />
+          <div className="absolute -bottom-24 -right-24 w-64 h-64 bg-orange-100/5 rounded-full blur-[100px] pointer-events-none" />
+
+          <div className="relative z-10">
+            {/* Split Title Style (Related Products Style) */}
+            <h1 className="text-2xl md:text-3xl font-black text-slate-900 tracking-tighter uppercase leading-none mb-1">
+              {(() => {
+                if (parentCategory) {
+                  return (
+                    <>
+                      <span className="mr-2 uppercase">{category.name}</span>
+                      <span className="text-brand-orange/90 font-medium italic normal-case">
+                        {parentCategory.name}
+                      </span>
+                    </>
+                  );
+                }
+
+                // Fallback for single-level categories: split by first word
+                const parts = category.name.split(' ');
+                const firstPart = parts[0];
+                const restPart = parts.slice(1).join(' ');
+
+                return (
+                  <>
+                    <span className="mr-2 uppercase">{firstPart}</span>
+                    <span className="text-brand-orange/90 font-medium italic normal-case">
+                      {restPart}
+                    </span>
+                  </>
+                );
+              })()}
+            </h1>
+
+            <div className="flex items-center mb-4">
+              <span className="text-[9px] font-black uppercase tracking-[0.4em] text-slate-400">Category Overview</span>
+            </div>
+            {category.description && (
+              <p className="text-xs md:text-sm text-slate-500 leading-relaxed font-medium max-w-2xl opacity-70">
+                {category.description}
+              </p>
+            )}
+          </div>
         </div>
 
-        {/* Subcategories */}
+        {/* Subcategories Section */}
         {subcategories.length > 0 && (
           <section className="mb-12">
-            <h2 className="text-2xl font-bold mb-6">Browse {category.name} Categories</h2>
+            <div className="flex items-center gap-4 mb-6">
+              <h2 className="text-lg md:text-xl font-black text-slate-900 tracking-tight">Browse Categories</h2>
+              <div className="h-px bg-slate-100 flex-1" />
+            </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
               {subcategories.map(subcategory => (
                 <CategoryCard key={subcategory.id} category={subcategory} />

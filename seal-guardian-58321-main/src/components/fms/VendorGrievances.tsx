@@ -29,6 +29,19 @@ interface Grievance {
     customer_rating: number | null;
     created_at: string;
     resolved_at: string | null;
+    department?: string;
+    departmentDetails?: string;
+    department_details?: string;
+}
+
+interface GrievanceRemark {
+    id: number;
+    grievance_id: number;
+    added_by: 'franchise' | 'admin';
+    added_by_name: string;
+    added_by_id: string;
+    remark: string;
+    created_at: string;
 }
 
 const CATEGORIES: Record<string, string> = {
@@ -59,6 +72,21 @@ const STATUS_CONFIG: Record<string, { color: string; icon: any; label: string }>
     rejected: { color: "bg-red-500", icon: AlertCircle, label: "Rejected" },
 };
 
+const FRANCHISE_CATEGORIES = [
+    { value: "product_issue", label: "Product Issue" },
+    { value: "warranty_issue", label: "Warranty Issue" },
+    { value: "logistics_issue", label: "Logistics Issue" },
+    { value: "stock_issue", label: "Stock Issue" },
+    { value: "software_issue", label: "Software/Portal Issue" },
+    { value: "other", label: "Other" },
+];
+
+const DEPARTMENTS = [
+    { value: "plant", label: "Plant", icon: Factory, requiresDetails: false },
+    { value: "distributor", label: "Distributor", icon: Truck, requiresDetails: true },
+    { value: "asm", label: "ASM", icon: UserCheck, requiresDetails: true },
+];
+
 const VendorGrievances = () => {
     const { toast } = useToast();
     const [grievances, setGrievances] = useState<Grievance[]>([]);
@@ -66,6 +94,8 @@ const VendorGrievances = () => {
     const [selectedGrievance, setSelectedGrievance] = useState<Grievance | null>(null);
     const [remarks, setRemarks] = useState("");
     const [updating, setUpdating] = useState(false);
+    const [remarksHistory, setRemarksHistory] = useState<GrievanceRemark[]>([]);
+    const [loadingRemarks, setLoadingRemarks] = useState(false);
 
     // My Grievance state
     const [myGrievances, setMyGrievances] = useState<any[]>([]);
@@ -90,21 +120,6 @@ const VendorGrievances = () => {
     const [attachment2, setAttachment2] = useState<File | null>(null);
     const [attachment3, setAttachment3] = useState<File | null>(null);
     const [compressing, setCompressing] = useState(false);
-
-    const FRANCHISE_CATEGORIES = [
-        { value: "product_issue", label: "Product Issue" },
-        { value: "warranty_issue", label: "Warranty Issue" },
-        { value: "logistics_issue", label: "Logistics Issue" },
-        { value: "stock_issue", label: "Stock Issue" },
-        { value: "software_issue", label: "Software/Portal Issue" },
-        { value: "other", label: "Other" },
-    ];
-
-    const DEPARTMENTS = [
-        { value: "plant", label: "Plant", icon: Factory, requiresDetails: false },
-        { value: "distributor", label: "Distributor", icon: Truck, requiresDetails: true },
-        { value: "asm", label: "ASM", icon: UserCheck, requiresDetails: true },
-    ];
 
     const fetchGrievances = async (page = 1, currentLimit = customerLimit) => {
         setLoading(true);
@@ -203,7 +218,7 @@ const VendorGrievances = () => {
             if (attachment3) formData.append('attachments', attachment3);
 
             const response = await api.post('/grievance/franchise', formData, {
-                headers: { 'Content-Type': 'multipart/form-data' }
+                headers: { 'Content-Type': undefined }
             });
 
             if (response.data.success) {
@@ -237,30 +252,40 @@ const VendorGrievances = () => {
         }
     };
 
+    const fetchRemarksHistory = async (grievanceId: number) => {
+        setLoadingRemarks(true);
+        try {
+            const response = await api.get(`/grievance/${grievanceId}/remarks`);
+            if (response.data.success) {
+                setRemarksHistory(response.data.data);
+            }
+        } catch (error) {
+            console.error("Failed to fetch remarks history", error);
+        } finally {
+            setLoadingRemarks(false);
+        }
+    };
+
     const handleOpenDetail = (g: Grievance) => {
         setSelectedGrievance(g);
-        setRemarks(g.franchise_remarks || "");
+        setRemarks(""); // Clear input on open
+        fetchRemarksHistory(g.id);
     };
 
     const handleUpdate = async () => {
-        if (!selectedGrievance) return;
+        if (!selectedGrievance || !remarks.trim()) return;
 
         setUpdating(true);
         try {
-            // Update remarks if changed
-            if (remarks !== (selectedGrievance.franchise_remarks || "")) {
-                await api.put(`/grievance/${selectedGrievance.id}/remarks`, { remarks });
-                toast({ title: "Updated", description: "Remarks updated successfully" });
-                setSelectedGrievance(null);
-                fetchGrievances();
-            } else {
-                // If nothing changed, just close
-                setSelectedGrievance(null);
-            }
+            await api.put(`/grievance/${selectedGrievance.id}/remarks`, { remarks });
+            toast({ title: "Remarks Added", description: "Your response has been logged in history." });
+            setRemarks(""); // Clear input
+            fetchRemarksHistory(selectedGrievance.id); // Refresh history
+            fetchGrievances(customerPagination.currentPage, customerLimit); // Refresh main list
         } catch (error: any) {
             toast({
-                title: "Update Failed",
-                description: error.response?.data?.error || "Failed to update grievance",
+                title: "Failed to Add Remark",
+                description: error.response?.data?.error || "An error occurred",
                 variant: "destructive",
             });
         } finally {
@@ -281,7 +306,7 @@ const VendorGrievances = () => {
         <div className="animate-in fade-in duration-700">
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full space-y-8">
                 {/* Header Container */}
-                <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4 md:gap-6 sticky top-5 z-30 bg-white py-3 md:py-4 px-3 md:px-2 -mx-3 md:-mx-2 rounded-2xl md:rounded-3xl border border-orange-100 shadow-[0_8px_30px_rgba(0,0,0,0.02)]">
+                <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4 md:gap-6 sticky top-0 z-30 bg-white py-3 md:py-4 px-3 md:px-2 -mx-3 md:-mx-2 rounded-2xl md:rounded-3xl border border-orange-100 shadow-[0_8px_30px_rgba(0,0,0,0.02)]">
 
                     {/* Mobile: Refresh Icon Top Right */}
                     <div className="flex md:hidden justify-end w-full absolute top-2 right-2 z-20">
@@ -367,11 +392,11 @@ const VendorGrievances = () => {
                                     <div
                                         key={g.id}
                                         onClick={() => handleOpenDetail(g)}
-                                        className={`group relative flex items-center gap-3 md:gap-4 p-4 md:p-5 bg-white hover:bg-orange-50/30 transition-all duration-300 rounded-[20px] md:rounded-[24px] border border-slate-100 hover:border-orange-200 shadow-sm hover:shadow-xl cursor-pointer active:scale-[0.99] ${categoryConfig.border?.replace('border-', 'border-l-[6px] border-l-')}`}
+                                        className={`group relative flex items-center gap-3 md:gap-4 p-3 md:p-5 bg-white hover:bg-orange-50/30 transition-all duration-300 rounded-[18px] md:rounded-[24px] border border-slate-100 hover:border-orange-200 shadow-sm hover:shadow-xl cursor-pointer active:scale-[0.99] ${categoryConfig.border?.replace('border-', 'border-l-[6px] border-l-')}`}
                                     >
                                         {/* Icon Box */}
-                                        <div className={`h-10 w-10 md:h-12 md:w-12 rounded-lg md:rounded-xl flex items-center justify-center shrink-0 ${categoryConfig.bg} ${categoryConfig.text}`}>
-                                            <CategoryIcon className="w-5 h-5 md:w-6 md:h-6" />
+                                        <div className={`h-9 w-9 md:h-12 md:w-12 rounded-lg md:rounded-xl flex items-center justify-center shrink-0 ${categoryConfig.bg} ${categoryConfig.text}`}>
+                                            <CategoryIcon className="w-4 h-4 md:w-6 md:h-6" />
                                         </div>
 
                                         {/* Content */}
@@ -413,134 +438,6 @@ const VendorGrievances = () => {
                             />
                         </div>
                     )}
-
-                    {/* Detail Dialog */}
-                    <Dialog open={!!selectedGrievance} onOpenChange={() => setSelectedGrievance(null)}>
-                        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-                            {selectedGrievance && (
-                                <>
-                                    <DialogHeader>
-                                        <DialogTitle className="flex items-center gap-2">
-                                            <span>{selectedGrievance.ticket_id}</span>
-                                            <Badge className={STATUS_CONFIG[selectedGrievance.status]?.color}>
-                                                {STATUS_CONFIG[selectedGrievance.status]?.label}
-                                            </Badge>
-                                        </DialogTitle>
-                                        <DialogDescription>
-                                            {formatToIST(selectedGrievance.created_at)}
-                                        </DialogDescription>
-                                    </DialogHeader>
-
-                                    <div className="space-y-4 mt-4">
-                                        {/* Customer Info */}
-                                        <div className="p-4 bg-muted rounded-lg">
-                                            <h4 className="font-semibold mb-2">Customer Details</h4>
-                                            <div className="grid grid-cols-2 gap-2 text-sm">
-                                                <div>Name: {selectedGrievance.customer_name}</div>
-                                                <div>Phone: {selectedGrievance.customer_phone}</div>
-                                                <div className="col-span-2">Email: {selectedGrievance.customer_email}</div>
-                                            </div>
-                                        </div>
-
-                                        {/* Issue Details */}
-                                        <div>
-                                            <h4 className="font-semibold mb-2">Issue Details</h4>
-                                            <p className="text-sm text-muted-foreground mb-1">
-                                                Category: {CATEGORIES[selectedGrievance.category]}
-                                                {selectedGrievance.sub_category && ` > ${selectedGrievance.sub_category}`}
-                                            </p>
-                                            <h5 className="font-medium">{selectedGrievance.subject}</h5>
-                                            <p className="text-sm mt-2">{selectedGrievance.description}</p>
-
-                                            {/* Attachments */}
-                                            {(() => {
-                                                let attachments: string[] = [];
-                                                try {
-                                                    if (Array.isArray(selectedGrievance.attachments)) {
-                                                        attachments = selectedGrievance.attachments;
-                                                    } else if (typeof selectedGrievance.attachments === 'string' && selectedGrievance.attachments) {
-                                                        attachments = JSON.parse(selectedGrievance.attachments);
-                                                    }
-                                                } catch (e) {
-                                                    console.error("Failed to parse attachments", e);
-                                                }
-
-                                                if (attachments && attachments.length > 0) {
-                                                    return (
-                                                        <div className="mt-4">
-                                                            <h5 className="text-sm font-medium mb-2 flex items-center gap-2">
-                                                                <Paperclip className="h-3 w-3" />
-                                                                Attachments
-                                                            </h5>
-                                                            <div className="flex flex-wrap gap-2">
-                                                                {attachments.map((url, idx) => (
-                                                                    <a
-                                                                        key={idx}
-                                                                        href={url}
-                                                                        target="_blank"
-                                                                        rel="noopener noreferrer"
-                                                                        className="block h-16 w-16 rounded-md overflow-hidden border hover:opacity-80 transition-opacity"
-                                                                    >
-                                                                        <img
-                                                                            src={url}
-                                                                            alt={`Attachment ${idx + 1}`}
-                                                                            className="h-full w-full object-cover"
-                                                                        />
-                                                                    </a>
-                                                                ))}
-                                                            </div>
-                                                        </div>
-                                                    );
-                                                }
-                                                return null;
-                                            })()}
-                                        </div>
-
-                                        {/* Admin Remarks (if any) */}
-                                        {selectedGrievance.admin_remarks && (
-                                            <div className="p-4 bg-blue-50 dark:bg-blue-950 rounded-lg">
-                                                <h4 className="font-semibold mb-1 text-blue-600">Admin Remarks</h4>
-                                                <p className="text-sm">{selectedGrievance.admin_remarks}</p>
-                                            </div>
-                                        )}
-
-                                        {/* Status & Priority Display */}
-                                        <div className="grid grid-cols-1 gap-4">
-                                            <div className="p-3 bg-muted/50 rounded border">
-                                                <span className="text-xs text-muted-foreground block mb-1">Current Status</span>
-                                                <Badge className={STATUS_CONFIG[selectedGrievance.status]?.color}>
-                                                    {STATUS_CONFIG[selectedGrievance.status]?.label}
-                                                </Badge>
-                                            </div>
-                                        </div>
-
-                                        {/* Franchise Remarks */}
-                                        <div>
-                                            <label className="text-sm font-medium">Your Remarks / Response</label>
-                                            <Textarea
-                                                value={remarks}
-                                                onChange={(e) => setRemarks(e.target.value)}
-                                                placeholder="Add your response or internal notes..."
-                                                rows={4}
-                                                className="mt-1"
-                                            />
-                                        </div>
-
-                                        <Button onClick={handleUpdate} disabled={updating} className="w-full">
-                                            {updating ? (
-                                                <>
-                                                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                                                    Updating...
-                                                </>
-                                            ) : (
-                                                "Save Changes"
-                                            )}
-                                        </Button>
-                                    </div>
-                                </>
-                            )}
-                        </DialogContent>
-                    </Dialog>
                 </TabsContent>
 
                 {/* My Grievance Tab Content */}
@@ -578,26 +475,27 @@ const VendorGrievances = () => {
                                 return (
                                     <div
                                         key={g.id}
-                                        className={`group relative flex items-center gap-4 p-5 bg-white hover:bg-orange-50/30 transition-all duration-300 rounded-[24px] border border-slate-100 hover:border-orange-200 shadow-sm hover:shadow-xl ${categoryConfig.border?.replace('border-', 'border-l-[6px] border-l-')}`}
+                                        onClick={() => handleOpenDetail(g)}
+                                        className={`group relative flex items-center gap-3 md:gap-4 p-4 md:p-5 bg-white hover:bg-orange-50/30 transition-all duration-300 rounded-[18px] md:rounded-[24px] border border-slate-100 hover:border-orange-200 shadow-sm hover:shadow-xl cursor-pointer active:scale-[0.99] ${categoryConfig.border?.replace('border-', 'border-l-[6px] border-l-')}`}
                                     >
-                                        <div className={`h-14 w-14 rounded-2xl flex items-center justify-center shrink-0 shadow-sm transition-transform duration-500 group-hover:scale-110 ${categoryConfig.bg} ${categoryConfig.text}`}>
-                                            <CategoryIcon className="w-7 h-7" />
+                                        <div className={`h-11 w-11 md:h-14 md:w-14 rounded-xl md:rounded-2xl flex items-center justify-center shrink-0 shadow-sm transition-transform duration-500 group-hover:scale-110 ${categoryConfig.bg} ${categoryConfig.text}`}>
+                                            <CategoryIcon className="w-5 h-5 md:w-7 md:h-7" />
                                         </div>
 
                                         <div className="flex-1 min-w-0">
-                                            <div className="flex items-center gap-2 mb-1.5">
-                                                <span className="font-mono text-[10px] font-bold text-slate-400 bg-slate-50 px-2 py-1 rounded-md border border-slate-100">{g.ticket_id}</span>
-                                                <Badge variant="outline" className={`${STATUS_CONFIG[g.status]?.color?.replace('bg-', 'text-')} border-0 bg-transparent font-black tracking-widest text-[10px] uppercase pl-0`}>
+                                            <div className="flex flex-wrap items-center gap-1.5 md:gap-2 mb-1.5">
+                                                <span className="font-mono text-[8px] md:text-[10px] font-bold text-slate-400 bg-slate-50 px-1.5 py-0.5 md:px-2 md:py-1 rounded-md border border-slate-100">{g.ticket_id}</span>
+                                                <Badge variant="outline" className={`${STATUS_CONFIG[g.status]?.color?.replace('bg-', 'text-')} border-0 bg-transparent font-black tracking-widest text-[8px] md:text-[10px] uppercase pl-0`}>
                                                     • {STATUS_CONFIG[g.status]?.label}
                                                 </Badge>
-                                                <Badge variant="secondary" className="text-[10px] font-black uppercase tracking-widest bg-slate-50 text-slate-400 border-slate-100 shrink-0">
+                                                <Badge variant="secondary" className="text-[8px] md:text-[10px] font-black uppercase tracking-widest bg-slate-50 text-slate-400 border-slate-100 shrink-0">
                                                     To: {g.department_display || g.department?.toUpperCase()}
                                                 </Badge>
                                             </div>
-                                            <h3 className="font-black text-slate-800 text-lg truncate tracking-tight group-hover:text-orange-600 transition-colors">{g.subject}</h3>
-                                            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest truncate opacity-70">
-                                                {CATEGORIES[g.category] || g.category}
-                                                <span className="mx-2 opacity-30">•</span>
+                                            <h3 className="font-black text-slate-800 text-sm md:text-lg truncate tracking-tight group-hover:text-orange-600 transition-colors">{g.subject}</h3>
+                                            <p className="text-[8px] md:text-[10px] font-bold text-slate-500 uppercase tracking-widest truncate opacity-70">
+                                                {CATEGORIES[g.category] || FRANCHISE_CATEGORIES.find(c => c.value === g.category)?.label || g.category}
+                                                <span className="mx-1 md:mx-2 opacity-30">•</span>
                                                 {formatToIST(g.created_at)}
                                             </p>
                                         </div>
@@ -624,17 +522,17 @@ const VendorGrievances = () => {
 
                     {/* New Grievance Dialog */}
                     <Dialog open={showNewGrievanceForm} onOpenChange={setShowNewGrievanceForm}>
-                        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-                            <DialogHeader>
-                                <DialogTitle>Submit New Grievance</DialogTitle>
-                                <DialogDescription>
+                        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto p-0 border-0 rounded-[30px] shadow-2xl bg-white">
+                            <DialogHeader className="px-6 pt-6 pb-4 border-b border-slate-100 bg-slate-50/50">
+                                <DialogTitle className="text-xl font-black text-slate-800">Submit New Grievance</DialogTitle>
+                                <DialogDescription className="text-slate-500">
                                     Report an issue to Plant, Distributor, or ASM.
                                 </DialogDescription>
                             </DialogHeader>
 
-                            <div className="space-y-4 mt-4">
+                            <div className="space-y-5 p-6">
                                 {/* Department Selection */}
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                <div className="grid grid-cols-3 gap-3">
                                     {DEPARTMENTS.map((dept) => {
                                         const Icon = dept.icon;
                                         const isSelected = department === dept.value;
@@ -642,16 +540,23 @@ const VendorGrievances = () => {
                                             <div
                                                 key={dept.value}
                                                 onClick={() => setDepartment(dept.value)}
-                                                className={`cursor-pointer rounded-xl md:rounded-lg border p-3 md:p-4 flex flex-row md:flex-col items-center justify-start md:justify-center gap-3 md:gap-2 transition-all hover:bg-accent/5 ${isSelected ? 'border-orange-500 bg-orange-50/50 ring-1 ring-orange-500/20' : 'border-slate-100'
-                                                    }`}
+                                                className={cn(
+                                                    "cursor-pointer rounded-2xl border-2 p-3 md:p-4 flex flex-col items-center justify-center gap-2 transition-all hover:shadow-md",
+                                                    isSelected
+                                                        ? "border-orange-500 bg-orange-50 ring-2 ring-orange-500/20 shadow-lg shadow-orange-500/10"
+                                                        : "border-slate-100 bg-white hover:border-slate-200"
+                                                )}
                                             >
                                                 <div className={cn(
-                                                    "h-10 w-10 rounded-lg flex items-center justify-center shrink-0 transition-colors",
-                                                    isSelected ? "bg-orange-500 text-white shadow-lg shadow-orange-500/20" : "bg-slate-50 text-slate-400"
+                                                    "h-10 w-10 md:h-12 md:w-12 rounded-xl flex items-center justify-center shrink-0 transition-colors",
+                                                    isSelected ? "bg-orange-500 text-white shadow-lg shadow-orange-500/30" : "bg-slate-100 text-slate-400"
                                                 )}>
                                                     <Icon className="h-5 w-5 md:h-6 md:w-6" />
                                                 </div>
-                                                <span className={`font-black text-[11px] md:text-sm uppercase tracking-widest ${isSelected ? 'text-orange-600' : 'text-slate-500'}`}>{dept.label}</span>
+                                                <span className={cn(
+                                                    "font-black text-[10px] md:text-xs uppercase tracking-widest text-center",
+                                                    isSelected ? "text-orange-600" : "text-slate-500"
+                                                )}>{dept.label}</span>
                                             </div>
                                         );
                                     })}
@@ -659,12 +564,12 @@ const VendorGrievances = () => {
 
                                 {department && DEPARTMENTS.find(d => d.value === department)?.requiresDetails && (
                                     <div className="animate-in fade-in slide-in-from-top-2">
-                                        <label className="text-sm font-medium mb-1.5 block">
+                                        <label className="text-xs font-black text-slate-500 uppercase tracking-widest mb-2 block">
                                             {department === 'distributor' ? 'Distributor Name/Details' : 'ASM Name/Details'} <span className="text-red-500">*</span>
                                         </label>
                                         <input
                                             type="text"
-                                            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                                            className="flex h-12 w-full rounded-2xl border-2 border-slate-100 bg-slate-50/50 px-4 py-2 text-sm font-medium placeholder:text-slate-400 focus:outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/10 transition-all"
                                             placeholder={`Enter ${department === 'distributor' ? 'distributor' : 'ASM'} name`}
                                             value={departmentDetails}
                                             onChange={(e) => setDepartmentDetails(e.target.value)}
@@ -674,14 +579,18 @@ const VendorGrievances = () => {
 
                                 {/* Category */}
                                 <div>
-                                    <label className="text-[10px] md:text-sm font-black text-slate-400 uppercase tracking-widest mb-2 block">Category <span className="text-red-500">*</span></label>
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
+                                    <label className="text-xs font-black text-slate-500 uppercase tracking-widest mb-3 block">Category <span className="text-red-500">*</span></label>
+                                    <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
                                         {FRANCHISE_CATEGORIES.map((cat) => (
                                             <div
                                                 key={cat.value}
                                                 onClick={() => setCategory(cat.value)}
-                                                className={`cursor-pointer rounded-xl border px-4 py-2.5 text-[10px] md:text-sm text-center font-bold tracking-tight transition-all hover:bg-orange-50 ${category === cat.value ? 'border-orange-500 bg-orange-50 text-orange-600 ring-1 ring-orange-500/10' : 'text-slate-500 border-slate-100 bg-slate-50/50'
-                                                    }`}
+                                                className={cn(
+                                                    "cursor-pointer rounded-xl border-2 px-3 py-3 text-xs md:text-sm text-center font-bold transition-all hover:shadow-sm",
+                                                    category === cat.value
+                                                        ? "border-orange-500 bg-orange-50 text-orange-600 ring-1 ring-orange-500/20"
+                                                        : "text-slate-600 border-slate-100 bg-white hover:border-slate-200 hover:bg-slate-50"
+                                                )}
                                             >
                                                 {cat.label}
                                             </div>
@@ -691,10 +600,10 @@ const VendorGrievances = () => {
 
                                 {/* Subject */}
                                 <div>
-                                    <label className="text-sm font-medium mb-1.5 block">Subject <span className="text-red-500">*</span></label>
+                                    <label className="text-xs font-black text-slate-500 uppercase tracking-widest mb-2 block">Subject <span className="text-red-500">*</span></label>
                                     <input
                                         type="text"
-                                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                                        className="flex h-12 w-full rounded-2xl border-2 border-slate-100 bg-slate-50/50 px-4 py-2 text-sm font-medium placeholder:text-slate-400 focus:outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/10 transition-all"
                                         placeholder="Brief title of the issue"
                                         value={subject}
                                         onChange={(e) => setSubject(e.target.value)}
@@ -703,22 +612,23 @@ const VendorGrievances = () => {
 
                                 {/* Description */}
                                 <div>
-                                    <label className="text-sm font-medium mb-1.5 block">Description <span className="text-red-500">*</span></label>
+                                    <label className="text-xs font-black text-slate-500 uppercase tracking-widest mb-2 block">Description <span className="text-red-500">*</span></label>
                                     <Textarea
                                         value={description}
                                         onChange={(e: any) => setDescription(e.target.value)}
                                         placeholder="Detailed description of the issue..."
                                         rows={4}
+                                        className="rounded-2xl border-2 border-slate-100 bg-slate-50/50 px-4 py-3 text-sm font-medium placeholder:text-slate-400 focus:outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/10 transition-all resize-none"
                                     />
                                 </div>
 
                                 {/* Attachments */}
                                 <div>
-                                    <label className="text-sm font-medium mb-2 block flex items-center gap-2">
+                                    <label className="text-xs font-black text-slate-500 uppercase tracking-widest mb-3 block flex items-center gap-2">
                                         <Paperclip className="h-4 w-4" />
                                         Attachments (Optional - Max 3)
                                     </label>
-                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                    <div className="grid grid-cols-3 gap-3">
                                         {[
                                             { file: attachment1, setter: setAttachment1, id: 1 },
                                             { file: attachment2, setter: setAttachment2, id: 2 },
@@ -734,20 +644,24 @@ const VendorGrievances = () => {
                                                 />
                                                 <label
                                                     htmlFor={`attachment-${slot.id}`}
-                                                    className={`flex flex-col items-center justify-center border-2 border-dashed rounded-lg p-4 h-24 cursor-pointer transition-colors hover:bg-accent/5 ${slot.file ? 'border-primary bg-primary/5' : 'border-muted-foreground/20'
-                                                        }`}
+                                                    className={cn(
+                                                        "flex flex-col items-center justify-center border-2 border-dashed rounded-2xl p-4 h-28 cursor-pointer transition-all",
+                                                        slot.file
+                                                            ? "border-orange-400 bg-orange-50"
+                                                            : "border-slate-200 hover:border-orange-300 hover:bg-orange-50/30"
+                                                    )}
                                                 >
                                                     {slot.file ? (
                                                         <>
-                                                            <CheckCircle className="h-6 w-6 text-primary mb-1" />
-                                                            <span className="text-xs text-primary font-medium truncate max-w-full px-2">
-                                                                {slot.file.name}
+                                                            <CheckCircle className="h-7 w-7 text-orange-500 mb-1" />
+                                                            <span className="text-[10px] text-orange-600 font-bold truncate max-w-full px-1 text-center">
+                                                                {slot.file.name.length > 12 ? slot.file.name.substring(0, 12) + '...' : slot.file.name}
                                                             </span>
                                                         </>
                                                     ) : (
                                                         <>
-                                                            <Upload className="h-6 w-6 text-muted-foreground mb-1" />
-                                                            <span className="text-xs text-muted-foreground">Upload Image</span>
+                                                            <Upload className="h-6 w-6 text-slate-400 mb-1" />
+                                                            <span className="text-[10px] text-slate-400 font-medium">Upload</span>
                                                         </>
                                                     )}
                                                 </label>
@@ -757,7 +671,7 @@ const VendorGrievances = () => {
                                                             e.preventDefault();
                                                             slot.setter(null);
                                                         }}
-                                                        className="absolute -top-2 -right-2 bg-destructive text-white rounded-full p-0.5 shadow-sm hover:bg-destructive/90"
+                                                        className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 shadow-lg hover:bg-red-600 transition-colors"
                                                     >
                                                         <X className="h-3 w-3" />
                                                     </button>
@@ -765,23 +679,27 @@ const VendorGrievances = () => {
                                             </div>
                                         ))}
                                     </div>
-                                    <p className="text-xs text-muted-foreground mt-2">
-                                        supported formats: jpg, png, jpeg
+                                    <p className="text-[10px] text-slate-400 mt-2 text-center">
+                                        Supported: JPG, PNG, JPEG
                                     </p>
                                 </div>
 
                                 <div className="pt-2">
-                                    <Button onClick={handleSubmitGrievance} disabled={submitting || compressing} className="w-full">
+                                    <Button
+                                        onClick={handleSubmitGrievance}
+                                        disabled={submitting || compressing}
+                                        className="w-full h-12 rounded-2xl bg-slate-900 hover:bg-slate-800 text-white font-black uppercase tracking-widest shadow-xl shadow-slate-900/20 transition-all hover:translate-y-[-1px] active:translate-y-[0px]"
+                                    >
                                         {submitting || compressing ? (
                                             <>
                                                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                                                {compressing ? "Compressing Images..." : "Submitting..."}
+                                                {compressing ? "Compressing..." : "Submitting..."}
                                             </>
                                         ) : (
                                             "Submit Grievance"
                                         )}
                                     </Button>
-                                    <p className="text-xs text-center text-muted-foreground mt-2">
+                                    <p className="text-[10px] text-center text-slate-400 mt-3">
                                         Your grievance will be sent to the selected department and tracked by admin.
                                     </p>
                                 </div>
@@ -790,7 +708,260 @@ const VendorGrievances = () => {
                     </Dialog>
                 </TabsContent>
             </Tabs>
-        </div>
+
+            {/* Global Detail Dialog - Fixed scrolling and height */}
+            <Dialog open={!!selectedGrievance} onOpenChange={() => setSelectedGrievance(null)}>
+                <DialogContent className="max-w-2xl h-[85vh] p-0 border-0 rounded-[30px] overflow-hidden shadow-2xl flex flex-col font-sans bg-white">
+                    <DialogHeader className="sr-only">
+                        <DialogTitle>Grievance Details</DialogTitle>
+                        <DialogDescription>
+                            Details for grievance {selectedGrievance?.ticket_id}
+                        </DialogDescription>
+                    </DialogHeader>
+                    {selectedGrievance && (
+                        <div className="flex flex-col h-full bg-white overflow-hidden">
+                            {/* Header Section - Sticky-like */}
+                            <div className="px-6 md:px-8 pt-8 pb-6 bg-slate-50/50 border-b border-slate-100 flex-shrink-0">
+                                <div className="flex items-center justify-between mb-2">
+                                    <div className="flex items-center gap-3">
+                                        <Badge variant="outline" className="bg-white border-slate-200 text-slate-500 font-bold tracking-widest uppercase text-[10px] shadow-sm">
+                                            {selectedGrievance.ticket_id}
+                                        </Badge>
+                                        <Badge className={cn(
+                                            "font-black tracking-widest text-[10px] uppercase px-3 py-1 rounded-full shadow-sm",
+                                            STATUS_CONFIG[selectedGrievance.status]?.color || "bg-slate-500"
+                                        )}>
+                                            {STATUS_CONFIG[selectedGrievance.status]?.label}
+                                        </Badge>
+                                    </div>
+                                </div>
+                                <h2 className="text-xl md:text-2xl font-black text-slate-800 tracking-tight leading-tight">
+                                    {selectedGrievance.subject}
+                                </h2>
+                                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-2 flex items-center gap-2">
+                                    <Clock className="h-3 w-3" />
+                                    {formatToIST(selectedGrievance.created_at)}
+                                </p>
+                            </div>
+
+                            <div className="flex-1 overflow-y-auto p-6 md:p-8 space-y-8 custom-scrollbar bg-white">
+                                {/* Target Info: Either Customer or Department */}
+                                {selectedGrievance.department ? (
+                                    <div className="p-4 bg-orange-50/50 border border-orange-100 rounded-2xl animate-in fade-in slide-in-from-top-2 duration-300">
+                                        <h4 className="text-[10px] font-black uppercase tracking-[0.1em] text-slate-400 mb-3">Target Department</h4>
+                                        <div className="flex items-center gap-4">
+                                            <div className="h-12 w-12 rounded-xl bg-orange-500 text-white flex items-center justify-center shadow-lg shadow-orange-500/10">
+                                                {(() => {
+                                                    const deptValue = (selectedGrievance.department || "").toLowerCase();
+                                                    const dept = DEPARTMENTS.find(d => d.value.toLowerCase() === deptValue);
+                                                    const Icon = dept?.icon || Building2;
+                                                    return <Icon className="h-6 w-6" />;
+                                                })()}
+                                            </div>
+                                            <div>
+                                                <div className="font-black text-slate-800 text-base uppercase tracking-tight">
+                                                    {DEPARTMENTS.find(d => (d.value || "").toLowerCase() === (selectedGrievance.department || "").toLowerCase())?.label || selectedGrievance.department}
+                                                </div>
+                                                {(selectedGrievance.department_details || selectedGrievance.departmentDetails) && (
+                                                    <div className="text-sm text-slate-500 font-bold opacity-80">
+                                                        {selectedGrievance.department_details || selectedGrievance.departmentDetails}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="p-5 bg-slate-50 border border-slate-100 rounded-2xl animate-in fade-in slide-in-from-top-2 duration-300">
+                                        <h4 className="text-[10px] font-black uppercase tracking-[0.1em] text-slate-400 mb-3">Customer Details</h4>
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+                                            <div className="space-y-1">
+                                                <p className="text-[10px] font-black text-slate-400 uppercase">Name</p>
+                                                <p className="font-bold text-slate-700">{selectedGrievance.customer_name || 'N/A'}</p>
+                                            </div>
+                                            <div className="space-y-1">
+                                                <p className="text-[10px] font-black text-slate-400 uppercase">Phone</p>
+                                                <p className="font-bold text-slate-700">{selectedGrievance.customer_phone || 'N/A'}</p>
+                                            </div>
+                                            <div className="sm:col-span-2 space-y-1">
+                                                <p className="text-[10px] font-black text-slate-400 uppercase">Email</p>
+                                                <p className="font-bold text-slate-700">{selectedGrievance.customer_email || 'N/A'}</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Issue Details */}
+                                <div className="space-y-4">
+                                    {/* Subject and Category explicit display */}
+                                    <div className="grid grid-cols-1 gap-4">
+                                        <div className="space-y-1">
+                                            <h4 className="text-[10px] font-black uppercase tracking-[0.1em] text-slate-400">Subject</h4>
+                                            <p className="font-bold text-slate-800 text-sm md:text-base border-b border-slate-100 pb-2">
+                                                {selectedGrievance.subject}
+                                            </p>
+                                        </div>
+
+                                        <div className="space-y-1">
+                                            <h4 className="text-[10px] font-black uppercase tracking-[0.1em] text-slate-400">Category</h4>
+                                            <div className="flex items-center gap-2">
+                                                <Badge variant="secondary" className="bg-slate-100 text-slate-600 border-slate-200 uppercase text-[9px] font-black tracking-widest">
+                                                    {(() => {
+                                                        const val = String(selectedGrievance.category || "").trim().toLowerCase();
+                                                        return CATEGORIES[val] ||
+                                                            FRANCHISE_CATEGORIES.find(c => c.value.toLowerCase() === val)?.label ||
+                                                            selectedGrievance.category || "N/A";
+                                                    })()}
+                                                </Badge>
+                                                {selectedGrievance.sub_category && (
+                                                    <Badge variant="outline" className="border-slate-200 text-slate-500 uppercase text-[9px] font-black tracking-widest">
+                                                        {selectedGrievance.sub_category}
+                                                    </Badge>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="space-y-2">
+                                        <div className="text-slate-600 text-base bg-slate-50/50 p-5 rounded-2xl border border-slate-100/50 leading-relaxed whitespace-pre-wrap font-medium">
+                                            {selectedGrievance.description}
+                                        </div>
+                                    </div>
+
+                                    {/* Attachments Section */}
+                                    {(() => {
+                                        let attachments: string[] = [];
+                                        try {
+                                            if (Array.isArray(selectedGrievance.attachments)) {
+                                                attachments = selectedGrievance.attachments;
+                                            } else if (typeof selectedGrievance.attachments === 'string' && selectedGrievance.attachments) {
+                                                attachments = JSON.parse(selectedGrievance.attachments);
+                                            }
+                                        } catch (e) {
+                                            console.error("Failed to parse attachments", e);
+                                        }
+
+                                        if (attachments && attachments.length > 0) {
+                                            return (
+                                                <div className="pt-4">
+                                                    <h4 className="text-[10px] font-black uppercase tracking-[0.1em] text-slate-400 mb-3 flex items-center gap-2">
+                                                        <Paperclip className="h-3 w-3" />
+                                                        Attachments ({attachments.length})
+                                                    </h4>
+                                                    <div className="flex flex-wrap gap-3">
+                                                        {attachments.map((url, idx) => (
+                                                            <div key={idx} className="group relative h-20 w-20 md:h-24 md:w-24 rounded-xl overflow-hidden border border-slate-200 hover:border-orange-500 transition-all shadow-sm hover:shadow-md">
+                                                                <a
+                                                                    href={url}
+                                                                    target="_blank"
+                                                                    rel="noopener noreferrer"
+                                                                    className="block h-full w-full"
+                                                                >
+                                                                    <img
+                                                                        src={url}
+                                                                        alt={`Attachment ${idx + 1}`}
+                                                                        className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110"
+                                                                    />
+                                                                </a>
+                                                                <a
+                                                                    href={url}
+                                                                    download={`attachment-${idx + 1}`}
+                                                                    target="_blank"
+                                                                    rel="noopener noreferrer"
+                                                                    className="absolute bottom-1 right-1 p-1.5 bg-white/90 hover:bg-white text-orange-600 rounded-lg shadow-sm opacity-0 group-hover:opacity-100 transition-opacity duration-200 cursor-pointer"
+                                                                    title="Download"
+                                                                    onClick={(e) => e.stopPropagation()}
+                                                                >
+                                                                    <Upload className="h-3.5 w-3.5 rotate-180" />
+                                                                </a>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            );
+                                        }
+                                        return null;
+                                    })()}
+                                </div>
+
+                                {/* Response History / Remarks Log */}
+                                <div className="space-y-4 pt-6 mt-4 border-t border-slate-100">
+                                    <h4 className="text-[10px] font-black uppercase tracking-[0.1em] text-slate-400 flex items-center gap-2">
+                                        <Clock className="h-3 w-3" />
+                                        Response History & Remarks
+                                    </h4>
+
+                                    {loadingRemarks ? (
+                                        <div className="flex items-center gap-2 text-xs text-slate-400 p-4">
+                                            <Loader2 className="h-4 w-4 animate-spin text-orange-500" />
+                                            Loading history...
+                                        </div>
+                                    ) : remarksHistory.length === 0 ? (
+                                        <div className="bg-slate-50/50 rounded-2xl p-6 text-center border border-dashed border-slate-200">
+                                            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">No response recorded yet</p>
+                                        </div>
+                                    ) : (
+                                        <div className="space-y-4 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
+                                            {remarksHistory.map((remark) => (
+                                                <div key={remark.id} className={cn(
+                                                    "p-4 rounded-2xl border transition-all",
+                                                    remark.added_by === 'admin'
+                                                        ? "bg-blue-50/30 border-blue-100 ml-0 mr-8"
+                                                        : "bg-orange-50/30 border-orange-100 ml-8 mr-0"
+                                                )}>
+                                                    <div className="flex items-center justify-between mb-2">
+                                                        <span className={cn(
+                                                            "text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded",
+                                                            remark.added_by === 'admin' ? "bg-blue-100 text-blue-700" : "bg-orange-100 text-orange-700"
+                                                        )}>
+                                                            {remark.added_by_name} ({remark.added_by})
+                                                        </span>
+                                                        <span className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">
+                                                            {formatToIST(remark.created_at)}
+                                                        </span>
+                                                    </div>
+                                                    <p className="text-sm text-slate-700 leading-relaxed font-medium">
+                                                        {remark.remark}
+                                                    </p>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+
+                                    {/* Add New Remark Section */}
+                                    <div className="space-y-3 pt-4 border-t border-slate-100">
+                                        <h4 className="text-[10px] font-black uppercase tracking-[0.1em] text-slate-400">Add New Remark</h4>
+                                        <Textarea
+                                            value={remarks}
+                                            onChange={(e) => setRemarks(e.target.value)}
+                                            placeholder="Add your response or internal notes..."
+                                            rows={4}
+                                            className="rounded-2xl border-slate-200 focus:border-orange-500 focus:ring-orange-500/10 min-h-[120px] text-sm font-medium"
+                                        />
+                                        <Button
+                                            onClick={handleUpdate}
+                                            disabled={updating || !remarks.trim()}
+                                            className="w-full h-12 rounded-2xl bg-slate-900 border-0 text-white font-black uppercase tracking-widest shadow-xl shadow-slate-900/10 hover:bg-slate-800 transition-all hover:translate-y-[-1px] active:translate-y-[0px] flex items-center justify-center"
+                                        >
+                                            {updating ? (
+                                                <div className="flex items-center gap-2">
+                                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                                    Sending...
+                                                </div>
+                                            ) : (
+                                                <>
+                                                    <Plus className="h-4 w-4 mr-2" />
+                                                    Post Official Remark
+                                                </>
+                                            )}
+                                        </Button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </DialogContent>
+            </Dialog>
+        </div >
     );
 };
 

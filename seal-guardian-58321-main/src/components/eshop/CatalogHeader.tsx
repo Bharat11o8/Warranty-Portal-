@@ -30,7 +30,11 @@ import { Input } from '@/components/ui/input';
 import { fetchCategories, fetchProducts, Product, Category } from '@/lib/catalogService';
 import { cn } from "@/lib/utils";
 
-const CatalogHeader = () => {
+interface CatalogHeaderProps {
+    isDashboard?: boolean;
+}
+
+const CatalogHeader: React.FC<CatalogHeaderProps> = ({ isDashboard = false }) => {
     const [searchTerm, setSearchTerm] = useState('');
     const [searchResults, setSearchResults] = useState<Product[]>([]);
     const [showSearchResults, setShowSearchResults] = useState(false);
@@ -222,8 +226,9 @@ const CatalogHeader = () => {
             <div className="border-b border-gray-50 last:border-0">
                 {children.length > 0 ? (
                     <>
-                        <button
-                            onClick={() => setIsExpanded(!isExpanded)}
+                        <Link
+                            to={`/category/${category.id}`}
+                            onClick={onNavigate}
                             className={`flex items-center justify-between w-full text-sm py-2.5 px-3 transition-colors ${isExpanded ? 'bg-gray-50 text-brand-orange' : 'text-gray-600 hover:bg-gray-50'
                                 }`}
                             style={{ paddingLeft: `${level * 1.5 + 0.75}rem` }}
@@ -232,8 +237,17 @@ const CatalogHeader = () => {
                                 {icon}
                                 <span className={level === 0 ? 'font-medium' : ''}>{category.name}</span>
                             </span>
-                            <ChevronDown className={`h-4 w-4 transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`} />
-                        </button>
+                            <button
+                                onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    setIsExpanded(!isExpanded);
+                                }}
+                                className="p-1 hover:bg-gray-100 rounded-lg transition-colors"
+                            >
+                                <ChevronDown className={`h-4 w-4 transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`} />
+                            </button>
+                        </Link>
                         <div className={`overflow-hidden transition-all duration-300 ${isExpanded ? 'max-h-[1000px] opacity-100' : 'max-h-0 opacity-0'}`}>
                             {children.map(child => (
                                 <MobileNavNode
@@ -262,55 +276,60 @@ const CatalogHeader = () => {
     };
 
     return (
-        <div className="bg-white/80 backdrop-blur-xl border-b sticky top-0 z-[100]">
+        <div className={cn(
+            "bg-white/80 backdrop-blur-xl z-40 sticky top-0",
+            !isDashboard && "border-b shadow-sm"
+        )}>
             <div className="container mx-auto px-4">
-                {/* Desktop: Top row (Logo & Search) */}
-                <div className="hidden md:flex items-center justify-between py-2 border-b border-gray-50">
-                    <Link to="/catalogue" className="flex-shrink-0">
-                        <img
-                            src="/autoform-logo.png"
-                            alt="Autoform Logo"
-                            className="h-10 object-contain"
-                        />
-                    </Link>
+                {/* Desktop: Top row (Logo & Search) - Hidden in Dashboard to prevent double headers/lines */}
+                {!isDashboard && (
+                    <div className="hidden md:flex items-center justify-between py-2 border-b border-gray-50">
+                        <Link to="/catalogue" className="flex-shrink-0">
+                            <img
+                                src="/autoform-logo.png"
+                                alt="Autoform Logo"
+                                className="h-10 object-contain"
+                            />
+                        </Link>
 
-                    {/* Search on right */}
-                    <div className="relative w-56 lg:w-64" ref={searchRef}>
-                        <form onSubmit={handleSearch}>
-                            <div className="relative">
-                                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-                                <Input
-                                    type="search"
-                                    placeholder="Search products..."
-                                    className="pl-9 pr-3 h-8 text-sm border-gray-100 bg-gray-50/50 focus:bg-white transition-colors"
-                                    value={searchTerm}
-                                    onChange={(e) => setSearchTerm(e.target.value)}
-                                    onFocus={() => searchTerm.length >= 3 && setShowSearchResults(true)}
-                                />
-                            </div>
-                        </form>
-                        {showSearchResults && searchResults.length > 0 && (
-                            <div className="absolute top-full right-0 w-full bg-white border rounded-md shadow-lg mt-1 max-h-72 overflow-y-auto z-50">
-                                {searchResults.map((product) => (
-                                    <Link
-                                        key={product.id}
-                                        to={`/product/${product.id}`}
-                                        className="flex items-center p-2 hover:bg-gray-50 border-b border-gray-100 last:border-b-0"
-                                        onClick={handleSearchResultClick}
-                                    >
-                                        <img src={product.images[0]} alt={product.name} className="w-10 h-10 object-cover rounded mr-2" />
-                                        <div>
-                                            <div className="text-sm font-medium text-gray-900 line-clamp-1">{product.name}</div>
-                                            <div className="text-xs text-brand-orange font-semibold">
-                                                ₹{typeof product.price === 'number' ? product.price.toLocaleString() : 'Varies'}
+                        {/* Search on right */}
+                        <div className="relative w-56 lg:w-64" ref={searchRef}>
+                            <form onSubmit={handleSearch}>
+                                <div className="relative">
+                                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                                    <Input
+                                        type="search"
+                                        placeholder="Search products..."
+                                        className="pl-9 pr-3 h-8 text-sm border-gray-100 bg-gray-50/50 focus:bg-white transition-colors"
+                                        value={searchTerm}
+                                        onChange={(e) => setSearchTerm(e.target.value)}
+                                        onFocus={() => searchTerm.length >= 3 && setShowSearchResults(true)}
+                                    />
+                                </div>
+                            </form>
+                            {showSearchResults && searchResults.length > 0 && (
+                                <div className="absolute top-full right-0 w-full bg-white border rounded-md shadow-lg mt-1 max-h-72 overflow-y-auto z-50">
+                                    {searchResults.map((product) => (
+                                        <Link
+                                            key={product.id}
+                                            to={`/product/${product.id}`}
+                                            className="flex items-center p-2 hover:bg-gray-50 border-b border-gray-100 last:border-b-0"
+                                            onClick={handleSearchResultClick}
+                                        >
+                                            <img src={product.images[0]} alt={product.name} className="w-10 h-10 object-cover rounded mr-2" />
+                                            <div>
+                                                <div className="text-sm font-medium text-gray-900 line-clamp-1">{product.name}</div>
+                                                <div className="text-xs text-brand-orange font-semibold">
+                                                    ₹{typeof product.price === 'number' ? product.price.toLocaleString() : 'Varies'}
+                                                </div>
                                             </div>
-                                        </div>
-                                    </Link>
-                                ))}
-                            </div>
-                        )}
+                                        </Link>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
                     </div>
-                </div>
+                )}
 
                 {/* Desktop: Navigation Bar (Below Logo/Search) */}
                 <nav className="hidden md:flex items-center justify-start py-1.5 space-x-4 lg:space-x-8">
@@ -319,37 +338,38 @@ const CatalogHeader = () => {
                     ))}
                 </nav>
 
-                {/* Mobile: hamburger + Logo + search */}
-                <div className="md:hidden flex items-center justify-between py-2.5 relative">
-                    {/* Left: Menu Toggle */}
-                    <button onClick={toggleMobileMenu} className="p-2 text-gray-700 hover:text-brand-orange transition-colors relative z-50">
-                        {isMobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
-                    </button>
-
-                    {/* Center: Logo (Hidden when menu or search is open) */}
-                    {!isMobileMenuOpen && !isMobileSearchOpen && (
-                        <Link to="/catalogue" className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 animate-in fade-in duration-300">
-                            <img
-                                src="/autoform-logo.png"
-                                alt="Autoform Logo"
-                                className="h-8 object-contain"
-                            />
-                        </Link>
-                    )}
-
-                    {/* Right: Search Toggle */}
-                    <div className="flex items-center relative z-50">
-                        <button
-                            onClick={toggleMobileSearch}
-                            className={cn(
-                                "p-2 transition-all duration-300",
-                                isMobileSearchOpen ? "text-brand-orange scale-110" : "text-gray-700 hover:text-brand-orange"
-                            )}
-                        >
-                            {isMobileSearchOpen ? <X className="h-6 w-6" /> : <Search className="h-6 w-6" />}
+                {!isDashboard && (
+                    <div className="md:hidden flex items-center justify-between py-2.5 relative">
+                        {/* Left: Menu Toggle */}
+                        <button onClick={toggleMobileMenu} className="p-2 text-gray-700 hover:text-brand-orange transition-colors relative z-50">
+                            {isMobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
                         </button>
+
+                        {/* Center: Logo (Hidden when menu or search is open) */}
+                        {!isMobileMenuOpen && !isMobileSearchOpen && (
+                            <Link to="/catalogue" className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 animate-in fade-in duration-300">
+                                <img
+                                    src="/autoform-logo.png"
+                                    alt="Autoform Logo"
+                                    className="h-8 object-contain"
+                                />
+                            </Link>
+                        )}
+
+                        {/* Right: Search Toggle */}
+                        <div className="flex items-center relative z-50">
+                            <button
+                                onClick={toggleMobileSearch}
+                                className={cn(
+                                    "p-2 transition-all duration-300",
+                                    isMobileSearchOpen ? "text-brand-orange scale-110" : "text-gray-700 hover:text-brand-orange"
+                                )}
+                            >
+                                {isMobileSearchOpen ? <X className="h-6 w-6" /> : <Search className="h-6 w-6" />}
+                            </button>
+                        </div>
                     </div>
-                </div>
+                )}
 
                 {/* Mobile Search Bar Expansion */}
                 <div className={cn(

@@ -106,11 +106,14 @@ export const Pagination = ({
     };
 
     return (
-        <div className={cn("flex items-center justify-end gap-5 py-6 px-1", className)}>
+        <div className={cn("flex flex-wrap items-center justify-end gap-2 md:gap-5 py-4 md:py-6 px-1", className)}>
             {/* Rows Per Page Selection */}
             {onRowsPerPageChange && rowsPerPage !== undefined && (
-                <div className="flex items-center gap-3">
-                    <span className="text-[11px] font-black uppercase tracking-widest text-slate-400 whitespace-nowrap">Rows Per Page:</span>
+                <div className="flex items-center gap-1.5 md:gap-3">
+                    <span className="text-[9px] md:text-[11px] font-black uppercase tracking-widest text-slate-400 whitespace-nowrap">
+                        <span className="hidden sm:inline">Rows Per Page:</span>
+                        <span className="sm:hidden">Rows:</span>
+                    </span>
                     <Select
                         value={rowsPerPage.toString()}
                         onValueChange={(val) => onRowsPerPageChange(parseInt(val))}

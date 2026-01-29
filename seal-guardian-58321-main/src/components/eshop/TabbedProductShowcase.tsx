@@ -107,7 +107,7 @@ const TabbedProductShowcase: React.FC<TabbedProductShowcaseProps> = ({ title, ta
                     <div className="flex flex-col md:flex-row md:items-center gap-4 lg:gap-6">
 
                         {/* Mobile MINIMALIST TABS (Apple-style Refinement) */}
-                        <div className="md:hidden -mx-4 px-4 overflow-x-auto no-scrollbar flex items-center border-b border-gray-100/50">
+                        <div className="md:hidden -mx-4 px-4 overflow-x-auto no-scrollbar flex items-center">
                             <div className="flex items-center gap-8 min-w-max py-2">
                                 {tabs.map((tab) => (
                                     <button

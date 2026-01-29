@@ -85,11 +85,8 @@ const VendorCatalog = () => {
 
     return (
         <div className="bg-white">
-            {/* Category Header with Search and Dropdowns */}
-            <CatalogHeader />
-
             {/* Hero Section - Auto-playing Carousel */}
-            <section className="pt-20 md:pt-6 pb-4 bg-gradient-to-b from-gray-50 to-white relative overflow-hidden">
+            <section className="pt-6 pb-4 bg-gradient-to-b from-gray-50 to-white relative overflow-hidden">
                 <div className="container mx-auto px-4">
                     <div className="relative min-h-[420px] md:min-h-[460px] flex flex-col items-center justify-center">
                         {heroSlides.map((slide, index) => (

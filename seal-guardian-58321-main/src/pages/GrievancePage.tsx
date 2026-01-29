@@ -9,9 +9,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Upload, Star, Send, RefreshCw, X, ImageIcon, MessageSquare, Store, FileText, HelpCircle, AlertTriangle } from "lucide-react";
+import { Loader2, Upload, Star, Send, RefreshCw, X, ImageIcon, MessageSquare, Store, FileText, HelpCircle, AlertTriangle, Clock } from "lucide-react";
 import api from "@/lib/api";
-import { formatToIST } from "@/lib/utils";
+import { formatToIST, cn } from "@/lib/utils";
 import { compressImage, isCompressibleImage } from "@/lib/imageCompression";
 
 interface Grievance {
@@ -30,6 +30,16 @@ interface Grievance {
     customer_feedback: string | null;
     created_at: string;
     resolved_at: string | null;
+}
+
+interface GrievanceRemark {
+    id: number;
+    grievance_id: number;
+    added_by: 'franchise' | 'admin';
+    added_by_name: string;
+    added_by_id: string;
+    remark: string;
+    created_at: string;
 }
 
 interface Dealer {
@@ -86,6 +96,11 @@ const GrievancePage = () => {
     const [ratingGrievanceId, setRatingGrievanceId] = useState<number | null>(null);
     const [rating, setRating] = useState(0);
     const [feedback, setFeedback] = useState("");
+
+    // Remarks history state
+    const [remarksHistoryMap, setRemarksHistoryMap] = useState<Record<number, GrievanceRemark[]>>({});
+    const [loadingRemarksMap, setLoadingRemarksMap] = useState<Record<number, boolean>>({});
+    const [expandedRemarks, setExpandedRemarks] = useState<Record<number, boolean>>({});
 
     const fetchGrievances = async () => {
         setLoading(true);
@@ -235,9 +250,33 @@ const GrievancePage = () => {
         } catch (error: any) {
             toast({
                 title: "Error",
-                description: error.response?.data?.error || "Failed to submit rating",
+                description: (error as any).response?.data?.error || "Failed to submit rating",
                 variant: "destructive",
             });
+        }
+    };
+
+    const fetchRemarksHistory = async (grievanceId: number) => {
+        if (remarksHistoryMap[grievanceId]) return;
+
+        setLoadingRemarksMap(prev => ({ ...prev, [grievanceId]: true }));
+        try {
+            const response = await api.get(`/grievance/${grievanceId}/remarks`);
+            if (response.data.success) {
+                setRemarksHistoryMap(prev => ({ ...prev, [grievanceId]: response.data.data }));
+            }
+        } catch (error) {
+            console.error("Failed to fetch remarks history", error);
+        } finally {
+            setLoadingRemarksMap(prev => ({ ...prev, [grievanceId]: false }));
+        }
+    };
+
+    const toggleRemarks = (grievanceId: number) => {
+        const isExpanding = !expandedRemarks[grievanceId];
+        setExpandedRemarks(prev => ({ ...prev, [grievanceId]: isExpanding }));
+        if (isExpanding) {
+            fetchRemarksHistory(grievanceId);
         }
     };
 
@@ -376,23 +415,68 @@ const GrievancePage = () => {
                                             </p>
                                             <p className="text-sm">{g.description}</p>
 
-                                            {g.franchise_remarks && (
-                                                <div className="mt-3 p-3 bg-muted rounded-lg">
-                                                    <p className="text-sm font-medium">Franchise Response:</p>
-                                                    <p className="text-sm">{g.franchise_remarks}</p>
-                                                </div>
-                                            )}
+                                            {/* Unified Remarks History */}
+                                            <div className="mt-4 pt-3 border-t border-slate-100">
+                                                <Button
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    className="w-full justify-between text-slate-500 hover:text-orange-600 hover:bg-orange-50/50 rounded-xl px-2"
+                                                    onClick={() => toggleRemarks(g.id)}
+                                                >
+                                                    <span className="flex items-center gap-2 text-xs font-black uppercase tracking-widest">
+                                                        <Clock className="h-3.5 w-3.5" />
+                                                        {expandedRemarks[g.id] ? "Hide History" : "View Response History"}
+                                                    </span>
+                                                    <Badge variant="secondary" className="bg-slate-100 text-slate-500 rounded-lg text-[10px]">
+                                                        {(g.franchise_remarks ? 1 : 0) + (g.admin_remarks ? 1 : 0)} Responses
+                                                    </Badge>
+                                                </Button>
 
-                                            {g.admin_remarks && (
-                                                <div className="mt-3 p-3 bg-blue-50 dark:bg-blue-950 rounded-lg">
-                                                    <p className="text-sm font-medium">Admin Response:</p>
-                                                    <p className="text-sm">{g.admin_remarks}</p>
-                                                </div>
-                                            )}
+                                                {expandedRemarks[g.id] && (
+                                                    <div className="mt-3 space-y-3 animate-in fade-in slide-in-from-top-2 duration-300">
+                                                        {loadingRemarksMap[g.id] ? (
+                                                            <div className="flex items-center gap-2 text-[10px] text-slate-400 font-bold uppercase tracking-widest p-4 bg-slate-50/50 rounded-2xl border border-dashed">
+                                                                <Loader2 className="h-3 w-3 animate-spin text-orange-500" />
+                                                                Fetching timeline...
+                                                            </div>
+                                                        ) : !remarksHistoryMap[g.id] || remarksHistoryMap[g.id].length === 0 ? (
+                                                            <div className="p-4 bg-slate-50/50 rounded-2xl border border-dashed text-center">
+                                                                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">No detailed history available</p>
+                                                            </div>
+                                                        ) : (
+                                                            <div className="space-y-3 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar p-1">
+                                                                {remarksHistoryMap[g.id].map((remark) => (
+                                                                    <div key={remark.id} className={cn(
+                                                                        "p-3 rounded-2xl border text-sm transition-all",
+                                                                        remark.added_by === 'admin'
+                                                                            ? "bg-blue-50/30 border-blue-100 ml-0 mr-4"
+                                                                            : "bg-orange-50/30 border-orange-100 ml-4 mr-0"
+                                                                    )}>
+                                                                        <div className="flex items-center justify-between mb-1">
+                                                                            <span className={cn(
+                                                                                "text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded",
+                                                                                remark.added_by === 'admin' ? "bg-blue-100 text-blue-700" : "bg-orange-100 text-orange-700"
+                                                                            )}>
+                                                                                {remark.added_by_name} ({remark.added_by})
+                                                                            </span>
+                                                                            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">
+                                                                                {formatToIST(remark.created_at)}
+                                                                            </span>
+                                                                        </div>
+                                                                        <p className="text-slate-700 leading-relaxed font-medium text-xs">
+                                                                            {remark.remark}
+                                                                        </p>
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                )}
+                                            </div>
 
                                             {/* Rating Section */}
                                             {(g.status === "resolved" || g.status === "rejected") && !g.customer_rating && (
-                                                <div className="mt-4 p-4 border rounded-lg">
+                                                <div className="mt-4 p-4 border-2 border-dashed border-green-100 bg-green-50/30 rounded-2xl">
                                                     {ratingGrievanceId === g.id ? (
                                                         <div className="space-y-3">
                                                             <Label>Rate your experience</Label>
@@ -452,36 +536,35 @@ const GrievancePage = () => {
 
                     {/* Submit New Tab */}
                     <TabsContent value="new" className="mt-6">
-                        <Card className="shadow-xl border-0 bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm overflow-hidden">
-                            <div className="h-1 bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500" />
-                            <CardHeader className="pb-4">
+                        <Card className="shadow-2xl border-0 bg-white rounded-[30px] overflow-hidden">
+                            <CardHeader className="pb-4 bg-slate-50/50 border-b border-slate-100 px-6 pt-6">
                                 <div className="flex items-center gap-3">
-                                    <div className="p-2 rounded-lg bg-blue-100 dark:bg-blue-900/30">
-                                        <HelpCircle className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                                    <div className="p-3 rounded-2xl bg-orange-100">
+                                        <HelpCircle className="h-6 w-6 text-orange-600" />
                                     </div>
                                     <div>
-                                        <CardTitle className="text-xl">Submit a Grievance</CardTitle>
-                                        <CardDescription>
+                                        <CardTitle className="text-xl font-black text-slate-800">Submit a Grievance</CardTitle>
+                                        <CardDescription className="text-slate-500">
                                             Tell us about your issue and we'll help resolve it
                                         </CardDescription>
                                     </div>
                                 </div>
                             </CardHeader>
-                            <CardContent>
+                            <CardContent className="p-6">
                                 <form onSubmit={handleSubmit} className="space-y-6">
                                     {/* Dealer Selection */}
                                     <div className="space-y-2">
-                                        <Label htmlFor="dealer" className="flex items-center gap-2 text-sm font-medium">
-                                            <Store className="h-4 w-4 text-blue-500" />
+                                        <Label htmlFor="dealer" className="text-xs font-black text-slate-500 uppercase tracking-widest flex items-center gap-2">
+                                            <Store className="h-4 w-4 text-orange-500" />
                                             Select Dealer/Store <span className="text-red-500">*</span>
                                         </Label>
                                         <Select value={selectedDealer} onValueChange={setSelectedDealer}>
-                                            <SelectTrigger className="h-12 bg-slate-50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-700">
+                                            <SelectTrigger className="h-12 rounded-2xl border-2 border-slate-100 bg-slate-50/50 focus:border-orange-500 focus:ring-2 focus:ring-orange-500/10">
                                                 <SelectValue placeholder={loadingDealers ? "Loading dealers..." : "Select the dealer/store"} />
                                             </SelectTrigger>
-                                            <SelectContent>
+                                            <SelectContent className="rounded-2xl">
                                                 {dealers.map((dealer) => (
-                                                    <SelectItem key={dealer.id} value={dealer.id}>
+                                                    <SelectItem key={dealer.id} value={dealer.id} className="rounded-xl">
                                                         <span className="font-medium">{dealer.store_name}</span>
                                                         <span className="text-muted-foreground ml-2 text-xs">
                                                             ({dealer.city}{dealer.address ? `, ${dealer.address}` : ''})
@@ -490,24 +573,24 @@ const GrievancePage = () => {
                                                 ))}
                                             </SelectContent>
                                         </Select>
-                                        <p className="text-xs text-muted-foreground">
+                                        <p className="text-[10px] text-slate-400">
                                             Select the dealer where you purchased or had service done
                                         </p>
                                     </div>
 
                                     <div className="grid gap-4 md:grid-cols-2">
                                         <div className="space-y-2">
-                                            <Label htmlFor="category" className="flex items-center gap-2 text-sm font-medium">
+                                            <Label htmlFor="category" className="text-xs font-black text-slate-500 uppercase tracking-widest flex items-center gap-2">
                                                 <AlertTriangle className="h-4 w-4 text-amber-500" />
                                                 Category <span className="text-red-500">*</span>
                                             </Label>
                                             <Select value={category} onValueChange={setCategory}>
-                                                <SelectTrigger className="h-12 bg-slate-50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-700">
+                                                <SelectTrigger className="h-12 rounded-2xl border-2 border-slate-100 bg-slate-50/50 focus:border-orange-500 focus:ring-2 focus:ring-orange-500/10">
                                                     <SelectValue placeholder="Select category" />
                                                 </SelectTrigger>
-                                                <SelectContent>
+                                                <SelectContent className="rounded-2xl">
                                                     {CATEGORIES.map((cat) => (
-                                                        <SelectItem key={cat.value} value={cat.value}>
+                                                        <SelectItem key={cat.value} value={cat.value} className="rounded-xl">
                                                             {cat.label}
                                                         </SelectItem>
                                                     ))}
@@ -516,7 +599,7 @@ const GrievancePage = () => {
                                         </div>
 
                                         <div className="space-y-2">
-                                            <Label htmlFor="subCategory" className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                                            <Label htmlFor="subCategory" className="text-xs font-black text-slate-400 uppercase tracking-widest">
                                                 Sub-Category (Optional)
                                             </Label>
                                             <Input
@@ -524,13 +607,13 @@ const GrievancePage = () => {
                                                 value={subCategory}
                                                 onChange={(e) => setSubCategory(e.target.value)}
                                                 placeholder="Specify further if needed"
-                                                className="h-12 bg-slate-50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-700"
+                                                className="h-12 rounded-2xl border-2 border-slate-100 bg-slate-50/50 focus:border-orange-500 focus:ring-2 focus:ring-orange-500/10"
                                             />
                                         </div>
                                     </div>
 
                                     <div className="space-y-2">
-                                        <Label htmlFor="subject" className="flex items-center gap-2 text-sm font-medium">
+                                        <Label htmlFor="subject" className="text-xs font-black text-slate-500 uppercase tracking-widest flex items-center gap-2">
                                             <FileText className="h-4 w-4 text-indigo-500" />
                                             Subject <span className="text-red-500">*</span>
                                         </Label>
@@ -540,12 +623,12 @@ const GrievancePage = () => {
                                             onChange={(e) => setSubject(e.target.value)}
                                             placeholder="Brief summary of your issue"
                                             maxLength={200}
-                                            className="h-12 bg-slate-50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-700"
+                                            className="h-12 rounded-2xl border-2 border-slate-100 bg-slate-50/50 focus:border-orange-500 focus:ring-2 focus:ring-orange-500/10"
                                         />
                                     </div>
 
                                     <div className="space-y-2">
-                                        <Label htmlFor="description" className="flex items-center gap-2 text-sm font-medium">
+                                        <Label htmlFor="description" className="text-xs font-black text-slate-500 uppercase tracking-widest flex items-center gap-2">
                                             <MessageSquare className="h-4 w-4 text-green-500" />
                                             Description <span className="text-red-500">*</span>
                                         </Label>
@@ -556,27 +639,27 @@ const GrievancePage = () => {
                                             placeholder="Describe your issue in detail..."
                                             rows={5}
                                             maxLength={1000}
-                                            className="bg-slate-50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-700 resize-none"
+                                            className="rounded-2xl border-2 border-slate-100 bg-slate-50/50 focus:border-orange-500 focus:ring-2 focus:ring-orange-500/10 resize-none px-4 py-3"
                                         />
-                                        <p className="text-xs text-muted-foreground text-right">
+                                        <p className="text-[10px] text-slate-400 text-right">
                                             {description.length}/1000
                                         </p>
                                     </div>
 
                                     <div className="space-y-3">
-                                        <Label className="flex items-center gap-2 text-sm font-medium">
+                                        <Label className="text-xs font-black text-slate-500 uppercase tracking-widest flex items-center gap-2">
                                             <Upload className="h-4 w-4 text-purple-500" />
-                                            Attachments {selectedCategory?.requiresAttachment ? <span className="text-red-500">*</span> : <span className="text-muted-foreground">(Optional)</span>}
+                                            Attachments {selectedCategory?.requiresAttachment ? <span className="text-red-500">*</span> : <span className="text-slate-400 font-normal normal-case">(Optional)</span>}
                                         </Label>
                                         {compressing && (
-                                            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                            <div className="flex items-center gap-2 text-sm text-orange-600 bg-orange-50 p-3 rounded-xl">
                                                 <Loader2 className="h-4 w-4 animate-spin" />
                                                 Compressing image...
                                             </div>
                                         )}
-                                        <div className="grid gap-3 md:grid-cols-3">
+                                        <div className="grid gap-3 grid-cols-3">
                                             {/* Attachment 1 */}
-                                            <div className="border-2 border-dashed rounded-lg p-3 relative">
+                                            <div className={`border-2 border-dashed rounded-2xl p-4 relative transition-all h-28 flex items-center justify-center ${attachment1 ? 'border-orange-400 bg-orange-50' : 'border-slate-200 hover:border-orange-300 hover:bg-orange-50/30'}`}>
                                                 <input
                                                     type="file"
                                                     id="attachment1"
@@ -585,29 +668,29 @@ const GrievancePage = () => {
                                                     onChange={(e) => handleAttachmentChange(e, setAttachment1, "Attachment 1")}
                                                 />
                                                 {attachment1 ? (
-                                                    <div className="flex items-center gap-2">
-                                                        <ImageIcon className="h-4 w-4 text-green-500 flex-shrink-0" />
-                                                        <span className="text-sm truncate flex-1">{attachment1.name}</span>
+                                                    <div className="flex flex-col items-center gap-1">
+                                                        <ImageIcon className="h-6 w-6 text-orange-500" />
+                                                        <span className="text-[10px] text-orange-600 font-bold truncate max-w-full text-center">{attachment1.name.length > 10 ? attachment1.name.substring(0, 10) + '...' : attachment1.name}</span>
                                                         <Button
                                                             type="button"
                                                             variant="ghost"
                                                             size="sm"
-                                                            className="h-6 w-6 p-0"
+                                                            className="absolute -top-2 -right-2 h-6 w-6 p-0 rounded-full bg-red-500 hover:bg-red-600 text-white shadow-lg"
                                                             onClick={() => setAttachment1(null)}
                                                         >
-                                                            <X className="h-4 w-4" />
+                                                            <X className="h-3 w-3" />
                                                         </Button>
                                                     </div>
                                                 ) : (
-                                                    <label htmlFor="attachment1" className="flex flex-col items-center cursor-pointer py-2">
-                                                        <Upload className="h-6 w-6 text-muted-foreground mb-1" />
-                                                        <span className="text-xs text-muted-foreground">Attachment 1</span>
+                                                    <label htmlFor="attachment1" className="flex flex-col items-center cursor-pointer">
+                                                        <Upload className="h-6 w-6 text-slate-400 mb-1" />
+                                                        <span className="text-[10px] text-slate-400 font-medium">Upload</span>
                                                     </label>
                                                 )}
                                             </div>
 
                                             {/* Attachment 2 */}
-                                            <div className="border-2 border-dashed rounded-lg p-3 relative">
+                                            <div className={`border-2 border-dashed rounded-2xl p-4 relative transition-all h-28 flex items-center justify-center ${attachment2 ? 'border-orange-400 bg-orange-50' : 'border-slate-200 hover:border-orange-300 hover:bg-orange-50/30'}`}>
                                                 <input
                                                     type="file"
                                                     id="attachment2"
@@ -616,29 +699,29 @@ const GrievancePage = () => {
                                                     onChange={(e) => handleAttachmentChange(e, setAttachment2, "Attachment 2")}
                                                 />
                                                 {attachment2 ? (
-                                                    <div className="flex items-center gap-2">
-                                                        <ImageIcon className="h-4 w-4 text-green-500 flex-shrink-0" />
-                                                        <span className="text-sm truncate flex-1">{attachment2.name}</span>
+                                                    <div className="flex flex-col items-center gap-1">
+                                                        <ImageIcon className="h-6 w-6 text-orange-500" />
+                                                        <span className="text-[10px] text-orange-600 font-bold truncate max-w-full text-center">{attachment2.name.length > 10 ? attachment2.name.substring(0, 10) + '...' : attachment2.name}</span>
                                                         <Button
                                                             type="button"
                                                             variant="ghost"
                                                             size="sm"
-                                                            className="h-6 w-6 p-0"
+                                                            className="absolute -top-2 -right-2 h-6 w-6 p-0 rounded-full bg-red-500 hover:bg-red-600 text-white shadow-lg"
                                                             onClick={() => setAttachment2(null)}
                                                         >
-                                                            <X className="h-4 w-4" />
+                                                            <X className="h-3 w-3" />
                                                         </Button>
                                                     </div>
                                                 ) : (
-                                                    <label htmlFor="attachment2" className="flex flex-col items-center cursor-pointer py-2">
-                                                        <Upload className="h-6 w-6 text-muted-foreground mb-1" />
-                                                        <span className="text-xs text-muted-foreground">Attachment 2</span>
+                                                    <label htmlFor="attachment2" className="flex flex-col items-center cursor-pointer">
+                                                        <Upload className="h-6 w-6 text-slate-400 mb-1" />
+                                                        <span className="text-[10px] text-slate-400 font-medium">Upload</span>
                                                     </label>
                                                 )}
                                             </div>
 
                                             {/* Attachment 3 */}
-                                            <div className="border-2 border-dashed rounded-lg p-3 relative">
+                                            <div className={`border-2 border-dashed rounded-2xl p-4 relative transition-all h-28 flex items-center justify-center ${attachment3 ? 'border-orange-400 bg-orange-50' : 'border-slate-200 hover:border-orange-300 hover:bg-orange-50/30'}`}>
                                                 <input
                                                     type="file"
                                                     id="attachment3"
@@ -647,29 +730,29 @@ const GrievancePage = () => {
                                                     onChange={(e) => handleAttachmentChange(e, setAttachment3, "Attachment 3")}
                                                 />
                                                 {attachment3 ? (
-                                                    <div className="flex items-center gap-2">
-                                                        <ImageIcon className="h-4 w-4 text-green-500 flex-shrink-0" />
-                                                        <span className="text-sm truncate flex-1">{attachment3.name}</span>
+                                                    <div className="flex flex-col items-center gap-1">
+                                                        <ImageIcon className="h-6 w-6 text-orange-500" />
+                                                        <span className="text-[10px] text-orange-600 font-bold truncate max-w-full text-center">{attachment3.name.length > 10 ? attachment3.name.substring(0, 10) + '...' : attachment3.name}</span>
                                                         <Button
                                                             type="button"
                                                             variant="ghost"
                                                             size="sm"
-                                                            className="h-6 w-6 p-0"
+                                                            className="absolute -top-2 -right-2 h-6 w-6 p-0 rounded-full bg-red-500 hover:bg-red-600 text-white shadow-lg"
                                                             onClick={() => setAttachment3(null)}
                                                         >
-                                                            <X className="h-4 w-4" />
+                                                            <X className="h-3 w-3" />
                                                         </Button>
                                                     </div>
                                                 ) : (
-                                                    <label htmlFor="attachment3" className="flex flex-col items-center cursor-pointer py-2">
-                                                        <Upload className="h-6 w-6 text-muted-foreground mb-1" />
-                                                        <span className="text-xs text-muted-foreground">Attachment 3</span>
+                                                    <label htmlFor="attachment3" className="flex flex-col items-center cursor-pointer">
+                                                        <Upload className="h-6 w-6 text-slate-400 mb-1" />
+                                                        <span className="text-[10px] text-slate-400 font-medium">Upload</span>
                                                     </label>
                                                 )}
                                             </div>
                                         </div>
                                         {selectedCategory?.requiresAttachment && (
-                                            <p className="text-xs text-amber-600">
+                                            <p className="text-[10px] text-amber-600 font-medium">
                                                 At least one photo/document is required for {selectedCategory.label}
                                             </p>
                                         )}
@@ -678,7 +761,7 @@ const GrievancePage = () => {
                                     <Button
                                         type="submit"
                                         disabled={submitting || compressing}
-                                        className="w-full h-12 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-medium shadow-lg hover:shadow-xl transition-all"
+                                        className="w-full h-12 rounded-2xl bg-slate-900 hover:bg-slate-800 text-white font-black uppercase tracking-widest shadow-xl shadow-slate-900/20 transition-all hover:translate-y-[-1px] active:translate-y-[0px]"
                                     >
                                         {submitting ? (
                                             <>
