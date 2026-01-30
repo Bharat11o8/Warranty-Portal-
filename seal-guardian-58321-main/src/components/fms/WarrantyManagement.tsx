@@ -569,7 +569,7 @@ export const WarrantyManagement = ({
                 </div>
 
                 {/* Header Container: Tabs + Actions */}
-                <div className="flex flex-col lg:flex-row gap-6 items-center justify-between mb-8 sticky top-0 z-40 bg-white/95 backdrop-blur-md py-4 md:py-6 px-4 md:px-2 -mx-4 md:-mx-2 rounded-2xl md:rounded-3xl border-b md:border border-orange-100 shadow-sm transition-all duration-300">
+                <div className="flex flex-col lg:flex-row gap-6 items-center justify-between mb-8 py-4 md:py-6 px-4 md:px-2 -mx-4 md:-mx-2 rounded-2xl md:rounded-3xl border-b md:border border-orange-100 shadow-sm transition-all duration-300">
 
                     {/* Desktop Tabs List (Hidden on Mobile) */}
                     <div className="hidden lg:block w-auto order-2 lg:order-1">
