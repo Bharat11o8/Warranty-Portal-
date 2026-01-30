@@ -12,7 +12,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { cn } from "@/lib/utils";
+import { cn, optimizeCloudinaryUrl } from "@/lib/utils";
 import api from "@/lib/api";
 import { Badge } from "@/components/ui/badge";
 import React from "react";
@@ -303,7 +303,7 @@ export const AdminAnnouncements = () => {
                                 <div className="flex flex-wrap gap-2 mt-2">
                                     {formData.images.map((img, i) => (
                                         <div key={i} className="relative group">
-                                            <img src={img} alt="preview" className="h-10 w-10 object-cover rounded border" />
+                                            <img src={optimizeCloudinaryUrl(img, { width: 80 })} loading="lazy" alt="preview" className="h-10 w-10 object-cover rounded border" />
                                             <button
                                                 onClick={() => removeMedia('image', i)}
                                                 className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
@@ -513,7 +513,7 @@ export const AdminAnnouncements = () => {
                                     <div className="mt-4 flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
                                         {formData.images.map((img, i) => (
                                             <div key={i} className="h-14 w-14 rounded-lg border bg-muted shrink-0 overflow-hidden shadow-sm transition-transform hover:scale-105 cursor-help">
-                                                <img src={img} className="h-full w-full object-cover" alt="" />
+                                                <img src={optimizeCloudinaryUrl(img, { width: 100 })} loading="lazy" className="h-full w-full object-cover" alt="" />
                                             </div>
                                         ))}
                                         {formData.videos.map((vid, i) => (

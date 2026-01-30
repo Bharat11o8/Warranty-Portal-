@@ -21,7 +21,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useNotifications } from "@/contexts/NotificationContext";
-import { cn } from "@/lib/utils";
+import { cn, optimizeCloudinaryUrl } from "@/lib/utils";
 import { formatDistanceToNow, format } from "date-fns";
 
 export const NotificationPopover = ({ onNavigate }: { onNavigate?: (module: any) => void }) => {
@@ -101,7 +101,7 @@ export const NotificationPopover = ({ onNavigate }: { onNavigate?: (module: any)
                         <div className="mt-2 flex gap-1.5 overflow-hidden">
                             {Array.isArray(notification.metadata.images) && notification.metadata.images.slice(0, 3).map((img: string, i: number) => (
                                 <div key={i} className="h-10 w-10 rounded border bg-muted flex items-center justify-center overflow-hidden shrink-0">
-                                    <img src={img} className="h-full w-full object-cover" alt="" />
+                                    <img src={optimizeCloudinaryUrl(img, { width: 80 })} loading="lazy" className="h-full w-full object-cover" alt="" />
                                 </div>
                             ))}
                             {Array.isArray(notification.metadata.videos) && notification.metadata.videos.length > 0 && (
@@ -327,7 +327,7 @@ export const NotificationPopover = ({ onNavigate }: { onNavigate?: (module: any)
                                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                                         {selectedNotification.metadata.images.map((img: string, i: number) => (
                                                             <div key={i} className="group relative aspect-video rounded-xl overflow-hidden border bg-muted shadow-sm hover:shadow-md transition-all duration-300">
-                                                                <img src={img} alt="" className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" />
+                                                                <img src={optimizeCloudinaryUrl(img, { width: 600 })} loading="lazy" alt="" className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" />
 
                                                                 {/* Image Hover Overlay */}
                                                                 <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-3">
