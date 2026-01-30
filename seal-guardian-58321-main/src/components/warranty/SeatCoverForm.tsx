@@ -16,7 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Combobox } from "@/components/ui/combobox";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
-import { Upload, Loader2, HelpCircle, CheckCircle2, FileText } from "lucide-react";
+import { Upload, Loader2, HelpCircle, CheckCircle2, FileText, Building2, User, Car, Smartphone, Mail, Calendar, Package } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { submitWarranty, updateWarranty } from "@/lib/warrantyApi";
 import { TermsModal } from "./TermsModal";
@@ -379,346 +379,457 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing }: SeatCo
   };
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>{warrantyId ? "Edit Seat Cover Warranty" : "Seat Cover Warranty Registration"}</CardTitle>
-        <CardDescription>
+    <div className="max-w-5xl mx-auto space-y-8 p-1 sm:p-4">
+      {/* Header Section */}
+      <div className="text-center space-y-2 mb-8">
+        <div className="inline-flex items-center justify-center p-3 bg-orange-100 rounded-full mb-4 ring-8 ring-orange-50">
+          <Car className="h-8 w-8 text-orange-600" />
+        </div>
+        <h1 className="text-3xl font-bold tracking-tight bg-gradient-to-r from-gray-900 to-gray-600 bg-clip-text text-transparent">
+          {warrantyId ? "Edit Seat Cover Warranty" : "Seat Cover Warranty Registration"}
+        </h1>
+        <p className="text-muted-foreground max-w-2xl mx-auto">
           {warrantyId
-            ? "Update the warranty details below and resubmit for approval"
-            : "Please fill in all required fields to register your seat cover warranty"}
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <form onSubmit={handleSubmit} className="space-y-6">
-          <div className="grid md:grid-cols-2 gap-4">
+            ? "Update the warranty details below and resubmit for approval."
+            : "Complete the form below to register your premium seat cover warranty. Please ensure all details are accurate."}
+        </p>
+      </div>
 
-            {/* Store Selection - Auto-filled for vendors */}
-            <div className="space-y-2">
-              <Label htmlFor="storeName">
-                Store Name <span className="text-destructive">*</span>
-              </Label>
-              {user?.role === 'vendor' ? (
-                <Input
-                  id="storeName"
-                  value={formData.storeName}
-                  readOnly
-                  className="bg-muted"
-                  placeholder="Loading store name..."
-                />
-              ) : (
-                <Combobox
-                  options={stores.map(store => ({ value: store.store_name, label: store.store_name }))}
-                  value={formData.storeName}
-                  onChange={(value) => handleChange("storeName", value)}
-                  placeholder="Select Store"
-                  searchPlaceholder="Search store name..."
-                  emptyMessage="No store found."
-                  disabled={loading}
-                />
-              )}
+      <form onSubmit={handleSubmit} className="space-y-8">
+        {/* Section 1: Store & Installer Details */}
+        <Card className="border-0 shadow-lg bg-white/80 backdrop-blur-sm ring-1 ring-slate-100">
+          <div className="bg-gradient-to-r from-orange-50 to-amber-50/30 px-6 py-4 border-b border-orange-100 flex items-center gap-3 rounded-t-xl">
+            <div className="p-2 bg-white rounded-lg shadow-sm">
+              <Building2 className="h-5 w-5 text-orange-600" />
             </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="storeEmail">
-                Store Email <span className="text-destructive">*</span>
-              </Label>
-              <Input
-                id="storeEmail"
-                type="email"
-                placeholder="store@example.com"
-                value={formData.storeEmail}
-                onChange={(e) => handleChange("storeEmail", e.target.value)}
-                required
-                readOnly
-                disabled={loading}
-                className="bg-muted"
-              />
+            <div>
+              <h3 className="font-semibold text-gray-900">Installer Details</h3>
+              <p className="text-xs text-muted-foreground">Store and manpower information</p>
             </div>
-
-            {/* Manpower Selection */}
-            <div className="space-y-2">
-              <Label htmlFor="manpowerId">
-                Manpower (Installer)
-              </Label>
-              <Select
-                value={formData.manpowerId}
-                onValueChange={(value) => handleChange("manpowerId", value)}
-                disabled={(!formData.storeName || manpowerList.length === 0) || loading}
-              >
-                <SelectTrigger id="manpowerId">
-                  <SelectValue placeholder={!formData.storeName ? "Select Store First" : manpowerList.length === 0 ? "No Manpower Found" : "Select Installer"} />
-                </SelectTrigger>
-                <SelectContent>
-                  {manpowerList.map((mp) => (
-                    <SelectItem key={mp.id} value={mp.id}>
-                      {mp.name} ({mp.applicator_type})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="purchaseDate">
-                Purchase Date <span className="text-destructive">*</span>
-              </Label>
-              <Input
-                id="purchaseDate"
-                type="date"
-                value={formData.purchaseDate}
-                onChange={(e) => handleChange("purchaseDate", e.target.value)}
-                required
-                disabled={loading}
-                max={new Date().toISOString().split('T')[0]}
-              />
-            </div>
-
-            <div className="space-y-2 md:col-span-2">
-              <Label htmlFor="uid">
-                UID <span className="text-destructive">*</span>
-              </Label>
-              <Input
-                id="uid"
-                type="text"
-                placeholder="Enter 13-16 digit number"
-                value={formData.uid}
-                onChange={(e) => handleChange("uid", e.target.value)}
-                required
-                maxLength={16}
-                disabled={loading}
-                pattern="[0-9]{13,16}"
-              />
-              <p className="text-xs text-muted-foreground">
-                {formData.uid.length} of 16 max characters
-              </p>
-              <p className="text-xs text-muted-foreground mt-1">
-                💡 Find the UID on the seat cover bag's MRP sticker. If not found, contact the store.
-              </p>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="customerName">
-                Customer Name <span className="text-destructive">*</span>
-              </Label>
-              <Input
-                id="customerName"
-                type="text"
-                placeholder="Enter customer name"
-                value={formData.customerName}
-                onChange={(e) => handleChange("customerName", e.target.value)}
-                required
-                readOnly={user?.role === 'customer'}
-                disabled={loading}
-                className={user?.role === 'customer' ? 'bg-muted cursor-not-allowed' : ''}
-              />
-              {user?.role === 'customer' && (
-                <p className="text-xs text-muted-foreground">Auto-filled from your account</p>
-              )}
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="customerEmail">
-                Customer Email {user?.role !== 'vendor' && <span className="text-destructive">*</span>}
-              </Label>
-              <Input
-                id="customerEmail"
-                type="email"
-                placeholder="customer@example.com"
-                value={formData.customerEmail}
-                onChange={(e) => handleChange("customerEmail", e.target.value)}
-                required={user?.role !== 'vendor'}
-                readOnly={user?.role === 'customer'}
-                disabled={loading}
-                className={user?.role === 'customer' ? 'bg-muted cursor-not-allowed' : ''}
-              />
-              {user?.role === 'customer' && (
-                <p className="text-xs text-muted-foreground">Auto-filled from your account</p>
-              )}
-              {user?.role === 'vendor' && (
-                <p className="text-xs text-muted-foreground">Optional - If not provided, customer won't receive email notifications</p>
-              )}
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="customerMobile">
-                Customer Mobile Number <span className="text-destructive">*</span>
-              </Label>
-              <Input
-                id="customerMobile"
-                type="tel"
-                placeholder="+91 XXXXX XXXXX"
-                value={formData.customerMobile}
-                onChange={(e) => handleChange("customerMobile", e.target.value)}
-                required
-                readOnly={user?.role === 'customer'}
-                disabled={loading}
-                className={user?.role === 'customer' ? 'bg-muted cursor-not-allowed' : ''}
-              />
-              {user?.role === 'customer' && (
-                <p className="text-xs text-muted-foreground">Auto-filled from your account</p>
-              )}
-            </div>
-
-
-
-            <div className="space-y-2">
-              <Label htmlFor="carMake">
-                Car Make <span className="text-destructive">*</span>
-              </Label>
-              <Combobox
-                options={[...CAR_MAKES]}
-                value={formData.carMake}
-                onChange={(value) => handleChange("carMake", value)}
-                placeholder="Select car make..."
-                searchPlaceholder="Search car brands..."
-                emptyMessage="No car brand found."
-                disabled={loading}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="carModel">
-                Car Model
-              </Label>
-              <Input
-                id="carModel"
-                type="text"
-                placeholder="e.g., Camry, Civic"
-                value={formData.carModel}
-                onChange={(e) => handleChange("carModel", e.target.value)}
-                disabled={loading}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="carYear">
-                Car Year <span className="text-destructive">*</span>
-              </Label>
-              <Select
-                value={formData.carYear}
-                onValueChange={(value) => handleChange("carYear", value)}
-                disabled={loading}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select year..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {Array.from({ length: new Date().getFullYear() - 1979 }, (_, i) => new Date().getFullYear() - i).map(year => (
-                    <SelectItem key={year} value={year.toString()}>
-                      {year}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="productName">
-                Product Name <span className="text-destructive">*</span>
-              </Label>
-              <Combobox
-                options={products.map(product => ({ value: product.name, label: product.name }))}
-                value={formData.productName}
-                onChange={(value) => handleChange("productName", value)}
-                placeholder="Select Product Name"
-                searchPlaceholder="Search product..."
-                emptyMessage="No product found."
-                disabled={loading}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="warrantyType">
-                Warranty Type
-              </Label>
-              <Input
-                id="warrantyType"
-                type="text"
-                value={formData.warrantyType}
-                readOnly
-                className="bg-muted"
-              />
-              <p className="text-xs text-muted-foreground">
-                Auto-selected based on product
-              </p>
-            </div>
-
-            <div className="space-y-2 md:col-span-2">
-              <Label htmlFor="invoiceFile">
-                Upload File Proof (Invoice / MRP Sticker) <span className="text-destructive">*</span>
-              </Label>
-              <div className="flex items-center gap-2">
-                <Input
-                  id="invoiceFile"
-                  type="file"
-                  accept="image/jpeg,image/png,image/heic,image/heif,application/pdf"
-                  onChange={handleFileChange}
-                  required={!warrantyId}
-                  disabled={loading}
-                  className="cursor-pointer"
-                />
-                <Upload className="h-5 w-5 text-muted-foreground" />
+          </div>
+          <CardContent className="p-6 md:p-8">
+            <div className="grid md:grid-cols-2 gap-6 md:gap-8">
+              {/* Store Selection */}
+              <div className="space-y-3">
+                <Label htmlFor="storeName" className="text-sm font-medium text-slate-700">
+                  Store Name <span className="text-destructive">*</span>
+                </Label>
+                {user?.role === 'vendor' ? (
+                  <Input
+                    id="storeName"
+                    value={formData.storeName}
+                    readOnly
+                    className="bg-slate-50 border-slate-200"
+                    placeholder="Loading store name..."
+                  />
+                ) : (
+                  <Combobox
+                    options={stores.map(store => ({ value: store.store_name, label: store.store_name }))}
+                    value={formData.storeName}
+                    onChange={(value) => handleChange("storeName", value)}
+                    placeholder="Select Store"
+                    searchPlaceholder="Search store name..."
+                    emptyMessage="No store found."
+                    disabled={loading}
+                    className="w-full"
+                  />
+                )}
               </div>
-              <p className="text-xs text-muted-foreground">
-                Max. file size: 5 MB. Formats: JPG, PNG, HEIC, PDF. {formData.invoiceFile && `Selected: ${formData.invoiceFile.name}`}
-              </p>
+
+              <div className="space-y-3">
+                <Label htmlFor="storeEmail" className="text-sm font-medium text-slate-700">
+                  Store Email <span className="text-destructive">*</span>
+                </Label>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+                  <Input
+                    id="storeEmail"
+                    type="email"
+                    placeholder="store@example.com"
+                    value={formData.storeEmail}
+                    onChange={(e) => handleChange("storeEmail", e.target.value)}
+                    required
+                    readOnly
+                    disabled={loading}
+                    className="pl-9 bg-slate-50 border-slate-200"
+                  />
+                </div>
+              </div>
+
+              {/* Manpower Selection */}
+              <div className="space-y-3">
+                <Label htmlFor="manpowerId" className="text-sm font-medium text-slate-700">
+                  Manpower (Installer)
+                </Label>
+                <Select
+                  value={formData.manpowerId}
+                  onValueChange={(value) => handleChange("manpowerId", value)}
+                  disabled={(!formData.storeName || manpowerList.length === 0) || loading}
+                >
+                  <SelectTrigger id="manpowerId" className="bg-white border-slate-200">
+                    <SelectValue placeholder={!formData.storeName ? "Select Store First" : manpowerList.length === 0 ? "No Manpower Found" : "Select Installer"} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {manpowerList.map((mp) => (
+                      <SelectItem key={mp.id} value={mp.id}>
+                        {mp.name} ({mp.applicator_type})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-3">
+                <Label htmlFor="purchaseDate" className="text-sm font-medium text-slate-700">
+                  Purchase Date <span className="text-destructive">*</span>
+                </Label>
+                <div className="relative">
+                  <Calendar className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+                  <Input
+                    id="purchaseDate"
+                    type="date"
+                    value={formData.purchaseDate}
+                    onChange={(e) => handleChange("purchaseDate", e.target.value)}
+                    required
+                    disabled={loading}
+                    max={new Date().toISOString().split('T')[0]}
+                    className="pl-9 bg-white border-slate-200"
+                  />
+                </div>
+              </div>
             </div>
-            {/* Terms & Conditions - Professional Modal Flow */}
-            <div className="md:col-span-2 pt-4 border-t">
-              <div className={`p-4 rounded-lg border ${formData.termsAccepted ? 'bg-green-50 border-green-200' : 'bg-muted/30 border-border'}`}>
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 sm:gap-0">
-                  <div className="flex items-start sm:items-center gap-3">
-                    {formData.termsAccepted ? (
-                      <CheckCircle2 className="h-6 w-6 text-green-600 shrink-0 mt-0.5 sm:mt-0" />
-                    ) : (
-                      <FileText className="h-6 w-6 text-muted-foreground shrink-0 mt-0.5 sm:mt-0" />
-                    )}
+          </CardContent>
+        </Card>
+
+        {/* Section 2: Customer Information */}
+        <Card className="border-0 shadow-lg bg-white/80 backdrop-blur-sm ring-1 ring-slate-100">
+          <div className="bg-gradient-to-r from-blue-50 to-indigo-50/30 px-6 py-4 border-b border-blue-100 flex items-center gap-3 rounded-t-xl">
+            <div className="p-2 bg-white rounded-lg shadow-sm">
+              <User className="h-5 w-5 text-blue-600" />
+            </div>
+            <div>
+              <h3 className="font-semibold text-gray-900">Customer Information</h3>
+              <p className="text-xs text-muted-foreground">Personal and contact details</p>
+            </div>
+          </div>
+          <CardContent className="p-6 md:p-8">
+            <div className="grid md:grid-cols-2 gap-6 md:gap-8">
+              <div className="space-y-3">
+                <Label htmlFor="customerName" className="text-sm font-medium text-slate-700">
+                  Customer Name <span className="text-destructive">*</span>
+                </Label>
+                <div className="relative">
+                  <User className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+                  <Input
+                    id="customerName"
+                    type="text"
+                    placeholder="Enter customer name"
+                    value={formData.customerName}
+                    onChange={(e) => handleChange("customerName", e.target.value)}
+                    required
+                    readOnly={user?.role === 'customer'}
+                    disabled={loading}
+                    className={`pl-9 border-slate-200 ${user?.role === 'customer' ? 'bg-slate-50 cursor-not-allowed' : 'bg-white'}`}
+                  />
+                </div>
+                {user?.role === 'customer' && (
+                  <p className="text-xs text-muted-foreground flex items-center gap-1">
+                    <CheckCircle2 className="h-3 w-3 text-green-500" /> Auto-filled
+                  </p>
+                )}
+              </div>
+
+              <div className="space-y-3">
+                <Label htmlFor="customerEmail" className="text-sm font-medium text-slate-700">
+                  Customer Email {user?.role !== 'vendor' && <span className="text-destructive">*</span>}
+                </Label>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+                  <Input
+                    id="customerEmail"
+                    type="email"
+                    placeholder="customer@example.com"
+                    value={formData.customerEmail}
+                    onChange={(e) => handleChange("customerEmail", e.target.value)}
+                    required={user?.role !== 'vendor'}
+                    readOnly={user?.role === 'customer'}
+                    disabled={loading}
+                    className={`pl-9 border-slate-200 ${user?.role === 'customer' ? 'bg-slate-50 cursor-not-allowed' : 'bg-white'}`}
+                  />
+                </div>
+                {user?.role === 'vendor' && (
+                  <p className="text-xs text-muted-foreground">Optional for notification</p>
+                )}
+              </div>
+
+              <div className="space-y-3 md:col-span-2">
+                <Label htmlFor="customerMobile" className="text-sm font-medium text-slate-700">
+                  Mobile Number <span className="text-destructive">*</span>
+                </Label>
+                <div className="relative">
+                  <Smartphone className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+                  <Input
+                    id="customerMobile"
+                    type="tel"
+                    placeholder="+91 XXXXX XXXXX"
+                    value={formData.customerMobile}
+                    onChange={(e) => handleChange("customerMobile", e.target.value)}
+                    required
+                    readOnly={user?.role === 'customer'}
+                    disabled={loading}
+                    className={`pl-9 border-slate-200 ${user?.role === 'customer' ? 'bg-slate-50 cursor-not-allowed' : 'bg-white'}`}
+                  />
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Section 3: Vehicle Details */}
+        <Card className="border-0 shadow-lg bg-white/80 backdrop-blur-sm ring-1 ring-slate-100">
+          <div className="bg-gradient-to-r from-emerald-50 to-teal-50/30 px-6 py-4 border-b border-emerald-100 flex items-center gap-3 rounded-t-xl">
+            <div className="p-2 bg-white rounded-lg shadow-sm">
+              <Car className="h-5 w-5 text-emerald-600" />
+            </div>
+            <div>
+              <h3 className="font-semibold text-gray-900">Vehicle Details</h3>
+              <p className="text-xs text-muted-foreground">Car make, model and year</p>
+            </div>
+          </div>
+          <CardContent className="p-6 md:p-8">
+            <div className="grid md:grid-cols-3 gap-6">
+              <div className="space-y-3">
+                <Label htmlFor="carMake" className="text-sm font-medium text-slate-700">
+                  Car Make <span className="text-destructive">*</span>
+                </Label>
+                <Combobox
+                  options={[...CAR_MAKES]}
+                  value={formData.carMake}
+                  onChange={(value) => handleChange("carMake", value)}
+                  placeholder="Select Brand"
+                  searchPlaceholder="Search brands..."
+                  emptyMessage="No brand found."
+                  disabled={loading}
+                  className="w-full"
+                />
+              </div>
+
+              <div className="space-y-3">
+                <Label htmlFor="carModel" className="text-sm font-medium text-slate-700">
+                  Car Model
+                </Label>
+                <Input
+                  id="carModel"
+                  type="text"
+                  placeholder="e.g., Camry"
+                  value={formData.carModel}
+                  onChange={(e) => handleChange("carModel", e.target.value)}
+                  disabled={loading}
+                  className="bg-white border-slate-200"
+                />
+              </div>
+
+              <div className="space-y-3">
+                <Label htmlFor="carYear" className="text-sm font-medium text-slate-700">
+                  Car Year <span className="text-destructive">*</span>
+                </Label>
+                <Select
+                  value={formData.carYear}
+                  onValueChange={(value) => handleChange("carYear", value)}
+                  disabled={loading}
+                >
+                  <SelectTrigger className="bg-white border-slate-200">
+                    <SelectValue placeholder="Year" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Array.from({ length: new Date().getFullYear() - 1979 }, (_, i) => new Date().getFullYear() - i).map(year => (
+                      <SelectItem key={year} value={year.toString()}>
+                        {year}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Section 4: Product & Warranty */}
+        <Card className="border-0 shadow-lg bg-white/80 backdrop-blur-sm ring-1 ring-slate-100">
+          <div className="bg-gradient-to-r from-purple-50 to-pink-50/30 px-6 py-4 border-b border-purple-100 flex items-center gap-3 rounded-t-xl">
+            <div className="p-2 bg-white rounded-lg shadow-sm">
+              <Package className="h-5 w-5 text-purple-600" />
+            </div>
+            <div>
+              <h3 className="font-semibold text-gray-900">Product & Warranty Information</h3>
+              <p className="text-xs text-muted-foreground">Product UID and warranty details</p>
+            </div>
+          </div>
+          <CardContent className="p-6 md:p-8">
+            <div className="grid md:grid-cols-2 gap-6 md:gap-8">
+              <div className="space-y-3 md:col-span-2">
+                <Label htmlFor="uid" className="text-sm font-medium text-slate-700">
+                  Product UID (from MRP Sticker) <span className="text-destructive">*</span>
+                </Label>
+                <div className="relative">
+                  <div className="absolute left-3 top-2.5 bg-slate-100 rounded px-1.5 py-0.5 text-[10px] font-bold text-slate-500 tracking-wider">UID</div>
+                  <Input
+                    id="uid"
+                    type="text"
+                    placeholder="Enter 13-16 digit number"
+                    value={formData.uid}
+                    onChange={(e) => handleChange("uid", e.target.value)}
+                    required
+                    maxLength={16}
+                    disabled={loading}
+                    pattern="[0-9]{13,16}"
+                    className="pl-12 font-mono tracking-wide bg-white border-slate-200"
+                  />
+                </div>
+                <div className="flex justify-between text-xs px-1 mt-1">
+                  <span className="text-muted-foreground">{formData.uid.length}/16 digits</span>
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <div className="flex items-center gap-1 text-orange-600 font-medium hover:text-orange-700 transition-colors cursor-help">
+                          <HelpCircle className="h-3 w-3" /> Where to find?
+                        </div>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Locate the sticker on the seat cover product packaging.</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <Label htmlFor="productName" className="text-sm font-medium text-slate-700">
+                  Product Name <span className="text-destructive">*</span>
+                </Label>
+                <Combobox
+                  options={products.map(product => ({ value: product.name, label: product.name }))}
+                  value={formData.productName}
+                  onChange={(value) => handleChange("productName", value)}
+                  placeholder="Select Product"
+                  searchPlaceholder="Search product..."
+                  emptyMessage="No product found."
+                  disabled={loading}
+                  className="w-full"
+                />
+              </div>
+
+              <div className="space-y-3">
+                <Label htmlFor="warrantyType" className="text-sm font-medium text-slate-700">
+                  Warranty Type
+                </Label>
+                <div className="relative">
+                  <CheckCircle2 className="absolute left-3 top-2.5 h-4 w-4 text-green-500" />
+                  <Input
+                    id="warrantyType"
+                    type="text"
+                    value={formData.warrantyType}
+                    readOnly
+                    className="pl-9 bg-green-50/50 border-green-100 text-green-700 font-medium"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-3 md:col-span-2">
+                <Label htmlFor="invoiceFile" className="text-sm font-medium text-slate-700">
+                  Proof of Purchase (Invoice / MRP Sticker) <span className="text-destructive">*</span>
+                </Label>
+                <div className={`mt-2 border-2 border-dashed rounded-xl p-6 transition-all duration-200 text-center relative ${formData.invoiceFile ? 'border-orange-300 bg-orange-50/30' : 'border-slate-200 hover:border-orange-300 hover:bg-slate-50'}`}>
+                  <div className="flex flex-col items-center gap-2">
+                    <div className={`p-3 rounded-full ${formData.invoiceFile ? 'bg-orange-100 text-orange-600' : 'bg-slate-100 text-slate-500'}`}>
+                      {formData.invoiceFile ? <FileText className="h-6 w-6" /> : <Upload className="h-6 w-6" />}
+                    </div>
                     <div>
-                      <p className={`font-medium ${formData.termsAccepted ? 'text-green-700' : 'text-foreground'}`}>
-                        {formData.termsAccepted ? 'Terms & Conditions Accepted' : 'Terms & Conditions'}
-                        <span className="text-destructive ml-1">*</span>
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {formData.termsAccepted
-                          ? 'You have read and accepted the warranty terms'
-                          : 'You must read and accept the terms to continue'}
-                      </p>
+                      {formData.invoiceFile ? (
+                        <div className="space-y-1">
+                          <p className="text-sm font-medium text-orange-700 break-all">{formData.invoiceFile.name}</p>
+                          <p className="text-xs text-orange-600/70">{(formData.invoiceFile.size / 1024 / 1024).toFixed(2)} MB</p>
+                          <label htmlFor="invoiceFile" className="text-xs text-orange-600 underline cursor-pointer hover:text-orange-800">Change File</label>
+                        </div>
+                      ) : (
+                        <div className="space-y-1">
+                          <p className="text-sm font-medium text-slate-700">Click to upload or drag and drop</p>
+                          <p className="text-xs text-muted-foreground">JPG, PNG, PDF (Max 5MB)</p>
+                        </div>
+                      )}
+                    </div>
+                    <Input
+                      id="invoiceFile"
+                      type="file"
+                      accept="image/jpeg,image/png,image/heic,image/heif,application/pdf"
+                      onChange={handleFileChange}
+                      required={!warrantyId}
+                      disabled={loading}
+                      className="hidden"
+                    />
+                    {!formData.invoiceFile && (
+                      <label htmlFor="invoiceFile" className="absolute inset-0 cursor-pointer"></label>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Terms & Submit */}
+        <Card className="border-0 shadow-lg bg-white/80 backdrop-blur-sm ring-1 ring-slate-100">
+          <CardContent className="p-6 md:p-8">
+            <div className="flex flex-col gap-6">
+              <div className={`p-4 rounded-xl border transition-colors ${formData.termsAccepted ? 'bg-green-50/50 border-green-200' : 'bg-slate-50 border-slate-200'}`}>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div className="flex items-start gap-4">
+                    <div className={`mt-1 p-1 rounded-full ${formData.termsAccepted ? 'bg-green-100' : 'bg-slate-200'}`}>
+                      <CheckCircle2 className={`h-4 w-4 ${formData.termsAccepted ? 'text-green-600' : 'text-slate-500'}`} />
+                    </div>
+                    <div>
+                      <h4 className="font-semibold text-gray-900">Terms & Conditions</h4>
+                      <p className="text-sm text-muted-foreground">Please review and accept our policy to proceed.</p>
                     </div>
                   </div>
                   <Button
                     type="button"
                     variant={formData.termsAccepted ? "outline" : "default"}
-                    size="sm"
                     onClick={() => setTermsModalOpen(true)}
-                    disabled={loading}
-                    className="w-full sm:w-auto"
+                    className={formData.termsAccepted ? "border-green-200 text-green-700 hover:bg-green-50 hover:text-green-800" : ""}
                   >
                     {formData.termsAccepted ? 'View Terms' : 'View & Accept'}
                   </Button>
                 </div>
               </div>
+
+              <Button
+                type="submit"
+                size="lg"
+                className="w-full text-lg h-12 shadow-orange-200 shadow-lg hover:shadow-xl transition-all"
+                disabled={loading || !formData.termsAccepted}
+              >
+                {loading ? (
+                  <>
+                    <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                    Processing Registration...
+                  </>
+                ) : (
+                  "Complete Registration"
+                )}
+              </Button>
             </div>
+          </CardContent>
+        </Card>
 
-          </div>
-
-          <Button type="submit" size="lg" className="w-full" disabled={loading || !formData.termsAccepted}>
-            {loading ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Submitting...
-              </>
-            ) : "SUBMIT"}
-          </Button>
-
-          {/* Terms Modal */}
-          <TermsModal
-            isOpen={termsModalOpen}
-            onClose={() => setTermsModalOpen(false)}
-            onAccept={() => setFormData(prev => ({ ...prev, termsAccepted: true }))}
-          />
-        </form>
-      </CardContent>
-    </Card>
+        {/* Terms Modal */}
+        <TermsModal
+          isOpen={termsModalOpen}
+          onClose={() => setTermsModalOpen(false)}
+          onAccept={() => setFormData(prev => ({ ...prev, termsAccepted: true }))}
+        />
+      </form>
+    </div>
   );
 };
 

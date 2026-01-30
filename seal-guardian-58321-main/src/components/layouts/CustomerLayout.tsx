@@ -187,7 +187,7 @@ const CustomerLayout = () => {
             </div>
 
             {/* Main Padded Wrapper */}
-            <div className="flex-1 flex gap-6 p-0 md:p-6 h-screen overflow-hidden relative z-10">
+            <div className="flex-1 flex gap-6 p-0 md:p-2 h-screen overflow-hidden relative z-10">
 
                 {/* Desktop Sidebar Panel */}
                 <aside

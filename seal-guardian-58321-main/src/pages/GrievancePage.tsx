@@ -372,7 +372,7 @@ const GrievancePage = () => {
                 {/* Header Section */}
                 <div className="mb-8 text-center px-4">
                     <h1 className="text-4xl md:text-6xl font-black text-slate-900 tracking-tighter mb-4">
-                        Support <span className="text-orange-600">Hub</span>
+                        Help & <span className="text-orange-600">Support</span>
                     </h1>
                     <p className="text-slate-500 text-lg font-bold max-w-2xl mx-auto">
                         Need assistance? Raise a ticket and our team will get back to you.

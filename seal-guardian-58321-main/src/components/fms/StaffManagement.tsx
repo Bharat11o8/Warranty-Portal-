@@ -127,7 +127,7 @@ export const StaffManagement = ({
     return (
         <div className="space-y-8 max-w-7xl mx-auto">
             <Tabs defaultValue="current" className="w-full">
-                <div className="flex flex-col lg:flex-row justify-between items-center gap-6 mb-8 sticky top-0 z-30 bg-white/95 backdrop-blur-md py-4 md:py-6 px-4 md:px-2 -mx-4 md:-mx-2 rounded-2xl md:rounded-3xl border-b md:border border-orange-100 shadow-sm">
+                <div className="flex flex-col lg:flex-row justify-evenly items-center gap-6 mb-8 top-0 z-30 bg-white/95 backdrop-blur-md py-4 md:py-6 px-4 md:px-2 -mx-4 md:-mx-2 rounded-2xl md:rounded-3xl border-b md:border border-orange-100 shadow-sm">
                     <TabsList className="bg-white p-1 rounded-xl md:rounded-full h-10 md:h-11 w-full lg:w-auto flex md:inline-flex gap-0.5 shadow-sm border border-orange-100">
                         <TabsTrigger value="current" className="relative z-10 rounded-full px-4 md:px-8 py-2 text-xs md:text-sm font-bold text-slate-500 data-[state=active]:text-orange-600 data-[state=active]:bg-orange-50/50 data-[state=active]:shadow-sm transition-all duration-500 ease-out whitespace-nowrap flex items-center gap-2">
                             <Users className="h-4 w-4" /> Current Team <span className="hidden sm:inline">({manpowerList?.length || 0})</span>
@@ -137,7 +137,7 @@ export const StaffManagement = ({
                         </TabsTrigger>
                     </TabsList>
 
-                    <div className="flex flex-col sm:flex-row items-center gap-3 w-full lg:w-auto">
+                    <div className="flex flex-row sm:flex-row items-center gap-3 w-full lg:w-auto">
                         <div className="relative w-full sm:w-64 lg:w-80 group">
                             <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 group-focus-within:text-orange-500 transition-colors" />
                             <input
@@ -148,7 +148,7 @@ export const StaffManagement = ({
                             />
                         </div>
 
-                        <div className="flex items-center gap-2 w-full sm:w-auto justify-between sm:justify-end">
+                        <div className="flex items-center gap-2 w-full sm:w-auto justify-evenly sm:justify-end">
                             <div className="flex items-center gap-1 bg-white p-1 rounded-full h-10 md:h-11 border border-orange-100 shadow-sm">
                                 <Button
                                     variant="ghost"

@@ -138,7 +138,7 @@ export const menuGroups = [
             { id: 'home' as const, label: "Home", icon: Home },
             {
                 id: 'warranty' as const,
-                label: "Warranty Mgmt",
+                label: "Warranty Management",
                 icon: ShieldCheck,
             },
         ]
@@ -174,7 +174,7 @@ export const menuGroups = [
         label: "Team & Performance",
         items: [
             { id: 'manpower' as const, label: "Manpower Control", icon: Users },
-            { id: 'targets' as const, label: "Targets & Achiev.", icon: Target },
+            { id: 'targets' as const, label: "Targets & Achievements", icon: Target },
         ]
     },
     {

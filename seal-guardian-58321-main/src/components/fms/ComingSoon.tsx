@@ -24,10 +24,10 @@ export const ComingSoon = ({ title }: ComingSoonProps) => {
                 We are crafting a world-class experience for {title.toLowerCase()}. This module will be part of our next major update to streamline your operations.
             </p>
             <div className="flex gap-4">
-                <Button variant="outline" className="rounded-2xl px-10 h-14 font-black uppercase tracking-widest text-xs border-orange-100 hover:bg-orange-50 text-slate-600 transition-all">
+                <Button variant="outline" className="rounded-2xl px-4 h-14 font-black uppercase tracking-widest text-xs border-orange-100 hover:bg-orange-50 text-slate-600 transition-all">
                     Notify Me
                 </Button>
-                <Button className="rounded-2xl px-10 h-14 font-black uppercase tracking-widest text-xs bg-orange-600 hover:bg-orange-700 text-white shadow-xl shadow-orange-500/20 group transition-all active:scale-95">
+                <Button onClick={() => window.location.href = '/dashboard/vendor'} className="rounded-2xl px-4 h-14 font-black uppercase tracking-widest text-xs bg-orange-600 hover:bg-orange-700 text-white shadow-xl shadow-orange-500/20 group transition-all active:scale-95">
                     Explore Dashboard <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" />
                 </Button>
             </div>

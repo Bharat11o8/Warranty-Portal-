@@ -66,6 +66,14 @@ const FranchiseDashboard = () => {
     const [manpowerPagination, setManpowerPagination] = useState({ currentPage: 1, totalPages: 1, totalCount: 0, limit: 10, hasNextPage: false, hasPrevPage: false });
     const [pastManpowerPagination, setPastManpowerPagination] = useState({ currentPage: 1, totalPages: 1, totalCount: 0, limit: 10, hasNextPage: false, hasPrevPage: false });
 
+    // Stats State
+    const [dashboardStats, setDashboardStats] = useState({
+        pending_vendor: 0,
+        pending: 0,
+        validated: 0,
+        rejected: 0
+    });
+
     // Search & Filter States
     const [warrantySearch, setWarrantySearch] = useState('');
     const [selectedProduct, setSelectedProduct] = useState<string>('all');
@@ -132,8 +140,20 @@ const FranchiseDashboard = () => {
     useEffect(() => {
         if (user?.role === "vendor") {
             fetchAllData();
+            fetchStats();
         }
     }, [user]);
+
+    const fetchStats = async () => {
+        try {
+            const response = await api.get('/warranty/stats');
+            if (response.data.success) {
+                setDashboardStats(response.data.stats);
+            }
+        } catch (error) {
+            console.error("Failed to fetch stats", error);
+        }
+    };
 
     const fetchAllData = async () => {
         setLoading(true);
@@ -172,7 +192,19 @@ const FranchiseDashboard = () => {
     const fetchWarranties = async (page = 1, currentLimit = warrantyLimit, background = false) => {
         if (!background) setLoading(true);
         try {
-            const response = await api.get(`/warranty?page=${page}&limit=${currentLimit}`);
+            const params = new URLSearchParams();
+            params.append('page', page.toString());
+            params.append('limit', currentLimit.toString());
+
+            if (activeStatusTab !== 'all') params.append('status', activeStatusTab);
+            if (selectedProduct !== 'all') params.append('product_type', selectedProduct);
+            if (selectedMake !== 'all') params.append('make', selectedMake);
+            if (selectedModel !== 'all') params.append('model', selectedModel);
+            if (warrantySearch) params.append('search', warrantySearch);
+            if (dateRange?.from) params.append('date_from', dateRange.from.toISOString());
+            if (dateRange?.to) params.append('date_to', dateRange.to.toISOString());
+
+            const response = await api.get(`/warranty?${params.toString()}`);
             if (response.data.success) {
                 setWarranties(response.data.warranties);
                 if (response.data.pagination) setWarrantyPagination(response.data.pagination);
@@ -183,6 +215,18 @@ const FranchiseDashboard = () => {
             if (!background) setLoading(false);
         }
     };
+
+    // Filter Effects
+    useEffect(() => {
+        const handler = setTimeout(() => {
+            fetchWarranties(1);
+        }, 500); // 500ms debounce for search
+        return () => clearTimeout(handler);
+    }, [warrantySearch]);
+
+    useEffect(() => {
+        fetchWarranties(1);
+    }, [selectedProduct, selectedMake, selectedModel, dateRange, activeStatusTab]);
 
     const fetchManpower = async (page = 1, active = true, currentLimit = active ? manpowerLimit : pastManpowerLimit, background = false) => {
         if (!background) setLoading(true);
@@ -483,7 +527,7 @@ const FranchiseDashboard = () => {
                         setDateRange={setDateRange}
                         activeTab={activeStatusTab}
                         setActiveTab={setActiveStatusTab}
-                        onRefresh={fetchAllData}
+                        onRefresh={() => { fetchAllData(); fetchStats(); }}
                         isRefreshing={loading}
                         pagination={warrantyPagination}
                         onPageChange={fetchWarranties}
@@ -491,6 +535,7 @@ const FranchiseDashboard = () => {
                             setWarrantyLimit(rows);
                             fetchWarranties(1, rows);
                         }}
+                        stats={dashboardStats}
                     />
                 );
             case 'manpower':

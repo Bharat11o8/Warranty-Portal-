@@ -11,6 +11,7 @@ import InstallerDetails from "./steps/InstallerDetails";
 import CustomerDetails from "./steps/CustomerDetails";
 import CarDetails from "./steps/CarDetails";
 import ProductInfo from "./steps/ProductInfo";
+import { CheckCircle2, Car, User, Settings, ShieldCheck, MapPin } from "lucide-react";
 
 export interface EVFormData {
   // Installer Details
@@ -481,78 +482,137 @@ const EVProductsForm = ({ initialData, warrantyId, onSuccess, isUniversal, isEdi
   const progress = (currentStep / 4) * 100;
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-3xl font-bold">{warrantyId ? 'Edit Warranty Application' : 'PPF Warranty Registration'}</CardTitle>
-        <CardDescription className="text-base">
+    <div className="max-w-5xl mx-auto space-y-8">
+      {/* Header Section */}
+      <div className="text-center space-y-2 mb-8">
+        <div className="inline-flex items-center justify-center p-3 bg-blue-100 rounded-full mb-4 ring-8 ring-blue-50">
+          <ShieldCheck className="h-8 w-8 text-blue-600" />
+        </div>
+        <h1 className="text-3xl font-bold tracking-tight bg-gradient-to-r from-gray-900 to-gray-600 bg-clip-text text-transparent">
+          {warrantyId ? 'Edit Warranty Application' : 'PPF Warranty Registration'}
+        </h1>
+        <p className="text-muted-foreground max-w-2xl mx-auto">
           {warrantyId ? 'Update the details below to resubmit your application' : 'Please fill in all required fields to register your Paint Protection Film (PPF) warranty'}
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="pt-6">
-        {/* Progress Steps */}
-        <div className="mb-8">
-          <div className="flex justify-between mb-4">
-            {steps.map((step) => (
+        </p>
+      </div>
+
+      <Card className="border-0 shadow-xl bg-white/90 backdrop-blur-sm ring-1 ring-slate-100">
+        <div className="bg-slate-50/50 border-b px-6 py-8 rounded-t-xl">
+          {/* Enhanced Progress Steps */}
+          <div className="relative">
+            {/* Connecting Line */}
+            <div className="absolute top-5 left-0 w-full h-1 bg-slate-200 rounded-full -z-10">
               <div
-                key={step.number}
-                className={`flex flex-col items-center ${step.number <= currentStep ? "text-primary" : "text-muted-foreground"
-                  }`}
-              >
-                <div
-                  className={`w-10 h-10 rounded-full flex items-center justify-center font-semibold mb-2 ${step.number <= currentStep
-                    ? "bg-primary text-primary-foreground"
-                    : "bg-muted text-muted-foreground"
-                    }`}
-                >
-                  {step.number}
-                </div>
-                <span className="text-xs md:text-sm text-center">{step.label}</span>
-              </div>
-            ))}
+                className="h-full bg-blue-600 rounded-full transition-all duration-500 ease-in-out"
+                style={{ width: `${((currentStep - 1) / 3) * 100}%` }}
+              />
+            </div>
+
+            <div className="flex justify-between relative z-0">
+              {steps.map((step) => {
+                const isActive = step.number === currentStep;
+                const isCompleted = step.number < currentStep;
+
+                return (
+                  <div key={step.number} className="flex flex-col items-center group">
+                    <div
+                      className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm transition-all duration-300 ring-4 
+                                    ${isActive ? 'bg-blue-600 text-white ring-blue-100 scale-110' :
+                          isCompleted ? 'bg-green-500 text-white ring-green-100' :
+                            'bg-white border-2 border-slate-200 text-slate-400 ring-transparent'}`}
+                    >
+                      {isCompleted ? <CheckCircle2 className="h-6 w-6" /> : step.number}
+                    </div>
+                    <span className={`mt-3 text-xs md:text-sm font-medium transition-colors duration-300 ${isActive ? 'text-blue-700' : isCompleted ? 'text-green-600' : 'text-slate-400'}`}>
+                      {step.label}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
           </div>
-          <Progress value={progress} className="h-2" />
         </div>
 
-        {/* Form Steps */}
-        {currentStep === 1 && (
-          <InstallerDetails
-            formData={formData}
-            updateFormData={updateFormData}
-            onNext={handleNext}
-          />
-        )}
+        <CardContent className="p-6 md:p-10 min-h-[400px]">
+          {/* Step Content with Transitions */}
+          <div className="animate-in fade-in slide-in-from-right-4 duration-300">
+            {currentStep === 1 && (
+              <div className="space-y-6">
+                <div className="text-center mb-6">
+                  <div className="inline-flex bg-blue-50 p-2 rounded-lg mb-3">
+                    <Settings className="h-6 w-6 text-blue-600" />
+                  </div>
+                  <h2 className="text-xl font-semibold">Installer Details</h2>
+                  <p className="text-sm text-muted-foreground">Select the store and installer for this job</p>
+                </div>
+                <InstallerDetails
+                  formData={formData}
+                  updateFormData={updateFormData}
+                  onNext={handleNext}
+                />
+              </div>
+            )}
 
-        {currentStep === 2 && (
-          <CustomerDetails
-            formData={formData}
-            updateFormData={updateFormData}
-            onNext={handleNext}
-            onPrev={handlePrev}
-            isCustomer={user?.role === 'customer'}
-            isVendor={user?.role === 'vendor'}
-          />
-        )}
+            {currentStep === 2 && (
+              <div className="space-y-6">
+                <div className="text-center mb-6">
+                  <div className="inline-flex bg-blue-50 p-2 rounded-lg mb-3">
+                    <User className="h-6 w-6 text-blue-600" />
+                  </div>
+                  <h2 className="text-xl font-semibold">Customer Details</h2>
+                  <p className="text-sm text-muted-foreground">Enter customer contact information</p>
+                </div>
+                <CustomerDetails
+                  formData={formData}
+                  updateFormData={updateFormData}
+                  onNext={handleNext}
+                  onPrev={handlePrev}
+                  isCustomer={user?.role === 'customer'}
+                  isVendor={user?.role === 'vendor'}
+                />
+              </div>
+            )}
 
-        {currentStep === 3 && (
-          <CarDetails
-            formData={formData}
-            updateFormData={updateFormData}
-            onNext={handleNext}
-            onPrev={handlePrev}
-          />
-        )}
+            {currentStep === 3 && (
+              <div className="space-y-6">
+                <div className="text-center mb-6">
+                  <div className="inline-flex bg-blue-50 p-2 rounded-lg mb-3">
+                    <Car className="h-6 w-6 text-blue-600" />
+                  </div>
+                  <h2 className="text-xl font-semibold">Vehicle Details</h2>
+                  <p className="text-sm text-muted-foreground">Registered vehicle information</p>
+                </div>
+                <CarDetails
+                  formData={formData}
+                  updateFormData={updateFormData}
+                  onNext={handleNext}
+                  onPrev={handlePrev}
+                />
+              </div>
+            )}
 
-        {currentStep === 4 && (
-          <ProductInfo
-            formData={formData}
-            updateFormData={updateFormData}
-            onPrev={handlePrev}
-            onSubmit={handleSubmit}
-            loading={loading}
-          />
-        )}
-      </CardContent>
-    </Card>
+            {currentStep === 4 && (
+              <div className="space-y-6">
+                <div className="text-center mb-6">
+                  <div className="inline-flex bg-blue-50 p-2 rounded-lg mb-3">
+                    <ShieldCheck className="h-6 w-6 text-blue-600" />
+                  </div>
+                  <h2 className="text-xl font-semibold">Product & Proof</h2>
+                  <p className="text-sm text-muted-foreground">Upload photos and product details</p>
+                </div>
+                <ProductInfo
+                  formData={formData}
+                  updateFormData={updateFormData}
+                  onPrev={handlePrev}
+                  onSubmit={handleSubmit}
+                  loading={loading}
+                />
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+    </div>
   );
 };
 

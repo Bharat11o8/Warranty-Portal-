@@ -123,7 +123,7 @@ export const SidebarContent = ({
         {
             label: "Warranty Management",
             items: [
-                { id: 'warranties' as const, label: "Warranty Claims", icon: ShieldCheck },
+                { id: 'warranties' as const, label: "Warranty Management", icon: ShieldCheck },
                 { id: 'warranty-products' as const, label: "Warranty Products", icon: Store },
                 { id: 'warranty-form' as const, label: "New Registration", icon: PenTool },
             ]

@@ -3,24 +3,19 @@ import {
     Search,
     Plus,
     Download,
-    CheckCircle,
-    Clock,
-    XCircle,
-    ShieldCheck,
-    FileText,
-    Filter,
-    ArrowUpRight,
-    LayoutGrid,
-    List,
     Eye,
     ChevronRight,
-    Car,
-    UserCircle,
-    Calendar as CalendarIcon,
     ArrowUpDown,
     Check,
     X,
-    RefreshCw
+    RefreshCw,
+    ShieldCheck,
+    Calendar as CalendarIcon,
+    XCircle,
+    CheckCircle,
+    LayoutGrid,
+    List,
+    Filter
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -81,6 +76,12 @@ interface WarrantyManagementProps {
     };
     onPageChange?: (page: number) => void;
     onRowsPerPageChange?: (limit: number) => void;
+    stats?: {
+        pending_vendor: number;
+        pending: number;
+        validated: number;
+        rejected: number;
+    };
 }
 
 export const WarrantyManagement = ({
@@ -106,7 +107,8 @@ export const WarrantyManagement = ({
     isRefreshing = false,
     pagination,
     onPageChange,
-    onRowsPerPageChange
+    onRowsPerPageChange,
+    stats: serverStats
 }: WarrantyManagementProps) => {
     // View control states remain local
     const [viewMode, setViewMode] = useState<'grid' | 'list'>('list');
@@ -139,77 +141,29 @@ export const WarrantyManagement = ({
         return models.sort();
     }, [warranties, selectedMake]);
 
-    // Main Filtering & Sorting Logic
-    const processedItems = useMemo(() => {
-        return (status: string) => {
-            let items = warranties.filter(w => {
-                // Status Filter
-                const matchesStatus = status === 'all' ? true :
-                    status === 'pending' ? w.status === 'pending_vendor' :
-                        status === 'pending_ho' ? w.status === 'pending' :
-                            w.status === status;
-                if (!matchesStatus) return false;
+    // Data is now pre-filtered by the server and passed via props
+    // Data is now pre-filtered by the server and passed via props
+    const processedItems = (status: string) => {
+        // Since the server filters by status only if we pass the param, 
+        // but the UI has TABS for status.
+        // Requirement Check: Does the parent send 'status' param based on the active tab?
+        // Yes, FranchiseDashboard sends `activeStatusTab`.
+        // HOWEVER, the logic in FranchiseDashboard sends status param. 
+        // So `warranties` prop already SHOULD contains only the relevant status items.
+        // BUT, wait... 
+        // If I click "Approved" tab in `WarrantyManagement`, it calls `setActiveTab` prop.
+        // `FranchiseDashboard` updates state -> triggers fetch -> returns only "approved" warranties.
+        // So `warranties` array essentially ONLY has approved warranties.
+        // So filtering by status LOCALLY again is redundant but harmless if we check for match, 
+        // OR we might need to just return all warranties if they are already filtered.
 
-                // Search Filter
-                if (warrantySearch) {
-                    const search = warrantySearch.toLowerCase();
-                    const matchesSearch = (
-                        w.customer_name?.toLowerCase().includes(search) ||
-                        w.customer_phone?.includes(search) ||
-                        w.uid?.toLowerCase().includes(search) ||
-                        toTitleCase(w.car_make)?.toLowerCase().includes(search) ||
-                        toTitleCase(w.car_model)?.toLowerCase().includes(search)
-                    );
-                    if (!matchesSearch) return false;
-                }
+        // Critical Check: 
+        // If the user switches tab, `FranchiseDashboard` fetches new data.
+        // While fetching, `warranties` might still be old or empty.
+        // But fundamentally, `warranties` prop IS the data to show.
 
-                // Product Filter
-                if (selectedProduct !== 'all') {
-                    if (w.product_type !== selectedProduct) return false;
-                }
-
-                // Make Filter
-                if (selectedMake !== 'all') {
-                    if (w.car_make !== selectedMake) return false;
-                }
-
-                // Model Filter
-                if (selectedModel !== 'all') {
-                    if (w.car_model !== selectedModel) return false;
-                }
-
-                // Date Range Filter
-                if (dateRange?.from) {
-                    const purchaseDate = new Date(w.purchase_date || w.created_at);
-                    const rangeEnd = dateRange.to || dateRange.from;
-                    if (!isWithinInterval(purchaseDate, {
-                        start: startOfDay(dateRange.from),
-                        end: endOfDay(rangeEnd)
-                    })) return false;
-                }
-
-                return true;
-            });
-
-            // Sorting Logic
-            items.sort((a, b) => {
-                let valA: any = a[sortConfig.field as keyof typeof a];
-                let valB: any = b[sortConfig.field as keyof typeof b];
-
-                // Handle Date sorting
-                if (sortConfig.field === 'created_at' || sortConfig.field === 'purchase_date') {
-                    valA = new Date(valA || 0).getTime();
-                    valB = new Date(valB || 0).getTime();
-                }
-
-                if (valA < valB) return sortConfig.order === 'asc' ? -1 : 1;
-                if (valA > valB) return sortConfig.order === 'asc' ? 1 : -1;
-                return 0;
-            });
-
-            return items;
-        };
-    }, [warranties, warrantySearch, selectedProduct, selectedMake, selectedModel, dateRange, sortConfig]);
+        return warranties;
+    };
 
     const getStatusLabel = (tab: string) => {
         switch (tab) {
@@ -229,12 +183,46 @@ export const WarrantyManagement = ({
         setDateRange(undefined);
     };
 
-    const stats = {
-        pending: warranties.filter(w => w.status === 'pending_vendor').length,
-        approved: warranties.filter(w => w.status === 'validated').length,
-        verified: warranties.filter(w => w.status === 'pending').length,
-        rejected: warranties.filter(w => w.status === 'rejected').length,
-    };
+    // Stats are now likely coming from props or separate API, 
+    // but for now we can't easily calculate "all" stats from a "filtered" list.
+    // If the server returns paginated data for "approved", we don't know the count of "rejected".
+    // 
+    // Ideally, the parent should pass `stats` object with counts.
+    // However, `WarrantyManagement` props doesn't have `stats`.
+    // The previous implementation calculated stats from the FULL loaded list (client side).
+    // Now that we paginate server-side, `warranties` is only a page.
+    // We cannot verify these counts accurately anymore locally.
+
+    // Quick Fix: 
+    // We will leave these as 0 or ? for now, OR we need the backend to return status counts in the metadata.
+    // Since `stats` object was used for the BADGES on tabs.
+    // I highly recommend we might need a separate call or meta info.
+    // For this step, I'll temporarily set them to 0 or use the current length, but they will be inaccurate.
+    // Let's modify the UI to hide the count badges if they are not accurate, or 
+    // check if `FranchiseDashboard` can fetch them.
+    // 
+    // Actually, `FranchiseDashboard` computes `homeStats` (lines 422 in FranchiseDashboard).
+    // But `homeStats` is calculated from `warranties.length` which is now paginated (e.g. 10 items). 
+    // So the counts on the Home Screen will ALSO be wrong (showing 10 instead of total).
+
+    // This is a CRITICAL regression risk.
+    // Backend `getDashboardStats` exists!
+    // I should use `getDashboardStats` in `FranchiseDashboard` to populate the stats, 
+    // instead of `warranties.filter(...)`.
+
+    // Map server stats to UI stats
+    // server 'pending' -> UI 'verified' (HO Pending)
+    // server 'pending_vendor' -> UI 'pending' (Vendor Pending)
+    // server 'validated' -> UI 'approved'
+    const stats = useMemo(() => {
+        if (!serverStats) return { pending: 0, approved: 0, verified: 0, rejected: 0 };
+        return {
+            pending: serverStats.pending_vendor || 0,
+            verified: serverStats.pending || 0,
+            approved: serverStats.validated || 0,
+            rejected: serverStats.rejected || 0,
+        };
+    }, [serverStats]);
 
     const renderList = (status: string) => {
         const items = processedItems(status);
@@ -289,6 +277,18 @@ export const WarrantyManagement = ({
                                                     <h4 className="font-bold text-sm md:text-base text-slate-800 truncate pr-2 tracking-tight">
                                                         {toTitleCase(warranty.car_make)} {toTitleCase(warranty.car_model)}
                                                     </h4>
+                                                    {/* Mobile-only status indicator */}
+                                                    <span className={cn(
+                                                        "lg:hidden shrink-0 px-2 py-0.5 rounded-full text-[8px] font-black uppercase",
+                                                        warranty.status === 'validated' ? "bg-green-100 text-green-600" :
+                                                            warranty.status === 'pending_vendor' ? "bg-blue-100 text-blue-600" :
+                                                                warranty.status === 'pending' ? "bg-amber-100 text-amber-600" :
+                                                                    "bg-red-100 text-red-600"
+                                                    )}>
+                                                        {warranty.status === 'pending_vendor' ? '✓' :
+                                                            warranty.status === 'pending' ? '⏳' :
+                                                                warranty.status === 'validated' ? '✓' : '✗'}
+                                                    </span>
                                                 </div>
                                                 <div className="flex flex-col gap-1">
                                                     <div className="flex items-center gap-2 text-[10px] md:text-xs text-slate-500 font-medium tracking-tight truncate uppercase">
@@ -314,7 +314,7 @@ export const WarrantyManagement = ({
                                             </div>
                                         </div>
 
-                                        <div className="flex flex-row md:flex-row items-center justify-between md:justify-end md:shrink-0 gap-3 md:gap-6 mt-2 md:mt-0 pt-3 md:pt-0 border-t md:border-0 border-slate-50">
+                                        <div className="hidden lg:flex flex-row md:flex-row items-center justify-between md:justify-end md:shrink-0 gap-3 md:gap-6 mt-2 md:mt-0 pt-3 md:pt-0 border-t md:border-0 border-slate-50">
 
                                             <div className={cn(
                                                 "flex flex-col items-center justify-center gap-0.5 px-3 py-1.5 rounded-full text-[9px] md:text-[10px] font-black uppercase tracking-[0.1em] border min-w-[110px]",
@@ -337,7 +337,7 @@ export const WarrantyManagement = ({
                                                     </span>
                                                 </div>
                                                 {warranty.status === 'validated' && (
-                                                    <span className="text-[8px] font-black opacity-70">
+                                                    <span className="hidden lg:inline text-[8px] font-black opacity-70">
                                                         {getWarrantyExpiration(warranty.validated_at || warranty.created_at, warranty.warranty_type).daysLeft} Days Left
                                                     </span>
                                                 )}
@@ -366,7 +366,7 @@ export const WarrantyManagement = ({
                                                 <Button
                                                     size="icon"
                                                     variant="ghost"
-                                                    className="h-7 w-7 md:h-8 md:w-8 rounded-full text-slate-300 hover:text-orange-500 transition-colors"
+                                                    className="hidden lg:flex h-7 w-7 md:h-8 md:w-8 rounded-full text-slate-300 hover:text-orange-500 transition-colors"
                                                 >
                                                     <Eye className="h-3.5 w-3.5 md:h-4 md:w-4" />
                                                 </Button>
@@ -469,7 +469,7 @@ export const WarrantyManagement = ({
                                                         warranty.status === 'validated' ? 'Approved' : 'Rejected'}
                                             </div>
                                             {warranty.status === 'validated' && (
-                                                <span className="text-[8px] font-black opacity-70">
+                                                <span className="hidden lg:inline text-[8px] font-black opacity-70">
                                                     {getWarrantyExpiration(warranty.validated_at || warranty.created_at, warranty.warranty_type).daysLeft} Days Left
                                                 </span>
                                             )}
@@ -499,7 +499,7 @@ export const WarrantyManagement = ({
                                         <Button
                                             size="icon"
                                             variant="ghost"
-                                            className="h-10 w-10 rounded-full text-slate-300 hover:text-orange-500"
+                                            className="hidden lg:flex h-10 w-10 rounded-full text-slate-300 hover:text-orange-500"
                                         >
                                             <Eye className="h-5 w-5" />
                                         </Button>
@@ -532,143 +532,216 @@ export const WarrantyManagement = ({
                 onValueChange={setActiveTab}
                 className="space-y-6"
             >
-                {/* Top Action Bar - Now with Search on the Left */}
-                <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mb-4">
-                    <div className="relative group w-full sm:w-64 lg:w-96">
+
+
+                {/* ===== MOBILE LAYOUT (lg:hidden) ===== */}
+                <div className="lg:hidden space-y-3 mb-4">
+                    {/* Mobile Row 1: Search, Refresh, Filter, Export */}
+                    <div className="flex items-center gap-2">
+                        <div className="relative group flex-1">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 group-focus-within:text-orange-500 transition-colors" />
+                            <input
+                                type="text"
+                                placeholder="Search..."
+                                className="w-full h-10 pl-10 pr-3 rounded-xl border border-slate-100 bg-white placeholder:text-slate-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500/20 focus-visible:border-orange-500/30 text-sm transition-all shadow-sm"
+                                value={warrantySearch}
+                                onChange={(e) => setWarrantySearch(e.target.value)}
+                            />
+                        </div>
+                        {onRefresh && (
+                            <Button
+                                variant="outline"
+                                size="icon"
+                                onClick={onRefresh}
+                                disabled={isRefreshing}
+                                className="h-10 w-10 rounded-xl border-orange-100 text-orange-600 hover:bg-orange-50 shadow-sm shrink-0"
+                                title="Refresh"
+                            >
+                                <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+                            </Button>
+                        )}
+                        <Button
+                            variant="outline"
+                            onClick={() => setShowFilters(!showFilters)}
+                            className={cn(
+                                "h-10 w-10 rounded-xl border-orange-100 shadow-sm shrink-0",
+                                showFilters ? "bg-orange-500 text-white border-orange-500" : "bg-white text-slate-700 hover:bg-orange-50 hover:text-orange-600"
+                            )}
+                            title="Filters"
+                        >
+                            <div className="relative">
+                                <Filter className="h-4 w-4" />
+                                {(selectedProduct !== 'all' || selectedMake !== 'all' || selectedModel !== 'all' || dateRange) && (
+                                    <span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-red-500 border border-white" />
+                                )}
+                            </div>
+                        </Button>
+                        <Button
+                            onClick={onExport}
+                            className="h-10 w-10 rounded-xl bg-[#f46617] hover:bg-[#d85512] text-white shadow-sm shrink-0"
+                            title="Export"
+                        >
+                            <Download className="h-4 w-4" />
+                        </Button>
+                    </div>
+
+                    {/* Mobile Row 2: View Toggle + Status Dropdown */}
+                    <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-1 bg-white p-1 rounded-xl border border-orange-100 shadow-sm">
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => setViewMode('grid')}
+                                className={cn(
+                                    "rounded-lg h-8 px-3",
+                                    viewMode === 'grid' ? "bg-orange-50 text-orange-600" : "text-slate-400"
+                                )}
+                            >
+                                <LayoutGrid className="h-4 w-4" />
+                            </Button>
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => setViewMode('list')}
+                                className={cn(
+                                    "rounded-lg h-8 px-3",
+                                    viewMode === 'list' ? "bg-orange-50 text-orange-600" : "text-slate-400"
+                                )}
+                            >
+                                <List className="h-4 w-4" />
+                            </Button>
+                        </div>
+
+                        <div className="flex-1">
+                            <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                    <Button
+                                        variant="outline"
+                                        className="w-full h-10 rounded-xl border-orange-100 bg-white font-bold flex items-center justify-between px-4 shadow-sm"
+                                    >
+                                        <div className="flex items-center gap-2">
+                                            <div className="w-1 h-5 bg-orange-500 rounded-full" />
+                                            <span className="text-[10px] uppercase tracking-wider font-black text-slate-400">Status:</span>
+                                            <span className="text-xs font-black text-orange-600 uppercase">{getStatusLabel(activeTab)}</span>
+                                        </div>
+                                        <ChevronRight className="h-4 w-4 text-orange-500 rotate-90" />
+                                    </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent className="w-[calc(100vw-2rem)] p-4 rounded-3xl border-orange-100 shadow-2xl bg-white mt-2 z-[100]" align="center">
+                                    <div className="space-y-1">
+                                        <div className="flex justify-center mb-4">
+                                            <div
+                                                onClick={() => setActiveTab('all')}
+                                                className={cn(
+                                                    "px-6 py-2 rounded-full text-xs font-black uppercase cursor-pointer border",
+                                                    activeTab === 'all' ? "bg-orange-500 text-white border-orange-400" : "bg-orange-50 text-orange-600 border-orange-100"
+                                                )}
+                                            >
+                                                All
+                                            </div>
+                                        </div>
+                                        <DropdownMenuItem onClick={() => setActiveTab('validated')} className="flex items-center justify-between p-3 rounded-2xl cursor-pointer hover:bg-green-50">
+                                            <span className={cn("text-xs font-black uppercase", activeTab === 'validated' ? "text-green-600" : "text-slate-500")}>Approved</span>
+                                            <Badge className="bg-green-100 text-green-700 font-black px-3 py-0.5 rounded-full text-[10px]">{stats.approved}</Badge>
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem onClick={() => setActiveTab('pending_ho')} className="flex items-center justify-between p-3 rounded-2xl cursor-pointer hover:bg-blue-50">
+                                            <span className={cn("text-xs font-black uppercase", activeTab === 'pending_ho' ? "text-blue-600" : "text-slate-500")}>Verified</span>
+                                            <Badge className="bg-blue-100 text-blue-700 font-black px-3 py-0.5 rounded-full text-[10px]">{stats.verified}</Badge>
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem onClick={() => setActiveTab('pending')} className="flex items-center justify-between p-3 rounded-2xl cursor-pointer hover:bg-amber-50">
+                                            <span className={cn("text-xs font-black uppercase", activeTab === 'pending' ? "text-amber-600" : "text-slate-500")}>Pending</span>
+                                            <Badge className="bg-amber-100 text-amber-700 font-black px-3 py-0.5 rounded-full text-[10px]">{stats.pending}</Badge>
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem onClick={() => setActiveTab('rejected')} className="flex items-center justify-between p-3 rounded-2xl cursor-pointer hover:bg-red-50">
+                                            <span className={cn("text-xs font-black uppercase", activeTab === 'rejected' ? "text-red-600" : "text-slate-500")}>Rejected</span>
+                                            <Badge className="bg-red-100 text-red-700 font-black px-3 py-0.5 rounded-full text-[10px]">{stats.rejected}</Badge>
+                                        </DropdownMenuItem>
+                                    </div>
+                                </DropdownMenuContent>
+                            </DropdownMenu>
+                        </div>
+                    </div>
+                </div>
+
+                {/* ===== DESKTOP LAYOUT (hidden on mobile, visible lg+) ===== */}
+                {/* Top Action Bar - Search on Left, Actions on Right */}
+                <div className="hidden lg:flex items-center justify-between gap-4 mb-4">
+                    <div className="relative group w-96">
                         <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 group-focus-within:text-orange-500 transition-colors" />
                         <input
                             type="text"
                             placeholder="Search warranties..."
-                            className="w-full h-10 md:h-11 pl-11 pr-4 py-2.5 rounded-2xl border border-slate-100 bg-white placeholder:text-slate-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500/20 focus-visible:border-orange-500/30 text-sm transition-all shadow-sm"
+                            className="w-full h-11 pl-11 pr-4 py-2.5 rounded-2xl border border-slate-100 bg-white placeholder:text-slate-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500/20 focus-visible:border-orange-500/30 text-sm transition-all shadow-sm"
                             value={warrantySearch}
                             onChange={(e) => setWarrantySearch(e.target.value)}
                         />
                     </div>
 
-                    <div className="flex items-center justify-end gap-2 md:gap-3 w-full sm:w-auto">
+                    <div className="flex items-center gap-3">
                         {onRefresh && (
                             <Button
                                 variant="outline"
                                 size="sm"
                                 onClick={onRefresh}
                                 disabled={isRefreshing}
-                                className="h-10 px-4 md:px-6 rounded-full border-orange-100 text-orange-600 font-bold hover:bg-orange-50 transition-all flex items-center gap-1.5 md:gap-2 shadow-sm text-xs md:text-sm"
+                                className="h-10 px-6 rounded-full border-orange-100 text-orange-600 font-bold hover:bg-orange-50 transition-all flex items-center gap-2 shadow-sm text-sm"
                             >
-                                <RefreshCw className={`h-3.5 w-3.5 md:h-4 md:w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+                                <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
                                 Refresh
                             </Button>
                         )}
                         <Button
                             onClick={onExport}
-                            className="h-10 px-4 md:px-6 rounded-full bg-[#f46617] hover:bg-[#d85512] text-white font-bold text-[10px] md:text-xs shadow-lg shadow-orange-500/20 transition-all active:scale-95 flex items-center gap-1.5 md:gap-2 uppercase tracking-tight md:tracking-widest"
+                            className="h-10 px-6 rounded-full bg-[#f46617] hover:bg-[#d85512] text-white font-bold text-xs shadow-lg shadow-orange-500/20 transition-all active:scale-95 flex items-center gap-2 uppercase tracking-widest"
                         >
-                            <Download className="h-3.5 w-3.5 md:h-4 md:w-4 transition-transform group-hover:-translate-y-0.5" />
+                            <Download className="h-4 w-4" />
                             Export Data
                         </Button>
                     </div>
                 </div>
 
-                {/* Header Container: Tabs + Actions */}
-                <div className="flex flex-col lg:flex-row gap-6 items-center justify-between mb-8 py-4 md:py-6 px-4 md:px-2 -mx-4 md:-mx-2 rounded-2xl md:rounded-3xl border-b md:border border-orange-100 shadow-sm transition-all duration-300">
+                {/* Desktop Header Container: Tabs + View/Filter Actions */}
+                <div className="hidden lg:flex gap-6 items-center justify-between mb-8 py-6 px-2 -mx-2 rounded-3xl border border-orange-100 shadow-sm">
+                    {/* Desktop Tabs List */}
+                    <TabsList className="relative bg-white/50 p-1 rounded-full h-11 w-auto flex flex-row gap-1 shadow-sm border border-orange-100/50 backdrop-blur-sm">
+                        <TabsTrigger
+                            value="all"
+                            className="relative z-10 rounded-full px-6 py-2 text-xs font-black text-slate-500 data-[state=active]:text-orange-600 data-[state=active]:bg-orange-50/80 data-[state=active]:shadow-sm transition-all duration-300 uppercase tracking-widest"
+                        >
+                            All
+                        </TabsTrigger>
+                        <TabsTrigger
+                            value="validated"
+                            className="relative z-10 rounded-full px-6 py-2 text-xs font-black text-slate-500 data-[state=active]:text-green-600 data-[state=active]:bg-white data-[state=active]:shadow-md transition-all duration-300 flex items-center gap-2 uppercase tracking-widest border border-transparent data-[state=active]:border-green-100"
+                        >
+                            Approved
+                            <span className="py-0.5 px-2 rounded-full bg-green-100 text-green-700 text-[10px] font-black">{stats.approved || 0}</span>
+                        </TabsTrigger>
+                        <TabsTrigger
+                            value="pending_ho"
+                            className="relative z-10 rounded-full px-6 py-2 text-xs font-black text-slate-500 data-[state=active]:text-blue-600 data-[state=active]:bg-white data-[state=active]:shadow-md transition-all duration-300 flex items-center gap-2 uppercase tracking-widest border border-transparent data-[state=active]:border-blue-100"
+                        >
+                            Verified
+                            <span className="py-0.5 px-2 rounded-full bg-blue-100 text-blue-700 text-[10px] font-black">{stats.verified || 0}</span>
+                        </TabsTrigger>
+                        <TabsTrigger
+                            value="pending"
+                            className="relative z-10 rounded-full px-6 py-2 text-xs font-black text-slate-500 data-[state=active]:text-amber-600 data-[state=active]:bg-white data-[state=active]:shadow-md transition-all duration-300 flex items-center gap-2 uppercase tracking-widest border border-transparent data-[state=active]:border-amber-100"
+                        >
+                            Pending
+                            <span className="py-0.5 px-2 rounded-full bg-amber-100 text-amber-700 text-[10px] font-black">{stats.pending || 0}</span>
+                        </TabsTrigger>
+                        <TabsTrigger
+                            value="rejected"
+                            className="relative z-10 rounded-full px-6 py-2 text-xs font-black text-slate-500 data-[state=active]:text-red-600 data-[state=active]:bg-white data-[state=active]:shadow-md transition-all duration-300 flex items-center gap-2 uppercase tracking-widest border border-transparent data-[state=active]:border-red-100"
+                        >
+                            Rejected
+                            <span className="py-0.5 px-2 rounded-full bg-red-100 text-red-700 text-[10px] font-black">{stats.rejected || 0}</span>
+                        </TabsTrigger>
+                    </TabsList>
 
-                    {/* Desktop Tabs List (Hidden on Mobile) */}
-                    <div className="hidden lg:block w-auto order-2 lg:order-1">
-                        <TabsList className="relative bg-white/50 p-1 rounded-full h-11 w-auto flex flex-row gap-1 shadow-sm border border-orange-100/50 backdrop-blur-sm">
-                            <TabsTrigger
-                                value="all"
-                                className="relative z-10 rounded-full px-6 py-2 text-xs font-black text-slate-500 data-[state=active]:text-orange-600 data-[state=active]:bg-orange-50/80 data-[state=active]:shadow-sm transition-all duration-300 uppercase tracking-widest"
-                            >
-                                All
-                            </TabsTrigger>
-                            <TabsTrigger
-                                value="validated"
-                                className="relative z-10 rounded-full px-6 py-2 text-xs font-black text-slate-500 data-[state=active]:text-green-600 data-[state=active]:bg-white data-[state=active]:shadow-md transition-all duration-300 flex items-center gap-2 uppercase tracking-widest border border-transparent data-[state=active]:border-green-100"
-                            >
-                                Approved
-                                <span className="py-0.5 px-2 rounded-full bg-green-100 text-green-700 text-[10px] font-black">{stats.approved || 0}</span>
-                            </TabsTrigger>
-                            <TabsTrigger
-                                value="pending_ho"
-                                className="relative z-10 rounded-full px-6 py-2 text-xs font-black text-slate-500 data-[state=active]:text-blue-600 data-[state=active]:bg-white data-[state=active]:shadow-md transition-all duration-300 flex items-center gap-2 uppercase tracking-widest border border-transparent data-[state=active]:border-blue-100"
-                            >
-                                Verified
-                                <span className="py-0.5 px-2 rounded-full bg-blue-100 text-blue-700 text-[10px] font-black">{stats.verified || 0}</span>
-                            </TabsTrigger>
-                            <TabsTrigger
-                                value="pending"
-                                className="relative z-10 rounded-full px-6 py-2 text-xs font-black text-slate-500 data-[state=active]:text-amber-600 data-[state=active]:bg-white data-[state=active]:shadow-md transition-all duration-300 flex items-center gap-2 uppercase tracking-widest border border-transparent data-[state=active]:border-amber-100"
-                            >
-                                Pending
-                                <span className="py-0.5 px-2 rounded-full bg-amber-100 text-amber-700 text-[10px] font-black">{stats.pending || 0}</span>
-                            </TabsTrigger>
-                            <TabsTrigger
-                                value="rejected"
-                                className="relative z-10 rounded-full px-6 py-2 text-xs font-black text-slate-500 data-[state=active]:text-red-600 data-[state=active]:bg-white data-[state=active]:shadow-md transition-all duration-300 flex items-center gap-2 uppercase tracking-widest border border-transparent data-[state=active]:border-red-100"
-                            >
-                                Rejected
-                                <span className="py-0.5 px-2 rounded-full bg-red-100 text-red-700 text-[10px] font-black">{stats.rejected || 0}</span>
-                            </TabsTrigger>
-                        </TabsList>
-                    </div>
-
-                    {/* Mobile Status Dropdown (Hidden on Desktop) */}
-                    <div className="lg:hidden w-full order-2">
-                        <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                                <Button
-                                    variant="outline"
-                                    className="w-full h-12 rounded-2xl border-orange-100 bg-white font-bold flex items-center justify-between px-6 shadow-sm hover:bg-orange-50 hover:border-orange-200 transition-all active:scale-[0.98]"
-                                >
-                                    <div className="flex items-center gap-3">
-                                        <div className="w-1.5 h-6 bg-orange-500 rounded-full" />
-                                        <span className="text-[10px] uppercase tracking-widest font-black text-slate-400">Status:</span>
-                                        <span className="text-sm font-black text-orange-600 uppercase tracking-tight">{getStatusLabel(activeTab)}</span>
-                                    </div>
-                                    <ChevronRight className="h-4 w-4 text-orange-500 rotate-90" />
-                                </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent className="w-[calc(100vw-2rem)] p-4 rounded-[40px] border-orange-100 shadow-2xl bg-white mt-2 animate-in fade-in slide-in-from-top-4 duration-300 z-[100]" align="center" sideOffset={8}>
-                                <div className="space-y-1">
-                                    <div className="flex justify-center mb-6 mt-1">
-                                        <div
-                                            onClick={() => setActiveTab('all')}
-                                            className={cn(
-                                                "px-8 py-2.5 rounded-full text-[11px] font-black uppercase tracking-[0.2em] cursor-pointer transition-all border shadow-sm flex items-center justify-center min-w-[120px]",
-                                                activeTab === 'all'
-                                                    ? "bg-orange-500 text-white border-orange-400 shadow-orange-500/20 scale-105"
-                                                    : "bg-orange-50/50 text-orange-600 border-orange-100 hover:bg-orange-100"
-                                            )}
-                                        >
-                                            All
-                                        </div>
-                                    </div>
-
-                                    <DropdownMenuItem onClick={() => setActiveTab('validated')} className="flex items-center justify-between p-4 rounded-3xl cursor-pointer hover:bg-green-50/80 focus:bg-green-50/80 transition-all border border-transparent hover:border-green-100 mb-1 group">
-                                        <span className={cn("text-[11px] font-black uppercase tracking-widest", activeTab === 'validated' ? "text-green-600" : "text-slate-500")}>Approved</span>
-                                        <Badge className="bg-green-100 text-green-700 font-black px-3.5 py-1 border-0 shadow-none rounded-full text-[10px] group-hover:scale-110 transition-transform">{stats.approved}</Badge>
-                                    </DropdownMenuItem>
-
-                                    <DropdownMenuItem onClick={() => setActiveTab('pending_ho')} className="flex items-center justify-between p-4 rounded-3xl cursor-pointer hover:bg-blue-50/80 focus:bg-blue-50/80 transition-all border border-transparent hover:border-blue-100 mb-1 group">
-                                        <span className={cn("text-[11px] font-black uppercase tracking-widest", activeTab === 'pending_ho' ? "text-blue-600" : "text-slate-500")}>Verified</span>
-                                        <Badge className="bg-blue-100 text-blue-700 font-black px-3.5 py-1 border-0 shadow-none rounded-full text-[10px] group-hover:scale-110 transition-transform">{stats.verified}</Badge>
-                                    </DropdownMenuItem>
-
-                                    <DropdownMenuItem onClick={() => setActiveTab('pending')} className="flex items-center justify-between p-4 rounded-3xl cursor-pointer hover:bg-amber-50/80 focus:bg-amber-50/80 transition-all border border-transparent hover:border-amber-100 mb-1 group">
-                                        <span className={cn("text-[11px] font-black uppercase tracking-widest", activeTab === 'pending' ? "text-amber-600" : "text-slate-500")}>Pending</span>
-                                        <Badge className="bg-amber-100 text-amber-700 font-black px-3.5 py-1 border-0 shadow-none rounded-full text-[10px] group-hover:scale-110 transition-transform">{stats.pending}</Badge>
-                                    </DropdownMenuItem>
-
-                                    <DropdownMenuItem onClick={() => setActiveTab('rejected')} className="flex items-center justify-between p-4 rounded-3xl cursor-pointer hover:bg-red-50/80 focus:bg-red-50/80 transition-all border border-transparent hover:border-red-100 mb-1 group">
-                                        <span className={cn("text-[11px] font-black uppercase tracking-widest", activeTab === 'rejected' ? "text-red-600" : "text-slate-500")}>Rejected</span>
-                                        <Badge className="bg-red-100 text-red-700 font-black px-3.5 py-1 border-0 shadow-none rounded-full text-[10px] group-hover:scale-110 transition-transform">{stats.rejected}</Badge>
-                                    </DropdownMenuItem>
-                                </div>
-                            </DropdownMenuContent>
-                        </DropdownMenu>
-                    </div>
-
-                    {/* View Modes & Toggle Filters */}
-                    <div className="flex items-center gap-2 w-full lg:w-auto order-1 lg:order-2 justify-between lg:justify-end">
+                    {/* Desktop View Modes & Filter Toggle */}
+                    <div className="flex items-center gap-2">
                         <div className="flex items-center gap-1 bg-white p-1 rounded-full h-11 border border-orange-100 shadow-sm backdrop-blur-sm">
                             <Button
                                 variant="ghost"
