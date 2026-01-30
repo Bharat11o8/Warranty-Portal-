@@ -105,6 +105,7 @@ export function CatalogManagement() {
         images: [] as string[],
         variations: [] as Variation[],
         additionalInfo: [] as string[],
+        price: 0,
         colors: "" // Temporary state for comma-separated colors
     });
     const [imageUrlInput, setImageUrlInput] = useState("");
@@ -252,6 +253,7 @@ export function CatalogManagement() {
                     description: (v as any).meta?.description || v.description || ""
                 })),
                 additionalInfo: prod.additionalInfo || [],
+                price: typeof prod.price === 'object' ? (prod.price.twoRow || 0) : (prod.price || 0),
                 colors: (prod as any).additionalInfo?.colors?.join(", ") || ""
             });
         } else {
@@ -266,6 +268,7 @@ export function CatalogManagement() {
                 images: [],
                 variations: [],
                 additionalInfo: [],
+                price: 0,
                 colors: ""
             });
         }
@@ -288,10 +291,9 @@ export function CatalogManagement() {
                 colors: prodForm.colors ? prodForm.colors.split(',').map(c => c.trim()).filter(Boolean) : []
             },
             price: (function () {
-                const colors = prodForm.colors ? prodForm.colors.split(',').map(c => c.trim()).filter(Boolean) : [];
                 const vars = prodForm.variations;
 
-                // If it looks like seat covers (2 Row/3 Row)
+                // 1. Check for legacy row-based variations (2 Row/3 Row)
                 const twoRow = vars.find(v => v.name.toLowerCase().includes('2 row'));
                 const threeRow = vars.find(v => v.name.toLowerCase().includes('3 row'));
 
@@ -299,12 +301,14 @@ export function CatalogManagement() {
                     return { twoRow: twoRow?.price || 0, threeRow: threeRow?.price || 0 };
                 }
 
-                // Otherwise return min price if variations exist, else 0 (or a designated field if we add one)
+                // 2. If other variations exist, use the minimum variation price as the base price
                 if (vars.length > 0) {
-                    return Math.min(...vars.map(v => v.price));
+                    const validPrices = vars.map(v => Number(v.price)).filter(p => p > 0);
+                    if (validPrices.length > 0) return Math.min(...validPrices);
                 }
 
-                return 0; // Default if no variations and no price input
+                // 3. Fallback to the explicit Base Price field
+                return Number(prodForm.price) || 0;
             })()
         };
 
@@ -337,11 +341,16 @@ export function CatalogManagement() {
     };
 
     // ===================== RENDER =====================
-    const getDisplayPrice = (product: Product) => {
-        if (typeof product.price === 'object') {
-            return `₹${product.price.twoRow || product.price.threeRow || 0}`;
-        }
-        return `₹${product.price || 0}`;
+    const getDisplayPrice = (prod: Product) => {
+        if (!prod || prod.price === undefined || prod.price === null) return '₹0';
+        if (typeof prod.price === 'number') return `₹${prod.price.toLocaleString()}`;
+        if (typeof prod.price === 'string') return `₹${Number(prod.price).toLocaleString()}`;
+
+        const p = prod.price as any;
+        if (p.default !== undefined) return `₹${Number(p.default).toLocaleString()}`;
+        if (p.twoRow !== undefined) return `₹${Number(p.twoRow).toLocaleString()}`;
+        if (p.threeRow !== undefined) return `₹${Number(p.threeRow).toLocaleString()}`;
+        return '₹0';
     };
 
     return (
@@ -535,17 +544,30 @@ export function CatalogManagement() {
                                     </SelectContent>
                                 </Select>
                             </div>
-                            <div className="space-y-2 flex flex-col gap-4 pt-4">
+                            <div className="space-y-2">
+                                <Label>Base Price (₹) *</Label>
+                                <Input
+                                    type="number"
+                                    value={prodForm.price}
+                                    onChange={e => setProdForm({ ...prodForm, price: Number(e.target.value) })}
+                                    placeholder="0.00"
+                                />
+                                <p className="text-[10px] text-muted-foreground mr-1 flex items-center gap-1">
+                                    <Package className="w-3 h-3" />
+                                    Starting price for this product.
+                                </p>
+                            </div>
+                            <div className="space-y-2 flex flex-col gap-2 pt-2">
                                 <div className="flex items-center gap-4">
-                                    <Label className="w-24">In Stock</Label>
+                                    <Label className="w-24 text-xs font-medium">In Stock</Label>
                                     <Switch checked={prodForm.inStock} onCheckedChange={v => setProdForm({ ...prodForm, inStock: v })} />
                                 </div>
                                 <div className="flex items-center gap-4">
-                                    <Label className="w-24">Featured</Label>
+                                    <Label className="w-24 text-xs font-medium">Featured</Label>
                                     <Switch checked={prodForm.isFeatured} onCheckedChange={v => setProdForm({ ...prodForm, isFeatured: v })} />
                                 </div>
                                 <div className="flex items-center gap-4">
-                                    <Label className="w-24">New Arrival</Label>
+                                    <Label className="w-24 text-xs font-medium">New Arrival</Label>
                                     <Switch checked={prodForm.isNewArrival} onCheckedChange={v => setProdForm({ ...prodForm, isNewArrival: v })} />
                                 </div>
                             </div>
@@ -695,11 +717,12 @@ export function CatalogManagement() {
                         <Button variant="outline" onClick={() => setIsProdDialogOpen(false)}>Cancel</Button>
                         <Button onClick={handleSaveProduct} disabled={!prodForm.name}>Save Product</Button>
                     </DialogFooter>
-                </DialogContent>
-            </Dialog>
+                </DialogContent >
+            </Dialog >
 
             {/* Delete Confirmation */}
-            <AlertDialog open={!!deleteDialog} onOpenChange={() => setDeleteDialog(null)}>
+            < AlertDialog open={!!deleteDialog
+            } onOpenChange={() => setDeleteDialog(null)}>
                 <AlertDialogContent>
                     <AlertDialogHeader>
                         <AlertDialogTitle>Delete {deleteDialog?.type}?</AlertDialogTitle>
@@ -717,7 +740,7 @@ export function CatalogManagement() {
                         </AlertDialogAction>
                     </AlertDialogFooter>
                 </AlertDialogContent>
-            </AlertDialog>
-        </div>
+            </AlertDialog >
+        </div >
     );
 }

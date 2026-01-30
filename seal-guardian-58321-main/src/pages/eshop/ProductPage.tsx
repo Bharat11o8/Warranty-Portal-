@@ -89,8 +89,11 @@ const ProductPage: React.FC<ProductPageProps> = ({ productId: propProductId, emb
   }
 
   // Dynamic content based on variation
+  // Show base product images if the selected variation has no images
   const variationImages = selectedVariation?.images?.length > 0 ? selectedVariation.images : product.images;
-  const variationDescriptionText = selectedVariation?.meta?.description || (Array.isArray(product.description) ? product.description.join('\n') : product.description);
+  const variationVideos = selectedVariation?.videos?.length > 0 ? selectedVariation.videos : (product.videos || []);
+  // Use variation description if available, otherwise fall back to base product description
+  const variationDescriptionText = selectedVariation?.description || selectedVariation?.meta?.description || (Array.isArray(product.description) ? product.description.join('\n') : product.description);
   const descriptionArray = variationDescriptionText?.split('\n').filter((line: string) => line.trim() !== '') || [];
 
   const additionalInfoArray = Array.isArray(product.additionalInfo)
@@ -129,6 +132,7 @@ const ProductPage: React.FC<ProductPageProps> = ({ productId: propProductId, emb
           {/* Product Images */}
           <ProductImageGallery
             images={variationImages}
+            videos={variationVideos}
             productName={product.name}
           />
 

@@ -13,10 +13,11 @@ interface ModuleLayoutProps {
     actions?: ReactNode;
     isCollapsed?: boolean;
     onNavigate?: (module: any) => void;
+    onLinkClick?: (link: string) => boolean;
     onMenuToggle?: () => void;
 }
 
-export const ModuleLayout = ({ title, description, children, actions, isCollapsed, onNavigate, onMenuToggle }: ModuleLayoutProps) => {
+export const ModuleLayout = ({ title, description, children, actions, isCollapsed, onNavigate, onLinkClick, onMenuToggle }: ModuleLayoutProps) => {
     return (
         <div className="flex-1 min-h-0 flex flex-col min-w-0 relative bg-[#fffaf5]">
             <main
@@ -61,7 +62,7 @@ export const ModuleLayout = ({ title, description, children, actions, isCollapse
                                 <div className="flex items-center gap-2 md:gap-4 shrink-0">
                                     {actions}
                                     <div className="h-10 md:h-12 border-l border-slate-100 pl-2 md:pl-4 flex items-center gap-1 md:gap-2">
-                                        <NotificationPopover onNavigate={onNavigate} />
+                                        <NotificationPopover onNavigate={onNavigate} onLinkClick={onLinkClick} />
                                         <HelpPopover />
                                     </div>
                                 </div>

@@ -135,6 +135,7 @@ All colors MUST be HSL.
 }
 
 
+
 .glow-blob {
   position: absolute;
   width: 600px;
@@ -231,9 +232,10 @@ All colors MUST be HSL.
   }
 }
 
-/* Custom Scrollbar */
+/* Custom Scrollbar Utility */
 .custom-scrollbar::-webkit-scrollbar {
   width: 6px;
+  height: 6px;
 }
 
 .custom-scrollbar::-webkit-scrollbar-track {
@@ -241,12 +243,19 @@ All colors MUST be HSL.
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb {
-  background: rgba(0, 0, 0, 0.1);
+  background: #cbd5e1;
   border-radius: 10px;
+  border: 1px solid rgba(0,0,0,0.05);
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: rgba(0, 0, 0, 0.2);
+  background: #94a3b8;
+}
+
+/* For Firefox */
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: #e2e8f0 transparent;
 }
 
 .animate-pulse-slow {

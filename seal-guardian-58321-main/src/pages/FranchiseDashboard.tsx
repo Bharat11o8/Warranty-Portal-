@@ -3,7 +3,7 @@ import { Navigate, useOutletContext } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import api from "@/lib/api";
-import { Loader2, Plus, Download, X, ChevronRight } from "lucide-react";
+import { Loader2, Plus, Download, X, ChevronRight, Search } from "lucide-react";
 import { downloadCSV, cn, formatToIST } from "@/lib/utils";
 import { fetchProducts, Product, fetchCategories, Category } from '@/lib/catalogService';
 import { useNotifications } from "@/contexts/NotificationContext";
@@ -19,6 +19,7 @@ import CatalogHeader from "@/components/eshop/CatalogHeader";
 import { NewsAlerts } from "@/components/fms/NewsAlerts";
 import { ComingSoon } from "@/components/fms/ComingSoon";
 import VendorGrievances from "@/components/fms/VendorGrievances";
+import POSMModule from "@/components/fms/POSMModule";
 import Profile from "./Profile";
 import CategoryPage from "./eshop/CategoryPage";
 import ProductPage from "./eshop/ProductPage";
@@ -84,6 +85,7 @@ const FranchiseDashboard = () => {
     const [viewingProductId, setViewingProductId] = useState<string | null>(null);
     const [viewingCategoryId, setViewingCategoryId] = useState<string | null>(null);
     const [expandedMobileCategory, setExpandedMobileCategory] = useState<string | null>(null);
+    const [isMobileSearchActive, setIsMobileSearchActive] = useState(false);
 
     useEffect(() => {
         const scrollContainer = document.getElementById('main-dashboard-content-area');
@@ -92,33 +94,43 @@ const FranchiseDashboard = () => {
         }
     }, [activeModule, viewingProductId, viewingCategoryId]);
 
+    // Link Interceptor Logic exposed for programmatic use
+    const handleInternalLink = (href: string) => {
+        if (!href || href.includes('?')) return false;
+
+        if (href.startsWith('/product/')) {
+            const productId = href.split('/').pop();
+            if (productId) {
+                setViewingProductId(productId);
+                setViewingCategoryId(null);
+                if (activeModule !== 'catalogue') setActiveModule('catalogue');
+                return true;
+            }
+        } else if (href.startsWith('/category/')) {
+            const categoryId = href.split('/').pop();
+            if (categoryId) {
+                setViewingCategoryId(categoryId);
+                setViewingProductId(null);
+                if (activeModule !== 'catalogue') setActiveModule('catalogue');
+                return true;
+            }
+        } else if (href === '/catalogue') {
+            if (activeModule !== 'catalogue') setActiveModule('catalogue');
+            setViewingProductId(null);
+            setViewingCategoryId(null);
+            return true;
+        }
+        return false;
+    };
+
     // Global interceptor for product and category links to keep user in dashboard
     useEffect(() => {
         const handleGlobalClick = (e: MouseEvent) => {
             const anchor = (e.target as HTMLElement).closest('a');
             if (anchor) {
                 const href = anchor.getAttribute('href');
-                if (href && !href.includes('?')) {
-                    if (href.startsWith('/product/')) {
-                        const productId = href.split('/').pop();
-                        if (productId) {
-                            e.preventDefault();
-                            setViewingProductId(productId);
-                            setViewingCategoryId(null);
-                        }
-                    } else if (href.startsWith('/category/')) {
-                        const categoryId = href.split('/').pop();
-                        if (categoryId) {
-                            e.preventDefault();
-                            setViewingCategoryId(categoryId);
-                            setViewingProductId(null);
-                        }
-                    } else if (href === '/catalogue') {
-                        e.preventDefault();
-                        if (activeModule !== 'catalogue') setActiveModule('catalogue');
-                        setViewingProductId(null);
-                        setViewingCategoryId(null);
-                    }
+                if (href && handleInternalLink(href)) {
+                    e.preventDefault();
                 }
             }
         };
@@ -573,7 +585,11 @@ const FranchiseDashboard = () => {
                 }
                 return (
                     <div className="-mt-8 md:-mt-14">
-                        <CatalogHeader isDashboard={true} />
+                        <CatalogHeader
+                            isDashboard={true}
+                            externalSearchOpen={isMobileSearchActive}
+                            setExternalSearchOpen={setIsMobileSearchActive}
+                        />
                         <div className="mt-4">
                             <VendorCatalog />
                         </div>
@@ -590,7 +606,7 @@ const FranchiseDashboard = () => {
             case 'audit':
             case 'targets':
             case 'posm':
-                return <ComingSoon title={activeModule.charAt(0).toUpperCase() + activeModule.slice(1)} />;
+                return <POSMModule />;
             default:
                 return <FranchiseHome
                     stats={homeStats}
@@ -621,7 +637,25 @@ const FranchiseDashboard = () => {
     };
 
     const getModuleActions = () => {
-        // Registration buttons removed per requirements
+        if (activeModule === 'catalogue') {
+            return (
+                <div className="md:hidden flex items-center pr-2">
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => setIsMobileSearchActive(!isMobileSearchActive)}
+                        className={cn(
+                            "h-10 w-10 rounded-xl transition-all duration-300",
+                            isMobileSearchActive
+                                ? "bg-orange-500 text-white shadow-lg shadow-orange-200"
+                                : "bg-orange-50 text-orange-600 border border-orange-100 shadow-sm"
+                        )}
+                    >
+                        {isMobileSearchActive ? <X className="h-5 w-5" /> : <Search className="h-5 w-5" />}
+                    </Button>
+                </div>
+            );
+        }
         return null;
     };
 
@@ -641,6 +675,7 @@ const FranchiseDashboard = () => {
                     isCollapsed={isCollapsed}
                     actions={getModuleActions()}
                     onNavigate={setActiveModule}
+                    onLinkClick={handleInternalLink}
                     onMenuToggle={() => setIsMobileMenuOpen(true)}
                 >
                     {loading ? (
@@ -729,15 +764,9 @@ const FranchiseDashboard = () => {
                 {/* Mobile Menu Drawer */}
                 <Sheet open={isMobileMenuOpen} onOpenChange={setIsMobileMenuOpen}>
                     <SheetContent side="left" className="w-80 p-0 border-none bg-white rounded-r-[40px] flex flex-col">
-                        <SheetHeader className="p-8 border-b border-orange-50 shrink-0">
-                            <div className="flex items-center justify-between">
-                                <img
-                                    src="/autoform-logo.png"
-                                    alt="Autoform Logo"
-                                    className="h-8 object-contain"
-                                />
-                                <SheetTitle className="sr-only">Navigation Menu</SheetTitle>
-                            </div>
+                        <SheetHeader className="sr-only">
+                            <SheetTitle>Mobile Navigation Menu</SheetTitle>
+                            <DialogDescription>Access dashboard modules and navigation links</DialogDescription>
                         </SheetHeader>
 
                         <nav className="flex-1 py-6 px-4 space-y-8 overflow-y-auto custom-scrollbar">

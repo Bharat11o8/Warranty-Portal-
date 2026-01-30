@@ -24,6 +24,7 @@ import { AdminWarrantyForm } from "../modules/AdminWarrantyForm";
 import { AdminAnnouncements } from "../modules/AdminAnnouncements";
 import { AdminOldWarranties } from "../modules/AdminOldWarranties";
 import { AdminWarrantyProducts } from "../modules/AdminWarrantyProducts";
+import { AdminPOSM } from "../modules/AdminPOSM";
 import { AdminCommandPalette } from "../AdminCommandPalette";
 
 export const AdminLayout = () => {
@@ -63,6 +64,8 @@ export const AdminLayout = () => {
                 return <AdminWarrantyForm />;
             case 'announcements':
                 return <AdminAnnouncements />;
+            case 'posm':
+                return <AdminPOSM />;
             case 'profile': return <Profile embedded={true} />;
             default: return <AdminHome />;
         }
@@ -83,6 +86,7 @@ export const AdminLayout = () => {
             'terms': 'Terms & Conditions',
             'warranty-form': 'Manual Registration',
             'announcements': 'Broadcast & Announcements',
+            'posm': 'POSM Requirements',
             'profile': 'My Profile'
         };
         return titles[activeModule];

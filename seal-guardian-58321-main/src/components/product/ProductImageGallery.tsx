@@ -1,67 +1,76 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from "react";
+import { Play, ZoomIn, ChevronLeft, ChevronRight, X } from "lucide-react";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
-import { ZoomIn, ChevronLeft, ChevronRight, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface ProductImageGalleryProps {
   images: string[];
+  videos?: string[];
   productName: string;
 }
 
-const ProductImageGallery: React.FC<ProductImageGalleryProps> = ({ images, productName }) => {
-  const [mainImage, setMainImage] = useState(images[0] || "/placeholder.svg");
-  const [isLightboxOpen, setIsLightboxOpen] = useState(false);
+const ProductImageGallery: React.FC<ProductImageGalleryProps> = ({ images, videos = [], productName }) => {
+  const allMedia = [...images.map(url => ({ url, type: 'image' })), ...videos.map(url => ({ url, type: 'video' }))];
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [isLightboxOpen, setIsLightboxOpen] = useState(false);
 
   useEffect(() => {
-    if (images.length > 0) {
-      setMainImage(images[0]);
-      setCurrentIndex(0);
-    }
-  }, [images]);
+    setCurrentIndex(0);
+  }, [images, videos]);
+
+  const currentMedia = allMedia[currentIndex] || { url: "/placeholder.svg", type: 'image' };
+
+  const isVideo = (url: string) => {
+    return url.match(/\.(mp4|webm|mov|ogg)$/) || url.includes('/video/upload/');
+  };
 
   const handleNext = () => {
-    const nextIndex = (currentIndex + 1) % images.length;
-    setCurrentIndex(nextIndex);
-    setMainImage(images[nextIndex]);
+    setCurrentIndex((currentIndex + 1) % allMedia.length);
   };
 
   const handlePrev = () => {
-    const prevIndex = (currentIndex - 1 + images.length) % images.length;
-    setCurrentIndex(prevIndex);
-    setMainImage(images[prevIndex]);
-  };
-
-  const openLightbox = (index: number) => {
-    setCurrentIndex(index);
-    setMainImage(images[index]);
-    setIsLightboxOpen(true);
+    setCurrentIndex((currentIndex - 1 + allMedia.length) % allMedia.length);
   };
 
   return (
     <div className="space-y-4">
-      {/* Main Feature Image with Zoom Trigger */}
-      <div
-        className="group relative border rounded-2xl overflow-hidden bg-white cursor-zoom-in shadow-sm hover:shadow-md transition-all duration-300"
-        onClick={() => openLightbox(currentIndex)}
-      >
-        <img
-          src={mainImage}
-          alt={productName}
-          className="object-contain w-full h-[300px] md:h-[450px] transition-transform duration-500 group-hover:scale-105"
-        />
+      {/* Main Feature Media */}
+      <div className="group relative border rounded-3xl overflow-hidden bg-white shadow-sm hover:shadow-md transition-all duration-300">
+        <div className="relative h-[300px] md:h-[450px] w-full flex items-center justify-center">
+          {currentMedia.type === 'video' || isVideo(currentMedia.url) ? (
+            <video
+              src={currentMedia.url}
+              controls={isLightboxOpen}
+              autoPlay
+              muted
+              loop
+              className="w-full h-full object-contain"
+            />
+          ) : (
+            <img
+              src={currentMedia.url}
+              alt={productName}
+              className="object-contain w-full h-full transition-transform duration-500 group-hover:scale-105 cursor-zoom-in"
+              onClick={() => setIsLightboxOpen(true)}
+            />
+          )}
 
-        {/* Professional Zoom Indicator on Hover */}
-        <div className="absolute inset-0 bg-black/5 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-          <div className="bg-white/90 p-3 rounded-full shadow-lg transform translate-y-4 group-hover:translate-y-0 transition-transform duration-300">
-            <ZoomIn className="h-6 w-6 text-brand-orange" />
-          </div>
+          {currentMedia.type !== 'video' && !isVideo(currentMedia.url) && (
+            <div
+              className="absolute inset-0 bg-black/5 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-zoom-in"
+              onClick={() => setIsLightboxOpen(true)}
+            >
+              <div className="bg-white/90 p-3 rounded-full shadow-lg transform translate-y-4 group-hover:translate-y-0 transition-transform duration-300">
+                <ZoomIn className="h-6 w-6 text-brand-orange" />
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
       {/* Thumbnails */}
       <div className="flex flex-wrap gap-3 mt-4">
-        {images.map((image, index) => (
+        {allMedia.map((media, index) => (
           <button
             key={index}
             className={cn(
@@ -70,16 +79,20 @@ const ProductImageGallery: React.FC<ProductImageGalleryProps> = ({ images, produ
                 ? 'border-brand-orange shadow-lg scale-105 z-10'
                 : 'border-white hover:border-orange-200 bg-white hover:shadow-md'
             )}
-            onClick={() => {
-              setMainImage(image);
-              setCurrentIndex(index);
-            }}
+            onClick={() => setCurrentIndex(index)}
           >
-            <img
-              src={image}
-              alt={`${productName} thumbnail ${index + 1}`}
-              className="object-cover w-full h-full transition-transform duration-500 group-hover:scale-110"
-            />
+            {media.type === 'video' || isVideo(media.url) ? (
+              <div className="w-full h-full bg-slate-900 flex items-center justify-center relative">
+                <Play className="h-6 w-6 text-white opacity-50" />
+                <span className="absolute bottom-1 left-1 text-[8px] font-bold text-white uppercase bg-black/40 px-1 rounded">Video</span>
+              </div>
+            ) : (
+              <img
+                src={media.url}
+                alt={`${productName} thumbnail ${index + 1}`}
+                className="object-cover w-full h-full transition-transform duration-500 group-hover:scale-110"
+              />
+            )}
             {currentIndex === index && (
               <div className="absolute inset-0 bg-brand-orange/5 animate-pulse" />
             )}
@@ -87,63 +100,36 @@ const ProductImageGallery: React.FC<ProductImageGalleryProps> = ({ images, produ
         ))}
       </div>
 
-      {/* Minimalist Image-Only Lightbox */}
+      {/* Lightbox for Media */}
       <Dialog open={isLightboxOpen} onOpenChange={setIsLightboxOpen}>
-        <DialogContent className="max-w-screen h-screen p-0 overflow-hidden bg-transparent border-none shadow-none flex flex-col items-center justify-center outline-none select-none !duration-500">
-          <DialogTitle className="sr-only">Zoomed Product Image: {productName}</DialogTitle>
+        <DialogContent className="max-w-screen h-screen p-0 overflow-hidden bg-black/95 border-none shadow-none flex flex-col items-center justify-center outline-none select-none">
+          <DialogTitle className="sr-only">Zoomed Product Media: {productName}</DialogTitle>
+          <div className="relative flex flex-col items-center justify-center w-full h-full">
+            <div className="relative max-w-[95vw] max-h-[85vh]">
+              {currentMedia.type === 'video' || isVideo(currentMedia.url) ? (
+                <video src={currentMedia.url} controls autoPlay className="max-w-full max-h-full object-contain" />
+              ) : (
+                <img src={currentMedia.url} alt={productName} className="max-w-full max-h-full object-contain" />
+              )}
 
-          {/* We rely on the default DialogContent close button (top-right) 
-          to avoid a duplicate "X" icon. */}
-
-          <div className="relative group/lightbox flex flex-col items-center justify-center w-full h-full max-h-screen">
-            {/* The Image - Maximized Focus */}
-            <div className="relative flex flex-col items-center justify-center w-full max-h-[90vh]">
-              <div className="relative">
-                <img
-                  src={images[currentIndex]}
-                  alt={productName}
-                  className="max-w-[95vw] max-h-[80vh] md:max-h-[85vh] object-contain drop-shadow-[0_40px_100px_rgba(0,0,0,0.5)] animate-in fade-in zoom-in-95 duration-700"
-                  onClick={(e) => e.stopPropagation()}
-                />
-
-                {/* Navigation Arrows - Large & Elegant */}
-                {images.length > 1 && (
-                  <>
-                    <button
-                      onClick={(e) => { e.stopPropagation(); handlePrev(); }}
-                      className="absolute left-0 md:-left-24 top-1/2 -translate-y-1/2 p-6 text-white/20 hover:text-white transition-all active:scale-90"
-                    >
-                      <ChevronLeft className="h-12 w-12 md:h-24 md:w-24 stroke-[0.5px]" />
-                    </button>
-                    <button
-                      onClick={(e) => { e.stopPropagation(); handleNext(); }}
-                      className="absolute right-0 md:-right-24 top-1/2 -translate-y-1/2 p-6 text-white/20 hover:text-white transition-all active:scale-90"
-                    >
-                      <ChevronRight className="h-12 w-12 md:h-24 md:w-24 stroke-[0.5px]" />
-                    </button>
-                  </>
-                )}
-              </div>
-
-              {/* Pagination Dots - Moved closer to image */}
-              {images.length > 1 && (
-                <div className="mt-10 flex items-center justify-center gap-3">
-                  {images.map((_, i) => (
-                    <button
-                      key={i}
-                      onClick={(e) => { e.stopPropagation(); setCurrentIndex(i); }}
-                      className={cn(
-                        "h-1.5 rounded-full transition-all duration-500",
-                        currentIndex === i
-                          ? "w-10 bg-white"
-                          : "w-1.5 bg-white/20 hover:bg-white/40"
-                      )}
-                      aria-label={`Go to slide ${i + 1}`}
-                    />
-                  ))}
-                </div>
+              {allMedia.length > 1 && (
+                <>
+                  <button onClick={(e) => { e.stopPropagation(); handlePrev(); }} className="absolute left-[-60px] top-1/2 -translate-y-1/2 p-4 text-white hover:text-brand-orange transition-colors">
+                    <ChevronLeft className="h-12 w-12" />
+                  </button>
+                  <button onClick={(e) => { e.stopPropagation(); handleNext(); }} className="absolute right-[-60px] top-1/2 -translate-y-1/2 p-4 text-white hover:text-brand-orange transition-colors">
+                    <ChevronRight className="h-12 w-12" />
+                  </button>
+                </>
               )}
             </div>
+
+            <button
+              onClick={() => setIsLightboxOpen(false)}
+              className="absolute top-6 right-6 p-2 text-white/50 hover:text-white bg-white/10 rounded-full transition-all"
+            >
+              <X className="h-6 w-6" />
+            </button>
           </div>
         </DialogContent>
       </Dialog>

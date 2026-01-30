@@ -22,6 +22,7 @@ import notificationRoutes from './routes/notification.routes.js';
 import uploadRoutes from './routes/upload.routes.js';
 import oldWarrantiesRoutes from './routes/old-warranties.routes.js';
 import settingsRoutes from './routes/settings.routes.js';
+import posmRoutes from './routes/posm.routes.js';
 import { initSocket } from './socket.js';
 
 // Get current directory for ES modules
@@ -126,6 +127,7 @@ app.use('/api/notifications', generalApiLimiter, notificationRoutes);
 app.use('/api/upload', generalApiLimiter, uploadRoutes);
 app.use('/api/admin/old-warranties', generalApiLimiter, oldWarrantiesRoutes);
 app.use('/api/settings', generalApiLimiter, settingsRoutes);
+app.use('/api/posm', generalApiLimiter, posmRoutes);
 
 // ===========================================
 // ERROR HANDLING

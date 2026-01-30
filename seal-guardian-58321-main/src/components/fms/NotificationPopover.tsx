@@ -24,7 +24,7 @@ import { useNotifications } from "@/contexts/NotificationContext";
 import { cn } from "@/lib/utils";
 import { formatDistanceToNow, format } from "date-fns";
 
-export const NotificationPopover = ({ onNavigate }: { onNavigate?: (module: any) => void }) => {
+export const NotificationPopover = ({ onNavigate, onLinkClick }: { onNavigate?: (module: any) => void; onLinkClick?: (link: string) => boolean }) => {
     const {
         notifications,
         unreadCount,
@@ -47,11 +47,11 @@ export const NotificationPopover = ({ onNavigate }: { onNavigate?: (module: any)
 
     const getBgColor = (type: string) => {
         switch (type) {
-            case 'product': return "bg-purple-100";
-            case 'warranty': return "bg-blue-100";
-            case 'alert': return "bg-amber-100";
-            case 'system': return "bg-blue-100";
-            default: return "bg-gray-100";
+            case 'product': return "bg-purple-50 text-purple-600 border-purple-100";
+            case 'warranty': return "bg-blue-50 text-blue-600 border-blue-100";
+            case 'alert': return "bg-amber-50 text-amber-600 border-amber-100";
+            case 'system': return "bg-slate-50 text-slate-600 border-slate-100";
+            default: return "bg-slate-50 text-slate-600 border-slate-100";
         }
     };
 
@@ -60,8 +60,8 @@ export const NotificationPopover = ({ onNavigate }: { onNavigate?: (module: any)
     const NotificationItem = ({ notification }: { notification: any }) => (
         <div
             className={cn(
-                "flex gap-3 p-4 text-left transition-colors border-b last:border-0 hover:bg-muted/50 relative group cursor-pointer",
-                !notification.is_read && "bg-primary/5"
+                "flex gap-4 p-5 text-left transition-all border-b border-orange-50/30 hover:bg-orange-50/30 relative group cursor-pointer",
+                !notification.is_read && "bg-orange-50/10"
             )}
             onClick={() => {
                 if (!notification.is_read) markAsRead(notification.id);
@@ -69,26 +69,26 @@ export const NotificationPopover = ({ onNavigate }: { onNavigate?: (module: any)
             }}
         >
             <div className={cn(
-                "h-9 w-9 rounded-full flex items-center justify-center shrink-0 shadow-sm border border-white/50",
+                "h-10 w-10 rounded-xl flex items-center justify-center shrink-0 shadow-sm border transition-transform duration-300 group-hover:scale-105",
                 getBgColor(notification.type)
             )}>
                 {getIcon(notification.type)}
             </div>
             <div className="flex-1 min-w-0">
-                <div className="flex items-center justify-between mb-0.5">
+                <div className="flex items-center justify-between mb-1">
                     <p className={cn(
                         "text-sm tracking-tight truncate pr-2",
-                        notification.is_read ? "font-medium text-muted-foreground" : "font-bold text-foreground"
+                        notification.is_read ? "font-semibold text-slate-500" : "font-black text-slate-900"
                     )}>
                         {notification.title}
                     </p>
-                    <span className="text-[10px] text-muted-foreground font-medium whitespace-nowrap">
+                    <span className="text-[10px] text-slate-400 font-bold whitespace-nowrap">
                         {formatDistanceToNow(new Date(notification.created_at), { addSuffix: true })}
                     </span>
                 </div>
                 <p className={cn(
                     "text-xs leading-relaxed line-clamp-2",
-                    notification.is_read ? "text-muted-foreground/80" : "text-muted-foreground font-medium"
+                    notification.is_read ? "text-slate-400" : "text-slate-600 font-medium"
                 )}>
                     {notification.message}
                 </p>
@@ -98,38 +98,29 @@ export const NotificationPopover = ({ onNavigate }: { onNavigate?: (module: any)
                     (Array.isArray(notification.metadata.images) && notification.metadata.images.length > 0) ||
                     (Array.isArray(notification.metadata.videos) && notification.metadata.videos.length > 0)
                 ) && (
-                        <div className="mt-2 flex gap-1.5 overflow-hidden">
+                        <div className="mt-3 flex gap-2 overflow-hidden">
                             {Array.isArray(notification.metadata.images) && notification.metadata.images.slice(0, 3).map((img: string, i: number) => (
-                                <div key={i} className="h-10 w-10 rounded border bg-muted flex items-center justify-center overflow-hidden shrink-0">
-                                    <img src={img} className="h-full w-full object-cover" alt="" />
+                                <div key={i} className="h-12 w-12 rounded-lg border border-slate-200 bg-white p-0.5 flex items-center justify-center overflow-hidden shrink-0 shadow-sm">
+                                    <img src={img} className="h-full w-full object-cover rounded-md" alt="" />
                                 </div>
                             ))}
                             {Array.isArray(notification.metadata.videos) && notification.metadata.videos.length > 0 && (
-                                <div className="h-10 w-10 rounded border bg-purple-500/10 flex items-center justify-center shrink-0">
+                                <div className="h-12 w-20 rounded-lg border border-purple-100 bg-purple-50 flex items-center justify-center shrink-0 shadow-sm">
                                     <Video className="h-4 w-4 text-purple-600" />
                                 </div>
                             )}
                         </div>
                     )}
             </div>
+
             {!notification.is_read && (
-                <div className="absolute left-0 top-0 bottom-0 w-1 bg-primary" />
+                <div className="absolute right-3 top-3">
+                    <div className="h-2 w-2 rounded-full bg-orange-500 shadow-[0_0_10px_rgba(249,115,22,0.5)]" />
+                </div>
             )}
-            <div className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity">
-                {!notification.is_read && (
-                    <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-6 w-6 rounded-full hover:bg-background shadow-sm border"
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            markAsRead(notification.id);
-                        }}
-                        title="Mark as read"
-                    >
-                        <Check className="h-3 w-3 text-primary" />
-                    </Button>
-                )}
+
+            <div className="absolute right-3 bottom-3 opacity-0 group-hover:opacity-100 transition-all duration-300 translate-y-1 group-hover:translate-y-0">
+                <ChevronRight className="h-4 w-4 text-orange-400" />
             </div>
         </div>
     );
@@ -139,96 +130,116 @@ export const NotificationPopover = ({ onNavigate }: { onNavigate?: (module: any)
     return (
         <Popover open={open} onOpenChange={setOpen}>
             <PopoverTrigger asChild>
-                <Button variant="ghost" size="icon" className="relative rounded-full h-9 w-9 text-muted-foreground hover:text-primary transition-all hover:bg-primary/10">
-                    <Bell className={cn("h-5 w-5 transition-transform", unreadCount > 0 && "animate-tada")} />
+                <Button variant="ghost" size="icon" className="relative group rounded-xl h-10 w-10 text-slate-500 hover:text-orange-600 transition-all duration-300 hover:bg-orange-50 bg-white shadow-sm border border-slate-100">
+                    <Bell className={cn("h-5 w-5 transition-transform duration-500 group-hover:scale-110 group-active:scale-95", unreadCount > 0 && "animate-tada")} />
                     {unreadCount > 0 && (
-                        <span className="absolute top-1.5 right-1.5 flex h-2.5 w-2.5">
-                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-                            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500 border-2 border-background"></span>
+                        <span className="absolute -top-1 -right-1 flex h-4 w-4 bg-orange-500 rounded-full items-center justify-center border-2 border-white text-[8px] font-black text-white shadow-sm ring-2 ring-orange-500/10">
+                            {unreadCount > 9 ? '9+' : unreadCount}
                         </span>
                     )}
                 </Button>
             </PopoverTrigger>
             <PopoverContent
-                className="w-[min(calc(100vw-2rem),380px)] p-0 overflow-hidden shadow-2xl border-orange-100/50 bg-white/95 backdrop-blur-xl animate-in fade-in zoom-in-95 duration-200"
+                className="w-[min(calc(100vw-2rem),400px)] p-0 overflow-hidden shadow-[0_20px_60px_rgba(0,0,0,0.1)] border-orange-100/50 bg-white/95 backdrop-blur-2xl rounded-[32px] animate-in fade-in zoom-in-95 duration-300 focus:outline-none ring-1 ring-black/5"
                 align="end"
-                sideOffset={12}
+                sideOffset={15}
                 collisionPadding={16}
             >
                 <Tabs defaultValue="all" className="w-full">
-                    <div className="flex items-center justify-between px-4 py-3 border-b bg-muted/30">
-                        <h3 className="font-bold text-sm">Notifications</h3>
-                        <div className="flex items-center gap-1">
+                    <div className="flex items-center justify-between px-6 py-5 border-b border-orange-50/50">
+                        <div className="flex flex-col">
+                            <h3 className="font-black text-base text-slate-800 uppercase tracking-tight">Activity Center</h3>
+                            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Updates & Notices</p>
+                        </div>
+                        <div className="flex items-center gap-1.5">
                             {unreadCount > 0 && (
                                 <Button
                                     variant="ghost"
                                     size="sm"
-                                    className="h-7 text-[10px] font-bold text-primary hover:bg-primary/10 px-2"
+                                    className="h-8 text-[9px] font-black uppercase tracking-widest text-orange-600 hover:bg-orange-50 px-2.5 rounded-lg border border-transparent hover:border-orange-100 transition-all"
                                     onClick={(e) => {
                                         e.stopPropagation();
                                         markAllAsRead();
                                     }}
                                 >
-                                    Mark all read <Check className="ml-1 h-3 w-3" />
+                                    Read All
                                 </Button>
                             )}
                             {notifications.length > 0 && (
                                 <Button
                                     variant="ghost"
                                     size="sm"
-                                    className="h-7 text-[10px] font-bold text-destructive hover:bg-destructive/10 px-2"
+                                    className="h-8 w-8 p-0 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
                                     onClick={(e) => {
                                         e.stopPropagation();
-                                        if (window.confirm("Are you sure you want to clear all notifications?")) {
+                                        if (window.confirm("Delete all notifications?")) {
                                             clearAllNotifications();
                                         }
                                     }}
                                 >
-                                    Clear all <Trash2 className="ml-1 h-3 w-3" />
+                                    <Trash2 className="h-4 w-4" />
                                 </Button>
                             )}
                         </div>
                     </div>
 
-                    <TabsList className="w-full justify-start rounded-none border-b bg-transparent p-0 h-10">
-                        <TabsTrigger value="all" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-4 py-2 text-xs font-bold w-1/2">
-                            All
-                        </TabsTrigger>
-                        <TabsTrigger value="unread" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-4 py-2 text-xs font-bold w-1/2">
-                            Unread ({unreadCount})
-                        </TabsTrigger>
-                    </TabsList>
+                    <div className="px-6 py-3 border-b border-orange-50/20 bg-slate-50/30">
+                        <TabsList className="w-full bg-slate-100/50 p-1 h-10 rounded-xl border border-slate-200/50">
+                            <TabsTrigger
+                                value="all"
+                                className="rounded-lg data-[state=active]:bg-white data-[state=active]:text-orange-600 data-[state=active]:shadow-sm text-[11px] font-bold text-slate-500 uppercase tracking-wider w-1/2 transition-all"
+                            >
+                                All
+                            </TabsTrigger>
+                            <TabsTrigger
+                                value="unread"
+                                className="rounded-lg data-[state=active]:bg-white data-[state=active]:text-orange-600 data-[state=active]:shadow-sm text-[11px] font-bold text-slate-500 uppercase tracking-wider w-1/2 transition-all"
+                            >
+                                Unread {unreadCount > 0 && `(${unreadCount})`}
+                            </TabsTrigger>
+                        </TabsList>
+                    </div>
 
                     <TabsContent value="all" className="mt-0">
-                        <ScrollArea className="h-[400px]">
+                        <ScrollArea className="h-[420px]">
                             {notifications.length === 0 ? (
-                                <div className="flex flex-col items-center justify-center h-[300px] text-center p-8">
-                                    <Bell className="h-10 w-10 text-muted-foreground/20 mb-4" />
-                                    <p className="text-sm font-medium text-muted-foreground">No notifications yet.</p>
+                                <div className="flex flex-col items-center justify-center h-[350px] text-center p-8 animate-in fade-in zoom-in duration-700">
+                                    <div className="h-20 w-20 rounded-full bg-slate-50 flex items-center justify-center mb-6 shadow-inner border border-slate-100">
+                                        <Bell className="h-8 w-8 text-slate-200" />
+                                    </div>
+                                    <h4 className="text-sm font-black text-slate-400 border-b border-slate-100 pb-2 mb-2 uppercase tracking-widest">No Activity</h4>
+                                    <p className="text-[11px] font-bold text-slate-300 uppercase tracking-wider px-10">We'll notify you when something important happens.</p>
                                 </div>
                             ) : (
-                                notifications.map(n => <NotificationItem key={n.id} notification={n} />)
+                                <div className="divide-y divide-orange-50/10">
+                                    {notifications.map(n => <NotificationItem key={n.id} notification={n} />)}
+                                </div>
                             )}
                         </ScrollArea>
                     </TabsContent>
 
                     <TabsContent value="unread" className="mt-0">
-                        <ScrollArea className="h-[400px]">
+                        <ScrollArea className="h-[420px]">
                             {unreadNotifications.length === 0 ? (
-                                <div className="flex flex-col items-center justify-center h-[300px] text-center p-8">
-                                    <Check className="h-10 w-10 text-green-500/20 mb-4" />
-                                    <p className="text-sm font-medium text-muted-foreground">You're all caught up!</p>
+                                <div className="flex flex-col items-center justify-center h-[350px] text-center p-8 animate-in fade-in zoom-in duration-700">
+                                    <div className="h-20 w-20 rounded-full bg-orange-50 flex items-center justify-center mb-6 shadow-inner border border-orange-100">
+                                        <Check className="h-8 w-8 text-orange-200" />
+                                    </div>
+                                    <h4 className="text-sm font-black text-orange-400 border-b border-orange-100 pb-2 mb-2 uppercase tracking-widest">All Caught Up</h4>
+                                    <p className="text-[11px] font-bold text-orange-300 uppercase tracking-wider px-10">You've read all your recent notifications.</p>
                                 </div>
                             ) : (
-                                unreadNotifications.map(n => <NotificationItem key={n.id} notification={n} />)
+                                <div className="divide-y divide-orange-50/10">
+                                    {unreadNotifications.map(n => <NotificationItem key={n.id} notification={n} />)}
+                                </div>
                             )}
                         </ScrollArea>
                     </TabsContent>
 
-                    <div className="p-2 border-t bg-muted/10 text-center">
+                    <div className="p-4 border-t border-orange-50/50 bg-slate-50/50">
                         <Button
                             variant="ghost"
-                            className="w-full h-8 text-xs font-bold text-muted-foreground hover:text-primary transition-colors"
+                            className="w-full h-11 text-[11px] font-black uppercase tracking-[0.2em] text-slate-500 hover:text-orange-600 transition-all duration-300 hover:bg-orange-50 rounded-xl group"
                             onClick={() => {
                                 setOpen(false);
                                 if (onNavigate) {
@@ -238,7 +249,7 @@ export const NotificationPopover = ({ onNavigate }: { onNavigate?: (module: any)
                                 }
                             }}
                         >
-                            View All Activity
+                            View All Activity Center <ChevronRight className="ml-2 h-3 w-3 transition-transform group-hover:translate-x-1" />
                         </Button>
                     </div>
                 </Tabs>
@@ -247,6 +258,7 @@ export const NotificationPopover = ({ onNavigate }: { onNavigate?: (module: any)
             {/* Detailed View Dialog */}
             <Dialog open={!!selectedNotification} onOpenChange={(open) => !open && setSelectedNotification(null)}>
                 <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto p-0 gap-0 border-none shadow-2xl bg-white/95 backdrop-blur-xl">
+                    <DialogDescription className="sr-only">Detailed view of the selected notification</DialogDescription>
                     {selectedNotification && (() => {
                         const bgColors = {
                             product: "bg-purple-100",
@@ -286,35 +298,42 @@ export const NotificationPopover = ({ onNavigate }: { onNavigate?: (module: any)
                         };
 
                         return (
-                            <>
-                                <DialogHeader className={cn("p-6 pb-4 border-b", bg.replace("100", "500/10"))}>
-                                    <div className="flex items-start justify-between gap-4">
-                                        <div className="flex items-center gap-3">
+                            <div className="flex flex-col h-full border-none">
+                                <DialogHeader className={cn("p-8 pb-6 border-b border-white/20 relative overflow-hidden", bg.replace("100", "500/10"))}>
+                                    {/* Decorative Background Element */}
+                                    <div className={cn("absolute -top-12 -right-12 h-40 w-40 rounded-full blur-3xl opacity-20 animate-pulse", bg.replace("100", "500"))} />
+
+                                    <div className="flex items-start justify-between gap-4 relative z-10">
+                                        <div className="flex items-center gap-4">
                                             <div className={cn(
-                                                "h-10 w-10 rounded-xl flex items-center justify-center shrink-0 border shadow-sm bg-white",
+                                                "h-12 w-12 rounded-2xl flex items-center justify-center shrink-0 border border-white shadow-[0_8px_30px_rgb(0,0,0,0.04)] bg-white/80 backdrop-blur-md",
                                                 text
                                             )}>
                                                 {getIcon(selectedNotification.type)}
                                             </div>
-                                            <div>
-                                                <Badge variant="outline" className={cn("mb-1 border-0 bg-white/50", text)}>
-                                                    {selectedNotification.type.toUpperCase()}
+                                            <div className="flex flex-col gap-1">
+                                                <Badge variant="outline" className={cn("w-fit px-2 py-0 border-0 bg-white/60 text-[9px] font-black uppercase tracking-widest backdrop-blur-sm shadow-sm", text)}>
+                                                    {selectedNotification.type}
                                                 </Badge>
-                                                <DialogTitle className="text-xl sm:text-2xl font-black tracking-tight text-foreground">
+                                                <DialogTitle className="text-2xl font-black tracking-tight text-slate-900 leading-tight">
                                                     {selectedNotification.title}
                                                 </DialogTitle>
                                             </div>
                                         </div>
                                     </div>
-                                    <div className="flex items-center gap-2 mt-2 text-foreground/60 font-medium text-sm">
-                                        <span className="font-bold">{format(new Date(selectedNotification.created_at), 'PPP')}</span>
-                                        <span className="mx-1">•</span>
-                                        {format(new Date(selectedNotification.created_at), 'p')}
+                                    <div className="flex items-center gap-2 mt-4 text-slate-400 font-bold text-[10px] uppercase tracking-widest relative z-10">
+                                        <div className="flex items-center gap-1 bg-white/40 px-2 py-1 rounded-md border border-white/20 backdrop-blur-sm">
+                                            <span>{format(new Date(selectedNotification.created_at), 'PPP')}</span>
+                                        </div>
+                                        <span className="opacity-30">•</span>
+                                        <div className="flex items-center gap-1 bg-white/40 px-2 py-1 rounded-md border border-white/20 backdrop-blur-sm text-orange-600">
+                                            {format(new Date(selectedNotification.created_at), 'p')}
+                                        </div>
                                     </div>
                                 </DialogHeader>
 
-                                <div className="p-6 space-y-6">
-                                    <div className="prose prose-sm max-w-none text-foreground/80 leading-relaxed whitespace-pre-wrap text-base">
+                                <div className="p-8 space-y-8 bg-white/30">
+                                    <div className="text-slate-600 leading-relaxed whitespace-pre-wrap text-base font-medium">
                                         {selectedNotification.message}
                                     </div>
 
@@ -400,18 +419,19 @@ export const NotificationPopover = ({ onNavigate }: { onNavigate?: (module: any)
                                     )}
 
                                     {selectedNotification.link && (
-                                        <div className="pt-4 border-t flex justify-end">
+                                        <div className="pt-8 border-t border-slate-100 flex justify-end">
                                             <Button onClick={() => {
                                                 setOpen(false);
                                                 setSelectedNotification(null);
-                                                navigate(selectedNotification.link);
-                                            }} className="w-full sm:w-auto">
+                                                const handled = onLinkClick?.(selectedNotification.link);
+                                                if (!handled) navigate(selectedNotification.link);
+                                            }} className="w-full sm:w-auto rounded-xl bg-slate-900 hover:bg-orange-600 text-white font-black uppercase tracking-widest text-[11px] h-12 px-8 transition-all duration-300 shadow-[0_10px_20px_rgba(0,0,0,0.1)] hover:shadow-orange-500/20 hover:-translate-y-0.5">
                                                 View Associated Link
                                             </Button>
                                         </div>
                                     )}
                                 </div>
-                            </>
+                            </div>
                         );
                     })()}
                 </DialogContent>

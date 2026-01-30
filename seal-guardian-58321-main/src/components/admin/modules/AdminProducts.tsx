@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -46,7 +46,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import api from "@/lib/api";
 import { downloadCSV } from "@/lib/utils";
-import { Trash2, Plus, Package, Pencil, FolderTree, X, Loader2, Search, Download } from "lucide-react";
+import { Trash2, Plus, Package, Pencil, FolderTree, X, Loader2, Search, Download, Upload, ImageIcon, Video } from "lucide-react";
 
 
 interface Category {
@@ -64,6 +64,7 @@ interface Variation {
     stockQuantity?: number;
     description?: string;
     images?: string[];
+    videos?: string[];
 }
 
 interface Product {
@@ -105,9 +106,15 @@ export function AdminProducts() {
         images: [] as string[],
         variations: [] as Variation[],
         additionalInfo: [] as string[],
+        price: 0,
         colors: "" // Temporary state for comma-separated colors
     });
     const [imageUrlInput, setImageUrlInput] = useState("");
+    const [uploading, setUploading] = useState<{ [key: string]: boolean }>({});
+
+    const fileInputRef = React.useRef<HTMLInputElement>(null);
+    const variationFileInputRef = React.useRef<{ [key: number]: HTMLInputElement | null }>({});
+    const variationVideoInputRef = React.useRef<{ [key: number]: HTMLInputElement | null }>({});
 
     // Delete confirmation
     const [deleteDialog, setDeleteDialog] = useState<{ type: 'category' | 'product'; id: string; name: string } | null>(null);
@@ -184,6 +191,59 @@ export function AdminProducts() {
         });
     };
 
+    const removeVariationVideo = (vIndex: number, vidIndex: number) => {
+        setProdForm(prev => {
+            const newVars = [...prev.variations];
+            newVars[vIndex].videos = (newVars[vIndex].videos || []).filter((_, i) => i !== vidIndex);
+            return { ...prev, variations: newVars };
+        });
+    };
+
+    const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, target: 'product' | { vIndex: number; type: 'image' | 'video' }) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        const uploadKey = typeof target === 'string' ? 'product' : `v-${target.vIndex}-${target.type}`;
+        setUploading(prev => ({ ...prev, [uploadKey]: true }));
+
+        const formDataUpload = new FormData();
+        formDataUpload.append('file', file);
+
+        try {
+            const res = await api.post('/upload', formDataUpload, {
+                headers: { 'Content-Type': 'multipart/form-data' }
+            });
+
+            if (res.data.success) {
+                const url = res.data.url;
+                if (target === 'product') {
+                    setProdForm(prev => ({ ...prev, images: [...prev.images, url] }));
+                } else {
+                    setProdForm(prev => {
+                        const newVars = [...prev.variations];
+                        const v = newVars[target.vIndex];
+                        if (target.type === 'image') {
+                            v.images = [...(v.images || []), url];
+                        } else {
+                            v.videos = [...(v.videos || []), url];
+                        }
+                        return { ...prev, variations: newVars };
+                    });
+                }
+                toast({ title: "Upload Success", description: "File uploaded successfully." });
+            }
+        } catch (error: any) {
+            toast({
+                title: "Upload Failed",
+                description: error.response?.data?.error || "Failed to upload file",
+                variant: "destructive"
+            });
+        } finally {
+            setUploading(prev => ({ ...prev, [uploadKey]: false }));
+            if (e.target) e.target.value = '';
+        }
+    };
+
     // CRUD Operations
     const handleSaveCategory = async () => {
         try {
@@ -226,10 +286,16 @@ export function AdminProducts() {
                 isNewArrival: prod.isNewArrival || false,
                 images: prod.images || [],
                 variations: (prod.variations || []).map(v => ({
-                    ...v,
-                    description: (v as any).meta?.description || v.description || ""
+                    name: v.name,
+                    price: v.price,
+                    sku: v.sku,
+                    stockQuantity: v.stockQuantity,
+                    description: (v as any).meta?.description || v.description || "",
+                    images: v.images || [],
+                    videos: v.videos || [],
                 })),
                 additionalInfo: prod.additionalInfo || [],
+                price: typeof prod.price === 'object' ? (prod.price.default || prod.price.twoRow || 0) : (Number(prod.price) || 0),
                 colors: (prod as any).additionalInfo?.colors?.join(", ") || ""
             });
         } else {
@@ -244,6 +310,7 @@ export function AdminProducts() {
                 images: [],
                 variations: [],
                 additionalInfo: [],
+                price: 0,
                 colors: ""
             });
         }
@@ -266,14 +333,24 @@ export function AdminProducts() {
             },
             price: (function () {
                 const vars = prodForm.variations;
+                // 1. Check for row-based variations
                 const twoRow = vars.find(v => v.name.toLowerCase().includes('2 row'));
                 const threeRow = vars.find(v => v.name.toLowerCase().includes('3 row'));
 
                 if (twoRow || threeRow) {
-                    return { twoRow: twoRow?.price || 0, threeRow: threeRow?.price || 0 };
+                    const priceObj: any = { twoRow: twoRow?.price || 0, threeRow: threeRow?.price || 0 };
+                    const prices = [twoRow?.price, threeRow?.price].filter(p => p !== undefined).map(Number);
+                    if (prices.length > 0) priceObj.default = Math.min(...prices);
+                    return priceObj;
                 }
-                if (vars.length > 0) return Math.min(...vars.map(v => v.price));
-                return 0;
+
+                // 2. If variations exist, use minimum variation price
+                if (vars.length > 0) {
+                    return Math.min(...vars.map(v => v.price));
+                }
+
+                // 3. Fallback to explicit Base Price field
+                return Number(prodForm.price) || 0;
             })()
         };
 
@@ -305,11 +382,16 @@ export function AdminProducts() {
         }
     };
 
-    const getDisplayPrice = (product: Product) => {
-        if (typeof product.price === 'object') {
-            return `₹${product.price.twoRow || product.price.threeRow || 0}`;
-        }
-        return `₹${product.price || 0}`;
+    const getDisplayPrice = (prod: Product) => {
+        if (!prod || prod.price === undefined || prod.price === null) return '₹0';
+        if (typeof prod.price === 'number') return `₹${prod.price.toLocaleString()}`;
+        if (typeof prod.price === 'string') return `₹${Number(prod.price).toLocaleString()}`;
+
+        const p = prod.price as any;
+        if (p.default !== undefined) return `₹${Number(p.default).toLocaleString()}`;
+        if (p.twoRow !== undefined) return `₹${Number(p.twoRow).toLocaleString()}`;
+        if (p.threeRow !== undefined) return `₹${Number(p.threeRow).toLocaleString()}`;
+        return '₹0';
     };
 
     return (
@@ -528,6 +610,19 @@ export function AdminProducts() {
                                     </SelectContent>
                                 </Select>
                             </div>
+                            <div className="space-y-2">
+                                <Label>Base Price (₹) *</Label>
+                                <Input
+                                    type="number"
+                                    value={prodForm.price}
+                                    onChange={e => setProdForm({ ...prodForm, price: Number(e.target.value) })}
+                                    placeholder="0.00"
+                                />
+                                <p className="text-[10px] text-muted-foreground mr-1 flex items-center gap-1">
+                                    <Package className="w-3 h-3" />
+                                    Starting price for this product.
+                                </p>
+                            </div>
                             <div className="space-y-2 pt-6">
                                 <div className="flex items-center gap-4">
                                     <Label>In Stock</Label>
@@ -542,15 +637,37 @@ export function AdminProducts() {
                         </div>
 
                         <div className="space-y-2">
-                            <Label>Images</Label>
+                            <Label>Product Images / Videos</Label>
                             <div className="flex gap-2">
-                                <Input value={imageUrlInput} onChange={e => setImageUrlInput(e.target.value)} placeholder="Image URL" />
-                                <Button onClick={addImageByUrl} variant="outline">Add</Button>
+                                <Input value={imageUrlInput} onChange={e => setImageUrlInput(e.target.value)} placeholder="Media URL (Image or Video)" />
+                                <Button onClick={addImageByUrl} variant="outline">Add URL</Button>
+                                <Button
+                                    onClick={() => fileInputRef.current?.click()}
+                                    variant="secondary"
+                                    disabled={uploading['product']}
+                                >
+                                    {uploading['product'] ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Upload className="h-4 w-4 mr-2" />}
+                                    Upload
+                                </Button>
+                                <input
+                                    type="file"
+                                    ref={fileInputRef}
+                                    className="hidden"
+                                    accept="image/*,video/*"
+                                    onChange={(e) => handleFileUpload(e, 'product')}
+                                />
                             </div>
-                            <div className="flex flex-wrap gap-2 mt-2">
+                            <div className="flex flex-wrap gap-3 mt-3">
                                 {prodForm.images.map((url, i) => (
                                     <div key={i} className="relative group">
-                                        <img src={url} className="w-16 h-16 object-cover rounded border" />
+                                        {url.match(/\.(mp4|webm|mov|ogg)$/) || url.includes('/video/upload/') ? (
+                                            <div className="w-20 h-20 bg-slate-900 rounded border flex items-center justify-center relative overflow-hidden">
+                                                <Video className="h-8 w-8 text-white opacity-50" />
+                                                <span className="absolute bottom-1 left-1 text-[8px] font-bold text-white uppercase bg-black/40 px-1 rounded">Video</span>
+                                            </div>
+                                        ) : (
+                                            <img src={url} className="w-16 h-16 object-cover rounded border" />
+                                        )}
                                         <button onClick={() => removeImage(i)} className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100"><X className="h-3 w-3" /></button>
                                     </div>
                                 ))}
@@ -559,16 +676,130 @@ export function AdminProducts() {
 
                         <div className="py-2 border-t">
                             <div className="flex justify-between items-center mb-2">
-                                <Label>Variations (Prices)</Label>
-                                <Button size="sm" variant="outline" onClick={addVariation}><Plus className="h-3 w-3 mr-1" /> Add</Button>
+                                <Label className="text-sm font-bold">Variations (Prices & Media)</Label>
+                                <Button size="sm" variant="outline" className="border-orange-200 text-orange-700" onClick={addVariation}><Plus className="h-3 w-3 mr-1" /> Add Variation</Button>
                             </div>
-                            {prodForm.variations.map((v, i) => (
-                                <div key={i} className="flex gap-2 mb-2 items-start">
-                                    <Input value={v.name} onChange={e => updateVariation(i, 'name', e.target.value)} placeholder="Name (e.g. Small)" className="flex-1" />
-                                    <Input type="number" value={v.price} onChange={e => updateVariation(i, 'price', Number(e.target.value))} placeholder="Price" className="w-24" />
-                                    <Button variant="ghost" size="icon" onClick={() => removeVariation(i)} className="text-red-500"><Trash2 className="h-4 w-4" /></Button>
+                            {prodForm.variations.length > 0 && (
+                                <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg text-amber-800 text-xs">
+                                    <strong className="block mb-1">⚠️ Note:</strong>
+                                    When variations are added, the <strong>variation's own price, description, and images/videos</strong> will be shown in the catalogue instead of the base product fields. If a variation doesn't have its own images/description, the base product data will be used as fallback.
                                 </div>
-                            ))}
+                            )}
+                            <div className="space-y-4">
+                                {prodForm.variations.map((v, i) => (
+                                    <div key={i} className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-4">
+                                        <div className="flex gap-3 mb-2 items-start">
+                                            <div className="flex-1 space-y-1">
+                                                <Label className="text-[10px] uppercase font-bold text-slate-500 ml-1">Variation Name</Label>
+                                                <Input value={v.name} onChange={e => updateVariation(i, 'name', e.target.value)} placeholder="e.g. 2-Row / Lavender" className="bg-white" />
+                                            </div>
+                                            <div className="w-32 space-y-1">
+                                                <Label className="text-[10px] uppercase font-bold text-slate-500 ml-1">Price (₹)</Label>
+                                                <Input type="number" value={v.price} onChange={e => updateVariation(i, 'price', Number(e.target.value))} placeholder="Price" className="bg-white" />
+                                            </div>
+                                            <div className="pt-6">
+                                                <Button variant="ghost" size="icon" onClick={() => removeVariation(i)} className="text-red-500 hover:bg-red-50"><Trash2 className="h-4 w-4" /></Button>
+                                            </div>
+                                        </div>
+
+                                        <div className="space-y-2">
+                                            <Label className="text-[10px] uppercase font-bold text-slate-500 ml-1">Variation Description</Label>
+                                            <Textarea
+                                                value={v.description || ''}
+                                                onChange={e => updateVariation(i, 'description', e.target.value)}
+                                                rows={2}
+                                                placeholder="Variation-specific description (optional)..."
+                                                className="bg-white text-sm"
+                                            />
+                                        </div>
+
+                                        <div className="space-y-2">
+                                            <Label className="text-[10px] uppercase font-bold text-slate-500 ml-1">Variation Media (Local or Link)</Label>
+                                            <div className="flex gap-2 flex-wrap">
+                                                <Button
+                                                    size="sm"
+                                                    variant="outline"
+                                                    className="h-8 text-[10px] font-bold"
+                                                    onClick={() => variationFileInputRef.current[i]?.click()}
+                                                    disabled={uploading[`v-${i}-image`]}
+                                                >
+                                                    {uploading[`v-${i}-image`] ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <ImageIcon className="h-3 w-3 mr-1" />}
+                                                    ADD IMAGE
+                                                </Button>
+                                                <Button
+                                                    size="sm"
+                                                    variant="outline"
+                                                    className="h-8 text-[10px] font-bold"
+                                                    onClick={() => variationVideoInputRef.current[i]?.click()}
+                                                    disabled={uploading[`v-${i}-video`]}
+                                                >
+                                                    {uploading[`v-${i}-video`] ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Video className="h-3 w-3 mr-1" />}
+                                                    ADD VIDEO
+                                                </Button>
+                                                <Button
+                                                    size="sm"
+                                                    variant="outline"
+                                                    className="h-8 text-[10px] font-bold"
+                                                    onClick={() => {
+                                                        const url = window.prompt("Enter Image URL:");
+                                                        if (url) addVariationImageUrl(i, url);
+                                                    }}
+                                                >
+                                                    IMAGE LINK
+                                                </Button>
+                                                <Button
+                                                    size="sm"
+                                                    variant="outline"
+                                                    className="h-8 text-[10px] font-bold"
+                                                    onClick={() => {
+                                                        const url = window.prompt("Enter Video URL:");
+                                                        if (url) {
+                                                            setProdForm(prev => {
+                                                                const n = [...prev.variations];
+                                                                n[i].videos = [...(n[i].videos || []), url];
+                                                                return { ...prev, variations: n };
+                                                            });
+                                                        }
+                                                    }}
+                                                >
+                                                    VIDEO LINK
+                                                </Button>
+                                                <input
+                                                    type="file"
+                                                    ref={el => variationFileInputRef.current[i] = el}
+                                                    className="hidden"
+                                                    accept="image/*"
+                                                    onChange={(e) => handleFileUpload(e, { vIndex: i, type: 'image' })}
+                                                />
+                                                <input
+                                                    type="file"
+                                                    ref={el => variationVideoInputRef.current[i] = el}
+                                                    className="hidden"
+                                                    accept="video/*"
+                                                    onChange={(e) => handleFileUpload(e, { vIndex: i, type: 'video' })}
+                                                />
+                                            </div>
+
+                                            <div className="flex flex-wrap gap-2 mt-2">
+                                                {(v.images || []).map((img, imgIdx) => (
+                                                    <div key={imgIdx} className="relative group">
+                                                        <img src={img} className="w-12 h-12 object-cover rounded border bg-white" />
+                                                        <button onClick={() => removeVariationImage(i, imgIdx)} className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100"><X className="h-2 w-2" /></button>
+                                                    </div>
+                                                ))}
+                                                {(v.videos || []).map((vid, vidIdx) => (
+                                                    <div key={vidIdx} className="relative group">
+                                                        <div className="w-12 h-12 bg-slate-900 rounded border flex items-center justify-center relative overflow-hidden">
+                                                            <Video className="h-4 w-4 text-white opacity-50" />
+                                                        </div>
+                                                        <button onClick={() => removeVariationVideo(i, vidIdx)} className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100"><X className="h-2 w-2" /></button>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
                         </div>
                     </div>
                     <DialogFooter>
