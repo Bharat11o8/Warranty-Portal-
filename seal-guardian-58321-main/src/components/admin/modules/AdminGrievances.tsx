@@ -10,8 +10,9 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, RefreshCw, MessageSquare, Search, Paperclip, Store, Users, Mail, Send, Clock, Eye, Filter } from "lucide-react";
+import { Loader2, RefreshCw, MessageSquare, Search, Paperclip, Store, Users, Mail, Send, Clock, Eye, Filter, ShieldCheck } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { WarrantySpecSheet } from "@/components/warranty/WarrantySpecSheet";
 
 interface Grievance {
     id: number;
@@ -39,6 +40,7 @@ interface Grievance {
     source_type?: 'customer' | 'franchise';
     department?: string;
     department_details?: string;
+    warranty_id?: string | number;
 }
 
 interface AssignmentRecord {
@@ -94,6 +96,11 @@ export const AdminGrievances = () => {
     const [dialogTab, setDialogTab] = useState<'details' | 'assignment'>('details');
     const [activeTab, setActiveTab] = useState("customer");
 
+    // Warranty View State
+    const [viewingWarranty, setViewingWarranty] = useState<any>(null);
+    const [showWarrantySheet, setShowWarrantySheet] = useState(false);
+    const [loadingWarranty, setLoadingWarranty] = useState(false);
+
     const fetchGrievances = async () => {
         setLoading(true);
         try {
@@ -146,6 +153,25 @@ export const AdminGrievances = () => {
 
         setFilteredGrievances(result);
     }, [searchQuery, statusFilter, grievances, activeTab]);
+
+    const handleViewWarranty = async (warrantyId: string | number) => {
+        setLoadingWarranty(true);
+        try {
+            // Try fetching from admin endpoint
+            const response = await api.get(`/admin/warranties/${warrantyId}`);
+            if (response.data.success) {
+                setViewingWarranty(response.data.warranty || response.data.data);
+                setShowWarrantySheet(true);
+            } else {
+                toast({ title: "Not Found", description: "Warranty details could not be found.", variant: "destructive" });
+            }
+        } catch (error) {
+            console.error("Failed to fetch warranty", error);
+            toast({ title: "Error", description: "Failed to load warranty details.", variant: "destructive" });
+        } finally {
+            setLoadingWarranty(false);
+        }
+    };
 
     const handleOpenDetail = async (g: Grievance) => {
         setSelectedGrievance(g);
@@ -578,6 +604,52 @@ export const AdminGrievances = () => {
                                         </div>
                                     </div>
 
+                                    {/* Link to Warranty if applicable */}
+                                    {selectedGrievance.category === 'warranty_issue' && (() => {
+                                        // Extract warranty ID from description if not present in the field
+                                        let linkedWarrantyId = selectedGrievance.warranty_id;
+                                        if (!linkedWarrantyId && selectedGrievance.description) {
+                                            const match = selectedGrievance.description.match(/Warranty ID: ([\w-]+)/);
+                                            if (match && match[1]) {
+                                                linkedWarrantyId = match[1];
+                                            }
+                                        }
+
+                                        return (
+                                            <div className="p-3 bg-orange-50/50 rounded-lg border border-orange-100 flex items-center justify-between gap-3">
+                                                <div className="flex items-center gap-2">
+                                                    <div className="h-8 w-8 rounded-full bg-orange-100 flex items-center justify-center shrink-0">
+                                                        <ShieldCheck className="h-4 w-4 text-orange-600" />
+                                                    </div>
+                                                    <div>
+                                                        <p className="text-sm font-semibold text-slate-800">Related Warranty</p>
+                                                        <p className="text-xs text-slate-500">
+                                                            {linkedWarrantyId
+                                                                ? `ID: ${linkedWarrantyId}`
+                                                                : "Status: Warranty Linked"}
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                                <Button
+                                                    size="sm"
+                                                    variant="outline"
+                                                    onClick={() => {
+                                                        if (linkedWarrantyId) {
+                                                            handleViewWarranty(linkedWarrantyId);
+                                                        } else {
+                                                            toast({ description: "No Warranty ID linked to this grievance.", variant: "secondary" });
+                                                        }
+                                                    }}
+                                                    disabled={!linkedWarrantyId || loadingWarranty}
+                                                    className="border-orange-200 text-orange-700 hover:bg-orange-100"
+                                                >
+                                                    {loadingWarranty ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Eye className="h-3 w-3 mr-1" />}
+                                                    View Details
+                                                </Button>
+                                            </div>
+                                        );
+                                    })()}
+
                                     {selectedGrievance.attachments && (() => {
                                         try {
                                             const attachments = JSON.parse(selectedGrievance.attachments || "[]");
@@ -767,6 +839,12 @@ export const AdminGrievances = () => {
                     )}
                 </DialogContent>
             </Dialog>
+            {/* Warranty Details Sheet */}
+            <WarrantySpecSheet
+                isOpen={showWarrantySheet}
+                onClose={() => setShowWarrantySheet(false)}
+                warranty={viewingWarranty}
+            />
         </div>
     );
 };

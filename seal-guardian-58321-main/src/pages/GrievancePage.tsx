@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Upload, Star, Send, RefreshCw, X, ImageIcon, MessageSquare, Store, FileText, HelpCircle, AlertTriangle, Clock } from "lucide-react";
+import { Loader2, Upload, Star, Send, RefreshCw, X, ImageIcon, MessageSquare, Store, FileText, HelpCircle, AlertTriangle, Clock, Shield, Car } from "lucide-react";
 import api from "@/lib/api";
 import { formatToIST, cn } from "@/lib/utils";
 import { compressImage, isCompressibleImage } from "@/lib/imageCompression";
@@ -92,6 +92,11 @@ const GrievancePage = () => {
     const [dealers, setDealers] = useState<Dealer[]>([]);
     const [loadingDealers, setLoadingDealers] = useState(false);
 
+    // Warranties list
+    const [warranties, setWarranties] = useState<any[]>([]);
+    const [selectedWarranty, setSelectedWarranty] = useState<string>("");
+    const [loadingWarranties, setLoadingWarranties] = useState(false);
+
     // Rating state
     const [ratingGrievanceId, setRatingGrievanceId] = useState<number | null>(null);
     const [rating, setRating] = useState(0);
@@ -140,9 +145,31 @@ const GrievancePage = () => {
         }
     };
 
+    const fetchWarranties = async () => {
+        setLoadingWarranties(true);
+        try {
+            // Fetch all warranties (high limit) to populate dropdown
+            const response = await api.get("/warranty?limit=100");
+            if (response.data.success) {
+                const fetchedWarranties = response.data.warranties || [];
+                setWarranties(fetchedWarranties);
+
+                // Auto-select if only one warranty exists
+                if (fetchedWarranties.length === 1) {
+                    setSelectedWarranty(fetchedWarranties[0].id.toString());
+                }
+            }
+        } catch (error) {
+            console.error("Failed to fetch warranties", error);
+        } finally {
+            setLoadingWarranties(false);
+        }
+    };
+
     useEffect(() => {
         fetchGrievances();
         fetchDealers();
+        fetchWarranties();
     }, []);
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -186,7 +213,26 @@ const GrievancePage = () => {
             formData.append("category", category);
             formData.append("subCategory", subCategory);
             formData.append("subject", subject);
-            formData.append("description", description);
+
+            // Append warranty details to description if selected
+            let finalDescription = description;
+            if (category === 'warranty_issue' && selectedWarranty) {
+                const warranty = warranties.find(w => w.id.toString() === selectedWarranty);
+                if (warranty) {
+                    const productDetails = typeof warranty.product_details === 'string'
+                        ? JSON.parse(warranty.product_details || '{}')
+                        : warranty.product_details || {};
+                    const serialBtn = warranty.product_type === 'seat-cover' ? `UID: ${productDetails.uid || warranty.uid}` : `Serial: ${productDetails.serialNumber || warranty.uid}`;
+
+                    finalDescription += `\n\n[Related Warranty: ${warranty.car_make} ${warranty.car_model} - ${warranty.product_type} (${serialBtn})]\nWarranty ID: ${warranty.id}`;
+
+                    // Also strictly send warranty_id if backend supports it (it might not, but good for future)
+                    formData.append("warrantyId", selectedWarranty);
+                    formData.append("warranty_id", selectedWarranty); // Try both standard conventions
+                }
+            }
+
+            formData.append("description", finalDescription);
             if (selectedDealer) {
                 formData.append("franchiseId", selectedDealer);
             }
@@ -563,7 +609,7 @@ const GrievancePage = () => {
                                                 <SelectValue placeholder={loadingDealers ? "Loading dealers..." : "Select the dealer/store"} />
                                             </SelectTrigger>
                                             <SelectContent className="rounded-2xl">
-                                                {dealers.map((dealer) => (
+                                                {dealers.filter(d => d.id).map((dealer) => (
                                                     <SelectItem key={dealer.id} value={dealer.id} className="rounded-xl">
                                                         <span className="font-medium">{dealer.store_name}</span>
                                                         <span className="text-muted-foreground ml-2 text-xs">
@@ -597,6 +643,48 @@ const GrievancePage = () => {
                                                 </SelectContent>
                                             </Select>
                                         </div>
+
+                                        {/* Warranty Selection - Only show if Warranty Issue is selected */}
+                                        {category === 'warranty_issue' && (
+                                            <div className="space-y-2 col-span-1 md:col-span-2 animate-in fade-in slide-in-from-top-2">
+                                                <Label htmlFor="warranty" className="flex items-center gap-2 text-sm font-medium">
+                                                    <Shield className="h-4 w-4 text-green-600" />
+                                                    Select Warranty <span className="text-red-500">*</span>
+                                                </Label>
+                                                <Select value={selectedWarranty} onValueChange={setSelectedWarranty}>
+                                                    <SelectTrigger className="h-12 bg-green-50/50 border-green-200">
+                                                        <SelectValue placeholder={loadingWarranties ? "Loading warranties..." : "Select the relevant warranty"} />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        {warranties.filter(w => w.id).map((w) => {
+                                                            const productDetails = typeof w.product_details === 'string'
+                                                                ? JSON.parse(w.product_details || '{}')
+                                                                : w.product_details || {};
+                                                            const title = `${w.car_make} ${w.car_model} - ${w.product_type}`;
+                                                            const sub = w.product_type === 'seat-cover' ? `UID: ${productDetails.uid || w.uid}` : `Serial: ${productDetails.serialNumber || w.uid}`;
+
+                                                            return (
+                                                                <SelectItem key={w.id} value={w.id.toString()}>
+                                                                    <div className="flex flex-col text-left">
+                                                                        <span className="font-medium flex items-center gap-2">
+                                                                            <Car className="h-3 w-3 text-slate-400" /> {title}
+                                                                        </span>
+                                                                        <span className="text-xs text-muted-foreground ml-5">
+                                                                            {sub} • {formatToIST(w.created_at).split(',')[0]}
+                                                                        </span>
+                                                                    </div>
+                                                                </SelectItem>
+                                                            );
+                                                        })}
+                                                    </SelectContent>
+                                                </Select>
+                                                {warranties.length === 0 && !loadingWarranties && (
+                                                    <p className="text-xs text-amber-600">
+                                                        No warranties found. You can still submit, but please provide details in description.
+                                                    </p>
+                                                )}
+                                            </div>
+                                        )}
 
                                         <div className="space-y-2">
                                             <Label htmlFor="subCategory" className="text-xs font-black text-slate-400 uppercase tracking-widest">

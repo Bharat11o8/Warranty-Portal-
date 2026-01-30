@@ -8,9 +8,10 @@ import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, RefreshCw, MessageSquare, AlertCircle, CheckCircle, Clock, Users, Building2, Package, Receipt, Store, Wrench, ShieldCheck, HelpCircle, Paperclip, Plus, X, Upload, Factory, Truck, UserCheck } from "lucide-react";
+import { Loader2, RefreshCw, MessageSquare, AlertCircle, CheckCircle, Clock, Users, Building2, Package, Receipt, Store, Wrench, ShieldCheck, HelpCircle, Paperclip, Plus, X, Upload, Factory, Truck, UserCheck, Eye } from "lucide-react";
 import { compressImage, isCompressibleImage } from "@/lib/imageCompression";
 import { Pagination } from "./Pagination";
+import { WarrantySpecSheet } from "@/components/warranty/WarrantySpecSheet";
 
 interface Grievance {
     id: number;
@@ -32,6 +33,8 @@ interface Grievance {
     department?: string;
     departmentDetails?: string;
     department_details?: string;
+    department_display?: string;
+    warranty_id?: string | number;
 }
 
 interface GrievanceRemark {
@@ -103,6 +106,11 @@ const VendorGrievances = () => {
     const [showNewGrievanceForm, setShowNewGrievanceForm] = useState(false);
     const [submitting, setSubmitting] = useState(false);
 
+    // Warranty View State
+    const [viewingWarranty, setViewingWarranty] = useState<any>(null);
+    const [showWarrantySheet, setShowWarrantySheet] = useState(false);
+    const [loadingWarranty, setLoadingWarranty] = useState(false);
+
     // Pagination states
     const [customerLimit, setCustomerLimit] = useState(15);
     const [myGrievanceLimit, setMyGrievanceLimit] = useState(15);
@@ -152,6 +160,26 @@ const VendorGrievances = () => {
             console.error("Failed to fetch my grievances", error);
         } finally {
             setLoadingMyGrievances(false);
+        }
+    };
+
+    const handleViewWarranty = async (warrantyId: string | number) => {
+        setLoadingWarranty(true);
+        try {
+            // Attempt to fetch warranty details
+            // Try standard warranty endpoint first
+            const response = await api.get(`/warranty/${warrantyId}`);
+            if (response.data.success) {
+                setViewingWarranty(response.data.data || response.data.warranty);
+                setShowWarrantySheet(true);
+            } else {
+                toast({ title: "Not Found", description: "Warranty details could not be loaded.", variant: "destructive" });
+            }
+        } catch (error) {
+            console.error("Failed to fetch warranty", error);
+            toast({ title: "Error", description: "Failed to load warranty details.", variant: "destructive" });
+        } finally {
+            setLoadingWarranty(false);
         }
     };
 
@@ -438,6 +466,8 @@ const VendorGrievances = () => {
                             />
                         </div>
                     )}
+
+
                 </TabsContent>
 
                 {/* My Grievance Tab Content */}
@@ -709,6 +739,7 @@ const VendorGrievances = () => {
                 </TabsContent>
             </Tabs>
 
+
             {/* Global Detail Dialog - Fixed scrolling and height */}
             <Dialog open={!!selectedGrievance} onOpenChange={() => setSelectedGrievance(null)}>
                 <DialogContent className="max-w-2xl h-[85vh] p-0 border-0 rounded-[30px] overflow-hidden shadow-2xl flex flex-col font-sans bg-white">
@@ -826,6 +857,52 @@ const VendorGrievances = () => {
                                             {selectedGrievance.description}
                                         </div>
                                     </div>
+
+                                    {/* Link to Warranty if applicable */}
+                                    {selectedGrievance.category === 'warranty_issue' && (() => {
+                                        // Extract warranty ID from description if not present in the field
+                                        let linkedWarrantyId = selectedGrievance.warranty_id;
+                                        if (!linkedWarrantyId && selectedGrievance.description) {
+                                            const match = selectedGrievance.description.match(/Warranty ID: ([\w-]+)/);
+                                            if (match && match[1]) {
+                                                linkedWarrantyId = match[1];
+                                            }
+                                        }
+
+                                        return (
+                                            <div className="mt-4 p-3 bg-orange-50/50 rounded-lg border border-orange-100 flex items-center justify-between gap-3">
+                                                <div className="flex items-center gap-2">
+                                                    <div className="h-8 w-8 rounded-full bg-orange-100 flex items-center justify-center shrink-0">
+                                                        <ShieldCheck className="h-4 w-4 text-orange-600" />
+                                                    </div>
+                                                    <div>
+                                                        <p className="text-sm font-semibold text-slate-800">Related Warranty</p>
+                                                        <p className="text-xs text-slate-500">
+                                                            {linkedWarrantyId
+                                                                ? `ID: ${linkedWarrantyId}`
+                                                                : "Status: Warranty Linked"}
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                                <Button
+                                                    size="sm"
+                                                    variant="outline"
+                                                    onClick={() => {
+                                                        if (linkedWarrantyId) {
+                                                            handleViewWarranty(linkedWarrantyId);
+                                                        } else {
+                                                            toast({ description: "No Warranty ID linked to this grievance." });
+                                                        }
+                                                    }}
+                                                    disabled={!linkedWarrantyId || loadingWarranty}
+                                                    className="border-orange-200 text-orange-700 hover:bg-orange-100 bg-white"
+                                                >
+                                                    {loadingWarranty ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Eye className="h-3 w-3 mr-1" />}
+                                                    View Details
+                                                </Button>
+                                            </div>
+                                        );
+                                    })()}
 
                                     {/* Attachments Section */}
                                     {(() => {
@@ -961,7 +1038,12 @@ const VendorGrievances = () => {
                     )}
                 </DialogContent>
             </Dialog>
-        </div >
+            <WarrantySpecSheet
+                isOpen={showWarrantySheet}
+                onClose={() => setShowWarrantySheet(false)}
+                warranty={viewingWarranty}
+            />
+        </div>
     );
 };
 

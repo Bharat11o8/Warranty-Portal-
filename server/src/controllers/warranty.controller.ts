@@ -411,8 +411,8 @@ export class WarrantyController {
 
       const { uid } = req.params;
 
-      let query = 'SELECT * FROM warranty_registrations WHERE uid = ?';
-      let params: any[] = [uid];
+      let query = 'SELECT * FROM warranty_registrations WHERE (uid = ? OR id = ?)';
+      let params: any[] = [uid, uid];
 
       // If customer, ensure they own this warranty
       if (req.user.role === 'customer') {
