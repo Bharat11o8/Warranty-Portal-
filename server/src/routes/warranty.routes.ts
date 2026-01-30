@@ -27,6 +27,7 @@ const upload = multer({
 // Use upload.any() to handle multiple files with different field names
 router.post('/submit', authenticateToken, upload.any(), WarrantyController.submitWarranty);
 router.get('/', authenticateToken, WarrantyController.getWarranties);
+router.get('/stats', authenticateToken, WarrantyController.getDashboardStats);
 router.get('/:uid', authenticateToken, WarrantyController.getWarrantyById);
 router.put('/:uid', authenticateToken, upload.any(), WarrantyController.updateWarranty);
 

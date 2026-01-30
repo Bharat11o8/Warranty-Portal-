@@ -311,28 +311,17 @@ export class WarrantyController {
       const limit = parseInt(req.query.limit as string) || 30;
       const offset = (page - 1) * limit;
 
-      let baseQuery = `
-        SELECT 
-            w.*, 
-            m.name as manpower_name_from_db,
-            vp.phone_number as vendor_phone_number
-        FROM warranty_registrations w 
-        LEFT JOIN manpower m ON w.manpower_id = m.id
-        LEFT JOIN vendor_details vd ON m.vendor_id = vd.id
-        LEFT JOIN profiles vp ON vd.user_id = vp.id
-      `;
-      let countQuery = `SELECT COUNT(*) as total FROM warranty_registrations w`;
-      let params: any[] = [];
-      let countParams: any[] = [];
+      // Extract Filters from Query
+      const { status, search, product_type, make, date_from, date_to } = req.query;
 
-      // If customer, only show their warranties
+      let conditions: string[] = [];
+      let params: any[] = [];
+
+      // 1. Role-based Security Filters (Base Filters)
       if (req.user.role === 'customer') {
-        baseQuery += ' WHERE w.user_id = ?';
-        countQuery += ' WHERE w.user_id = ?';
-        params = [req.user.id];
-        countParams = [req.user.id];
+        conditions.push('w.user_id = ?');
+        params.push(req.user.id);
       }
-      // If vendor, show warranties linked to their manpower OR submitted by them
       else if (req.user.role === 'vendor') {
         // First, get vendor's vendor_details_id
         const [vendorDetails]: any = await db.execute(
@@ -342,7 +331,6 @@ export class WarrantyController {
 
         if (vendorDetails.length > 0) {
           const vendorDetailsId = vendorDetails[0].id;
-
           // Get all manpower IDs for this vendor
           const [manpower]: any = await db.execute(
             'SELECT id FROM manpower WHERE vendor_id = ?',
@@ -351,38 +339,100 @@ export class WarrantyController {
 
           if (manpower.length > 0) {
             const manpowerIds = manpower.map((m: any) => m.id);
-            // Show warranties where manpower_id matches OR user_id matches (vendor submitted)
             const inClause = manpowerIds.map(() => '?').join(',');
-            baseQuery += ` WHERE w.manpower_id IN (${inClause}) OR w.user_id = ?`;
-            countQuery += ` WHERE w.manpower_id IN (${inClause}) OR w.user_id = ?`;
-            params = [...manpowerIds, req.user.id];
-            countParams = [...manpowerIds, req.user.id];
+            // Show warranties where manpower_id matches OR user_id matches (vendor submitted)
+            conditions.push(`(w.manpower_id IN (${inClause}) OR w.user_id = ?)`);
+            params.push(...manpowerIds, req.user.id);
           } else {
             // No manpower, just show warranties submitted by vendor
-            baseQuery += ' WHERE w.user_id = ?';
-            countQuery += ' WHERE w.user_id = ?';
-            params = [req.user.id];
-            countParams = [req.user.id];
+            conditions.push('w.user_id = ?');
+            params.push(req.user.id);
           }
         } else {
           // No vendor details, just show warranties submitted by vendor
-          baseQuery += ' WHERE w.user_id = ?';
-          countQuery += ' WHERE w.user_id = ?';
-          params = [req.user.id];
-          countParams = [req.user.id];
+          conditions.push('w.user_id = ?');
+          params.push(req.user.id);
         }
       }
 
-      // Get total count
-      const [countResult]: any = await db.execute(countQuery, countParams);
+      // 2. Apply Dynamic Filters
+
+      // Status Mapping (Frontend Tab -> DB Status)
+      if (status && status !== 'all') {
+        if (status === 'pending') {
+          conditions.push("w.status = 'pending_vendor'");
+        } else if (status === 'pending_ho') {
+          conditions.push("w.status = 'pending'");
+        } else {
+          conditions.push('w.status = ?');
+          params.push(status);
+        }
+      }
+
+      // Product Type
+      if (product_type && product_type !== 'all') {
+        conditions.push('w.product_type = ?');
+        params.push(product_type);
+      }
+
+      // Car Make
+      if (make && make !== 'all') {
+        conditions.push('w.car_make = ?');
+        params.push(make);
+      }
+
+      // Car Model (New)
+      const { model } = req.query;
+      if (model && model !== 'all') {
+        conditions.push('w.car_model = ?');
+        params.push(model);
+      }
+
+      // Search (Multi-column)
+      if (search) {
+        const searchTerm = `%${search}%`;
+        conditions.push(`(
+          w.customer_name LIKE ? OR 
+          w.customer_phone LIKE ? OR 
+          w.uid LIKE ? OR 
+          w.car_make LIKE ? OR 
+          w.car_model LIKE ?
+        )`);
+        params.push(searchTerm, searchTerm, searchTerm, searchTerm, searchTerm);
+      }
+
+      // Date Range
+      if (date_from && date_to) {
+        conditions.push('w.created_at BETWEEN ? AND ?');
+        params.push(new Date(date_from as string), new Date(date_to as string));
+      }
+
+      // 3. Build & Execute Queries
+      const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+
+      // Count Query (Matches Filtes)
+      const countQuery = `SELECT COUNT(*) as total FROM warranty_registrations w ${whereClause}`;
+      const [countResult]: any = await db.execute(countQuery, params);
       const totalCount = countResult[0].total;
       const totalPages = Math.ceil(totalCount / limit);
 
-      // Add ordering and pagination to main query
-      baseQuery += ' ORDER BY w.created_at DESC LIMIT ? OFFSET ?';
-      params.push(limit, offset);
+      // Data Query (Matches Filters + Pagination)
+      const baseQuery = `
+        SELECT 
+            w.*, 
+            m.name as manpower_name_from_db,
+            vp.phone_number as vendor_phone_number
+        FROM warranty_registrations w 
+        LEFT JOIN manpower m ON w.manpower_id = m.id
+        LEFT JOIN vendor_details vd ON m.vendor_id = vd.id
+        LEFT JOIN profiles vp ON vd.user_id = vp.id
+        ${whereClause}
+        ORDER BY w.created_at DESC 
+        LIMIT ? OFFSET ?
+      `; // Limit/Offset added via params
 
-      const [warranties]: any = await db.execute(baseQuery, params);
+      const mainParams = [...params, limit, offset];
+      const [warranties]: any = await db.execute(baseQuery, mainParams);
 
       // Parse JSON product_details
       const formattedWarranties = warranties.map((warranty: any) => ({
@@ -405,6 +455,87 @@ export class WarrantyController {
     } catch (error: any) {
       console.error('Get warranties error:', error);
       res.status(500).json({ error: 'Failed to fetch warranties' });
+    }
+  }
+
+  static async getDashboardStats(req: AuthRequest, res: Response) {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ error: 'User not authenticated' });
+      }
+
+      let conditions: string[] = [];
+      let params: any[] = [];
+
+      // 1. Role-based Security (Access Control)
+      if (req.user.role === 'customer') {
+        conditions.push('user_id = ?');
+        params.push(req.user.id);
+      } else if (req.user.role === 'vendor') {
+        const [vendorDetails]: any = await db.execute(
+          'SELECT id FROM vendor_details WHERE user_id = ?',
+          [req.user.id]
+        );
+
+        if (vendorDetails.length > 0) {
+          const vendorDetailsId = vendorDetails[0].id;
+          const [manpower]: any = await db.execute(
+            'SELECT id FROM manpower WHERE vendor_id = ?',
+            [vendorDetailsId]
+          );
+
+          if (manpower.length > 0) {
+            const manpowerIds = manpower.map((m: any) => m.id);
+            const inClause = manpowerIds.map(() => '?').join(',');
+            conditions.push(`(manpower_id IN (${inClause}) OR user_id = ?)`);
+            params.push(...manpowerIds, req.user.id);
+          } else {
+            conditions.push('user_id = ?');
+            params.push(req.user.id);
+          }
+        } else {
+          conditions.push('user_id = ?');
+          params.push(req.user.id);
+        }
+      }
+
+      // 2. Build Where Clause
+      const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+
+      // 3. Execute Count Query with Group By Status
+      const query = `
+        SELECT 
+          status, 
+          COUNT(*) as count 
+        FROM warranty_registrations 
+        ${whereClause} 
+        GROUP BY status
+      `;
+
+      const [rows]: any = await db.execute(query, params);
+
+      // 4. Format Result
+      const stats = {
+        pending_vendor: 0,
+        pending: 0,
+        validated: 0,
+        rejected: 0
+      };
+
+      rows.forEach((row: any) => {
+        if (stats.hasOwnProperty(row.status)) {
+          (stats as any)[row.status] = row.count;
+        }
+      });
+
+      res.json({
+        success: true,
+        stats
+      });
+
+    } catch (error: any) {
+      console.error('Get dashboard stats error:', error);
+      res.status(500).json({ error: 'Failed to fetch dashboard stats' });
     }
   }
 
