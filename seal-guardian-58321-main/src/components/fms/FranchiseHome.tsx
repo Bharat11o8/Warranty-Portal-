@@ -336,6 +336,14 @@ export const FranchiseHome = ({ stats, recentActivity = [], onNavigate, newProdu
                                             <p className="text-xs font-bold text-slate-500 max-w-xs mb-6 uppercase tracking-tight line-clamp-2">
                                                 {Array.isArray(product.description) ? product.description[0] : product.description}
                                             </p>
+                                            <div className="flex items-baseline gap-2 mb-6 text-brand-orange">
+                                                <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Price</span>
+                                                <span className="text-xl font-black">
+                                                    ₹{typeof product.price === 'number'
+                                                        ? product.price.toLocaleString()
+                                                        : (product.price as any).default?.toLocaleString() || (product.price as any).twoRow?.toLocaleString() || '0'}
+                                                </span>
+                                            </div>
                                             <Button
                                                 onClick={() => onNavigate('catalogue')}
                                                 className="w-fit h-11 px-6 rounded-xl bg-slate-900 text-white font-black uppercase tracking-widest text-[10px]"

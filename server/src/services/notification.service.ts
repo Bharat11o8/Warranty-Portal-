@@ -1,6 +1,11 @@
 import db from '../config/database.js';
 import { getIO } from '../socket.js';
 
+// Simple in-memory cache for deduplication
+// Stores hash(userId + title + message) -> timestamp
+const notificationCache = new Map<string, number>();
+const DEDUPLICATION_WINDOW = 5000; // 5 seconds
+
 export class NotificationService {
     /**
      * Create and send a notification to a specific user
@@ -13,6 +18,25 @@ export class NotificationService {
         metadata?: any;
     }) {
         try {
+            // 0. Deduplication Check
+            const cacheKey = `${userId}:${data.title}:${data.message}`;
+            const now = Date.now();
+            const lastSent = notificationCache.get(cacheKey);
+
+            if (lastSent && (now - lastSent) < DEDUPLICATION_WINDOW) {
+                console.log(`[Deduplication] Skipping duplicate notification for user ${userId}: ${data.title}`);
+                return null;
+            }
+            notificationCache.set(cacheKey, now);
+
+            // Clean up cache occasionally (simple approach)
+            if (notificationCache.size > 1000) {
+                const threshold = now - DEDUPLICATION_WINDOW;
+                for (const [key, timestamp] of notificationCache.entries()) {
+                    if (timestamp < threshold) notificationCache.delete(key);
+                }
+            }
+
             // 1. Save to Database
             const [result]: any = await db.execute(
                 'INSERT INTO notifications (user_id, title, message, type, link, metadata) VALUES (?, ?, ?, ?, ?, ?)',
@@ -21,7 +45,7 @@ export class NotificationService {
 
             const notificationId = result.insertId;
 
-            // 2. Fetch the created notification to ensure we have timestamps etc.
+            // 2. Fetch the created notification
             const [rows]: any = await db.execute('SELECT * FROM notifications WHERE id = ?', [notificationId]);
             const notification = rows[0];
 
@@ -54,38 +78,83 @@ export class NotificationService {
         type?: 'product' | 'alert' | 'system' | 'posm' | 'order' | 'scheme' | 'warranty';
         link?: string;
         metadata?: any;
-
         targetUsers?: string[]; // Array of user IDs
-        targetRole?: 'admin' | 'vendor' | 'customer'; // New parameter
+        targetRole?: 'admin' | 'vendor' | 'customer';
     }) {
         try {
-            let vendors: any[] = [];
+            // 0. Deduplication Check for Broadcasts
+            const cacheKey = `broadcast:${data.targetRole || 'all'}:${data.title}:${data.message}`;
+            const now = Date.now();
+            const lastSent = notificationCache.get(cacheKey);
+
+            if (lastSent && (now - lastSent) < DEDUPLICATION_WINDOW) {
+                console.log(`[Deduplication] Skipping duplicate broadcast: ${data.title}`);
+                return { success: true, count: 0, deduplicated: true };
+            }
+            notificationCache.set(cacheKey, now);
+
+            let userIds: any[] = [];
 
             // 1. Get recipients
             if (data.targetUsers && data.targetUsers.length > 0) {
-                // If specific users are targeted
-                vendors = data.targetUsers.map(id => ({ id }));
+                userIds = data.targetUsers;
             } else if (data.targetRole === 'admin') {
-                // Determine admin role name (e.g. 'admin')
                 const [rows]: any = await db.execute(
-                    'SELECT DISTINCT ur.user_id as id FROM user_roles ur WHERE ur.role = "admin"'
+                    'SELECT user_id FROM user_roles WHERE role = "admin"'
                 );
-                vendors = rows;
+                userIds = rows.map((r: any) => r.user_id);
+            } else if (data.targetRole === 'customer') {
+                const [rows]: any = await db.execute(
+                    'SELECT user_id FROM user_roles WHERE role = "customer"'
+                );
+                userIds = rows.map((r: any) => r.user_id);
             } else {
-                // Default: Helper for vendors
+                // Default: vendors
                 const [rows]: any = await db.execute(
-                    'SELECT DISTINCT ur.user_id as id FROM user_roles ur WHERE ur.role = "vendor"'
+                    'SELECT user_id FROM user_roles WHERE role = "vendor"'
                 );
-                vendors = rows;
+                userIds = rows.map((r: any) => r.user_id);
             }
 
-            // 2. Create notifications for each in parralel for speed, but this could be optimized 
-            // for massive user bases using a different approach. For this scale, it's fine.
-            const notifications = await Promise.all(
-                vendors.map((v: any) => this.notify(v.id, data))
+            if (userIds.length === 0) return [];
+
+            // 2. Bulk Database Insert
+            const metadataStr = data.metadata ? JSON.stringify(data.metadata) : null;
+            const type = data.type || 'system';
+            const link = data.link || null;
+
+            const insertValues = userIds.map(id => [id, data.title, data.message, type, link, metadataStr]);
+
+            // mysql2 supports bulk insert: INSERT INTO table (cols) VALUES (?,?,?), (?,?,?)
+            await db.query(
+                'INSERT INTO notifications (user_id, title, message, type, link, metadata) VALUES ?',
+                [insertValues]
             );
 
-            return notifications;
+            // 3. Emit via Socket.io
+            const io = getIO();
+            const notificationPayload = {
+                title: data.title,
+                message: data.message,
+                type,
+                link,
+                metadata: data.metadata,
+                created_at: new Date().toISOString(),
+                is_read: false
+            };
+
+            if (data.targetRole && !data.targetUsers) {
+                // Efficiently broadcast to the entire role room
+                console.log(`[Broadcast] Emitting to role room: role_${data.targetRole}`);
+                io.to(`role_${data.targetRole}`).emit('notification:new', notificationPayload);
+            } else {
+                // Emit to individual user rooms
+                userIds.forEach(id => {
+                    io.to(`user_${id}`).emit('notification:new', notificationPayload);
+                });
+            }
+
+            return { success: true, count: userIds.length };
         } catch (error) {
             console.error('Broadcast failed:', error);
             throw error;

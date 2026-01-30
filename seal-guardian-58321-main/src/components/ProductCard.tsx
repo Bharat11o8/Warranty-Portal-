@@ -91,7 +91,9 @@ const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
                                     <span className="text-base md:text-lg font-black text-brand-orange">
                                         ₹{typeof product.price === 'number'
                                             ? product.price.toLocaleString()
-                                            : product.price.default?.toLocaleString()}
+                                            : typeof product.price === 'string'
+                                                ? Number(product.price).toLocaleString()
+                                                : (product.price as any).default?.toLocaleString() || (product.price as any).twoRow?.toLocaleString() || '0'}
                                     </span>
                                 </div>
                             )}

@@ -42,10 +42,21 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     const [socket, setSocket] = useState<Socket | null>(null);
 
     const parseMetadata = (notifs: Notification[]) => {
-        return notifs.map(n => ({
-            ...n,
-            metadata: n.metadata ? (typeof n.metadata === 'string' ? JSON.parse(n.metadata) : n.metadata) : null
-        }));
+        return notifs.map(n => {
+            let parsedMetadata = n.metadata;
+            if (typeof n.metadata === 'string') {
+                try {
+                    parsedMetadata = JSON.parse(n.metadata);
+                } catch (e) {
+                    console.error('Failed to parse metadata for notification:', n.id, e);
+                    parsedMetadata = null;
+                }
+            }
+            return {
+                ...n,
+                metadata: parsedMetadata as any
+            };
+        });
     };
 
     const fetchNotifications = useCallback(async () => {

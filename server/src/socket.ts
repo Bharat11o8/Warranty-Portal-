@@ -33,9 +33,19 @@ export const initSocket = (server: HttpServer) => {
 
     io.on('connection', (socket) => {
         const userId = socket.data.user?.id;
+        const role = socket.data.user?.role;
+
         if (userId) {
-            console.log(`📡 User ${userId} connected to socket`);
+            console.log(`📡 User ${userId} (${role}) connected to socket`);
+
+            // Join universal user-specific room
             socket.join(`user_${userId}`);
+
+            // Join role-specific rooms for efficient broadcasting
+            if (role) {
+                socket.join(`role_${role}`);
+                console.log(`📡 User ${userId} joined room: role_${role}`);
+            }
         }
 
         socket.on('disconnect', () => {

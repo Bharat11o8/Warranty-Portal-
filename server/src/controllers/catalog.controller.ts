@@ -110,16 +110,21 @@ export class CatalogController {
                     let finalPrice: any = Number(p.price);
                     if (productVariations.length > 0) {
                         // Try to detect "twoRow" / "threeRow" pattern from mock data
-                        const twoRow = productVariations.find((v: any) => v.name.includes('2 Row'));
-                        const threeRow = productVariations.find((v: any) => v.name.includes('3 Row'));
+                        const twoRow = productVariations.find((v: any) => v.name.toLowerCase().includes('2 row'));
+                        const threeRow = productVariations.find((v: any) => v.name.toLowerCase().includes('3 row'));
 
                         if (twoRow || threeRow) {
                             finalPrice = {};
                             if (twoRow) finalPrice.twoRow = Number(twoRow.price);
                             if (threeRow) finalPrice.threeRow = Number(threeRow.price);
+                            // Set a default price for general display (min of available rows)
+                            const prices = [twoRow?.price, threeRow?.price].filter(p => p !== undefined).map(Number);
+                            if (prices.length > 0) finalPrice.default = Math.min(...prices);
                         } else {
-                            // Default to min price if not specific row config
-                            finalPrice = Number(p.price);
+                            // If variations exist but are not row-based, use the minimum variation price.
+                            // Falling back to product table price only if no valid variation prices found.
+                            const varPrices = productVariations.map((v: any) => Number(v.price)).filter((p: number) => p > 0);
+                            finalPrice = varPrices.length > 0 ? Math.min(...varPrices) : Number(p.price);
                         }
                     }
 
@@ -138,7 +143,9 @@ export class CatalogController {
                         rating: 4.5, // Placeholder or avg calc
                         variations: productVariations.map((v: any) => ({
                             ...v,
-                            images: variationImageMap.get(v.id) || []
+                            images: variationImageMap.get(v.id) || [],
+                            videos: v.meta?.videos || [],
+                            description: v.meta?.description || ''
                         }))
                     };
                 });
@@ -194,12 +201,19 @@ export class CatalogController {
 
             let finalPrice: any = Number(product.price);
             if (productVariations.length > 0) {
-                const twoRow = productVariations.find((v: any) => v.name.includes('2 Row'));
-                const threeRow = productVariations.find((v: any) => v.name.includes('3 Row'));
+                const twoRow = productVariations.find((v: any) => v.name.toLowerCase().includes('2 row'));
+                const threeRow = productVariations.find((v: any) => v.name.toLowerCase().includes('3 row'));
                 if (twoRow || threeRow) {
                     finalPrice = {};
                     if (twoRow) finalPrice.twoRow = Number(twoRow.price);
                     if (threeRow) finalPrice.threeRow = Number(threeRow.price);
+                    const prices = [twoRow?.price, threeRow?.price].filter(p => p !== undefined).map(Number);
+                    if (prices.length > 0) finalPrice.default = Math.min(...prices);
+                } else {
+                    const varPrices = productVariations.map((v: any) => Number(v.price)).filter((p: number) => p > 0);
+                    if (varPrices.length > 0) {
+                        finalPrice = Math.min(...varPrices);
+                    }
                 }
             }
 
@@ -226,7 +240,9 @@ export class CatalogController {
                     rating: 4.5,
                     variations: productVariations.map((v: any) => ({
                         ...v,
-                        images: images.filter((i: any) => i.variation_id === v.id).map((i: any) => i.url) || []
+                        images: images.filter((i: any) => i.variation_id === v.id).map((i: any) => i.url) || [],
+                        videos: v.meta?.videos || [],
+                        description: v.meta?.description || ''
                     }))
                 }
             });
@@ -353,7 +369,15 @@ export class CatalogController {
 
             const id = uuidv4();
             const descriptionText = Array.isArray(description) ? description.join('\n') : description;
-            const basePrice = typeof price === 'object' ? Math.min(price.twoRow || 0, price.threeRow || 0) : price;
+
+            // Determine base price: if it's an object (legacy seat covers), use the minimum. 
+            // Otherwise, use the provided price value directly.
+            let basePrice = 0;
+            if (price && typeof price === 'object') {
+                basePrice = Math.min(price.twoRow || 0, price.threeRow || 0);
+            } else if (price !== undefined) {
+                basePrice = Number(price);
+            }
 
             // Insert main product
             await db.execute(
@@ -368,7 +392,8 @@ export class CatalogController {
                     const varId = uuidv4();
                     const meta = {
                         ...(v.meta || {}),
-                        description: v.description || null
+                        description: v.description || null,
+                        videos: v.videos || []
                     };
                     await db.execute(
                         `INSERT INTO store_product_variations (id, product_id, name, sku, price, stock_quantity, attributes, meta) 
@@ -462,7 +487,14 @@ export class CatalogController {
             }
 
             const descriptionText = Array.isArray(description) ? description.join('\n') : description;
-            const basePrice = typeof price === 'object' ? Math.min(price.twoRow || 0, price.threeRow || 0) : price;
+
+            // Determine base price: prioritize the explicit price passed from frontend.
+            let basePrice = 0;
+            if (price && typeof price === 'object') {
+                basePrice = Math.min(price.twoRow || 0, price.threeRow || 0);
+            } else if (price !== undefined) {
+                basePrice = Number(price);
+            }
 
             // Update main product
             await db.execute(
@@ -480,7 +512,8 @@ export class CatalogController {
                     const varId = uuidv4();
                     const meta = {
                         ...(v.meta || {}),
-                        description: v.description || null
+                        description: v.description || null,
+                        videos: v.videos || []
                     };
                     await db.execute(
                         `INSERT INTO store_product_variations (id, product_id, name, sku, price, stock_quantity, attributes, meta) 

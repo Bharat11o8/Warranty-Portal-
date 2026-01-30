@@ -32,9 +32,15 @@ import { cn } from "@/lib/utils";
 
 interface CatalogHeaderProps {
     isDashboard?: boolean;
+    externalSearchOpen?: boolean;
+    setExternalSearchOpen?: (open: boolean) => void;
 }
 
-const CatalogHeader: React.FC<CatalogHeaderProps> = ({ isDashboard = false }) => {
+const CatalogHeader: React.FC<CatalogHeaderProps> = ({
+    isDashboard = false,
+    externalSearchOpen,
+    setExternalSearchOpen
+}) => {
     const [searchTerm, setSearchTerm] = useState('');
     const [searchResults, setSearchResults] = useState<Product[]>([]);
     const [showSearchResults, setShowSearchResults] = useState(false);
@@ -103,6 +109,16 @@ const CatalogHeader: React.FC<CatalogHeaderProps> = ({ isDashboard = false }) =>
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
 
+    // Unified mobile search state management (Controlled vs Uncontrolled)
+    const finalMobileSearchOpen = externalSearchOpen !== undefined ? externalSearchOpen : isMobileSearchOpen;
+
+    const setFinalMobileSearchOpen = (open: boolean) => {
+        if (setExternalSearchOpen) {
+            setExternalSearchOpen(open);
+        }
+        setIsMobileSearchOpen(open);
+    };
+
     const handleSearch = (e: React.FormEvent) => {
         e.preventDefault();
         if (searchResults.length > 0) {
@@ -117,12 +133,12 @@ const CatalogHeader: React.FC<CatalogHeaderProps> = ({ isDashboard = false }) =>
 
     const toggleMobileMenu = () => {
         setIsMobileMenuOpen(!isMobileMenuOpen);
-        setIsMobileSearchOpen(false); // Close search if menu opens
+        setFinalMobileSearchOpen(false); // Close search if menu opens
         setMobileExpandedCategory(null);
     };
 
     const toggleMobileSearch = () => {
-        setIsMobileSearchOpen(!isMobileSearchOpen);
+        setFinalMobileSearchOpen(!finalMobileSearchOpen);
         setIsMobileMenuOpen(false); // Close menu if search opens
     };
 
@@ -281,9 +297,12 @@ const CatalogHeader: React.FC<CatalogHeaderProps> = ({ isDashboard = false }) =>
             !isDashboard && "border-b shadow-sm"
         )}>
             <div className="container mx-auto px-4">
-                {/* Desktop: Top row (Logo & Search) - Hidden in Dashboard to prevent double headers/lines */}
-                {!isDashboard && (
-                    <div className="hidden md:flex items-center justify-between py-2 border-b border-gray-50">
+                {/* Desktop Header row (Logo on left, items on right) */}
+                <div className={cn(
+                    "hidden md:flex items-center justify-between py-2 border-b border-gray-50",
+                    isDashboard && "justify-end"
+                )}>
+                    {!isDashboard && (
                         <Link to="/catalogue" className="flex-shrink-0">
                             <img
                                 src="/autoform-logo.png"
@@ -291,52 +310,54 @@ const CatalogHeader: React.FC<CatalogHeaderProps> = ({ isDashboard = false }) =>
                                 className="h-10 object-contain"
                             />
                         </Link>
+                    )}
+                </div>
 
-                        {/* Search on right */}
-                        <div className="relative w-56 lg:w-64" ref={searchRef}>
-                            <form onSubmit={handleSearch}>
-                                <div className="relative">
-                                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-                                    <Input
-                                        type="search"
-                                        placeholder="Search products..."
-                                        className="pl-9 pr-3 h-8 text-sm border-gray-100 bg-gray-50/50 focus:bg-white transition-colors"
-                                        value={searchTerm}
-                                        onChange={(e) => setSearchTerm(e.target.value)}
-                                        onFocus={() => searchTerm.length >= 3 && setShowSearchResults(true)}
-                                    />
-                                </div>
-                            </form>
-                            {showSearchResults && searchResults.length > 0 && (
-                                <div className="absolute top-full right-0 w-full bg-white border rounded-md shadow-lg mt-1 max-h-72 overflow-y-auto z-50">
-                                    {searchResults.map((product) => (
-                                        <Link
-                                            key={product.id}
-                                            to={`/product/${product.id}`}
-                                            className="flex items-center p-2 hover:bg-gray-50 border-b border-gray-100 last:border-b-0"
-                                            onClick={handleSearchResultClick}
-                                        >
-                                            <img src={product.images[0]} alt={product.name} className="w-10 h-10 object-cover rounded mr-2" />
-                                            <div>
-                                                <div className="text-sm font-medium text-gray-900 line-clamp-1">{product.name}</div>
-                                                <div className="text-xs text-brand-orange font-semibold">
-                                                    ₹{typeof product.price === 'number' ? product.price.toLocaleString() : 'Varies'}
-                                                </div>
+                {/* Desktop: Navigation Bar + Search (Below Logo) */}
+                <div className="hidden md:flex items-center justify-between py-1.5 gap-4">
+                    <nav className="flex items-center space-x-4 lg:space-x-8">
+                        {mainCategories.map((category) => (
+                            <NavDropdown key={category.id} category={category} allCats={allCategories} />
+                        ))}
+                    </nav>
+
+                    {/* Search on right of Nav */}
+                    <div className="relative w-56 lg:w-64" ref={searchRef}>
+                        <form onSubmit={handleSearch}>
+                            <div className="relative">
+                                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                                <Input
+                                    type="search"
+                                    placeholder="Search products..."
+                                    className="pl-9 pr-3 h-8 text-xs border-gray-100 bg-gray-50/50 focus:bg-white transition-colors"
+                                    value={searchTerm}
+                                    onChange={(e) => setSearchTerm(e.target.value)}
+                                    onFocus={() => searchTerm.length >= 3 && setShowSearchResults(true)}
+                                />
+                            </div>
+                        </form>
+                        {showSearchResults && searchResults.length > 0 && (
+                            <div className="absolute top-full right-0 w-full bg-white border rounded-md shadow-lg mt-1 max-h-72 overflow-y-auto z-50">
+                                {searchResults.map((product) => (
+                                    <Link
+                                        key={product.id}
+                                        to={`/product/${product.id}`}
+                                        className="flex items-center p-2 hover:bg-gray-50 border-b border-gray-100 last:border-b-0"
+                                        onClick={handleSearchResultClick}
+                                    >
+                                        <img src={product.images[0]} alt={product.name} className="w-10 h-10 object-cover rounded mr-2" />
+                                        <div>
+                                            <div className="text-sm font-medium text-gray-900 line-clamp-1">{product.name}</div>
+                                            <div className="text-xs text-brand-orange font-semibold">
+                                                ₹{typeof product.price === 'number' ? product.price.toLocaleString() : 'Varies'}
                                             </div>
-                                        </Link>
-                                    ))}
-                                </div>
-                            )}
-                        </div>
+                                        </div>
+                                    </Link>
+                                ))}
+                            </div>
+                        )}
                     </div>
-                )}
-
-                {/* Desktop: Navigation Bar (Below Logo/Search) */}
-                <nav className="hidden md:flex items-center justify-start py-1.5 space-x-4 lg:space-x-8">
-                    {mainCategories.map((category) => (
-                        <NavDropdown key={category.id} category={category} allCats={allCategories} />
-                    ))}
-                </nav>
+                </div>
 
                 {!isDashboard && (
                     <div className="md:hidden flex items-center justify-between py-2.5 relative">
@@ -362,10 +383,10 @@ const CatalogHeader: React.FC<CatalogHeaderProps> = ({ isDashboard = false }) =>
                                 onClick={toggleMobileSearch}
                                 className={cn(
                                     "p-2 transition-all duration-300",
-                                    isMobileSearchOpen ? "text-brand-orange scale-110" : "text-gray-700 hover:text-brand-orange"
+                                    finalMobileSearchOpen ? "text-brand-orange scale-110" : "text-gray-700 hover:text-brand-orange"
                                 )}
                             >
-                                {isMobileSearchOpen ? <X className="h-6 w-6" /> : <Search className="h-6 w-6" />}
+                                {finalMobileSearchOpen ? <X className="h-6 w-6" /> : <Search className="h-6 w-6" />}
                             </button>
                         </div>
                     </div>
@@ -374,7 +395,7 @@ const CatalogHeader: React.FC<CatalogHeaderProps> = ({ isDashboard = false }) =>
                 {/* Mobile Search Bar Expansion */}
                 <div className={cn(
                     "md:hidden overflow-hidden transition-all duration-500 ease-in-out border-t border-gray-50",
-                    isMobileSearchOpen ? "max-h-[500px] opacity-100 py-4" : "max-h-0 opacity-0 py-0"
+                    finalMobileSearchOpen ? "max-h-[500px] opacity-100 py-4" : "max-h-0 opacity-0 py-0"
                 )}>
                     <div className="px-4">
                         <form onSubmit={handleSearch} className="relative">
@@ -385,7 +406,7 @@ const CatalogHeader: React.FC<CatalogHeaderProps> = ({ isDashboard = false }) =>
                                 className="pl-12 pr-4 h-12 text-base rounded-2xl bg-gray-50 border-gray-100 focus:bg-white focus:ring-2 focus:ring-brand-orange/20 transition-all"
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
-                                autoFocus={isMobileSearchOpen}
+                                autoFocus={finalMobileSearchOpen}
                             />
                         </form>
 

@@ -18,6 +18,7 @@ export interface ProductVariation {
     attributes?: Record<string, string>;
     meta?: Record<string, any>;
     images: string[];
+    videos?: string[];
 }
 
 export interface ProductReview {
@@ -36,6 +37,7 @@ export interface Product {
     categoryId: string;
     inStock: boolean;
     images: string[];
+    videos?: string[];
     reviews: ProductReview[];
     rating: number;
     variations?: ProductVariation[];

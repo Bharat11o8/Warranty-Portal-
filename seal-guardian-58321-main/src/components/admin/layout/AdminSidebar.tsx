@@ -19,6 +19,7 @@ import {
     Megaphone
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
+import { useNotifications } from "@/contexts/NotificationContext";
 import { Button } from "@/components/ui/button";
 
 export type AdminModule =
@@ -36,6 +37,7 @@ export type AdminModule =
     | 'terms'
     | 'warranty-form'
     | 'announcements'
+    | 'posm'
     | 'profile';
 
 interface SidebarItemProps {
@@ -111,6 +113,11 @@ export const SidebarContent = ({
     onToggleCollapse
 }: AdminSidebarProps) => {
     const { logout, user } = useAuth();
+    const { notifications } = useNotifications();
+
+    // Calculate unread counts per type
+    const unreadWarranties = notifications.filter(n => !n.is_read && n.type === 'warranty').length;
+    const unreadGrievances = notifications.filter(n => !n.is_read && (n.type === 'scheme' || n.title.toLowerCase().includes('grievance'))).length;
 
     // Define menu items inside the component or outside if static
     const menuGroups = [
@@ -123,7 +130,13 @@ export const SidebarContent = ({
         {
             label: "Warranty Management",
             items: [
-                { id: 'warranties' as const, label: "Warranty Management", icon: ShieldCheck },
+                {
+                    id: 'warranties' as const,
+                    label: "Warranty Claims",
+                    icon: ShieldCheck,
+                    badge: unreadWarranties > 0 ? unreadWarranties.toString() : undefined
+                },
+
                 { id: 'warranty-products' as const, label: "Warranty Products", icon: Store },
                 { id: 'warranty-form' as const, label: "New Registration", icon: PenTool },
             ]
@@ -140,7 +153,13 @@ export const SidebarContent = ({
             label: "Communication",
             items: [
                 { id: 'announcements' as const, label: "Announcements", icon: Megaphone },
-                { id: 'grievances' as const, label: "Grievances", icon: MessageSquare },
+                {
+                    id: 'grievances' as const,
+                    label: "Grievances",
+                    icon: MessageSquare,
+                    badge: unreadGrievances > 0 ? unreadGrievances.toString() : undefined
+                },
+                { id: 'posm' as const, label: "POSM Requirements", icon: Package },
                 { id: 'terms' as const, label: "Terms & Conditions", icon: FileText },
             ]
         },
@@ -200,7 +219,7 @@ export const SidebarContent = ({
                             </h2>
                         )}
                         <div className="space-y-2">
-                            {group.items.map((item) => (
+                            {group.items.map((item: any) => (
                                 <SidebarItem
                                     key={item.id}
                                     icon={item.icon}
@@ -208,6 +227,7 @@ export const SidebarContent = ({
                                     active={activeModule === item.id}
                                     onClick={() => onModuleChange(item.id)}
                                     isCollapsed={isCollapsed}
+                                    badge={item.badge}
                                 />
                             ))}
                         </div>
