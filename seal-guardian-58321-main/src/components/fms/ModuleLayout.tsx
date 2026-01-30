@@ -26,7 +26,7 @@ export const ModuleLayout = ({ title, description, children, actions, isCollapse
             >
                 <div id="main-dashboard-content-area" className="flex-1 w-full h-full overflow-y-auto custom-scrollbar flex flex-col">
                     {/* Branding Header Area - Exactly like Customer Side */}
-                    <div className="px-6 md:px-10 pt-8 md:pt-10 w-full shrink-0 sticky top-0 z-40 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/60">
+                    <div className="px-6 md:px-10 py-4 md:pt-10 w-full shrink-0 sticky md:static top-0 z-40 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/60">
                         <div className="max-w-[1500px] mx-auto flex flex-col gap-4 md:gap-0">
                             <div className="flex flex-row items-start justify-between gap-4 md:gap-6">
                                 <div className="flex flex-col gap-3 md:gap-4 flex-1 min-w-0">
