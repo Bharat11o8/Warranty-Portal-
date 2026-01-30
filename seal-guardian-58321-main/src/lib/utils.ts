@@ -121,3 +121,46 @@ export function formatToIST(dateInput: string | Date | number | undefined | null
   });
 }
 
+/**
+ * Optimize Cloudinary image URLs with automatic format and quality.
+ * Adds f_auto (format), q_auto (quality), and optional width transformations.
+ * 
+ * @param url - The original Cloudinary URL
+ * @param options - Optional width for responsive images
+ * @returns Optimized URL or original if not a Cloudinary URL
+ */
+export function optimizeCloudinaryUrl(url: string | undefined | null, options?: { width?: number }): string {
+  if (!url) return '';
+
+  // Only transform Cloudinary URLs
+  if (!url.includes('res.cloudinary.com')) {
+    return url;
+  }
+
+  // Check if already has transformations
+  const uploadIndex = url.indexOf('/upload/');
+  if (uploadIndex === -1) return url;
+
+  // Build transformation string
+  let transformations = 'f_auto,q_auto';
+  if (options?.width) {
+    transformations += `,w_${options.width}`;
+  }
+
+  // Insert transformations after /upload/
+  const beforeUpload = url.substring(0, uploadIndex + 8); // includes '/upload/'
+  const afterUpload = url.substring(uploadIndex + 8);
+
+  // Check if there are existing transformations (they start with letters like v1234, w_, h_, c_, etc.)
+  // If the path after upload starts with 'v' followed by numbers, it's a version, not a transformation
+  if (/^v\d+\//.test(afterUpload)) {
+    // Has version number, insert transformations before it
+    return `${beforeUpload}${transformations}/${afterUpload}`;
+  } else if (/^[a-z]/.test(afterUpload)) {
+    // Already has transformations, prepend ours
+    return `${beforeUpload}${transformations},${afterUpload}`;
+  } else {
+    // No transformations, add ours
+    return `${beforeUpload}${transformations}/${afterUpload}`;
+  }
+}

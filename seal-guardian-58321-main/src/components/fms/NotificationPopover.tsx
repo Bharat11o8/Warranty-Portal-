@@ -22,9 +22,19 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useNotifications } from "@/contexts/NotificationContext";
-import { cn } from "@/lib/utils";
+import { cn, optimizeCloudinaryUrl } from "@/lib/utils";
 import { formatDistanceToNow, format } from "date-fns";
-import { useIsMobile } from "@/hooks/use-mobile";
+
+export const NotificationPopover = ({ onNavigate, onLinkClick }: { onNavigate?: (module: any) => void; onLinkClick?: (link: string) => boolean }) => {
+    const {
+        notifications,
+        unreadCount,
+        markAsRead,
+        markAllAsRead,
+        clearAllNotifications
+    } = useNotifications();
+    const navigate = useNavigate();
+    const [open, setOpen] = useState(false);
 
 const getIcon = (type: string) => {
     switch (type) {
@@ -82,25 +92,25 @@ const NotificationItem = ({ notification, onRead, onSelect }: { notification: an
                 {notification.message}
             </p>
 
-            {/* Media Preview in List */}
-            {notification.metadata && (
-                (Array.isArray(notification.metadata.images) && notification.metadata.images.length > 0) ||
-                (Array.isArray(notification.metadata.videos) && notification.metadata.videos.length > 0)
-            ) && (
-                    <div className="mt-3 flex gap-2 overflow-hidden">
-                        {Array.isArray(notification.metadata.images) && notification.metadata.images.slice(0, 3).map((img: string, i: number) => (
-                            <div key={i} className="h-12 w-12 rounded-lg border border-slate-200 bg-white p-0.5 flex items-center justify-center overflow-hidden shrink-0 shadow-sm">
-                                <img src={img} className="h-full w-full object-cover rounded-md" alt="" />
-                            </div>
-                        ))}
-                        {Array.isArray(notification.metadata.videos) && notification.metadata.videos.length > 0 && (
-                            <div className="h-12 w-20 rounded-lg border border-purple-100 bg-purple-50 flex items-center justify-center shrink-0 shadow-sm">
-                                <Video className="h-4 w-4 text-purple-600" />
-                            </div>
-                        )}
-                    </div>
-                )}
-        </div>
+                {/* Media Preview in List */}
+                {notification.metadata && (
+                    (Array.isArray(notification.metadata.images) && notification.metadata.images.length > 0) ||
+                    (Array.isArray(notification.metadata.videos) && notification.metadata.videos.length > 0)
+                ) && (
+                        <div className="mt-3 flex gap-2 overflow-hidden">
+                            {Array.isArray(notification.metadata.images) && notification.metadata.images.slice(0, 3).map((img: string, i: number) => (
+                                <div key={i} className="h-12 w-12 rounded-lg border border-slate-200 bg-white p-0.5 flex items-center justify-center overflow-hidden shrink-0 shadow-sm">
+                                    <img src={img} className="h-full w-full object-cover rounded-md" alt="" />
+                                </div>
+                            ))}
+                            {Array.isArray(notification.metadata.videos) && notification.metadata.videos.length > 0 && (
+                                <div className="h-12 w-20 rounded-lg border border-purple-100 bg-purple-50 flex items-center justify-center shrink-0 shadow-sm">
+                                    <Video className="h-4 w-4 text-purple-600" />
+                                </div>
+                            )}
+                        </div>
+                    )}
+            </div>
 
         {!notification.is_read && (
             <div className="absolute right-3 top-3">
@@ -375,7 +385,7 @@ export const NotificationPopover = ({ onNavigate, onLinkClick }: { onNavigate?: 
                                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                                         {selectedNotification.metadata.images.map((img: string, i: number) => (
                                                             <div key={i} className="group relative aspect-video rounded-xl overflow-hidden border bg-muted shadow-sm hover:shadow-md transition-all duration-300">
-                                                                <img src={img} alt="" className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" />
+                                                                <img src={optimizeCloudinaryUrl(img, { width: 600 })} loading="lazy" alt="" className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" />
 
                                                                 {/* Image Hover Overlay */}
                                                                 <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-3">

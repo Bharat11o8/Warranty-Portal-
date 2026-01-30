@@ -1,6 +1,7 @@
 import express from 'express';
 import { createServer } from 'http';
 import cors from 'cors';
+import compression from 'compression';
 import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
@@ -89,6 +90,12 @@ app.use(cors({
   methods: ['GET', 'HEAD', 'OPTIONS', 'POST', 'PUT', 'PATCH', 'DELETE'],
   allowedHeaders: ['Origin', 'X-Requested-With', 'Content-Type', 'Accept', 'Authorization', 'X-Request-Id']
 }));
+
+// ===========================================
+// COMPRESSION (Gzip/Brotli for smaller responses)
+// ===========================================
+
+app.use(compression());
 
 // ===========================================
 // BODY PARSERS

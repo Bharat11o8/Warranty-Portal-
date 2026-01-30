@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
 import { Calendar as CalendarIcon, ChevronRight, Info, Megaphone, Search, Filter, ShieldCheck, AlertTriangle, Video, Download, ExternalLink, PlayCircle, FileVideo, FileText, Link, Image as ImageIcon, X } from "lucide-react";
 import { useNotifications } from "@/contexts/NotificationContext";
-import { cn } from "@/lib/utils";
+import { cn, optimizeCloudinaryUrl } from "@/lib/utils";
 import { format, isSameDay } from "date-fns";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
@@ -258,7 +258,7 @@ export const NewsAlerts = () => {
                                                             <div className="flex -space-x-3 hover:space-x-1 transition-all">
                                                                 {item.metadata.images.slice(0, 3).map((img, i) => (
                                                                     <div key={i} className="h-10 w-10 rounded-full border-2 border-white bg-slate-100 flex items-center justify-center overflow-hidden shadow-sm hover:scale-125 hover:z-10 transition-all duration-300">
-                                                                        <img src={img} className="h-full w-full object-cover" />
+                                                                        <img src={optimizeCloudinaryUrl(img, { width: 80 })} loading="lazy" className="h-full w-full object-cover" />
                                                                     </div>
                                                                 ))}
                                                                 {item.metadata.images.length > 3 && (
@@ -399,7 +399,7 @@ export const NewsAlerts = () => {
                                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                                         {selectedNotification.metadata.images.map((img: string, i: number) => (
                                                             <div key={i} className="group relative aspect-video rounded-2xl overflow-hidden border border-slate-100 bg-slate-50 shadow-sm hover:shadow-xl transition-all duration-500">
-                                                                <img src={img} alt="" className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" />
+                                                                <img src={optimizeCloudinaryUrl(img, { width: 600 })} loading="lazy" alt="" className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" />
 
                                                                 {/* Image Hover Overlay */}
                                                                 <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-3 backdrop-blur-[2px]">
