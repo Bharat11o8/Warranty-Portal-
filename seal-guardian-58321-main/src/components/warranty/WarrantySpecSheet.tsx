@@ -182,10 +182,8 @@ export const WarrantySpecSheet = ({ isOpen, onClose, warranty }: WarrantySpecShe
                                 value={productDetails.storeEmail || (warranty.installer_contact?.includes('|') ? warranty.installer_contact.split('|')[0].trim() : warranty.installer_contact) || "N/A"}
                             />
                             <div className="hidden md:block">
-                                <SpecRow
-                                    label="Store Phone"
-                                    value={productDetails.dealerMobile || (warranty.installer_contact?.includes('|') ? warranty.installer_contact.split('|')[1].trim() : "") || "N/A"}
-                                />
+                                <p className="text-sm text-muted-foreground">Store Phone</p>
+                                <p className="font-medium">{productDetails.storePhone || warranty.vendor_phone_number || 'N/A'}</p>
                             </div>
                             <SpecRow label="Applicator" value={productDetails.manpowerName || warranty.manpower_name_from_db || "Standard"} />
                         </div>
