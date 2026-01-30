@@ -24,7 +24,7 @@ import { useNotifications } from "@/contexts/NotificationContext";
 import { cn, optimizeCloudinaryUrl } from "@/lib/utils";
 import { formatDistanceToNow, format } from "date-fns";
 
-export const NotificationPopover = ({ onNavigate, onLinkClick }: { onNavigate?: (module: any) => void; onLinkClick?: (link: string) => boolean }) => {
+export const NotificationPopover = ({ onNavigate, onLinkClick }: { onNavigate?: (module: any) => void; onLinkClick?: (link: string) => boolean }): JSX.Element => {
     const {
         notifications,
         unreadCount,
@@ -100,13 +100,8 @@ export const NotificationPopover = ({ onNavigate, onLinkClick }: { onNavigate?: 
                 ) && (
                         <div className="mt-3 flex gap-2 overflow-hidden">
                             {Array.isArray(notification.metadata.images) && notification.metadata.images.slice(0, 3).map((img: string, i: number) => (
-<<<<<<< HEAD
-                                <div key={i} className="h-10 w-10 rounded border bg-muted flex items-center justify-center overflow-hidden shrink-0">
-                                    <img src={optimizeCloudinaryUrl(img, { width: 80 })} loading="lazy" className="h-full w-full object-cover" alt="" />
-=======
                                 <div key={i} className="h-12 w-12 rounded-lg border border-slate-200 bg-white p-0.5 flex items-center justify-center overflow-hidden shrink-0 shadow-sm">
-                                    <img src={img} className="h-full w-full object-cover rounded-md" alt="" />
->>>>>>> a8f89f3f87646a77aa61317fb57e20a4f0392507
+                                    <img src={optimizeCloudinaryUrl(img, { width: 80 })} loading="lazy" className="h-full w-full object-cover rounded-md" alt="" />
                                 </div>
                             ))}
                             {Array.isArray(notification.metadata.videos) && notification.metadata.videos.length > 0 && (
