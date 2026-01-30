@@ -312,9 +312,14 @@ export class WarrantyController {
       const offset = (page - 1) * limit;
 
       let baseQuery = `
-        SELECT w.*, m.name as manpower_name_from_db 
+        SELECT 
+            w.*, 
+            m.name as manpower_name_from_db,
+            vp.phone_number as vendor_phone_number
         FROM warranty_registrations w 
         LEFT JOIN manpower m ON w.manpower_id = m.id
+        LEFT JOIN vendor_details vd ON m.vendor_id = vd.id
+        LEFT JOIN profiles vp ON vd.user_id = vp.id
       `;
       let countQuery = `SELECT COUNT(*) as total FROM warranty_registrations w`;
       let params: any[] = [];
