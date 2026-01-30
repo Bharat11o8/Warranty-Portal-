@@ -20,245 +20,7 @@ import {
     X
 } from "lucide-react";
 
-interface WarrantyDetailsViewProps {
-    warranty: any;
-    productName: string;
-    productDetails: any;
-}
 
-const WarrantyDetailsView = ({ warranty, productName, productDetails }: WarrantyDetailsViewProps) => {
-    return (
-        <div className="mt-6 space-y-6">
-            <div>
-                <h3 className="text-lg font-semibold mb-3 pb-2 border-b">Product Information</h3>
-                <div className="grid grid-cols-2 gap-4">
-                    <div>
-                        <p className="text-sm text-muted-foreground">Product Name</p>
-                        <p className="font-medium">{productName.replace(/-/g, ' ').toUpperCase()}</p>
-                    </div>
-                    <div>
-                        <p className="text-sm text-muted-foreground">Status</p>
-                        <div className="flex items-center gap-2 mt-0.5">
-                            <Badge variant={
-                                warranty.status === 'validated' ? 'default' :
-                                    warranty.status === 'rejected' ? 'destructive' : 'secondary'
-                            } className={cn("text-xs px-2 py-0.5", warranty.status === 'validated' && "bg-green-600 hover:bg-green-700")}>
-                                {warranty.status === 'validated' ? 'APPROVED' : warranty.status === 'rejected' ? 'DISAPPROVED' : warranty.status.toUpperCase()}
-                            </Badge>
-                            {warranty.rejection_reason && (
-                                <p className="text-xs text-destructive truncate max-w-[150px]" title={warranty.rejection_reason}>
-                                    {warranty.rejection_reason}
-                                </p>
-                            )}
-                        </div>
-                    </div>
-                    <div>
-                        <p className="text-sm text-muted-foreground">Product Type</p>
-                        <p className="font-medium">{warranty.product_type}</p>
-                    </div>
-                    {warranty.product_type === 'ev-products' ? (
-                        <>
-                            <div>
-                                <p className="text-sm text-muted-foreground">Serial Number</p>
-                                <p className="font-mono font-medium">{productDetails.serialNumber || 'N/A'}</p>
-                            </div>
-                            <div>
-                                <p className="text-sm text-muted-foreground">Vehicle Reg</p>
-                                <p className="font-mono font-medium">{productDetails.carRegistration || warranty.car_reg || 'N/A'}</p>
-                            </div>
-                        </>
-                    ) : (
-                        <div>
-                            <p className="text-sm text-muted-foreground">UID</p>
-                            <p className="font-mono font-medium">{warranty.uid || productDetails.uid || 'N/A'}</p>
-                        </div>
-                    )}
-                    <div>
-                        <p className="text-sm text-muted-foreground">Warranty Type</p>
-                        <p className="font-medium">{warranty.warranty_type || '1 Year'}</p>
-                    </div>
-                    <div>
-                        <p className="text-sm text-muted-foreground">Purchase Date</p>
-                        <p className="font-medium">{formatToIST(warranty.purchase_date).split(',')[0]}</p>
-                    </div>
-                    <div>
-                        <p className="text-sm text-muted-foreground">Registration Date</p>
-                        <p className="font-medium">{formatToIST(warranty.created_at).split(',')[0]}</p>
-                    </div>
-                </div>
-            </div>
-            {warranty.product_type === 'ev-products' && productDetails.photos && (
-                <div>
-                    <h3 className="text-lg font-semibold mb-3 pb-2 border-b">Photo Documentation</h3>
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                        {Object.entries(productDetails.photos).map(([key, filename]) => {
-                            const labels: Record<string, string> = {
-                                lhs: 'Left Hand Side',
-                                rhs: 'Right Hand Side',
-                                frontReg: 'Front with Reg No.',
-                                backReg: 'Back with Reg No.',
-                                warranty: 'Warranty Card'
-                            };
-                            if (!filename) return null;
-                            return (
-                                <div key={key} className="space-y-2">
-                                    <p className="text-sm font-medium text-muted-foreground">{labels[key] || key}</p>
-                                    <div className="border rounded-lg overflow-hidden bg-muted/50 aspect-video relative group">
-                                        <div className="absolute inset-0 flex items-center justify-center bg-muted/50 z-10" id={`ev-photo-loader-${warranty.id}-${key}`}>
-                                            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-                                        </div>
-                                        <img
-                                            src={(typeof filename === 'string' && (filename as string).startsWith('http')) ? (filename as string) : `http://localhost:3000/uploads/${filename}`}
-                                            alt={labels[key]}
-                                            className="w-full h-full object-cover"
-                                            onLoad={() => {
-                                                const loader = document.getElementById(`ev-photo-loader-${warranty.id}-${key}`);
-                                                if (loader) loader.style.display = 'none';
-                                            }}
-                                            onError={() => {
-                                                const loader = document.getElementById(`ev-photo-loader-${warranty.id}-${key}`);
-                                                if (loader) loader.style.display = 'none';
-                                            }}
-                                        />
-                                        <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center z-20">
-                                            <a
-                                                href={(typeof filename === 'string' && (filename as string).startsWith('http')) ? (filename as string) : `http://localhost:3000/uploads/${filename}`}
-                                                target="_blank"
-                                                rel="noopener noreferrer"
-                                                className="text-white text-xs bg-black/50 px-2 py-1 rounded hover:bg-black/70"
-                                            >
-                                                View Full
-                                            </a>
-                                        </div>
-                                    </div>
-                                </div>
-                            );
-                        })}
-                    </div>
-                </div>
-            )}
-            {warranty.product_type === 'seat-cover' && productDetails.invoiceFileName && (
-                <div>
-                    <h3 className="text-lg font-semibold mb-3 pb-2 border-b">Documentation</h3>
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                        <div className="space-y-2">
-                            <p className="text-sm font-medium text-muted-foreground">Invoice / MRP Sticker</p>
-                            <div className="border rounded-lg overflow-hidden bg-muted/50 aspect-video relative group">
-                                <div className="absolute inset-0 flex items-center justify-center bg-muted/50 z-10" id={`details-invoice-loader-${warranty.id}`}>
-                                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-                                </div>
-                                <img
-                                    src={(typeof productDetails.invoiceFileName === 'string' && productDetails.invoiceFileName.startsWith('http')) ? productDetails.invoiceFileName : `http://localhost:3000/uploads/${productDetails.invoiceFileName}`}
-                                    alt="Invoice"
-                                    className="w-full h-full object-cover"
-                                    onLoad={() => {
-                                        const loader = document.getElementById(`details-invoice-loader-${warranty.id}`);
-                                        if (loader) loader.style.display = 'none';
-                                    }}
-                                    onError={() => {
-                                        const loader = document.getElementById(`details-invoice-loader-${warranty.id}`);
-                                        if (loader) loader.style.display = 'none';
-                                    }}
-                                />
-                                <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center z-20">
-                                    <a
-                                        href={(typeof productDetails.invoiceFileName === 'string' && productDetails.invoiceFileName.startsWith('http')) ? productDetails.invoiceFileName : `http://localhost:3000/uploads/${productDetails.invoiceFileName}`}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="text-white text-xs bg-black/50 px-2 py-1 rounded hover:bg-black/70"
-                                    >
-                                        View Full
-                                    </a>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            )}
-            <div>
-                <h3 className="text-lg font-semibold mb-3 pb-2 border-b">Customer Information</h3>
-                <div className="grid grid-cols-2 gap-4">
-                    <div>
-                        <p className="text-sm text-muted-foreground">Name</p>
-                        <p className="font-medium">{warranty.customer_name}</p>
-                    </div>
-                    <div>
-                        <p className="text-sm text-muted-foreground">Email</p>
-                        <p className="font-medium">{warranty.customer_email}</p>
-                    </div>
-                    <div>
-                        <p className="text-sm text-muted-foreground">Phone</p>
-                        <p className="font-medium">{warranty.customer_phone}</p>
-                    </div>
-
-                </div>
-            </div>
-            <div>
-                <h3 className="text-lg font-semibold mb-3 pb-2 border-b">Vehicle Information</h3>
-                <div className="grid grid-cols-2 gap-4">
-                    <div>
-                        <p className="text-sm text-muted-foreground">Make</p>
-                        <p className="font-medium capitalize">{warranty.car_make}</p>
-                    </div>
-                    <div>
-                        <p className="text-sm text-muted-foreground">Model</p>
-                        <p className="font-medium">{warranty.car_model}</p>
-                    </div>
-                    <div>
-                        <p className="text-sm text-muted-foreground">Year</p>
-                        <p className="font-medium">{warranty.car_year}</p>
-                    </div>
-                </div>
-            </div>
-            {warranty.installer_name && (
-                <div>
-                    <h3 className="text-lg font-semibold mb-3 pb-2 border-b">Installer Information</h3>
-                    <div className="grid grid-cols-2 gap-4">
-                        <div>
-                            <p className="text-sm text-muted-foreground">Store Name</p>
-                            <p className="font-medium">{productDetails.storeName || warranty.installer_name}</p>
-                        </div>
-                        <div>
-                            <p className="text-sm text-muted-foreground">Store Email</p>
-                            <p className="font-medium break-all">{productDetails.storeEmail || warranty.installer_contact}</p>
-                        </div>
-                        <div className="hidden md:block">
-                            <p className="text-sm text-muted-foreground">Store Phone</p>
-                            <p className="font-medium">{productDetails.storePhone || 'N/A'}</p>
-                        </div>
-                        <div>
-                            <p className="text-sm text-muted-foreground">Applicator</p>
-                            <p className="font-medium">
-                                {productDetails.manpowerName ||
-                                    warranty.manpower_name_from_db ||
-                                    productDetails.installerName ||
-                                    (warranty.manpower_id ? `ID: ${warranty.manpower_id}` : 'N/A')}
-                            </p>
-                        </div>
-                    </div>
-                </div>
-            )}
-            <div>
-                <h3 className="text-lg font-semibold mb-3 pb-2 border-b">Submitted By</h3>
-                <div className="grid grid-cols-2 gap-4">
-                    <div>
-                        <p className="text-sm text-muted-foreground">Name</p>
-                        <p className="font-medium">{warranty.submitted_by_name || 'N/A'}</p>
-                    </div>
-                    <div>
-                        <p className="text-sm text-muted-foreground">Email</p>
-                        <p className="font-medium">{warranty.submitted_by_email || 'N/A'}</p>
-                    </div>
-                    <div>
-                        <p className="text-sm text-muted-foreground">Role</p>
-                        <p className="font-medium capitalize">{warranty.submitted_by_role || 'N/A'}</p>
-                    </div>
-                </div>
-            </div>
-
-        </div>
-    );
-};
 
 interface AdminWarrantyListProps {
     items: any[];
@@ -596,27 +358,15 @@ export const AdminWarrantyList = ({
 
                                 <div>
                                     <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">Details</p>
-                                    <Dialog>
-                                        <DialogTrigger asChild>
-                                            <Button variant="outline" size="sm" className="h-8 w-full">
-                                                <Eye className="h-3 w-3 mr-1" />
-                                                View
-                                            </Button>
-                                        </DialogTrigger>
-                                        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
-                                            <DialogHeader>
-                                                <DialogTitle className="text-2xl">Warranty Registration Details</DialogTitle>
-                                                <DialogDescription>
-                                                    Complete information for {productName.replace(/-/g, ' ')}
-                                                </DialogDescription>
-                                            </DialogHeader>
-                                            <WarrantyDetailsView
-                                                warranty={warranty}
-                                                productName={productName}
-                                                productDetails={productDetails}
-                                            />
-                                        </DialogContent>
-                                    </Dialog>
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        className="h-8 w-full"
+                                        onClick={() => setSelectedWarranty(warranty)}
+                                    >
+                                        <Eye className="h-3 w-3 mr-1" />
+                                        View
+                                    </Button>
                                 </div>
                             </div>
 
@@ -688,12 +438,12 @@ export const AdminWarrantyList = ({
             })}
 
 
-            {/* Mobile Details Sheet */}
+            {/* Details Sheet (Desktop & Mobile) */}
             <WarrantySpecSheet
                 isOpen={!!selectedWarranty}
                 onClose={() => setSelectedWarranty(null)}
                 warranty={selectedWarranty}
-                isMobile={true}
+                isMobile={false} // Adapted for unified view
             />
         </div >
     );
