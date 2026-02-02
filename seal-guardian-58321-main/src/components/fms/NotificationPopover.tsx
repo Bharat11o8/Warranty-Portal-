@@ -24,17 +24,24 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useNotifications } from "@/contexts/NotificationContext";
 import { cn, optimizeCloudinaryUrl } from "@/lib/utils";
 import { formatDistanceToNow, format } from "date-fns";
+import { useIsMobile } from "@/hooks/use-mobile";
 
-export const NotificationPopover = ({ onNavigate, onLinkClick }: { onNavigate?: (module: any) => void; onLinkClick?: (link: string) => boolean }) => {
-    const {
-        notifications,
-        unreadCount,
-        markAsRead,
-        markAllAsRead,
-        clearAllNotifications
-    } = useNotifications();
-    const navigate = useNavigate();
-    const [open, setOpen] = useState(false);
+const formatTimeAgo = (dateStr: string) => {
+    try {
+        const date = new Date(dateStr);
+        const now = new Date();
+        const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
+
+        if (diffInSeconds < 60) return "just now";
+        if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)}mins`;
+        if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)}hrs`;
+        if (diffInSeconds < 604800) return `${Math.floor(diffInSeconds / 86400)}days`;
+
+        return format(date, 'MMM d');
+    } catch (e) {
+        return "now";
+    }
+};
 
 const getIcon = (type: string) => {
     switch (type) {
@@ -56,7 +63,7 @@ const getBgColor = (type: string) => {
     }
 };
 
-const NotificationItem = ({ notification, onRead, onSelect }: { notification: any, onRead: (id: string) => void, onSelect: (n: any) => void }) => (
+const NotificationItem = ({ notification, onRead, onSelect }: { notification: any, onRead: (id: number) => void, onSelect: (n: any) => void }) => (
     <div
         className={cn(
             "flex gap-4 p-5 text-left transition-all border-b border-orange-50/30 hover:bg-orange-50/30 relative group cursor-pointer",
@@ -82,7 +89,7 @@ const NotificationItem = ({ notification, onRead, onSelect }: { notification: an
                     {notification.title}
                 </p>
                 <span className="text-[10px] text-slate-400 font-bold whitespace-nowrap">
-                    {formatDistanceToNow(new Date(notification.created_at), { addSuffix: true })}
+                    {formatTimeAgo(notification.created_at)}
                 </span>
             </div>
             <p className={cn(
@@ -92,25 +99,25 @@ const NotificationItem = ({ notification, onRead, onSelect }: { notification: an
                 {notification.message}
             </p>
 
-                {/* Media Preview in List */}
-                {notification.metadata && (
-                    (Array.isArray(notification.metadata.images) && notification.metadata.images.length > 0) ||
-                    (Array.isArray(notification.metadata.videos) && notification.metadata.videos.length > 0)
-                ) && (
-                        <div className="mt-3 flex gap-2 overflow-hidden">
-                            {Array.isArray(notification.metadata.images) && notification.metadata.images.slice(0, 3).map((img: string, i: number) => (
-                                <div key={i} className="h-12 w-12 rounded-lg border border-slate-200 bg-white p-0.5 flex items-center justify-center overflow-hidden shrink-0 shadow-sm">
-                                    <img src={img} className="h-full w-full object-cover rounded-md" alt="" />
-                                </div>
-                            ))}
-                            {Array.isArray(notification.metadata.videos) && notification.metadata.videos.length > 0 && (
-                                <div className="h-12 w-20 rounded-lg border border-purple-100 bg-purple-50 flex items-center justify-center shrink-0 shadow-sm">
-                                    <Video className="h-4 w-4 text-purple-600" />
-                                </div>
-                            )}
-                        </div>
-                    )}
-            </div>
+            {/* Media Preview in List */}
+            {notification.metadata && (
+                (Array.isArray(notification.metadata.images) && notification.metadata.images.length > 0) ||
+                (Array.isArray(notification.metadata.videos) && notification.metadata.videos.length > 0)
+            ) && (
+                    <div className="mt-3 flex gap-2 overflow-hidden">
+                        {Array.isArray(notification.metadata.images) && notification.metadata.images.slice(0, 3).map((img: string, i: number) => (
+                            <div key={i} className="h-12 w-12 rounded-lg border border-slate-200 bg-white p-0.5 flex items-center justify-center overflow-hidden shrink-0 shadow-sm">
+                                <img src={optimizeCloudinaryUrl(img, { width: 100 })} className="h-full w-full object-cover rounded-md" alt="" />
+                            </div>
+                        ))}
+                        {Array.isArray(notification.metadata.videos) && notification.metadata.videos.length > 0 && (
+                            <div className="h-12 w-20 rounded-lg border border-purple-100 bg-purple-50 flex items-center justify-center shrink-0 shadow-sm">
+                                <Video className="h-4 w-4 text-purple-600" />
+                            </div>
+                        )}
+                    </div>
+                )}
+        </div>
 
         {!notification.is_read && (
             <div className="absolute right-3 top-3">
@@ -270,7 +277,7 @@ export const NotificationPopover = ({ onNavigate, onLinkClick }: { onNavigate?: 
                     <DialogTrigger asChild>
                         {TriggerButton}
                     </DialogTrigger>
-                    <DialogContent className="max-w-[90vw] h-[80vh] p-0 rounded-[24px] overflow-hidden gap-0">
+                    <DialogContent className="max-w-[90vw] h-[80vh] p-0 rounded-[24px] overflow-hidden gap-0 [&>button:last-child]:hidden">
                         <DialogDescription className="sr-only">Activity Center</DialogDescription>
                         <DialogTitle className="sr-only">Activity Center</DialogTitle>
                         <NotificationListContent />

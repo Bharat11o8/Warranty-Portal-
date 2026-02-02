@@ -9,6 +9,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Badge } from "@/components/ui/badge";
 import {
     Search,
     Download,
@@ -327,11 +328,36 @@ export const AdminWarranties = () => {
                 {/* Desktop Status Tabs */}
                 <Tabs value={statusFilter} onValueChange={setStatusFilter} className="hidden md:block w-full xl:w-auto">
                     <TabsList className="grid w-full grid-cols-5 xl:inline-flex h-auto bg-white border border-orange-100 p-1">
-                        <TabsTrigger value="all" className="data-[state=active]:bg-orange-50 data-[state=active]:text-orange-700">All</TabsTrigger>
-                        <TabsTrigger value="validated" className="data-[state=active]:bg-green-50 data-[state=active]:text-green-700">Approved</TabsTrigger>
-                        <TabsTrigger value="pending" className="data-[state=active]:bg-amber-50 data-[state=active]:text-amber-700">Pending</TabsTrigger>
-                        <TabsTrigger value="pending_vendor" className="data-[state=active]:bg-orange-50 data-[state=active]:text-orange-700">Vendor</TabsTrigger>
-                        <TabsTrigger value="rejected" className="data-[state=active]:bg-red-50 data-[state=active]:text-red-700">Rejected</TabsTrigger>
+                        <TabsTrigger value="all" className="data-[state=active]:bg-orange-50 data-[state=active]:text-orange-700 gap-2">
+                            All
+                            <Badge variant="secondary" className="bg-slate-100 text-slate-600 border-none px-1.5 py-0 h-4 text-[10px] font-bold">
+                                {warranties.length}
+                            </Badge>
+                        </TabsTrigger>
+                        <TabsTrigger value="validated" className="data-[state=active]:bg-green-50 data-[state=active]:text-green-700 gap-2">
+                            Approved
+                            <Badge variant="secondary" className="bg-green-100/50 text-green-700 border-none px-1.5 py-0 h-4 text-[10px] font-bold">
+                                {warranties.filter(w => w.status === 'validated').length}
+                            </Badge>
+                        </TabsTrigger>
+                        <TabsTrigger value="pending" className="data-[state=active]:bg-amber-50 data-[state=active]:text-amber-700 gap-2">
+                            Pending
+                            <Badge variant="secondary" className="bg-amber-100/50 text-amber-700 border-none px-1.5 py-0 h-4 text-[10px] font-bold">
+                                {warranties.filter(w => w.status === 'pending').length}
+                            </Badge>
+                        </TabsTrigger>
+                        <TabsTrigger value="pending_vendor" className="data-[state=active]:bg-orange-50 data-[state=active]:text-orange-700 gap-2">
+                            Vendor
+                            <Badge variant="secondary" className="bg-orange-100/50 text-orange-700 border-none px-1.5 py-0 h-4 text-[10px] font-bold">
+                                {warranties.filter(w => w.status === 'pending_vendor').length}
+                            </Badge>
+                        </TabsTrigger>
+                        <TabsTrigger value="rejected" className="data-[state=active]:bg-red-50 data-[state=active]:text-red-700 gap-2">
+                            Rejected
+                            <Badge variant="secondary" className="bg-red-100/50 text-red-700 border-none px-1.5 py-0 h-4 text-[10px] font-bold">
+                                {warranties.filter(w => w.status === 'rejected').length}
+                            </Badge>
+                        </TabsTrigger>
                     </TabsList>
                 </Tabs>
 

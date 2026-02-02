@@ -180,11 +180,11 @@ export const menuGroups = [
     {
         label: "Support",
         items: [
-            {
+            /* {
                 id: 'news' as const,
                 label: "News & Alerts",
                 icon: Bell,
-            },
+            }, */
             { id: 'grievances' as const, label: "Grievance Redressal", icon: LifeBuoy },
         ]
     }
@@ -204,6 +204,7 @@ export const DashboardSidebar = ({ activeModule, onModuleChange, isCollapsed, on
         ...group,
         items: group.items.map(item => {
             let badge;
+            /* 
             if (item.id === 'warranty') {
                 badge = getBadgeCount('warranty') > 0 ? getBadgeCount('warranty').toString() : undefined;
             } else if (item.id === 'orders') {
@@ -217,6 +218,7 @@ export const DashboardSidebar = ({ activeModule, onModuleChange, isCollapsed, on
             } else if (item.id === 'news') {
                 badge = getBadgeCount(['alert', 'system']) > 0 ? getBadgeCount(['alert', 'system']).toString() : undefined;
             }
+            */
             return { ...item, badge };
         })
     }));

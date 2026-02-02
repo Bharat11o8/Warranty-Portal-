@@ -503,11 +503,14 @@ const FranchiseDashboard = () => {
         // New Arrivals: Latest 8 products
         const newProducts = [...products].sort((a, b) => b.id.localeCompare(a.id)).slice(0, 8);
 
-        // Platform Updates: Latest 3 alert/system/product notifications
+        // Platform Updates: Latest 3 alert/system/product notifications (Hidden for Phase 1)
+        const latestUpdates: any[] = [];
+        /*
         const latestUpdates = fullHistory
             .filter(n => n.type === 'alert' || n.type === 'system' || n.type === 'product')
             .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
             .slice(0, 3);
+        */
 
         switch (activeModule) {
             case 'home':
