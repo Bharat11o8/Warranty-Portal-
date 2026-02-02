@@ -48,6 +48,7 @@ interface AssignmentRecord {
     assignee_name: string;
     assignee_email: string;
     remarks: string | null;
+    completion_remarks: string | null;
     assignment_type: 'initial' | 'follow_up';
     status: 'pending' | 'in_progress' | 'completed' | 'follow_up_sent';
     email_sent_at: string;
@@ -829,9 +830,9 @@ export const AdminGrievances = () => {
                                                             </div>
                                                             <div className="flex items-center gap-2">
                                                                 <Badge variant="secondary" className={`text-[10px] h-4 px-1 ${record.status === 'completed' ? 'bg-green-100 text-green-700' :
-                                                                        record.status === 'in_progress' ? 'bg-blue-100 text-blue-700' :
-                                                                            record.status === 'follow_up_sent' ? 'bg-orange-100 text-orange-700' :
-                                                                                'bg-slate-100 text-slate-600'
+                                                                    record.status === 'in_progress' ? 'bg-blue-100 text-blue-700' :
+                                                                        record.status === 'follow_up_sent' ? 'bg-orange-100 text-orange-700' :
+                                                                            'bg-slate-100 text-slate-600'
                                                                     }`}>
                                                                     {record.status.replace("_", " ").toUpperCase()}
                                                                 </Badge>
@@ -845,7 +846,16 @@ export const AdminGrievances = () => {
                                                         </div>
                                                         <p className="text-xs text-slate-500">{record.assignee_email}</p>
                                                         {record.remarks && (
-                                                            <p className="text-sm mt-2 p-2 bg-white rounded border border-slate-100 text-slate-600">"{record.remarks}"</p>
+                                                            <p className="text-sm mt-2 p-2 bg-white rounded border border-slate-100 text-slate-600">
+                                                                <strong className="text-xs text-slate-400 block mb-1">ADMIN INSTRUCTIONS:</strong>
+                                                                "{record.remarks}"
+                                                            </p>
+                                                        )}
+                                                        {record.completion_remarks && (
+                                                            <p className="text-sm mt-2 p-2 bg-green-50 rounded border border-green-100 text-green-700">
+                                                                <strong className="text-xs text-green-400 block mb-1 uppercase">Assignee Update:</strong>
+                                                                "{record.completion_remarks}"
+                                                            </p>
                                                         )}
                                                     </div>
                                                 ))}

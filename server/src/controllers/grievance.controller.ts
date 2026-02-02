@@ -1139,7 +1139,7 @@ class GrievanceController {
             }
 
             const [assignments] = await db.execute(
-                `SELECT id, assignee_name, assignee_email, remarks, assignment_type, status,
+                `SELECT id, assignee_name, assignee_email, remarks, completion_remarks, assignment_type, status,
                         email_sent_at, sent_by, sent_by_name
                  FROM grievance_assignments 
                  WHERE grievance_id = ?
