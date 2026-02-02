@@ -16,6 +16,7 @@ router.get('/profile', authenticateToken, requireRole(['vendor']), VendorControl
 
 // Manpower management routes
 router.get('/manpower', authenticateToken, requireRole(['vendor', 'admin']), VendorController.getManpower);
+router.get('/manpower/:manpowerId/warranties', authenticateToken, requireRole(['vendor', 'admin']), VendorController.getManpowerWarranties);
 router.post('/manpower', authenticateToken, requireRole(['vendor', 'admin']), VendorController.addManpower);
 router.put('/manpower/:id', authenticateToken, requireRole(['vendor', 'admin']), VendorController.updateManpower);
 router.delete('/manpower/:id', authenticateToken, requireRole(['vendor', 'admin']), VendorController.removeManpower);
