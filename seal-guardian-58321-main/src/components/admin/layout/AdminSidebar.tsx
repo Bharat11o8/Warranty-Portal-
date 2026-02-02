@@ -116,8 +116,8 @@ export const SidebarContent = ({
     const { notifications } = useNotifications();
 
     // Calculate Section Updates from notifications (Hidden for Phase 1)
-    const dashboardUpdates = 0; // notifications.filter(n => !n.is_read && n.type === 'warranty').length;
-    const termsUpdates = 0; // notifications.filter(n => ... ).length;
+    // const unreadWarranties = notifications.filter(n => !n.is_read && n.type === 'warranty').length;
+    const unreadGrievances = notifications.filter(n => !n.is_read && n.type === 'grievance').length;
 
     // Define menu items inside the component or outside if static
     const menuGroups = [
@@ -138,7 +138,7 @@ export const SidebarContent = ({
                 },
 
                 { id: 'warranty-products' as const, label: "Warranty Products", icon: Store },
-                // { id: 'announcements' as const, label: "Announcements", icon: Megaphone },
+                { id: 'announcements' as const, label: "Announcements", icon: Megaphone },
                 { id: 'warranty-form' as const, label: "New Registration", icon: PenTool },
             ]
         },
@@ -153,12 +153,12 @@ export const SidebarContent = ({
         {
             label: "Communication",
             items: [
-                /* { id: 'announcements' as const, label: "Announcements", icon: Megaphone }, */
+                { id: 'announcements' as const, label: "Announcements", icon: Megaphone },
                 {
                     id: 'grievances' as const,
                     label: "Grievances",
                     icon: MessageSquare,
-                    // badge: unreadGrievances > 0 ? unreadGrievances.toString() : undefined
+                    badge: unreadGrievances > 0 ? unreadGrievances.toString() : undefined
                 },
                 { id: 'posm' as const, label: "POSM Requirements", icon: Package },
                 { id: 'terms' as const, label: "Terms & Conditions", icon: FileText },

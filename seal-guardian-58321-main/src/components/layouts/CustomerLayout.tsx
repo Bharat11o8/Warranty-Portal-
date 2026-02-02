@@ -52,12 +52,12 @@ const CustomerLayout = () => {
     }, [user, location.pathname]);
 
     // Calculate Section Updates from notifications (Hidden for Phase 1)
-    const dashboardUpdates = 0; // notifications.filter(n => !n.is_read && n.type === 'warranty').length;
-    const termsUpdates = 0; // notifications.filter(n =>
-    //    !n.is_read &&
-    //    n.type === 'system' &&
-    //    (n.title.toLowerCase().includes('terms') || n.message.toLowerCase().includes('terms'))
-    // ).length;
+    const dashboardUpdates = notifications.filter(n => !n.is_read && n.type === 'warranty').length;
+    const termsUpdates = notifications.filter(n =>
+        !n.is_read &&
+        n.type === 'system' &&
+        (n.title.toLowerCase().includes('terms') || n.message.toLowerCase().includes('terms'))
+    ).length;
 
     // Auto-mark notifications as read when visiting sections
     useEffect(() => {

@@ -11,7 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
-import { Calendar as CalendarIcon, ChevronRight, Info, Megaphone, Search, Filter, ShieldCheck, AlertTriangle, Video, Download, ExternalLink, PlayCircle, FileVideo, FileText, Link, Image as ImageIcon, X } from "lucide-react";
+import { Calendar as CalendarIcon, ChevronRight, Info, Megaphone, Search, Filter, ShieldCheck, AlertTriangle, Video, Download, ExternalLink, PlayCircle, FileVideo, FileText, Link, Image as ImageIcon, X, RefreshCw, Trash2, Undo2 } from "lucide-react";
 import { useNotifications } from "@/contexts/NotificationContext";
 import { cn, optimizeCloudinaryUrl } from "@/lib/utils";
 import { format, isSameDay } from "date-fns";
@@ -20,7 +20,11 @@ import { Calendar } from "@/components/ui/calendar";
 import { Pagination } from "./Pagination";
 
 export const NewsAlerts = () => {
-    const { fullHistory, markAsRead, markAllAsRead, refreshNotifications, loading } = useNotifications();
+    const { fullHistory, markAsRead, markAllAsRead, refreshNotifications, loading, dismissNotification, undoDismissNotification } = useNotifications();
+    const [touchStart, setTouchStart] = useState<number | null>(null);
+    const [swipingId, setSwipingId] = useState<number | null>(null);
+    const [undoNotification, setUndoNotification] = useState<any>(null);
+    const [showUndo, setShowUndo] = useState(false);
     const navigate = useNavigate();
     const [searchQuery, setSearchQuery] = useState("");
     const [activeTab, setActiveTab] = useState<'all' | 'unread' | 'alert' | 'system' | 'product'>('all');
@@ -93,13 +97,58 @@ export const NewsAlerts = () => {
 
     const [selectedNotification, setSelectedNotification] = useState<any>(null);
 
+    const handleDismiss = async (notification: any) => {
+        setUndoNotification(notification);
+        setShowUndo(true);
+        await dismissNotification(notification.id);
+
+        setTimeout(() => {
+            setShowUndo(false);
+            setUndoNotification(null);
+        }, 1500); // Exactly 1.5s as requested
+    };
+
+    const handleUndo = async () => {
+        if (undoNotification) {
+            await undoDismissNotification(undoNotification.id);
+            setShowUndo(false);
+            setUndoNotification(null);
+        }
+    };
+
+    const onTouchStart = (e: React.TouchEvent, id: number) => {
+        setTouchStart(e.targetTouches[0].clientX);
+        setSwipingId(id);
+    };
+
+    const onTouchMove = (e: React.TouchEvent) => {
+        if (touchStart === null) return;
+        const currentTouch = e.targetTouches[0].clientX;
+        const diff = currentTouch - touchStart;
+
+        // Visual feedback if needed, but for now we just detect end
+    };
+
+    const onTouchEnd = (e: React.TouchEvent, item: any) => {
+        if (touchStart === null) return;
+        const touchEnd = e.changedTouches[0].clientX;
+        const diff = touchEnd - touchStart;
+
+        if (diff > 100) { // Swiped right
+            handleDismiss(item);
+        }
+
+        setTouchStart(null);
+        setSwipingId(null);
+    };
+
     return (
-        <div className="max-w-4xl mx-auto space-y-10 animate-in fade-in duration-700">
+        <div className="w-full space-y-10 animate-in fade-in duration-700">
             {/* Filter Toolbar */}
-            <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-6 top-0 z-30 bg-white py-4 px-2 -mx-2 rounded-3xl border border-orange-100 shadow-[0_8px_30px_rgba(0,0,0,0.02)]">
+            <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-6 top-0 z-30 bg-white py-5 px-5 rounded-3xl border border-orange-100 shadow-[0_8px_30px_rgba(0,0,0,0.02)]">
 
                 {/* Tabs - Scrollable on mobile, Fixed on desktop */}
-                <div className="flex-1 flex flex-nowrap overflow-x-auto gap-1 bg-white p-1 rounded-2xl md:rounded-full border border-orange-100 [&::-webkit-scrollbar]:hidden min-w-0 shadow-sm">
+                <div className="flex-1 flex flex-nowrap overflow-x-auto gap-1 bg-white p-1 rounded-2xl md:rounded-full border border-orange-100 scrollbar-thin scrollbar-thumb-orange-200 scrollbar-track-transparent min-w-0 shadow-sm">
                     {tabs.map(tab => (
                         <Button
                             key={tab.id}
@@ -121,9 +170,20 @@ export const NewsAlerts = () => {
                     ))}
                 </div>
 
-                <div className="flex items-center gap-2 md:gap-3 w-full xl:w-auto shrink-0">
+                <div className="flex items-center gap-2 md:gap-3 w-full xl:w-auto shrink-0 transition-all">
+                    {/* Search Bar */}
+                    <div className="relative flex-1 xl:w-64 group order-1">
+                        <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 group-focus-within:text-orange-500 transition-colors" />
+                        <Input
+                            placeholder="Search..."
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            className="pl-9 h-10 md:h-11 rounded-xl border-slate-200 bg-slate-50 focus:bg-white focus:border-orange-200 focus:ring-4 focus:ring-orange-500/10 transition-all font-semibold text-xs md:text-sm shadow-sm"
+                        />
+                    </div>
+
                     {/* Date Filter */}
-                    <div className="flex items-center gap-2 relative z-20 shrink-0">
+                    <div className="flex items-center gap-2 relative z-20 shrink-0 order-2">
                         <Popover>
                             <PopoverTrigger asChild>
                                 <Button
@@ -147,6 +207,7 @@ export const NewsAlerts = () => {
                                 />
                             </PopoverContent>
                         </Popover>
+
                         {date && (
                             <Button
                                 variant="ghost"
@@ -160,23 +221,27 @@ export const NewsAlerts = () => {
                         )}
                     </div>
 
-                    {/* Search Bar */}
-                    <div className="relative flex-1 xl:w-48 group">
-                        <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 group-focus-within:text-orange-500 transition-colors" />
-                        <Input
-                            placeholder="Search..."
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            className="pl-9 mr-1 h-10 md:h-11 rounded-xl border-slate-200 bg-slate-50 focus:bg-white focus:border-orange-200 focus:ring-4 focus:ring-orange-500/10 transition-all font-semibold text-xs md:text-sm"
-                        />
-                    </div>
+                    {/* Refresh Button */}
+                    <Button
+                        variant="outline"
+                        size="icon"
+                        onClick={() => refreshNotifications()}
+                        disabled={loading}
+                        className={cn(
+                            "h-10 w-10 md:h-11 md:w-11 rounded-xl border-slate-200 bg-white hover:bg-slate-50 shadow-sm transition-all order-3",
+                            loading && "animate-pulse"
+                        )}
+                        title="Refresh Notifications"
+                    >
+                        <RefreshCw className={cn("h-4 w-4 md:h-5 md:w-5", loading && "animate-spin")} />
+                    </Button>
 
                     {unreadCount > 0 && (
                         <Button
                             variant="ghost"
                             size="sm"
                             onClick={markAllAsRead}
-                            className="hidden md:flex text-slate-400 hover:text-orange-600 hover:bg-orange-50 rounded-xl font-bold text-xs uppercase tracking-wider whitespace-nowrap"
+                            className="hidden md:flex text-slate-400 hover:text-orange-600 hover:bg-orange-50 rounded-xl font-bold text-xs uppercase tracking-wider whitespace-nowrap order-4"
                         >
                             Mark Read
                         </Button>
@@ -207,12 +272,14 @@ export const NewsAlerts = () => {
                         return (
                             <Card
                                 key={item.id}
+                                onTouchStart={(e) => onTouchStart(e, item.id)}
+                                onTouchEnd={(e) => onTouchEnd(e, item)}
                                 onClick={() => {
                                     if (!item.is_read) markAsRead(item.id);
                                     setSelectedNotification(item);
                                 }}
                                 className={cn(
-                                    "group hover:shadow-xl transition-all duration-500 border-slate-200 overflow-hidden bg-white relative cursor-pointer",
+                                    "group hover:shadow-xl transition-all duration-500 border-slate-200 overflow-hidden bg-white relative cursor-pointer active:scale-[0.98] md:active:scale-100",
                                     !item.is_read ? "border-orange-200 shadow-orange-500/5 ring-1 ring-orange-500/10" : "opacity-80 hover:opacity-100"
                                 )}
                             >
@@ -284,29 +351,41 @@ export const NewsAlerts = () => {
                                         </div>
                                     </div>
 
-                                    {/* Unread Indicator */}
+                                    {/* Unread Indicator & Clear Button */}
+                                    <div className="absolute top-4 right-4 flex items-center gap-2">
+                                        {!item.is_read && (
+                                            <span className="flex h-2.5 w-2.5 rounded-full bg-orange-500">
+                                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-orange-400 opacity-75"></span>
+                                                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-orange-500"></span>
+                                            </span>
+                                        )}
+                                        <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            className="h-8 w-8 rounded-full text-slate-300 hover:text-red-500 hover:bg-red-50 transition-all opacity-100 md:opacity-0 md:group-hover:opacity-100"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                handleDismiss(item);
+                                            }}
+                                        >
+                                            <Trash2 className="h-4 w-4" />
+                                        </Button>
+                                    </div>
+
                                     {!item.is_read && (
-                                        <>
-                                            <div className="absolute top-4 right-4 flex items-center gap-2">
-                                                <span className="flex h-2.5 w-2.5 rounded-full bg-orange-500">
-                                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-orange-400 opacity-75"></span>
-                                                    <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-orange-500"></span>
-                                                </span>
-                                            </div>
-                                            <div className="absolute top-3 right-8 opacity-0 group-hover:opacity-100 transition-all duration-300">
-                                                <Button
-                                                    variant="ghost"
-                                                    size="sm"
-                                                    className="h-7 px-3 text-[10px] font-bold uppercase tracking-widest text-slate-400 hover:text-orange-600 hover:bg-orange-50 rounded-full"
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        markAsRead(item.id);
-                                                    }}
-                                                >
-                                                    Mark Read
-                                                </Button>
-                                            </div>
-                                        </>
+                                        <div className="absolute top-3 right-14 opacity-0 group-hover:opacity-100 transition-all duration-300 hidden md:block">
+                                            <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                className="h-7 px-3 text-[10px] font-bold uppercase tracking-widest text-slate-400 hover:text-orange-600 hover:bg-orange-50 rounded-full"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    markAsRead(item.id);
+                                                }}
+                                            >
+                                                Mark Read
+                                            </Button>
+                                        </div>
                                     )}
                                 </CardContent>
                             </Card>
@@ -486,6 +565,28 @@ export const NewsAlerts = () => {
                     })()}
                 </DialogContent>
             </Dialog>
+
+            {/* Undo Toast */}
+            {showUndo && (
+                <div className="fixed bottom-12 left-1/2 -translate-x-1/2 z-[100] animate-in fade-in slide-in-from-bottom-6 zoom-in-95 duration-500">
+                    <div className="flex items-center gap-8 bg-slate-900/90 backdrop-blur-2xl px-6 py-3.5 rounded-full shadow-[0_25px_60px_-15px_rgba(0,0,0,0.5)] border border-white/10 group">
+                        <div className="flex items-center gap-3 whitespace-nowrap">
+                            <div className="h-1.5 w-1.5 rounded-full bg-orange-500 shadow-[0_0_10px_rgba(249,115,22,0.5)] animate-pulse" />
+                            <p className="text-[13px] font-medium text-white/90">
+                                Dismissed <span className="font-black text-white ml-0.5 truncate max-w-[120px] inline-block align-bottom">"{undoNotification?.title}"</span>
+                            </p>
+                        </div>
+                        <div className="h-4 w-[1px] bg-white/10" />
+                        <button
+                            onClick={handleUndo}
+                            className="text-orange-400 hover:text-orange-300 transition-all text-[11px] font-black uppercase tracking-[0.2em] flex items-center gap-2 group/undo"
+                        >
+                            Undo
+                            <Undo2 className="h-3.5 w-3.5 group-hover/undo:-translate-x-0.5 transition-transform" />
+                        </button>
+                    </div>
+                </div>
+            )}
         </div >
     );
 };

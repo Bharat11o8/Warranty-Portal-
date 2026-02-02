@@ -8,7 +8,7 @@ export interface Notification {
     id: number;
     title: string;
     message: string;
-    type: 'product' | 'alert' | 'system' | 'posm' | 'order' | 'scheme' | 'warranty';
+    type: 'product' | 'alert' | 'system' | 'posm' | 'order' | 'scheme' | 'warranty' | 'grievance';
     link?: string;
     metadata?: {
         images?: string[];
@@ -26,6 +26,8 @@ interface NotificationContextType {
     markAsRead: (id: number) => Promise<void>;
     markAllAsRead: () => Promise<void>;
     clearAllNotifications: () => Promise<void>;
+    dismissNotification: (id: number) => Promise<void>;
+    undoDismissNotification: (id: number) => Promise<void>;
     refreshNotifications: () => Promise<void>;
     fetchFullHistory: () => Promise<void>;
 }
@@ -175,6 +177,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         try {
             await api.delete("/notifications");
             setNotifications([]);
+            setFullHistory([]);
             setUnreadCount(0);
             toast({
                 title: "Notifications cleared",
@@ -190,6 +193,31 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         }
     };
 
+    const dismissNotification = async (id: number) => {
+        try {
+            await api.delete(`/notifications/${id}`);
+            // Optimistically update local state if needed, but we rely on fetchHistory usually
+            // However for smooth UI we filtering here
+            setNotifications(prev => prev.filter(n => n.id !== id));
+            setFullHistory(prev => prev.filter(n => n.id !== id));
+            setUnreadCount(prev => {
+                const dismissed = notifications.find(n => n.id === id);
+                return (dismissed && !dismissed.is_read) ? Math.max(0, prev - 1) : prev;
+            });
+        } catch (error) {
+            console.error("Failed to dismiss notification:", error);
+        }
+    };
+
+    const undoDismissNotification = async (id: number) => {
+        try {
+            await api.patch(`/notifications/${id}/restore`);
+            fetchNotifications(); // Refresh to get it back
+        } catch (error) {
+            console.error("Failed to undo dismiss:", error);
+        }
+    };
+
     return (
         <NotificationContext.Provider value={{
             notifications,
@@ -199,6 +227,8 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
             markAsRead,
             markAllAsRead,
             clearAllNotifications,
+            dismissNotification,
+            undoDismissNotification,
             refreshNotifications: fetchNotifications,
             fetchFullHistory
         }}>

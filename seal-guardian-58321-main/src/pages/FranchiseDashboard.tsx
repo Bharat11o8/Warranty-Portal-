@@ -504,13 +504,10 @@ const FranchiseDashboard = () => {
         const newProducts = [...products].sort((a, b) => b.id.localeCompare(a.id)).slice(0, 8);
 
         // Platform Updates: Latest 3 alert/system/product notifications (Hidden for Phase 1)
-        const latestUpdates: any[] = [];
-        /*
         const latestUpdates = fullHistory
             .filter(n => n.type === 'alert' || n.type === 'system' || n.type === 'product')
             .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
             .slice(0, 3);
-        */
 
         switch (activeModule) {
             case 'home':
@@ -523,68 +520,80 @@ const FranchiseDashboard = () => {
                 />;
             case 'warranty':
                 return (
-                    <WarrantyManagement
-                        warranties={warranties}
-                        onRegisterNew={setRegistrationType}
-                        onExport={handleExportWarranties}
-                        onSelect={setSelectedWarranty}
-                        onVerify={handleVerifyWarranty}
-                        onReject={handleRejectWarranty}
-                        warrantySearch={warrantySearch}
-                        setWarrantySearch={setWarrantySearch}
-                        selectedProduct={selectedProduct}
-                        setSelectedProduct={setSelectedProduct}
-                        selectedMake={selectedMake}
-                        setSelectedMake={setSelectedMake}
-                        selectedModel={selectedModel}
-                        setSelectedModel={setSelectedModel}
-                        dateRange={dateRange}
-                        setDateRange={setDateRange}
-                        activeTab={activeStatusTab}
-                        setActiveTab={setActiveStatusTab}
-                        onRefresh={() => { fetchAllData(); fetchStats(); }}
-                        isRefreshing={loading}
-                        pagination={warrantyPagination}
-                        onPageChange={fetchWarranties}
-                        onRowsPerPageChange={(rows) => {
-                            setWarrantyLimit(rows);
-                            fetchWarranties(1, rows);
-                        }}
-                        stats={dashboardStats}
-                    />
+                    <div className="-mt-8 md:-mt-14">
+                        <WarrantyManagement
+                            warranties={warranties}
+                            onRegisterNew={setRegistrationType}
+                            onExport={handleExportWarranties}
+                            onSelect={setSelectedWarranty}
+                            onVerify={handleVerifyWarranty}
+                            onReject={handleRejectWarranty}
+                            warrantySearch={warrantySearch}
+                            setWarrantySearch={setWarrantySearch}
+                            selectedProduct={selectedProduct}
+                            setSelectedProduct={setSelectedProduct}
+                            selectedMake={selectedMake}
+                            setSelectedMake={setSelectedMake}
+                            selectedModel={selectedModel}
+                            setSelectedModel={setSelectedModel}
+                            dateRange={dateRange}
+                            setDateRange={setDateRange}
+                            activeTab={activeStatusTab}
+                            setActiveTab={setActiveStatusTab}
+                            onRefresh={() => { fetchAllData(); fetchStats(); }}
+                            isRefreshing={loading}
+                            pagination={warrantyPagination}
+                            onPageChange={fetchWarranties}
+                            onRowsPerPageChange={(rows) => {
+                                setWarrantyLimit(rows);
+                                fetchWarranties(1, rows);
+                            }}
+                            stats={dashboardStats}
+                        />
+                    </div>
                 );
             case 'manpower':
                 return (
-                    <StaffManagement
-                        manpowerList={manpowerList}
-                        pastManpowerList={pastManpowerList}
-                        onAdd={handleAddManpower}
-                        onEdit={handleUpdateManpower}
-                        onDelete={handleDeleteManpower}
-                        onShowWarranties={showManpowerWarranties}
-                        editingId={editingId}
-                        setEditingId={setEditingId}
-                        onRefresh={fetchAllData}
-                        isRefreshing={loading}
-                        pagination={manpowerPagination}
-                        pastPagination={pastManpowerPagination}
-                        onPageChange={fetchManpower}
-                        onRowsPerPageChange={(rows) => {
-                            setManpowerLimit(rows);
-                            fetchManpower(1, true, rows);
-                        }}
-                        onPastRowsPerPageChange={(rows) => {
-                            setPastManpowerLimit(rows);
-                            fetchManpower(1, false, rows);
-                        }}
-                    />
+                    <div className="-mt-8 md:-mt-14">
+                        <StaffManagement
+                            manpowerList={manpowerList}
+                            pastManpowerList={pastManpowerList}
+                            onAdd={handleAddManpower}
+                            onEdit={handleUpdateManpower}
+                            onDelete={handleDeleteManpower}
+                            onShowWarranties={showManpowerWarranties}
+                            editingId={editingId}
+                            setEditingId={setEditingId}
+                            onRefresh={fetchAllData}
+                            isRefreshing={loading}
+                            pagination={manpowerPagination}
+                            pastPagination={pastManpowerPagination}
+                            onPageChange={fetchManpower}
+                            onRowsPerPageChange={(rows) => {
+                                setManpowerLimit(rows);
+                                fetchManpower(1, true, rows);
+                            }}
+                            onPastRowsPerPageChange={(rows) => {
+                                setPastManpowerLimit(rows);
+                                fetchManpower(1, false, rows);
+                            }}
+                        />
+                    </div>
                 );
             case 'catalogue':
                 if (viewingProductId) {
-                    return <ProductPage productId={viewingProductId} embedded={true} isDashboard={true} />;
+                    return (
+                        <div className="-mt-8 md:-mt-14">
+                            <ProductPage productId={viewingProductId} embedded={true} isDashboard={true} />
+                        </div>
+                    );
                 }
                 if (viewingCategoryId) {
-                    return <CategoryPage categoryId={viewingCategoryId} embedded={true} isDashboard={true} />;
+                    return (
+                        <div className="-mt-8 md:-mt-14">
+                            <CategoryPage categoryId={viewingCategoryId} embedded={true} isDashboard={true} />
+                        </div>
+                    );
                 }
                 return (
                     <div className="-mt-8 md:-mt-14">
@@ -599,25 +608,41 @@ const FranchiseDashboard = () => {
                     </div>
                 );
             case 'news':
-                return <NewsAlerts />;
+                return (
+                    <div className="-mt-8 md:-mt-14">
+                        <NewsAlerts />
+                    </div>
+                );
             case 'grievances':
-                return <VendorGrievances />;
+                return (
+                    <div className="-mt-8 md:-mt-14">
+                        <VendorGrievances />
+                    </div>
+                );
             case 'profile':
-                return <Profile embedded={true} />;
-            case 'orders':
-            case 'offers':
-            case 'audit':
-            case 'targets':
+                return (
+                    <div className="-mt-8 md:-mt-14">
+                        <Profile embedded={true} />
+                    </div>
+                );
             case 'posm':
-                return <POSMModule />;
+                return (
+                    <div className="-mt-8 md:-mt-14">
+                        <POSMModule />
+                    </div>
+                );
             default:
-                return <FranchiseHome
-                    stats={homeStats}
-                    recentActivity={recentActivityData}
-                    onNavigate={setActiveModule}
-                    newProducts={newProducts}
-                    latestUpdates={latestUpdates}
-                />;
+                return (
+                    <div className="-mt-8 md:-mt-14">
+                        <FranchiseHome
+                            stats={homeStats}
+                            recentActivity={recentActivityData}
+                            onNavigate={setActiveModule}
+                            newProducts={newProducts}
+                            latestUpdates={latestUpdates}
+                        />
+                    </div>
+                );
         }
     };
 
