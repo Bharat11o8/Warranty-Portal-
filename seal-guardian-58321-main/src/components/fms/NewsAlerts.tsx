@@ -31,11 +31,13 @@ export const NewsAlerts = () => {
     const [date, setDate] = useState<Date | undefined>();
     const [currentPage, setCurrentPage] = useState(1);
     const [rowsPerPage, setRowsPerPage] = useState(10);
+    const [selectedNotification, setSelectedNotification] = useState<any>(null);
+    const [dismissingIds, setDismissingIds] = useState<Set<number>>(new Set());
 
     // Base filter: only show alert/system/product types (admin broadcasts, news)
     // Warranty notifications are shown separately in the NotificationPopover, not here
     const baseNotifications = fullHistory.filter(n =>
-        n.type === 'alert' || n.type === 'system' || n.type === 'product'
+        (n.type === 'alert' || n.type === 'system' || n.type === 'product') && !n.is_cleared
     );
 
     // Apply active tab filter and search query
@@ -49,10 +51,9 @@ export const NewsAlerts = () => {
         // Search Filter
         if (searchQuery) {
             const query = searchQuery.toLowerCase();
-            return (
-                item.title.toLowerCase().includes(query) ||
-                item.message.toLowerCase().includes(query)
-            );
+            if (!item.title.toLowerCase().includes(query) && !item.message.toLowerCase().includes(query)) {
+                return false;
+            }
         }
 
         // Date Filter
@@ -95,17 +96,31 @@ export const NewsAlerts = () => {
         }
     };
 
-    const [selectedNotification, setSelectedNotification] = useState<any>(null);
-
     const handleDismiss = async (notification: any) => {
-        setUndoNotification(notification);
-        setShowUndo(true);
-        await dismissNotification(notification.id);
+        if (dismissingIds.has(notification.id)) return; // Prevent double trigger
 
-        setTimeout(() => {
-            setShowUndo(false);
-            setUndoNotification(null);
-        }, 1500); // Exactly 1.5s as requested
+        setDismissingIds(prev => new Set(prev).add(notification.id));
+
+        // Allow animation to play
+        setTimeout(async () => {
+            setUndoNotification(notification);
+            setShowUndo(true);
+            await dismissNotification(notification.id);
+
+            setDismissingIds(prev => {
+                const next = new Set(prev);
+                next.delete(notification.id);
+                return next;
+            });
+
+            setTimeout(() => {
+                // Only hide undo if it matches the current one (simple logic for now)
+                if (undoNotification?.id === notification.id) {
+                    setShowUndo(false);
+                    setUndoNotification(null);
+                }
+            }, 1500);
+        }, 300); // 300ms for slide out animation
     };
 
     const handleUndo = async () => {
@@ -140,6 +155,23 @@ export const NewsAlerts = () => {
 
         setTouchStart(null);
         setSwipingId(null);
+    };
+
+    const handleDownload = async (url: string, filename: string) => {
+        try {
+            const response = await fetch(optimizeCloudinaryUrl(url));
+            const blob = await response.blob();
+            const blobUrl = window.URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = blobUrl;
+            link.download = filename;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            window.URL.revokeObjectURL(blobUrl);
+        } catch (error) {
+            console.error('Download failed:', error);
+        }
     };
 
     return (
@@ -269,6 +301,7 @@ export const NewsAlerts = () => {
                 ) : (
                     paginatedItems.map((item) => {
                         const colors = getColors(item.type);
+                        const isDismissing = dismissingIds.has(item.id);
                         return (
                             <Card
                                 key={item.id}
@@ -280,7 +313,8 @@ export const NewsAlerts = () => {
                                 }}
                                 className={cn(
                                     "group hover:shadow-xl transition-all duration-500 border-slate-200 overflow-hidden bg-white relative cursor-pointer active:scale-[0.98] md:active:scale-100",
-                                    !item.is_read ? "border-orange-200 shadow-orange-500/5 ring-1 ring-orange-500/10" : "opacity-80 hover:opacity-100"
+                                    !item.is_read ? "border-orange-200 shadow-orange-500/5 ring-1 ring-orange-500/10" : "opacity-80 hover:opacity-100",
+                                    isDismissing && "translate-x-full opacity-0 pointer-events-none"
                                 )}
                             >
                                 <CardContent className="p-0">
@@ -400,104 +434,91 @@ export const NewsAlerts = () => {
                         currentPage={currentPage}
                         totalPages={totalPages}
                         onPageChange={setCurrentPage}
-                        rowsPerPage={rowsPerPage}
-                        onRowsPerPageChange={(rows) => {
-                            setRowsPerPage(rows);
-                            setCurrentPage(1);
-                        }}
                     />
                 </div>
             )}
 
-            {/* Detailed View Dialog */}
+            {/* Detailed View Modal */}
             <Dialog open={!!selectedNotification} onOpenChange={(open) => !open && setSelectedNotification(null)}>
-                <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto p-0 gap-0 border-none shadow-2xl bg-white/95 backdrop-blur-xl [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-slate-200 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:hover:bg-slate-300">
-                    {selectedNotification && (() => {
-                        const colors = getColors(selectedNotification.type);
-
-                        const handleDownload = async (url: string, filename: string) => {
-                            try {
-                                const response = await fetch(url);
-                                const blob = await response.blob();
-                                const blobUrl = window.URL.createObjectURL(blob);
-                                const link = document.createElement('a');
-                                link.href = blobUrl;
-                                link.download = filename || 'download';
-                                document.body.appendChild(link);
-                                link.click();
-                                document.body.removeChild(link);
-                                window.URL.revokeObjectURL(blobUrl);
-                            } catch (error) {
-                                console.error('Download failed:', error);
-                                window.open(url, '_blank');
-                            }
-                        };
+                <DialogContent className="max-w-2xl bg-white/95 backdrop-blur-xl border-white shadow-2xl rounded-3xl p-0 overflow-hidden">
+                    {(() => {
+                        const item = selectedNotification;
+                        if (!item) return null;
+                        const colors = getColors(item.type);
 
                         return (
                             <>
-                                <DialogHeader className={cn("p-5 md:p-8 pb-4 md:pb-6 border-b border-slate-100", colors.bg)}>
-                                    <div className="flex items-start justify-between gap-4">
-                                        <div className="flex items-center gap-3 md:gap-4">
-                                            <div className={cn(
-                                                "h-11 w-11 md:h-14 md:w-14 rounded-xl md:rounded-2xl flex items-center justify-center shrink-0 border shadow-sm bg-white",
-                                                colors.text
-                                            )}>
-                                                {getIcon(selectedNotification.type)}
-                                            </div>
-                                            <div>
-                                                <Badge variant="outline" className={cn("mb-1 md:mb-2 border-0 bg-white/50 backdrop-blur-md shadow-sm font-bold tracking-widest text-[9px] md:text-[10px]", colors.text)}>
-                                                    {selectedNotification.type.toUpperCase()}
+                                <DialogHeader className="p-6 md:p-8 pb-4 relative overflow-hidden">
+                                    <div className={`absolute top-0 left-0 w-full h-1 ${colors.bar}`} />
+                                    <div className="relative flex items-start gap-4">
+                                        <div className={`h-12 w-12 rounded-2xl flex items-center justify-center shrink-0 border ${colors.border} ${colors.bg} ${colors.text}`}>
+                                            {getIcon(item.type)}
+                                        </div>
+                                        <div className="flex-1">
+                                            <DialogTitle className="text-xl md:text-2xl font-black text-slate-900 leading-tight mb-2">
+                                                {item.title}
+                                            </DialogTitle>
+                                            <div className="flex items-center gap-3 text-slate-500">
+                                                <Badge variant="outline" className={`h-6 text-[10px] font-black uppercase tracking-wider border-0 ${colors.bg} ${colors.text}`}>
+                                                    {tabs.find(t => t.id === item.type)?.label || item.type}
                                                 </Badge>
-                                                <DialogTitle className="text-xl md:text-2xl font-black tracking-tight text-slate-800 leading-tight">
-                                                    {selectedNotification.title}
-                                                </DialogTitle>
+                                                <span className="text-[10px] font-bold opacity-50">•</span>
+                                                <div className="flex items-center gap-1.5">
+                                                    <CalendarIcon className="h-3.5 w-3.5" />
+                                                    <span className="text-[10px] font-black uppercase tracking-widest">
+                                                        {format(new Date(item.created_at), 'PPP p')}
+                                                    </span>
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
-                                    <DialogDescription className="flex items-center gap-2 mt-3 text-slate-500 font-bold ml-1 text-[10px] md:text-xs uppercase tracking-wider">
-                                        <CalendarIcon className="h-3 md:h-3.5 w-3 md:w-3.5" />
-                                        {format(new Date(selectedNotification.created_at), 'PPP')}
-                                        <span className="mx-1 text-slate-300">•</span>
-                                        {format(new Date(selectedNotification.created_at), 'p')}
-                                    </DialogDescription>
+                                    <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 rounded-full"
+                                        onClick={() => setSelectedNotification(null)}
+                                    >
+                                        <X className="h-5 w-5" />
+                                    </Button>
                                 </DialogHeader>
 
-                                <div className="p-5 md:p-8 space-y-6 md:space-y-8">
-                                    <div className="prose prose-sm max-w-none text-slate-600 leading-relaxed whitespace-pre-wrap text-sm md:text-base font-medium">
-                                        {selectedNotification.message}
+                                <div className="p-6 md:p-8 pt-0 space-y-6">
+                                    <div className="prose prose-sm max-w-none text-slate-600 leading-relaxed whitespace-pre-wrap font-medium">
+                                        {item.message}
                                     </div>
 
-                                    {/* Media Gallery */}
-                                    {selectedNotification.metadata && (
-                                        <div className="space-y-6 pt-6 border-t border-slate-100">
-                                            {selectedNotification.metadata.images && Array.isArray(selectedNotification.metadata.images) && selectedNotification.metadata.images.length > 0 && (
-                                                <div className="space-y-4">
-                                                    <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 flex items-center gap-2">
-                                                        <ImageIcon className="w-3.5 h-3.5" /> Attached Images
+                                    {item.metadata && (
+                                        <div className="space-y-6">
+                                            {item.metadata.images && item.metadata.images.length > 0 && (
+                                                <div>
+                                                    <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-3 flex items-center gap-2">
+                                                        <ImageIcon className="h-3.5 w-3.5" /> Attached Images
                                                     </h4>
-                                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                                        {selectedNotification.metadata.images.map((img: string, i: number) => (
-                                                            <div key={i} className="group relative aspect-video rounded-2xl overflow-hidden border border-slate-100 bg-slate-50 shadow-sm hover:shadow-xl transition-all duration-500">
-                                                                <img src={optimizeCloudinaryUrl(img, { width: 600 })} loading="lazy" alt="" className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" />
-
-                                                                {/* Image Hover Overlay */}
-                                                                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-3 backdrop-blur-[2px]">
-                                                                    <a
-                                                                        href={img}
-                                                                        target="_blank"
-                                                                        rel="noopener noreferrer"
-                                                                        className="h-10 w-10 rounded-xl bg-white/20 backdrop-blur-md text-white flex items-center justify-center hover:bg-white/40 transition-colors border border-white/20"
-                                                                        title="View Large"
+                                                    <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                                                        {item.metadata.images.map((img: string, i: number) => (
+                                                            <div key={i} className="group relative aspect-square rounded-2xl overflow-hidden bg-slate-100 border border-slate-200">
+                                                                <img
+                                                                    src={optimizeCloudinaryUrl(img)}
+                                                                    loading="lazy"
+                                                                    className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110"
+                                                                />
+                                                                <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                                                                    <Button
+                                                                        size="icon"
+                                                                        variant="ghost"
+                                                                        className="h-8 w-8 rounded-full bg-white/20 text-white hover:bg-white hover:text-black backdrop-blur-md"
+                                                                        onClick={() => window.open(optimizeCloudinaryUrl(img), '_blank')}
                                                                     >
-                                                                        <ExternalLink className="h-5 w-5" />
-                                                                    </a>
-                                                                    <button
+                                                                        <ExternalLink className="h-4 w-4" />
+                                                                    </Button>
+                                                                    <Button
+                                                                        size="icon"
+                                                                        variant="ghost"
+                                                                        className="h-8 w-8 rounded-full bg-white/20 text-white hover:bg-white hover:text-black backdrop-blur-md"
                                                                         onClick={() => handleDownload(img, `image-${i + 1}.jpg`)}
-                                                                        className="h-10 w-10 rounded-xl bg-orange-500 text-white flex items-center justify-center hover:bg-orange-600 transition-colors shadow-lg shadow-orange-500/30"
-                                                                        title="Download Image"
                                                                     >
-                                                                        <Download className="h-5 w-5" />
-                                                                    </button>
+                                                                        <Download className="h-4 w-4" />
+                                                                    </Button>
                                                                 </div>
                                                             </div>
                                                         ))}
@@ -505,40 +526,34 @@ export const NewsAlerts = () => {
                                                 </div>
                                             )}
 
-                                            {selectedNotification.metadata.videos && Array.isArray(selectedNotification.metadata.videos) && selectedNotification.metadata.videos.length > 0 && (
-                                                <div className="space-y-4">
-                                                    <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 flex items-center gap-2">
-                                                        <Video className="w-3.5 h-3.5" /> Attached Videos
+                                            {item.metadata.videos && item.metadata.videos.length > 0 && (
+                                                <div>
+                                                    <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-3 flex items-center gap-2">
+                                                        <Video className="h-3.5 w-3.5" /> Attached Videos
                                                     </h4>
-                                                    <div className="grid grid-cols-1 gap-3">
-                                                        {selectedNotification.metadata.videos.map((vid: string, i: number) => (
-                                                            <div
-                                                                key={i}
-                                                                className="flex items-center justify-between p-4 rounded-2xl border border-slate-100 bg-slate-50 hover:bg-white hover:shadow-md transition-all group"
-                                                            >
-                                                                <div className="flex items-center gap-4">
-                                                                    <div className="h-12 w-12 rounded-xl bg-white border border-slate-100 text-orange-500 flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform duration-300 shadow-sm">
-                                                                        <FileVideo className="h-6 w-6" />
-                                                                    </div>
-                                                                    <div className="flex flex-col">
-                                                                        <span className="text-sm font-bold text-slate-700">Video Attachment {i + 1}</span>
-                                                                        <span className="text-[10px] text-slate-400 uppercase tracking-wider font-bold">MP4 / WEBM Format</span>
-                                                                    </div>
+                                                    <div className="space-y-3">
+                                                        {item.metadata.videos.map((vid: string, i: number) => (
+                                                            <div key={i} className="flex items-center gap-4 p-3 rounded-2xl bg-slate-50 border border-slate-100 group hover:bg-slate-100 transition-colors">
+                                                                <div className="h-10 w-10 rounded-xl bg-orange-100 text-orange-600 flex items-center justify-center shrink-0">
+                                                                    <PlayCircle className="h-5 w-5" />
                                                                 </div>
-
-                                                                <div className="flex items-center gap-2">
-                                                                    <a
-                                                                        href={vid}
-                                                                        target="_blank"
-                                                                        rel="noopener noreferrer"
-                                                                        className="h-10 px-4 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-xs font-bold flex items-center gap-2 transition-colors text-slate-600 shadow-sm"
-                                                                    >
-                                                                        <PlayCircle className="h-4 w-4 text-orange-500" /> Watch
-                                                                    </a>
+                                                                <div className="flex-1 min-w-0">
+                                                                    <p className="text-xs font-bold text-slate-700 truncate">Video Attachment {i + 1}</p>
+                                                                    <p className="text-[10px] font-medium text-slate-400">MP4 Format</p>
+                                                                </div>
+                                                                <div className="flex gap-2">
                                                                     <Button
-                                                                        size="sm"
+                                                                        size="icon"
                                                                         variant="ghost"
-                                                                        className="h-10 w-10 p-0 rounded-xl hover:bg-orange-50 text-slate-400 hover:text-orange-600 transition-colors"
+                                                                        className="h-8 w-8 text-slate-400 hover:text-primary hover:bg-white shadow-sm"
+                                                                        onClick={() => window.open(optimizeCloudinaryUrl(vid), '_blank')}
+                                                                    >
+                                                                        <ExternalLink className="h-4 w-4" />
+                                                                    </Button>
+                                                                    <Button
+                                                                        size="icon"
+                                                                        variant="ghost"
+                                                                        className="h-8 w-8 text-slate-400 hover:text-primary hover:bg-white shadow-sm"
                                                                         onClick={() => handleDownload(vid, `video-${i + 1}.mp4`)}
                                                                     >
                                                                         <Download className="h-4 w-4" />
@@ -552,9 +567,9 @@ export const NewsAlerts = () => {
                                         </div>
                                     )}
 
-                                    {selectedNotification.link && (
+                                    {item.link && (
                                         <div className="pt-6 border-t border-slate-100 flex justify-end">
-                                            <Button onClick={() => navigate(selectedNotification.link)} className="w-full sm:w-auto h-12 px-8 rounded-xl bg-slate-900 text-white hover:bg-slate-800 font-bold uppercase tracking-wider text-xs shadow-lg shadow-slate-900/20">
+                                            <Button onClick={() => navigate(item.link)} className="w-full sm:w-auto h-12 px-8 rounded-xl bg-slate-900 text-white hover:bg-slate-800 font-bold uppercase tracking-wider text-xs shadow-lg shadow-slate-900/20">
                                                 View Associated Link <ChevronRight className="ml-2 h-4 w-4" />
                                             </Button>
                                         </div>
@@ -567,26 +582,28 @@ export const NewsAlerts = () => {
             </Dialog>
 
             {/* Undo Toast */}
-            {showUndo && (
-                <div className="fixed bottom-12 left-1/2 -translate-x-1/2 z-[100] animate-in fade-in slide-in-from-bottom-6 zoom-in-95 duration-500">
-                    <div className="flex items-center gap-8 bg-slate-900/90 backdrop-blur-2xl px-6 py-3.5 rounded-full shadow-[0_25px_60px_-15px_rgba(0,0,0,0.5)] border border-white/10 group">
-                        <div className="flex items-center gap-3 whitespace-nowrap">
-                            <div className="h-1.5 w-1.5 rounded-full bg-orange-500 shadow-[0_0_10px_rgba(249,115,22,0.5)] animate-pulse" />
-                            <p className="text-[13px] font-medium text-white/90">
-                                Dismissed <span className="font-black text-white ml-0.5 truncate max-w-[120px] inline-block align-bottom">"{undoNotification?.title}"</span>
-                            </p>
+            {
+                showUndo && (
+                    <div className="fixed bottom-12 left-1/2 -translate-x-1/2 z-[100] animate-in fade-in slide-in-from-bottom-6 zoom-in-95 duration-500">
+                        <div className="flex items-center gap-8 bg-slate-900/90 backdrop-blur-2xl px-6 py-3.5 rounded-full shadow-[0_25px_60px_-15px_rgba(0,0,0,0.5)] border border-white/10 group">
+                            <div className="flex items-center gap-3 whitespace-nowrap">
+                                <div className="h-1.5 w-1.5 rounded-full bg-orange-50 shadow-[0_0_10px_rgba(249,115,22,0.5)] animate-pulse" />
+                                <p className="text-[13px] font-medium text-white/90">
+                                    Dismissed <span className="font-black text-white ml-0.5 truncate max-w-[120px] inline-block align-bottom">"{undoNotification?.title}"</span>
+                                </p>
+                            </div>
+                            <div className="h-4 w-[1px] bg-white/10" />
+                            <button
+                                onClick={handleUndo}
+                                className="text-orange-400 hover:text-orange-300 transition-all text-[11px] font-black uppercase tracking-[0.2em] flex items-center gap-2 group/undo"
+                            >
+                                Undo
+                                <Undo2 className="h-3.5 w-3.5 group-hover/undo:-translate-x-0.5 transition-transform" />
+                            </button>
                         </div>
-                        <div className="h-4 w-[1px] bg-white/10" />
-                        <button
-                            onClick={handleUndo}
-                            className="text-orange-400 hover:text-orange-300 transition-all text-[11px] font-black uppercase tracking-[0.2em] flex items-center gap-2 group/undo"
-                        >
-                            Undo
-                            <Undo2 className="h-3.5 w-3.5 group-hover/undo:-translate-x-0.5 transition-transform" />
-                        </button>
                     </div>
-                </div>
-            )}
+                )
+            }
         </div >
     );
 };

@@ -15,6 +15,7 @@ export interface Notification {
         videos?: string[];
     };
     is_read: boolean;
+    is_cleared?: boolean;
     created_at: string;
 }
 
@@ -121,8 +122,17 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
                     ...notification,
                     metadata: notification.metadata ? (typeof notification.metadata === 'string' ? JSON.parse(notification.metadata) : notification.metadata) : null
                 };
-                setNotifications(prev => [parsedNotif, ...prev]);
-                setFullHistory(prev => [parsedNotif, ...prev]);
+
+                setNotifications(prev => {
+                    if (prev.some(n => n.id === parsedNotif.id)) return prev;
+                    return [parsedNotif, ...prev];
+                });
+
+                setFullHistory(prev => {
+                    if (prev.some(n => n.id === parsedNotif.id)) return prev;
+                    return [parsedNotif, ...prev];
+                });
+
                 setUnreadCount(prev => prev + 1);
 
                 toast({
@@ -157,6 +167,9 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
             setNotifications(prev =>
                 prev.map(n => n.id === id ? { ...n, is_read: true } : n)
             );
+            setFullHistory(prev =>
+                prev.map(n => n.id === id ? { ...n, is_read: true } : n)
+            );
             setUnreadCount(prev => Math.max(0, prev - 1));
         } catch (error) {
             console.error("Failed to mark notification as read:", error);
@@ -167,6 +180,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         try {
             await api.patch("/notifications/read-all");
             setNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
+            setFullHistory(prev => prev.map(n => ({ ...n, is_read: true })));
             setUnreadCount(0);
         } catch (error) {
             console.error("Failed to mark all as read:", error);

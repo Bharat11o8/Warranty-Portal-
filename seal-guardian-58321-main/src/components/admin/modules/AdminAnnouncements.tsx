@@ -152,7 +152,8 @@ export const AdminAnnouncements = () => {
         try {
             const payload = {
                 ...formData,
-                targetUsers: formData.audience === 'all' ? [] : formData.targetUsers
+                targetUsers: formData.audience === 'all' ? [] : formData.targetUsers,
+                targetRole: formData.audience === 'all' ? 'vendor' : undefined
             };
 
             await api.post("/notifications/broadcast", payload);

@@ -34,13 +34,13 @@ import {
     Loader2,
     Megaphone
 } from "lucide-react";
-import { AdminBroadcast } from "@/components/admin/AdminBroadcast";
+import { AdminAnnouncements } from "@/components/admin/modules/AdminAnnouncements";
 import api from "@/lib/api";
 import {
     DropdownMenu,
-    DropdownMenuContent,
     DropdownMenuItem,
     DropdownMenuTrigger,
+    DropdownMenuContent,
 } from "@/components/ui/dropdown-menu";
 import {
     Dialog,
@@ -59,7 +59,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 import { AdminWarrantyList } from "@/components/admin/AdminWarrantyList";
-import { OldWarranties } from "@/components/admin/OldWarranties";
+import { AdminOldWarranties } from "@/components/admin/modules/AdminOldWarranties";
 import { formatWarrantyForExport, formatVendorForExport, formatCustomerForExport, formatManpowerForExport } from "@/lib/adminExports";
 import { downloadCSV, getWarrantyExpiration, cn, formatToIST } from "@/lib/utils";
 import Header from "@/components/Header";
@@ -3897,11 +3897,11 @@ const AdminDashboard = () => {
                     </TabsContent>
 
                     <TabsContent value="old-warranties" className="space-y-4">
-                        <OldWarranties />
+                        <AdminOldWarranties />
                     </TabsContent>
 
                     <TabsContent value="announcements">
-                        <AdminBroadcast />
+                        <AdminAnnouncements />
                     </TabsContent>
 
                 </Tabs>

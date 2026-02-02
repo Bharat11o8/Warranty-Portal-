@@ -109,9 +109,37 @@ export class NotificationController {
         }
     }
 
+    static async delete(req: AuthRequest, res: Response) {
+        try {
+            const userId = req.user?.id;
+            const { id } = req.params;
+            if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+            await NotificationService.delete(Number(id), userId);
+            res.json({ success: true });
+        } catch (error) {
+            console.error('Delete notification error:', error);
+            res.status(500).json({ error: 'Internal server error' });
+        }
+    }
+
+    static async restore(req: AuthRequest, res: Response) {
+        try {
+            const userId = req.user?.id;
+            const { id } = req.params;
+            if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+            await NotificationService.restore(Number(id), userId);
+            res.json({ success: true });
+        } catch (error) {
+            console.error('Restore notification error:', error);
+            res.status(500).json({ error: 'Internal server error' });
+        }
+    }
+
     static async broadcast(req: AuthRequest, res: Response) {
         try {
-            const { title, message, type, link, targetUsers, images, videos } = req.body;
+            const { title, message, type, link, targetUsers, targetRole, images, videos } = req.body;
 
             if (!title || !message) {
                 return res.status(400).json({ error: 'Title and message are required' });
@@ -128,7 +156,8 @@ export class NotificationController {
                 type: type || 'system',
                 link: link || null,
                 metadata,
-                targetUsers
+                targetUsers,
+                targetRole
             });
 
             res.json({ success: true, message: 'Broadcast sent successfully' });

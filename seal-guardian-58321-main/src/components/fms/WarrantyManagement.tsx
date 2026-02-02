@@ -178,6 +178,23 @@ export const WarrantyManagement = ({
         }
     };
 
+    const getTabDescription = (tab: string) => {
+        switch (tab) {
+            case 'all':
+                return 'All warranty registrations across all statuses';
+            case 'validated':
+                return 'Warranties approved by admin — fully verified and active';
+            case 'pending_ho':
+                return 'Warranties verified by franchise, pending admin approval';
+            case 'pending':
+                return 'New registrations pending verification by franchise';
+            case 'rejected':
+                return 'Warranties rejected due to invalid or incomplete information';
+            default:
+                return '';
+        }
+    };
+
     const clearFilters = () => {
         setSelectedProduct('all');
         setSelectedMake('all');
@@ -640,21 +657,33 @@ export const WarrantyManagement = ({
                                                 All
                                             </div>
                                         </div>
-                                        <DropdownMenuItem onClick={() => setActiveTab('validated')} className="flex items-center justify-between p-3 rounded-2xl cursor-pointer hover:bg-green-50">
-                                            <span className={cn("text-xs font-black uppercase", activeTab === 'validated' ? "text-green-600" : "text-slate-500")}>Approved</span>
-                                            <Badge className="bg-green-100 text-green-700 font-black px-3 py-0.5 rounded-full text-[10px]">{stats.approved}</Badge>
+                                        <DropdownMenuItem onClick={() => setActiveTab('validated')} className="flex flex-col items-start p-3 rounded-2xl cursor-pointer hover:bg-green-50">
+                                            <div className="flex items-center justify-between w-full">
+                                                <span className={cn("text-xs font-black uppercase", activeTab === 'validated' ? "text-green-600" : "text-slate-500")}>Approved</span>
+                                                <Badge className="bg-green-100 text-green-700 font-black px-3 py-0.5 rounded-full text-[10px]">{stats.approved}</Badge>
+                                            </div>
+                                            <span className="text-[10px] text-slate-400 font-medium mt-1">Fully verified and active warranties</span>
                                         </DropdownMenuItem>
-                                        <DropdownMenuItem onClick={() => setActiveTab('pending_ho')} className="flex items-center justify-between p-3 rounded-2xl cursor-pointer hover:bg-blue-50">
-                                            <span className={cn("text-xs font-black uppercase", activeTab === 'pending_ho' ? "text-blue-600" : "text-slate-500")}>Verified</span>
-                                            <Badge className="bg-blue-100 text-blue-700 font-black px-3 py-0.5 rounded-full text-[10px]">{stats.verified}</Badge>
+                                        <DropdownMenuItem onClick={() => setActiveTab('pending_ho')} className="flex flex-col items-start p-3 rounded-2xl cursor-pointer hover:bg-blue-50">
+                                            <div className="flex items-center justify-between w-full">
+                                                <span className={cn("text-xs font-black uppercase", activeTab === 'pending_ho' ? "text-blue-600" : "text-slate-500")}>Verified</span>
+                                                <Badge className="bg-blue-100 text-blue-700 font-black px-3 py-0.5 rounded-full text-[10px]">{stats.verified}</Badge>
+                                            </div>
+                                            <span className="text-[10px] text-slate-400 font-medium mt-1">Verified by franchise, pending admin approval</span>
                                         </DropdownMenuItem>
-                                        <DropdownMenuItem onClick={() => setActiveTab('pending')} className="flex items-center justify-between p-3 rounded-2xl cursor-pointer hover:bg-amber-50">
-                                            <span className={cn("text-xs font-black uppercase", activeTab === 'pending' ? "text-amber-600" : "text-slate-500")}>Pending</span>
-                                            <Badge className="bg-amber-100 text-amber-700 font-black px-3 py-0.5 rounded-full text-[10px]">{stats.pending}</Badge>
+                                        <DropdownMenuItem onClick={() => setActiveTab('pending')} className="flex flex-col items-start p-3 rounded-2xl cursor-pointer hover:bg-amber-50">
+                                            <div className="flex items-center justify-between w-full">
+                                                <span className={cn("text-xs font-black uppercase", activeTab === 'pending' ? "text-amber-600" : "text-slate-500")}>Pending</span>
+                                                <Badge className="bg-amber-100 text-amber-700 font-black px-3 py-0.5 rounded-full text-[10px]">{stats.pending}</Badge>
+                                            </div>
+                                            <span className="text-[10px] text-slate-400 font-medium mt-1">New registrations pending franchise verification</span>
                                         </DropdownMenuItem>
-                                        <DropdownMenuItem onClick={() => setActiveTab('rejected')} className="flex items-center justify-between p-3 rounded-2xl cursor-pointer hover:bg-red-50">
-                                            <span className={cn("text-xs font-black uppercase", activeTab === 'rejected' ? "text-red-600" : "text-slate-500")}>Rejected</span>
-                                            <Badge className="bg-red-100 text-red-700 font-black px-3 py-0.5 rounded-full text-[10px]">{stats.rejected}</Badge>
+                                        <DropdownMenuItem onClick={() => setActiveTab('rejected')} className="flex flex-col items-start p-3 rounded-2xl cursor-pointer hover:bg-red-50">
+                                            <div className="flex items-center justify-between w-full">
+                                                <span className={cn("text-xs font-black uppercase", activeTab === 'rejected' ? "text-red-600" : "text-slate-500")}>Rejected</span>
+                                                <Badge className="bg-red-100 text-red-700 font-black px-3 py-0.5 rounded-full text-[10px]">{stats.rejected}</Badge>
+                                            </div>
+                                            <span className="text-[10px] text-slate-400 font-medium mt-1">Rejected due to invalid or incomplete info</span>
                                         </DropdownMenuItem>
                                     </div>
                                 </DropdownMenuContent>
@@ -789,6 +818,14 @@ export const WarrantyManagement = ({
                             </div>
                         </Button>
                     </div>
+                </div>
+
+                {/* Tab Description */}
+                <div className="px-1 mb-4 animate-in fade-in duration-300">
+                    <p className="text-xs text-slate-500 font-medium flex items-center gap-2">
+                        <span className="w-1 h-1 rounded-full bg-orange-400"></span>
+                        {getTabDescription(activeTab)}
+                    </p>
                 </div>
 
                 {/* Advanced Filter & Sort Bar */}

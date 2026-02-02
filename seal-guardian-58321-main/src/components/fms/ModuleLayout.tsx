@@ -42,7 +42,7 @@ export const ModuleLayout = ({ title, description, children, actions, isCollapse
                                         </Button>
                                         <div className="flex flex-col">
                                             <h1 className="font-black tracking-tighter sm:tracking-tight leading-[0.95] text-lg sm:text-2xl md:text-4xl lg:text-5xl flex flex-col md:flex-row md:items-center">
-                                                <span className="bg-gradient-to-r from-slate-800 to-slate-900 bg-clip-text text-transparent uppercase">Partner</span>
+                                                <span className="bg-gradient-to-r from-slate-800 to-slate-900 bg-clip-text text-transparent uppercase">Franchise</span>
                                                 <span className="bg-gradient-to-r from-orange-500 to-orange-600 bg-clip-text text-transparent md:ml-3 uppercase">Portal</span>
                                             </h1>
                                             <p className="md:hidden text-[8px] font-black text-slate-400 uppercase tracking-[0.2em] mt-1 leading-none opacity-80">

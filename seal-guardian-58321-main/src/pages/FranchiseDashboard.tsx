@@ -661,6 +661,7 @@ const FranchiseDashboard = () => {
                 return <ComingSoon title="Audit & Compliance" />;
             case 'targets':
                 return <ComingSoon title="Targets & Achievements" />;
+            case 'posm':
                 return (
                     <div className="-mt-8 md:-mt-14">
                         <POSMModule />
