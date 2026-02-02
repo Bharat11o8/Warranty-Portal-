@@ -45,9 +45,13 @@ export class AssignmentSchedulerService {
         console.log('🕒 Assignment Scheduler: Checking for overdue tasks...');
 
         try {
+            const istTimestamp = getISTTimestamp();
+            const istDate = istTimestamp.split(' ')[0];
+            const istHour = parseInt(istTimestamp.split(' ')[1].split(':')[0]);
+
             // Find the LATEST assignment for each grievance-assignee pair that is:
             // 1. Still pending
-            // 2. Past its expected resolution date
+            // 2. (Past its expected resolution date) OR (Today is the date AND it's 5:00 PM or later)
             // 3. Haven't been followed up in the last 24 hours
             const [overdueRows]: any = await db.execute(`
                 SELECT ga.*, g.ticket_id, g.category, g.subject, g.description,
@@ -63,9 +67,12 @@ export class AssignmentSchedulerService {
                 LEFT JOIN profiles p ON g.customer_id = p.id
                 LEFT JOIN vendor_details vd ON g.franchise_id = vd.id
                 WHERE ga.status = 'pending' 
-                AND ga.estimated_completion_date < ?
+                AND (
+                    ga.estimated_completion_date < ? 
+                    OR (ga.estimated_completion_date = ? AND ? >= 17)
+                )
                 AND (ga.last_follow_up_at IS NULL OR ga.last_follow_up_at < ?)
-            `, [getISTTimestamp(), this.getTimestampMinusHours(24)]);
+            `, [istDate, istDate, istHour, this.getTimestampMinusHours(24)]);
 
             if (!overdueRows || overdueRows.length === 0) {
                 console.log('🕒 Assignment Scheduler: No overdue tasks found.');
