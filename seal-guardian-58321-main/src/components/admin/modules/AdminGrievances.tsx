@@ -488,7 +488,7 @@ export const AdminGrievances = () => {
                                                     {g.assigned_to || <span className="text-slate-300 italic">Unassigned</span>}
                                                 </td>
                                                 <td className="p-4 text-xs text-slate-400">
-                                                    {g.status_updated_at ? formatToIST(g.status_updated_at) : '-'}
+                                                    {g.updated_at ? formatToIST(g.updated_at) : (g.status_updated_at ? formatToIST(g.status_updated_at) : formatToIST(g.created_at))}
                                                 </td>
                                             </tr>
                                         ))}

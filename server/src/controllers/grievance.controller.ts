@@ -521,12 +521,13 @@ class GrievanceController {
          LEFT JOIN vendor_details vd_customer ON g.franchise_id = vd_customer.id
          LEFT JOIN vendor_details vd_franchise ON g.source_type = 'franchise' AND g.customer_id = vd_franchise.user_id
          ORDER BY 
-           CASE g.priority 
-             WHEN 'urgent' THEN 1 
-             WHEN 'high' THEN 2 
-             ELSE 3 
-           END,
-           g.created_at DESC`
+            g.updated_at DESC,
+            CASE g.priority 
+              WHEN 'urgent' THEN 1 
+              WHEN 'high' THEN 2 
+              ELSE 3 
+            END,
+            g.created_at DESC`
             );
 
             return res.json({ success: true, data: grievances });
@@ -883,6 +884,9 @@ class GrievanceController {
             }
 
             if (updates.length > 0) {
+                updates.push('updated_at = ?');
+                values.push(getISTTimestamp());
+
                 values.push(id);
                 await db.execute(
                     `UPDATE grievances SET ${updates.join(', ')} WHERE id = ?`,
@@ -1246,14 +1250,14 @@ class GrievanceController {
 
             if (mainGrievanceStatus) {
                 await db.execute(
-                    "UPDATE grievances SET status = ?, updated_at = ? WHERE id = ?",
-                    [mainGrievanceStatus, getISTTimestamp(), assignment.grievance_id]
+                    "UPDATE grievances SET status = ?, updated_at = ?, status_updated_at = ? WHERE id = ?",
+                    [mainGrievanceStatus, getISTTimestamp(), getISTTimestamp(), assignment.grievance_id]
                 );
             } else {
                 // Just update the timestamp if status didn't change automatically
                 await db.execute(
-                    "UPDATE grievances SET updated_at = ? WHERE id = ?",
-                    [getISTTimestamp(), assignment.grievance_id]
+                    "UPDATE grievances SET updated_at = ?, status_updated_at = ? WHERE id = ?",
+                    [getISTTimestamp(), getISTTimestamp(), assignment.grievance_id]
                 );
             }
 
