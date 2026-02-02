@@ -109,28 +109,28 @@ export class NotificationController {
         }
     }
 
-    static async delete(req: AuthRequest, res: Response) {
+    static async clearById(req: AuthRequest, res: Response) {
         try {
             const userId = req.user?.id;
             const { id } = req.params;
             if (!userId) return res.status(401).json({ error: 'Unauthorized' });
 
-            await NotificationService.delete(Number(id), userId);
-            res.json({ success: true });
+            await NotificationService.clearById(Number(id), userId);
+            res.json({ success: true, message: 'Notification cleared from view' });
         } catch (error) {
-            console.error('Delete notification error:', error);
+            console.error('Clear notification error:', error);
             res.status(500).json({ error: 'Internal server error' });
         }
     }
 
-    static async restore(req: AuthRequest, res: Response) {
+    static async restoreById(req: AuthRequest, res: Response) {
         try {
             const userId = req.user?.id;
             const { id } = req.params;
             if (!userId) return res.status(401).json({ error: 'Unauthorized' });
 
-            await NotificationService.restore(Number(id), userId);
-            res.json({ success: true });
+            await NotificationService.restoreById(Number(id), userId);
+            res.json({ success: true, message: 'Notification restored to view' });
         } catch (error) {
             console.error('Restore notification error:', error);
             res.status(500).json({ error: 'Internal server error' });

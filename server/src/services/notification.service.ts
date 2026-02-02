@@ -192,17 +192,18 @@ export class NotificationService {
         );
     }
 
-    static async delete(notificationId: number, userId: string | number) {
+    static async clearById(notificationId: number, userId: string | number) {
         await db.execute(
             'UPDATE notifications SET is_cleared = TRUE WHERE id = ? AND user_id = ?',
             [notificationId, userId]
         );
     }
 
-    static async restore(notificationId: number, userId: string | number) {
+    static async restoreById(notificationId: number, userId: string | number) {
         await db.execute(
             'UPDATE notifications SET is_cleared = FALSE WHERE id = ? AND user_id = ?',
             [notificationId, userId]
         );
     }
 }
+

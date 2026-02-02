@@ -1,10 +1,10 @@
-
-import { Response } from 'express';
+import { Request, Response } from 'express';
 import db, { getISTTimestamp } from '../config/database.js';
 import { AuthRequest } from '../middleware/auth.js';
 import { EmailService } from '../services/email.service.js';
 import { NotificationService } from '../services/notification.service.js';
 import { ActivityLogService } from '../services/activity-log.service.js';
+import { v4 as uuidv4 } from 'uuid';
 
 /**
  * Grievance Controller
@@ -1064,7 +1064,30 @@ class GrievanceController {
                 [assigneeName, id]
             );
 
-            // Send email
+            // Save assignment record with Target Date and Token
+            const assignmentType = req.body.assignmentType || 'initial';
+            const adminName = 'Admin';
+            const estimatedCompletionDate = req.body.estimatedCompletionDate || null;
+            const updateToken = uuidv4();
+
+            await db.execute(
+                `INSERT INTO grievance_assignments 
+                 (grievance_id, assignee_name, assignee_email, remarks, assignment_type, sent_by, sent_by_name, estimated_completion_date, update_token, status)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')`,
+                [
+                    id,
+                    assigneeName,
+                    assigneeEmail,
+                    remarks || null,
+                    assignmentType,
+                    req.user?.id,
+                    adminName,
+                    estimatedCompletionDate,
+                    updateToken
+                ]
+            );
+
+            // Send Email with Link
             const { EmailService } = await import('../services/email.service.js');
             const emailSent = await EmailService.sendGrievanceAssignmentEmail(
                 assigneeEmail,
@@ -1080,27 +1103,11 @@ class GrievanceController {
                     franchise_address: grievance.franchise_address,
                     franchise_city: grievance.franchise_city,
                     attachments: grievance.attachments,
-                    created_at: grievance.created_at
+                    created_at: grievance.created_at,
+                    estimated_completion_date: estimatedCompletionDate
                 },
-                remarks || undefined
-            );
-
-            if (!emailSent) {
-                return res.status(500).json({
-                    success: false,
-                    error: 'Failed to send email. Please try again.'
-                });
-            }
-
-            // Save assignment record to database
-            const assignmentType = req.body.assignmentType || 'initial';
-            const adminName = 'Admin';
-
-            await db.execute(
-                `INSERT INTO grievance_assignments 
-                 (grievance_id, assignee_name, assignee_email, remarks, assignment_type, sent_by, sent_by_name)
-                 VALUES (?, ?, ?, ?, ?, ?, ?)`,
-                [id, assigneeName, assigneeEmail, remarks || null, assignmentType, req.user?.id, adminName]
+                remarks || undefined,
+                updateToken // Pass token for the external link
             );
 
             return res.json({
@@ -1132,7 +1139,7 @@ class GrievanceController {
             }
 
             const [assignments] = await db.execute(
-                `SELECT id, assignee_name, assignee_email, remarks, assignment_type, 
+                `SELECT id, assignee_name, assignee_email, remarks, assignment_type, status,
                         email_sent_at, sent_by, sent_by_name
                  FROM grievance_assignments 
                  WHERE grievance_id = ?
@@ -1148,6 +1155,114 @@ class GrievanceController {
                 success: false,
                 error: 'Failed to fetch assignment history'
             });
+        }
+    }
+    /**
+     * Get assignment details by token (Public)
+     * GET /api/grievance/assignment/details/:token
+     */
+    getAssignmentByToken = async (req: Request, res: Response) => {
+        try {
+            const { token } = req.params;
+
+            const [rows]: any = await db.execute(
+                `SELECT ga.*, g.ticket_id, g.category, g.subject, g.description
+                 FROM grievance_assignments ga
+                 JOIN grievances g ON ga.grievance_id = g.id
+                 WHERE ga.update_token = ?`,
+                [token]
+            );
+
+            if (!rows || rows.length === 0) {
+                return res.status(404).json({ success: false, error: 'Invalid or expired assignment token' });
+            }
+
+            const assignment = rows[0];
+
+            // If already completed, maybe don't allow further updates or just show status
+            // For now, let's just return the data
+
+            return res.json({ success: true, data: assignment });
+        } catch (error: any) {
+            console.error('Get assignment by token error:', error);
+            return res.status(500).json({ success: false, error: 'Failed to fetch assignment details' });
+        }
+    }
+
+    /**
+     * Update assignment by token (Public)
+     * POST /api/grievance/assignment/update/:token
+     */
+    updateAssignmentByToken = async (req: Request, res: Response) => {
+        try {
+            const { token } = req.params;
+            const { status, remarks } = req.body;
+
+            if (!status) {
+                return res.status(400).json({ success: false, error: 'Status is required' });
+            }
+
+            // 1. Find assignment
+            const [gaRows]: any = await db.execute(
+                'SELECT id, grievance_id, assignee_name FROM grievance_assignments WHERE update_token = ?',
+                [token]
+            );
+
+            if (!gaRows || gaRows.length === 0) {
+                return res.status(404).json({ success: false, error: 'Invalid or expired assignment token' });
+            }
+
+            const assignment = gaRows[0];
+
+            // 2. Update all assignment history records for this token
+            await db.execute(
+                `UPDATE grievance_assignments 
+                 SET status = ?, completion_remarks = ?, updated_at = ?
+                 WHERE update_token = ?`,
+                [status, remarks || null, getISTTimestamp(), token]
+            );
+
+            // 3. Add to grievance remarks history
+            const [gRows]: any = await db.execute('SELECT ticket_id FROM grievances WHERE id = ?', [assignment.grievance_id]);
+            const ticketId = gRows[0]?.ticket_id || assignment.grievance_id;
+
+            await db.execute(
+                `INSERT INTO grievance_remarks (grievance_id, added_by, added_by_name, added_by_id, remark)
+                 VALUES (?, 'assignee', ?, 'external', ?)`,
+                [
+                    assignment.grievance_id,
+                    assignment.assignee_name,
+                    `Status Update [${status}]: ${remarks || 'No remarks provided'}`
+                ]
+            );
+
+            // 4. Optionally update main grievance status if completed
+            if (status === 'completed') {
+                // We don't automatically resolve the grievance, but we could update it to 'in_progress'
+                // Let's at least mark it as 'under_review' or similar if it was 'submitted'
+                await db.execute(
+                    "UPDATE grievances SET status = 'under_review' WHERE id = ? AND status = 'submitted'",
+                    [assignment.grievance_id]
+                );
+            }
+
+            // 5. Notify Admin
+            try {
+                await NotificationService.broadcast({
+                    title: `Assignment Update: ${ticketId}`,
+                    message: `${assignment.assignee_name} updated assignment to ${status}.`,
+                    type: 'system',
+                    link: `/admin/grievances/${ticketId}`,
+                    targetRole: 'admin'
+                });
+            } catch (notifError) {
+                console.error('Failed to notify admin of assignment update:', notifError);
+            }
+
+            return res.json({ success: true, message: 'Assignment updated successfully' });
+        } catch (error: any) {
+            console.error('Update assignment by token error:', error);
+            return res.status(500).json({ success: false, error: 'Failed to update assignment' });
         }
     }
 }
