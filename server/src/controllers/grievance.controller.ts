@@ -1236,13 +1236,24 @@ class GrievanceController {
                 ]
             );
 
-            // 4. Optionally update main grievance status if completed
+            // 4. Update main grievance status based on assignee progress
+            let mainGrievanceStatus = null;
             if (status === 'completed') {
-                // We don't automatically resolve the grievance, but we could update it to 'in_progress'
-                // Let's at least mark it as 'under_review' or similar if it was 'submitted'
+                mainGrievanceStatus = 'resolved';
+            } else if (status === 'in_progress') {
+                mainGrievanceStatus = 'under_review';
+            }
+
+            if (mainGrievanceStatus) {
                 await db.execute(
-                    "UPDATE grievances SET status = 'under_review' WHERE id = ? AND status = 'submitted'",
-                    [assignment.grievance_id]
+                    "UPDATE grievances SET status = ?, updated_at = ? WHERE id = ?",
+                    [mainGrievanceStatus, getISTTimestamp(), assignment.grievance_id]
+                );
+            } else {
+                // Just update the timestamp if status didn't change automatically
+                await db.execute(
+                    "UPDATE grievances SET updated_at = ? WHERE id = ?",
+                    [getISTTimestamp(), assignment.grievance_id]
                 );
             }
 
