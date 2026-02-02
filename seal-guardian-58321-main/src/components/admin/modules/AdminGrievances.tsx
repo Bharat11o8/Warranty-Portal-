@@ -49,6 +49,7 @@ interface AssignmentRecord {
     assignee_email: string;
     remarks: string | null;
     assignment_type: 'initial' | 'follow_up';
+    status: 'pending' | 'in_progress' | 'completed' | 'follow_up_sent';
     email_sent_at: string;
     sent_by_name: string | null;
 }
@@ -89,6 +90,7 @@ export const AdminGrievances = () => {
     const [assigneeName, setAssigneeName] = useState("");
     const [assigneeEmail, setAssigneeEmail] = useState("");
     const [assigneeRemarks, setAssigneeRemarks] = useState("");
+    const [estimatedCompletionDate, setEstimatedCompletionDate] = useState("");
     const [sendingEmail, setSendingEmail] = useState(false);
     const [assignmentHistory, setAssignmentHistory] = useState<AssignmentRecord[]>([]);
     const [loadingHistory, setLoadingHistory] = useState(false);
@@ -735,7 +737,7 @@ export const AdminGrievances = () => {
                                             <Mail className="h-4 w-4" />
                                             Send Assignment Email
                                         </h4>
-                                        <div className="grid md:grid-cols-2 gap-3">
+                                        <div className="grid md:grid-cols-3 gap-3">
                                             <div>
                                                 <label className="text-xs text-slate-500">Assignee Name</label>
                                                 <Input value={assigneeName} onChange={(e) => setAssigneeName(e.target.value)}
@@ -745,6 +747,13 @@ export const AdminGrievances = () => {
                                                 <label className="text-xs text-slate-500">Assignee Email</label>
                                                 <Input type="email" value={assigneeEmail} onChange={(e) => setAssigneeEmail(e.target.value)}
                                                     placeholder="email@example.com" className="mt-1" />
+                                            </div>
+                                            <div>
+                                                <label className="text-xs text-slate-500">Expected Resolution Date</label>
+                                                <Input type="date" value={estimatedCompletionDate}
+                                                    min={new Date().toISOString().split('T')[0]}
+                                                    onChange={(e) => setEstimatedCompletionDate(e.target.value)}
+                                                    className="mt-1" />
                                             </div>
                                         </div>
                                         <div className="mt-3">
@@ -764,6 +773,7 @@ export const AdminGrievances = () => {
                                                         assigneeName: assigneeName.trim(),
                                                         assigneeEmail: assigneeEmail.trim(),
                                                         remarks: assigneeRemarks.trim() || undefined,
+                                                        estimatedCompletionDate: estimatedCompletionDate || undefined,
                                                         assignmentType: assignmentHistory.length === 0 ? 'initial' : 'follow_up'
                                                     });
                                                     if (response.data.success) {
@@ -817,12 +827,21 @@ export const AdminGrievances = () => {
                                                                 </Badge>
                                                                 <span className="font-medium text-sm text-slate-800">{record.assignee_name}</span>
                                                             </div>
-                                                            <span className="text-xs text-slate-400">
-                                                                {new Date(record.email_sent_at).toLocaleString('en-IN', {
-                                                                    day: 'numeric', month: 'short', year: 'numeric',
-                                                                    hour: '2-digit', minute: '2-digit'
-                                                                })}
-                                                            </span>
+                                                            <div className="flex items-center gap-2">
+                                                                <Badge variant="secondary" className={`text-[10px] h-4 px-1 ${record.status === 'completed' ? 'bg-green-100 text-green-700' :
+                                                                        record.status === 'in_progress' ? 'bg-blue-100 text-blue-700' :
+                                                                            record.status === 'follow_up_sent' ? 'bg-orange-100 text-orange-700' :
+                                                                                'bg-slate-100 text-slate-600'
+                                                                    }`}>
+                                                                    {record.status.replace("_", " ").toUpperCase()}
+                                                                </Badge>
+                                                                <span className="text-xs text-slate-400">
+                                                                    {new Date(record.email_sent_at).toLocaleString('en-IN', {
+                                                                        day: 'numeric', month: 'short', year: 'numeric',
+                                                                        hour: '2-digit', minute: '2-digit'
+                                                                    })}
+                                                                </span>
+                                                            </div>
                                                         </div>
                                                         <p className="text-xs text-slate-500">{record.assignee_email}</p>
                                                         {record.remarks && (

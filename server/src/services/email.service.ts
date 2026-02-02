@@ -29,14 +29,17 @@ export class EmailService {
    * Centralizes the logic for Production vs Localhost
    */
   private static getAppUrl(): string {
-    // Force production URL if running on Vercel or in production mode
-    const isProduction = process.env.NODE_ENV === 'production' || process.env.VERCEL === '1';
-    const appUrl = isProduction
-      ? (process.env.BACKEND_URL || 'https://server-bharat-maheshwaris-projects.vercel.app')
-      : (process.env.APP_URL || 'http://localhost:5173');
+    // Priority 1: Explicitly defined FRONTEND_URL
+    if (process.env.FRONTEND_URL) return process.env.FRONTEND_URL.replace(/\/$/, '');
 
-    // Remove trailing slash if present
-    return appUrl.endsWith('/') ? appUrl.slice(0, -1) : appUrl;
+    // Priority 2: Use known production domain if in production mode
+    const isProduction = process.env.NODE_ENV === 'production' || process.env.VERCEL === '1';
+    if (isProduction) {
+      return 'https://warranty.emporiobyautoform.in';
+    }
+
+    // Default to APP_URL from env or localhost
+    return (process.env.APP_URL || 'http://localhost:5173').replace(/\/$/, '');
   }
 
   /**
@@ -261,7 +264,7 @@ export class EmailService {
 
   static async sendVendorApprovalConfirmation(vendorEmail: string, vendorName: string): Promise<void> {
     // Assuming Frontend URL is same as App URL for login page, or explicitly defined
-    const baseUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+    const baseUrl = EmailService.getAppUrl();
     const loginLink = `${baseUrl}/login?role=vendor`;
 
     const htmlContent = `
@@ -890,8 +893,10 @@ export class EmailService {
       franchise_city?: string | null;
       attachments?: string | string[];
       created_at: string;
+      estimated_completion_date?: string | null;
     },
-    remarks?: string
+    remarks?: string,
+    updateToken?: string
   ): Promise<boolean> {
     // Category display mapping
     const categoryLabels: Record<string, string> = {
@@ -907,6 +912,11 @@ export class EmailService {
     const categoryDisplay = categoryLabels[grievance.category] || grievance.category;
     const storeName = grievance.franchise_name || 'Unknown Store';
     const subject = `Customer Grievance - ${categoryDisplay} at ${storeName}`;
+
+    // Generate update link
+    const updateLink = updateToken
+      ? `${this.getAppUrl().replace('5173', '5173')}/assignment/update/${updateToken}`
+      : null;
 
     // Parse attachments
     let attachmentUrls: string[] = [];
@@ -947,6 +957,12 @@ export class EmailService {
             <td style="padding: 8px 0; font-weight: 600; width: 140px; color: #666;">Ticket ID:</td>
             <td style="padding: 8px 0;"><code style="background: #e9ecef; padding: 2px 8px; border-radius: 4px;">${this.escapeHtml(grievance.ticket_id)}</code></td>
           </tr>
+          ${grievance.estimated_completion_date ? `
+          <tr>
+            <td style="padding: 8px 0; font-weight: 600; color: #d97706;">Expected Resolution:</td>
+            <td style="padding: 8px 0; font-weight: bold; color: #d97706;">${new Date(grievance.estimated_completion_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}</td>
+          </tr>
+          ` : ''}
           <tr>
             <td style="padding: 8px 0; font-weight: 600; color: #666;">Category:</td>
             <td style="padding: 8px 0;">${this.escapeHtml(categoryDisplay)}${grievance.sub_category ? ` > ${this.escapeHtml(grievance.sub_category)}` : ''}</td>
@@ -963,12 +979,18 @@ export class EmailService {
               ${grievance.franchise_city ? `<br><span style="color: #888; font-size: 13px;">${this.escapeHtml(grievance.franchise_city)}</span>` : ''}
             </td>
           </tr>
-          <tr>
-            <td style="padding: 8px 0; font-weight: 600; color: #666;">Date Submitted:</td>
-            <td style="padding: 8px 0;">${new Date(grievance.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}</td>
-          </tr>
         </table>
       </div>
+
+      ${updateLink ? `
+      <div style="text-align: center; margin: 30px 0; background: #fffbeb; padding: 25px; border-radius: 10px; border: 1px solid #fef3c7;">
+        <p style="margin: 0 0 15px 0; font-weight: 600; color: #92400e;">Update task status directly:</p>
+        <a href="${updateLink}" class="button" style="background: linear-gradient(135deg, #FFB400 0%, #FF9000 100%); margin: 0 auto; display: inline-block;">
+          ⚡ Update Status & Remarks
+        </a>
+        <p style="margin: 15px 0 0 0; font-size: 12px; color: #b45309;">No login required. Click to provide updates instantly.</p>
+      </div>
+      ` : ''}
 
       <div style="margin-top: 20px;">
         <p style="font-weight: 600; margin-bottom: 10px;">📋 Subject:</p>

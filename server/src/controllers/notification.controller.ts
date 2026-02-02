@@ -109,6 +109,34 @@ export class NotificationController {
         }
     }
 
+    static async clearById(req: AuthRequest, res: Response) {
+        try {
+            const userId = req.user?.id;
+            const { id } = req.params;
+            if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+            await NotificationService.clearById(Number(id), userId);
+            res.json({ success: true, message: 'Notification cleared from view' });
+        } catch (error) {
+            console.error('Clear notification error:', error);
+            res.status(500).json({ error: 'Internal server error' });
+        }
+    }
+
+    static async restoreById(req: AuthRequest, res: Response) {
+        try {
+            const userId = req.user?.id;
+            const { id } = req.params;
+            if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+            await NotificationService.restoreById(Number(id), userId);
+            res.json({ success: true, message: 'Notification restored to view' });
+        } catch (error) {
+            console.error('Restore notification error:', error);
+            res.status(500).json({ error: 'Internal server error' });
+        }
+    }
+
     static async broadcast(req: AuthRequest, res: Response) {
         try {
             const { title, message, type, link, targetUsers, images, videos } = req.body;

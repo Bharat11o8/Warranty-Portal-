@@ -29,6 +29,7 @@ const CataloguePage = lazy(() => import("./pages/CataloguePage"));
 const CategoryPage = lazy(() => import("./pages/eshop/CategoryPage"));
 const ProductPage = lazy(() => import("./pages/eshop/ProductPage"));
 const Profile = lazy(() => import("./pages/Profile"));
+const AssignmentUpdatePanel = lazy(() => import("./pages/AssignmentUpdatePanel"));
 
 const queryClient = new QueryClient();
 
@@ -74,6 +75,7 @@ const App = () => (
                 <Route path="/category/:categoryId" element={<CategoryPage />} />
                 <Route path="/product/:productId" element={<ProductPage />} />
                 <Route path="/admin/grievances" element={<AdminGrievancesPage />} />
+                <Route path="/assignment/update/:token" element={<AssignmentUpdatePanel />} />
                 {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
                 <Route path="*" element={<NotFound />} />
               </Routes>

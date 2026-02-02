@@ -96,6 +96,7 @@ const AdminGrievances = () => {
     const [assigneeName, setAssigneeName] = useState("");
     const [assigneeEmail, setAssigneeEmail] = useState("");
     const [assigneeRemarks, setAssigneeRemarks] = useState("");
+    const [estimatedCompletionDate, setEstimatedCompletionDate] = useState("");
     const [sendingEmail, setSendingEmail] = useState(false);
     const [assignmentHistory, setAssignmentHistory] = useState<AssignmentRecord[]>([]);
     const [loadingHistory, setLoadingHistory] = useState(false);
@@ -179,6 +180,7 @@ const AdminGrievances = () => {
         setAssigneeName(g.assigned_to || "");
         setAssigneeEmail("");
         setAssigneeRemarks("");
+        setEstimatedCompletionDate("");
         setDialogTab('details');
         setAssignmentHistory([]);
         setRemarksHistory([]);
@@ -693,7 +695,7 @@ const AdminGrievances = () => {
                                             <Mail className="h-4 w-4" />
                                             Send Assignment Email
                                         </h4>
-                                        <div className="grid md:grid-cols-2 gap-3">
+                                        <div className="grid md:grid-cols-3 gap-3">
                                             <div>
                                                 <label className="text-xs text-muted-foreground">Assignee Name</label>
                                                 <Input value={assigneeName} onChange={(e) => setAssigneeName(e.target.value)}
@@ -703,6 +705,13 @@ const AdminGrievances = () => {
                                                 <label className="text-xs text-muted-foreground">Assignee Email</label>
                                                 <Input type="email" value={assigneeEmail} onChange={(e) => setAssigneeEmail(e.target.value)}
                                                     placeholder="email@example.com" className="mt-1" />
+                                            </div>
+                                            <div>
+                                                <label className="text-xs text-muted-foreground">Expected Resolution Date</label>
+                                                <Input type="date" value={estimatedCompletionDate}
+                                                    min={new Date().toISOString().split('T')[0]}
+                                                    onChange={(e) => setEstimatedCompletionDate(e.target.value)}
+                                                    className="mt-1" />
                                             </div>
                                         </div>
                                         <div className="mt-3">
@@ -722,6 +731,7 @@ const AdminGrievances = () => {
                                                         assigneeName: assigneeName.trim(),
                                                         assigneeEmail: assigneeEmail.trim(),
                                                         remarks: assigneeRemarks.trim() || undefined,
+                                                        estimatedCompletionDate: estimatedCompletionDate || undefined,
                                                         assignmentType: assignmentHistory.length === 0 ? 'initial' : 'follow_up'
                                                     });
                                                     if (response.data.success) {
