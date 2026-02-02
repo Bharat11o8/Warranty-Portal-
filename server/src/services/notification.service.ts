@@ -108,12 +108,14 @@ export class NotificationService {
                     'SELECT user_id FROM user_roles WHERE role = "customer"'
                 );
                 userIds = rows.map((r: any) => r.user_id);
-            } else {
-                // Default: vendors
+            } else if (data.targetRole === 'vendor') {
                 const [rows]: any = await db.execute(
                     'SELECT user_id FROM user_roles WHERE role = "vendor"'
                 );
                 userIds = rows.map((r: any) => r.user_id);
+            } else {
+                console.warn(`[Broadcast] No valid target role or users specified for broadcast: ${data.title}`);
+                return [];
             }
 
             if (userIds.length === 0) return [];

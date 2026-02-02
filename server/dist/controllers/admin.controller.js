@@ -465,8 +465,9 @@ export class AdminController {
                 actionType: status === 'validated' ? 'WARRANTY_APPROVED' : 'WARRANTY_REJECTED',
                 targetType: 'WARRANTY',
                 targetId: warrantyData.uid,
-                targetName: warrantyData.customer_name,
+                targetName: warrantyData.uid,
                 details: {
+                    customer_name: warrantyData.customer_name,
                     product_type: warrantyData.product_type,
                     rejection_reason: rejectionReason || null
                 },
@@ -488,29 +489,88 @@ export class AdminController {
             const page = parseInt(req.query.page) || 1;
             const limit = parseInt(req.query.limit) || 30;
             const offset = (page - 1) * limit;
-            // Get total count first
-            const [countResult] = await db.execute(`
-                SELECT COUNT(*) as total FROM warranty_registrations
-            `);
+            // Extract Filters
+            const { status, search, product_type, make, date_from, date_to } = req.query;
+            let conditions = [];
+            let params = [];
+            // 1. Dynamic Filters
+            // Status Filtering
+            // Admin logic: matches exactly what the filter says usually
+            if (status && status !== 'all') {
+                if (status === 'pending') {
+                    conditions.push("wr.status = 'pending_vendor'");
+                }
+                else if (status === 'pending_ho') {
+                    conditions.push("wr.status = 'pending'");
+                }
+                else {
+                    conditions.push('wr.status = ?');
+                    params.push(status);
+                }
+            }
+            // Product Type
+            if (product_type && product_type !== 'all') {
+                conditions.push('wr.product_type = ?');
+                params.push(product_type);
+            }
+            // Make
+            if (make && make !== 'all') {
+                conditions.push('wr.car_make = ?');
+                params.push(make);
+            }
+            // Model
+            const { model } = req.query;
+            if (model && model !== 'all') {
+                conditions.push('wr.car_model = ?');
+                params.push(model);
+            }
+            // Search
+            if (search) {
+                const searchTerm = `%${search}%`;
+                conditions.push(`(
+                    wr.customer_name LIKE ? OR 
+                    wr.customer_phone LIKE ? OR 
+                    wr.uid LIKE ? OR 
+                    wr.car_make LIKE ? OR 
+                    wr.car_model LIKE ?
+                )`);
+                params.push(searchTerm, searchTerm, searchTerm, searchTerm, searchTerm);
+            }
+            // Date Range
+            if (date_from && date_to) {
+                conditions.push('wr.created_at BETWEEN ? AND ?');
+                params.push(new Date(date_from), new Date(date_to));
+            }
+            // 2. Build Query
+            const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+            // Count Query
+            const countQuery = `SELECT COUNT(*) as total FROM warranty_registrations wr ${whereClause}`;
+            const [countResult] = await db.execute(countQuery, params);
             const totalCount = countResult[0].total;
             const totalPages = Math.ceil(totalCount / limit);
             // Get all warranties with user details including role (with pagination)
-            const [warrantyList] = await db.execute(`
+            const mainQuery = `
                 SELECT 
                     wr.*,
                     p.name as submitted_by_name,
                     p.email as submitted_by_email,
                     ur.role as submitted_by_role,
                     m.name as manpower_name_from_db,
-                    vd.store_name as vendor_store_name
+                    vd.store_name as vendor_store_name,
+                    vd.store_email as vendor_store_email,
+                    vp.phone_number as vendor_phone_number
                 FROM warranty_registrations wr
                 LEFT JOIN profiles p ON wr.user_id = p.id
                 LEFT JOIN user_roles ur ON p.id = ur.user_id
                 LEFT JOIN manpower m ON wr.manpower_id = m.id
                 LEFT JOIN vendor_details vd ON m.vendor_id = vd.id
+                LEFT JOIN profiles vp ON vd.user_id = vp.id
+                ${whereClause}
                 ORDER BY wr.created_at DESC
                 LIMIT ? OFFSET ?
-            `, [limit, offset]);
+            `;
+            const mainParams = [...params, limit, offset];
+            const [warrantyList] = await db.execute(mainQuery, mainParams);
             // Parse JSON product_details
             const formattedWarranties = warrantyList.map((warranty) => ({
                 ...warranty,

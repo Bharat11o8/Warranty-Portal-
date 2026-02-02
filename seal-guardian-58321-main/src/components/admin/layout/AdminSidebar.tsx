@@ -115,9 +115,9 @@ export const SidebarContent = ({
     const { logout, user } = useAuth();
     const { notifications } = useNotifications();
 
-    // Calculate unread counts per type
-    const unreadWarranties = notifications.filter(n => !n.is_read && n.type === 'warranty').length;
-    const unreadGrievances = notifications.filter(n => !n.is_read && (n.type === 'scheme' || n.title.toLowerCase().includes('grievance'))).length;
+    // Calculate Section Updates from notifications (Hidden for Phase 1)
+    // const unreadWarranties = notifications.filter(n => !n.is_read && n.type === 'warranty').length;
+    const unreadGrievances = notifications.filter(n => !n.is_read && n.type === 'grievance').length;
 
     // Define menu items inside the component or outside if static
     const menuGroups = [
@@ -132,12 +132,13 @@ export const SidebarContent = ({
             items: [
                 {
                     id: 'warranties' as const,
-                    label: "Warranty Claims",
+                    label: "Warranty Management",
                     icon: ShieldCheck,
-                    badge: unreadWarranties > 0 ? unreadWarranties.toString() : undefined
+                    // badge: unreadWarranties > 0 ? unreadWarranties.toString() : undefined
                 },
 
                 { id: 'warranty-products' as const, label: "Warranty Products", icon: Store },
+                { id: 'announcements' as const, label: "Announcements", icon: Megaphone },
                 { id: 'warranty-form' as const, label: "New Registration", icon: PenTool },
             ]
         },
@@ -146,7 +147,7 @@ export const SidebarContent = ({
             items: [
                 { id: 'vendors' as const, label: "Franchises", icon: Store },
                 { id: 'customers' as const, label: "Customers", icon: Users },
-                { id: 'products' as const, label: "Catalog", icon: Package },
+                { id: 'products' as const, label: "Product Catalogue", icon: Package },
             ]
         },
         {
@@ -237,10 +238,12 @@ export const SidebarContent = ({
 
             {/* Profile Section */}
             <div className="p-3 border-t border-orange-50 space-y-2 shrink-0 overflow-visible">
-                <div className={cn(
-                    "flex items-center rounded-2xl bg-slate-50 border border-slate-100 transition-all duration-300 hover:border-orange-200 hover:bg-orange-50 cursor-pointer group relative",
-                    isCollapsed ? "p-2 justify-center" : "p-3 gap-3"
-                )}
+                <div
+                    onClick={() => onModuleChange('profile')}
+                    className={cn(
+                        "flex items-center rounded-2xl bg-slate-50 border border-slate-100 transition-all duration-300 hover:border-orange-200 hover:bg-orange-50 cursor-pointer group relative",
+                        isCollapsed ? "p-2 justify-center" : "p-3 gap-3"
+                    )}
                 >
                     <div className="w-10 h-10 shrink-0 rounded-xl bg-slate-900 flex items-center justify-center text-white border border-slate-700">
                         <User className="h-5 w-5" />

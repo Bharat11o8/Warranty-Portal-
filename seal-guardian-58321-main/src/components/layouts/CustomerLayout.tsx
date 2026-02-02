@@ -51,7 +51,7 @@ const CustomerLayout = () => {
         fetchGrievanceUpdates();
     }, [user, location.pathname]);
 
-    // Calculate Section Updates from notifications
+    // Calculate Section Updates from notifications (Hidden for Phase 1)
     const dashboardUpdates = notifications.filter(n => !n.is_read && n.type === 'warranty').length;
     const termsUpdates = notifications.filter(n =>
         !n.is_read &&

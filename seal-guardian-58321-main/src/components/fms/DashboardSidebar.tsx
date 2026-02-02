@@ -205,9 +205,7 @@ export const DashboardSidebar = ({ activeModule, onModuleChange, isCollapsed, on
         ...group,
         items: group.items.map(item => {
             let badge;
-            if (item.id === 'warranty') {
-                badge = getBadgeCount('warranty') > 0 ? getBadgeCount('warranty').toString() : undefined;
-            } else if (item.id === 'orders') {
+            if (item.id === 'orders') {
                 badge = getBadgeCount('order') > 0 ? getBadgeCount('order').toString() : undefined;
             } else if (item.id === 'catalogue') {
                 badge = getBadgeCount('product') > 0 ? getBadgeCount('product').toString() : undefined;

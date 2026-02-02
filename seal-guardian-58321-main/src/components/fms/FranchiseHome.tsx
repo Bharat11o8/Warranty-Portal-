@@ -383,24 +383,24 @@ export const FranchiseHome = ({ stats, recentActivity = [], onNavigate, newProdu
                     </div>
                 </section>
 
-                <section className="space-y-6">
-                    <div className="flex items-center justify-between px-2">
-                        <div>
-                            <h2 className="text-2xl font-black text-slate-800 tracking-tight uppercase">Platform Updates</h2>
-                            <p className="text-xs font-bold text-slate-400 mt-1 uppercase tracking-widest">Stay ahead of the curve</p>
+                {latestUpdates && latestUpdates.length > 0 && (
+                    <section className="space-y-6">
+                        <div className="flex items-center justify-between px-2">
+                            <div>
+                                <h2 className="text-2xl font-black text-slate-800 tracking-tight uppercase">Platform Updates</h2>
+                                <p className="text-xs font-bold text-slate-400 mt-1 uppercase tracking-widest">Stay ahead of the curve</p>
+                            </div>
+                            <Button
+                                variant="ghost"
+                                onClick={() => onNavigate('news')}
+                                className="text-xs font-black text-orange-600 uppercase tracking-widest hover:bg-orange-50"
+                            >
+                                See News
+                            </Button>
                         </div>
-                        <Button
-                            variant="ghost"
-                            onClick={() => onNavigate('news')}
-                            className="text-xs font-black text-orange-600 uppercase tracking-widest hover:bg-orange-50"
-                        >
-                            See News
-                        </Button>
-                    </div>
 
-                    <div className="space-y-4">
-                        {latestUpdates.length > 0 ? (
-                            latestUpdates.map((update) => (
+                        <div className="space-y-4">
+                            {latestUpdates.map((update) => (
                                 <Card
                                     key={update.id}
                                     onClick={() => onNavigate('news')}
@@ -429,14 +429,10 @@ export const FranchiseHome = ({ stats, recentActivity = [], onNavigate, newProdu
                                         </div>
                                     </CardContent>
                                 </Card>
-                            ))
-                        ) : (
-                            <div className="p-12 text-center rounded-[32px] border border-dashed border-slate-200 bg-slate-50/50">
-                                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">No recent updates</p>
-                            </div>
-                        )}
-                    </div>
-                </section>
+                            ))}
+                        </div>
+                    </section>
+                )}
             </div>
         </div>
     );

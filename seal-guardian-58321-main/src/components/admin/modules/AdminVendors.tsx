@@ -254,11 +254,31 @@ export const AdminVendors = () => {
             {/* Controls */}
             <div className="flex flex-col md:flex-row gap-4 justify-between items-start md:items-center">
                 <Tabs value={filter} onValueChange={setFilter} className="w-full md:w-auto">
-                    <TabsList className="grid w-full grid-cols-4 md:inline-flex bg-white/50 border border-orange-100">
-                        <TabsTrigger value="all">All</TabsTrigger>
-                        <TabsTrigger value="approved">Approved</TabsTrigger>
-                        <TabsTrigger value="pending">Pending</TabsTrigger>
-                        <TabsTrigger value="disapproved">Rejected</TabsTrigger>
+                    <TabsList className="grid w-full grid-cols-4 md:inline-flex bg-white/50 border border-orange-100 p-1 h-auto">
+                        <TabsTrigger value="all" className="gap-2">
+                            All
+                            <Badge variant="secondary" className="bg-slate-100 text-slate-600 border-none px-1.5 py-0 h-4 text-[10px] font-bold">
+                                {vendors.length}
+                            </Badge>
+                        </TabsTrigger>
+                        <TabsTrigger value="approved" className="gap-2 data-[state=active]:bg-green-50 data-[state=active]:text-green-700">
+                            Approved
+                            <Badge variant="secondary" className="bg-green-100/50 text-green-700 border-none px-1.5 py-0 h-4 text-[10px] font-bold">
+                                {vendors.filter(v => v.is_verified).length}
+                            </Badge>
+                        </TabsTrigger>
+                        <TabsTrigger value="pending" className="gap-2 data-[state=active]:bg-amber-50 data-[state=active]:text-amber-700">
+                            Pending
+                            <Badge variant="secondary" className="bg-amber-100/50 text-amber-700 border-none px-1.5 py-0 h-4 text-[10px] font-bold">
+                                {vendors.filter(v => !v.is_verified && !v.verified_at).length}
+                            </Badge>
+                        </TabsTrigger>
+                        <TabsTrigger value="disapproved" className="gap-2 data-[state=active]:bg-red-50 data-[state=active]:text-red-700">
+                            Rejected
+                            <Badge variant="secondary" className="bg-red-100/50 text-red-700 border-none px-1.5 py-0 h-4 text-[10px] font-bold">
+                                {vendors.filter(v => !v.is_verified && v.verified_at).length}
+                            </Badge>
+                        </TabsTrigger>
                     </TabsList>
                 </Tabs>
 
