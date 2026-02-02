@@ -161,20 +161,21 @@ export const menuGroups = [
                 id: 'offers' as const,
                 label: "Offers & Schemes",
                 icon: Gift,
+                comingSoon: true,
             },
             {
                 id: 'posm' as const,
                 label: "POSM Requirements",
                 icon: ImageIcon,
             },
-            { id: 'audit' as const, label: "Audit & Compliance", icon: ClipboardCheck },
+            { id: 'audit' as const, label: "Audit & Compliance", icon: ClipboardCheck, comingSoon: true },
         ]
     },
     {
         label: "Team & Performance",
         items: [
             { id: 'manpower' as const, label: "Manpower Control", icon: Users },
-            { id: 'targets' as const, label: "Targets & Achievements", icon: Target },
+            { id: 'targets' as const, label: "Targets & Achievements", icon: Target, comingSoon: true },
         ]
     },
     {

@@ -3,7 +3,6 @@ import {
     Search,
     Plus,
     Download,
-    Eye,
     ChevronRight,
     ArrowUpDown,
     Check,
@@ -15,7 +14,8 @@ import {
     CheckCircle,
     LayoutGrid,
     List,
-    Filter
+    Filter,
+    Loader2
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -66,6 +66,7 @@ interface WarrantyManagementProps {
     setDateRange: (range: DateRange | undefined) => void;
     activeTab: string;
     setActiveTab: (tab: string) => void;
+    actionLoadingId?: string | null;
     onRefresh?: () => void;
     isRefreshing?: boolean;
     pagination?: {
@@ -103,6 +104,7 @@ export const WarrantyManagement = ({
     setDateRange,
     activeTab,
     setActiveTab,
+    actionLoadingId,
     onRefresh,
     isRefreshing = false,
     pagination,
@@ -350,26 +352,25 @@ export const WarrantyManagement = ({
                                                             size="icon"
                                                             className="h-7 w-7 md:h-8 md:w-8 rounded-full bg-green-600 hover:bg-green-700 text-white shadow-md active:scale-90 transition-all"
                                                             onClick={(e) => { e.stopPropagation(); onVerify(warranty); }}
+                                                            disabled={!!actionLoadingId}
                                                         >
-                                                            <CheckCircle className="h-3.5 w-3.5 md:h-4 md:w-4" />
+                                                            {actionLoadingId && actionLoadingId === (warranty.uid || warranty.id) ? (
+                                                                <Loader2 className="h-3.5 w-3.5 md:h-4 md:w-4 animate-spin" />
+                                                            ) : (
+                                                                <Check className="h-3.5 w-3.5 md:h-4 md:w-4" />
+                                                            )}
                                                         </Button>
                                                         <Button
                                                             size="icon"
                                                             variant="destructive"
                                                             className="h-7 w-7 md:h-8 md:w-8 rounded-full shadow-md active:scale-90 transition-all"
                                                             onClick={(e) => { e.stopPropagation(); onReject(warranty); }}
+                                                            disabled={!!actionLoadingId}
                                                         >
-                                                            <XCircle className="h-3.5 w-3.5 md:h-4 md:w-4" />
+                                                            <X className="h-3.5 w-3.5 md:h-4 md:w-4" />
                                                         </Button>
                                                     </>
                                                 )}
-                                                <Button
-                                                    size="icon"
-                                                    variant="ghost"
-                                                    className="hidden lg:flex h-7 w-7 md:h-8 md:w-8 rounded-full text-slate-300 hover:text-orange-500 transition-colors"
-                                                >
-                                                    <Eye className="h-3.5 w-3.5 md:h-4 md:w-4" />
-                                                </Button>
                                             </div>
                                         </div>
                                     </div>
@@ -483,26 +484,25 @@ export const WarrantyManagement = ({
                                                     size="sm"
                                                     onClick={(e) => { e.stopPropagation(); onVerify(warranty); }}
                                                     className="h-10 w-10 rounded-full bg-green-600 hover:bg-green-700 text-white shadow-lg active:scale-95 transition-all"
+                                                    disabled={!!actionLoadingId}
                                                 >
-                                                    <CheckCircle className="h-5 w-5" />
+                                                    {actionLoadingId && actionLoadingId === (warranty.uid || warranty.id) ? (
+                                                        <Loader2 className="h-5 w-5 animate-spin" />
+                                                    ) : (
+                                                        <Check className="h-5 w-5" />
+                                                    )}
                                                 </Button>
                                                 <Button
                                                     size="sm"
                                                     variant="destructive"
                                                     onClick={(e) => { e.stopPropagation(); onReject(warranty); }}
                                                     className="h-10 w-10 rounded-full shadow-lg active:scale-95 transition-all"
+                                                    disabled={!!actionLoadingId}
                                                 >
-                                                    <XCircle className="h-5 w-5" />
+                                                    <X className="h-5 w-5" />
                                                 </Button>
                                             </div>
                                         )}
-                                        <Button
-                                            size="icon"
-                                            variant="ghost"
-                                            className="hidden lg:flex h-10 w-10 rounded-full text-slate-300 hover:text-orange-500"
-                                        >
-                                            <Eye className="h-5 w-5" />
-                                        </Button>
                                     </div>
                                 </div>
                             </div>

@@ -6,6 +6,8 @@ import {
     Card,
     CardContent,
 } from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -90,6 +92,11 @@ export const AdminWarranties = () => {
     // Action State
     const [processingId, setProcessingId] = useState<string | null>(null);
     const [exportDialogOpen, setExportDialogOpen] = useState(false);
+
+    // Rejection Dialog State
+    const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
+    const [rejectReason, setRejectReason] = useState("");
+    const [rejectingWarrantyId, setRejectingWarrantyId] = useState<string | null>(null);
 
     const toTitleCase = (str: string) => {
         if (!str) return str;
@@ -537,7 +544,11 @@ export const AdminWarranties = () => {
                             items={paginatedWarranties}
                             showActions={statusFilter !== 'all'}
                             onApprove={(id) => handleUpdateStatus(id, 'validated')}
-                            onReject={(id) => handleUpdateStatus(id, 'rejected', 'Rejected by Admin')}
+                            onReject={(id) => {
+                                setRejectingWarrantyId(id);
+                                setRejectReason("");
+                                setRejectDialogOpen(true);
+                            }}
                             processingWarranty={processingId}
                         />
                     )}
@@ -628,6 +639,56 @@ export const AdminWarranties = () => {
                             <span className="text-2xl">🚙</span>
                             <span className="font-semibold">PPF (EV Products)</span>
                         </Button>
+                    </div>
+                </DialogContent>
+            </Dialog>
+
+            {/* Rejection Reason Dialog */}
+            <Dialog open={rejectDialogOpen} onOpenChange={setRejectDialogOpen}>
+                <DialogContent className="sm:max-w-md">
+                    <DialogHeader>
+                        <DialogTitle>Reject Warranty</DialogTitle>
+                        <DialogDescription>
+                            Please provide a reason for rejecting this warranty registration.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4 py-4">
+                        <div className="space-y-2">
+                            <Label htmlFor="rejection-reason">Reason for Rejection</Label>
+                            <Textarea
+                                id="rejection-reason"
+                                placeholder="Enter the reason for rejection..."
+                                value={rejectReason}
+                                onChange={(e) => setRejectReason(e.target.value)}
+                                className="min-h-[100px]"
+                            />
+                        </div>
+                        <div className="flex justify-end gap-3">
+                            <Button
+                                variant="outline"
+                                onClick={() => {
+                                    setRejectDialogOpen(false);
+                                    setRejectReason("");
+                                    setRejectingWarrantyId(null);
+                                }}
+                            >
+                                Cancel
+                            </Button>
+                            <Button
+                                variant="destructive"
+                                onClick={() => {
+                                    if (rejectingWarrantyId && rejectReason.trim()) {
+                                        handleUpdateStatus(rejectingWarrantyId, 'rejected', rejectReason.trim());
+                                        setRejectDialogOpen(false);
+                                        setRejectReason("");
+                                        setRejectingWarrantyId(null);
+                                    }
+                                }}
+                                disabled={!rejectReason.trim()}
+                            >
+                                Reject Warranty
+                            </Button>
+                        </div>
                     </div>
                 </DialogContent>
             </Dialog>

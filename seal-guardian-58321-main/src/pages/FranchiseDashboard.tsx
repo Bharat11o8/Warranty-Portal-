@@ -148,6 +148,7 @@ const FranchiseDashboard = () => {
     const [editingId, setEditingId] = useState<string | null>(null);
     const [addingManpower, setAddingManpower] = useState(false);
     const [updatingManpower, setUpdatingManpower] = useState(false);
+    const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
 
     useEffect(() => {
         if (user?.role === "vendor") {
@@ -262,28 +263,44 @@ const FranchiseDashboard = () => {
 
     // Handlers ported from VendorDashboard
     const handleVerifyWarranty = async (warranty: any) => {
+        const warrantyId = warranty.uid || warranty.id;
+        if (!warrantyId) {
+            toast({ title: "Error", description: "Invalid warranty identifier", variant: "destructive" });
+            return;
+        }
+        setActionLoadingId(warrantyId);
         try {
-            const response = await api.post(`/vendor/warranty/${warranty.uid}/approve`);
+            const response = await api.post(`/vendor/warranty/${warrantyId}/approve`);
             if (response.data.success) {
                 toast({ title: "Warranty Approved", description: "Installation status updated." });
                 fetchWarranties(warrantyPagination.currentPage, warrantyLimit, true);
             }
         } catch (error: any) {
             toast({ title: "Action Failed", description: error.response?.data?.error || "Could not approve", variant: "destructive" });
+        } finally {
+            setActionLoadingId(null);
         }
     };
 
     const handleRejectWarranty = async (warranty: any) => {
         const reason = prompt("Please enter the reason for rejection:");
         if (!reason) return;
+        const warrantyId = warranty.uid || warranty.id;
+        if (!warrantyId) {
+            toast({ title: "Error", description: "Invalid warranty identifier", variant: "destructive" });
+            return;
+        }
+        setActionLoadingId(warrantyId);
         try {
-            const response = await api.post(`/vendor/warranty/${warranty.uid}/reject`, { reason });
+            const response = await api.post(`/vendor/warranty/${warrantyId}/reject`, { reason });
             if (response.data.success) {
                 toast({ title: "Warranty Rejected", variant: "destructive" });
                 fetchWarranties(warrantyPagination.currentPage, warrantyLimit, true);
             }
         } catch (error: any) {
             toast({ title: "Action Failed", description: error.response?.data?.error || "Could not reject", variant: "destructive" });
+        } finally {
+            setActionLoadingId(null);
         }
     };
 
@@ -343,16 +360,26 @@ const FranchiseDashboard = () => {
         }
     };
 
-    const showManpowerWarranties = (member: any, status: 'validated' | 'pending' | 'rejected') => {
-        const memberWarranties = warranties.filter((w: any) =>
-            w.manpower_id === member.id && (
-                status === 'pending'
-                    ? (w.status === 'pending' || w.status === 'pending_vendor')
-                    : w.status === status
-            )
-        );
-        setManpowerWarrantyDialogData({ member, status, warranties: memberWarranties });
-        setManpowerWarrantyDialogOpen(true);
+    const showManpowerWarranties = async (member: any, status: 'validated' | 'pending' | 'rejected') => {
+        try {
+            // Fetch warranties for this manpower from the API
+            const response = await api.get(`/vendor/manpower/${member.id}/warranties?status=${status}`);
+            if (response.data.success) {
+                setManpowerWarrantyDialogData({
+                    member,
+                    status,
+                    warranties: response.data.warranties
+                });
+                setManpowerWarrantyDialogOpen(true);
+            }
+        } catch (error: any) {
+            console.error("Failed to fetch manpower warranties", error);
+            toast({
+                title: "Failed to load warranties",
+                description: error.response?.data?.error || "Could not fetch warranty details",
+                variant: "destructive"
+            });
+        }
     };
 
     const handleExportWarranties = async () => {
@@ -539,6 +566,7 @@ const FranchiseDashboard = () => {
                         setDateRange={setDateRange}
                         activeTab={activeStatusTab}
                         setActiveTab={setActiveStatusTab}
+                        actionLoadingId={actionLoadingId}
                         onRefresh={() => { fetchAllData(); fetchStats(); }}
                         isRefreshing={loading}
                         pagination={warrantyPagination}
@@ -602,9 +630,13 @@ const FranchiseDashboard = () => {
             case 'profile':
                 return <Profile embedded={true} />;
             case 'orders':
+                return <ComingSoon title="Order Management" />;
             case 'offers':
+                return <ComingSoon title="Offers & Schemes" />;
             case 'audit':
+                return <ComingSoon title="Audit & Compliance" />;
             case 'targets':
+                return <ComingSoon title="Targets & Achievements" />;
             case 'posm':
                 return <POSMModule />;
             default:
