@@ -47,16 +47,19 @@ const pool = mysql.createPool({
     connectTimeout: parseInt(process.env.DB_CONNECT_TIMEOUT || '60000'),
     idleTimeout: parseInt(process.env.DB_IDLE_TIMEOUT || '60000'),
 });
-// Set global timezone and test connection on startup
+// ✅ CRITICAL: Set IST timezone on EVERY connection from the pool
+// This ensures all queries use IST regardless of which connection is used
+pool.on('connection', (connection) => {
+    connection.query("SET time_zone = '+05:30'");
+});
+// Test connection and log timezone info on startup
 (async () => {
     try {
         const conn = await pool.getConnection();
-        // Set session timezone to IST for this connection
-        await conn.query("SET time_zone = '+05:30'");
         if (process.env.NODE_ENV !== 'production') {
             const [rows] = await conn.query("SELECT NOW() as db_now, @@session.time_zone as session_tz, @@global.time_zone as global_tz");
             console.log('✅ Database connection successful');
-            console.log('⏰ DB Now:', rows[0].db_now);
+            console.log('⏰ DB Now (IST):', rows[0].db_now);
             console.log('🌍 Session TZ:', rows[0].session_tz, '| Global TZ:', rows[0].global_tz);
         }
         conn.release();
