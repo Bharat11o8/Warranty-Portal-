@@ -1,4 +1,4 @@
-import { transporter } from '../config/email.js';
+﻿import { transporter } from '../config/email.js';
 import dotenv from 'dotenv';
 
 dotenv.config();
@@ -90,10 +90,10 @@ export class EmailService {
       await transporter.sendMail({
         from: process.env.EMAIL_FROM,
         to: adminEmail,
-        subject: '⚠️ Email Delivery Failed - Warranty Portal',
+        subject: 'âš ï¸ Email Delivery Failed - Warranty Portal',
         html: `
           <div style="font-family: Arial, sans-serif; padding: 20px;">
-            <h2 style="color: #dc3545;">⚠️ Email Delivery Failure Alert</h2>
+            <h2 style="color: #dc3545;">âš ï¸ Email Delivery Failure Alert</h2>
             <p>An email failed to send after multiple retry attempts:</p>
             <div style="background: #f8f9fa; padding: 15px; border-left: 4px solid #dc3545; margin: 15px 0;">
               <strong>Failed Email:</strong> ${this.escapeHtml(context)}<br>
@@ -209,7 +209,7 @@ export class EmailService {
         await transporter.sendMail({
           from: process.env.EMAIL_FROM,
           to: email,
-          subject: '🔐 Your OTP for Warranty Portal Login',
+          subject: '🔑 Your OTP for Warranty Portal Login',
           html: this.getHtmlTemplate({
             title: 'Warranty Portal Login',
             content: htmlContent,
@@ -254,7 +254,7 @@ export class EmailService {
       to: process.env.EMAIL_FROM, // Send to admin/marketing
       subject: 'New Vendor Registration - Verification Required',
       html: this.getHtmlTemplate({
-        title: '🏪 New Vendor Registration',
+        title: 'ðŸª New Vendor Registration',
         content: htmlContent,
         headerColorStart: '#f093fb',
         headerColorEnd: '#f5576c'
@@ -289,11 +289,11 @@ export class EmailService {
       </div>
 
       <div style="text-align: center; margin: 30px 0;">
-        <a href="${loginLink}" class="button" style="background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);">🔐 Login to Your Account</a>
+        <a href="${loginLink}" class="button" style="background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);">ðŸ” Login to Your Account</a>
       </div>
 
       <div class="warning-box">
-        <strong>📝 Note:</strong> You'll need to enter your registered email and verify via OTP to access your account securely.
+        <strong>ðŸ“ Note:</strong> You'll need to enter your registered email and verify via OTP to access your account securely.
       </div>
       
       <p style="margin-top: 30px;">If you have any questions, please contact our support team at <a href="mailto:${process.env.EMAIL_FROM}" style="color: #11998e;">${process.env.EMAIL_FROM}</a>.</p>
@@ -351,7 +351,7 @@ export class EmailService {
       to: vendorEmail,
       subject: 'Vendor Application Status Update',
       html: this.getHtmlTemplate({
-        title: '⚠️ Application Status Update',
+        title: 'âš ï¸ Application Status Update',
         content: htmlContent,
         headerColorStart: '#ff416c',
         headerColorEnd: '#ff4b2b'
@@ -404,7 +404,7 @@ export class EmailService {
       to: customerEmail,
       subject: 'Warranty Registration Confirmation',
       html: this.getHtmlTemplate({
-        title: '🛡️ Warranty Registration Confirmed',
+        title: 'ðŸ›¡ï¸ Warranty Registration Confirmed',
         content: htmlContent,
         headerColorStart: '#667eea',
         headerColorEnd: '#764ba2'
@@ -456,7 +456,7 @@ export class EmailService {
       
       ${storeName ? `
       <div class="info-box">
-        <p style="margin: 0 0 10px 0; font-weight: bold; color: #667eea;">🏪 Store Details:</p>
+        <p style="margin: 0 0 10px 0; font-weight: bold; color: #667eea;">ðŸª Store Details:</p>
         <p><strong>Store Name:</strong> ${storeName}</p>
         ${storeAddress ? `<p><strong>Address:</strong> ${storeAddress}</p>` : ''}
         ${storePhone ? `<p><strong>Phone:</strong> ${storePhone}</p>` : ''}
@@ -534,14 +534,14 @@ export class EmailService {
       
       ${storeName ? `
       <div class="info-box">
-        <p style="margin: 0 0 10px 0; font-weight: bold; color: #667eea;">🏪 Store Details:</p>
+        <p style="margin: 0 0 10px 0; font-weight: bold; color: #667eea;">ðŸª Store Details:</p>
         <p><strong>Store Name:</strong> ${storeName}</p>
         ${storeAddress ? `<p><strong>Address:</strong> ${storeAddress}</p>` : ''}
       </div>
       ` : ''}
 
       <div class="error-box" style="border-color: #ff6b6b;">
-        <h4 style="margin: 0 0 10px 0; color: #d32f2f;">🔍 Reason for Decision:</h4>
+        <h4 style="margin: 0 0 10px 0; color: #d32f2f;">🔍 Reason for Decision:</h4>
         <p style="margin: 0; color: #d32f2f;">${rejectionReason}</p>
       </div>
 
@@ -565,7 +565,7 @@ export class EmailService {
       to: customerEmail,
       subject: 'Warranty Application Update - Action Required',
       html: this.getHtmlTemplate({
-        title: '⚠️ Application Update',
+        title: 'âš ï¸ Application Update',
         content: htmlContent,
         headerColorStart: '#ff6b6b',
         headerColorEnd: '#ee5a6f'
@@ -622,7 +622,7 @@ export class EmailService {
       <div class="success-box" style="background: #e8f5e9; border: 2px solid #4caf50;">
         <h4 style="margin: 0 0 10px 0; color: #2e7d32;">👷 Manpower Credit:</h4>
         <p style="margin: 5px 0;"><strong>Installer:</strong> ${manpowerName}</p>
-        <p style="margin: 5px 0; color: #2e7d32;">✓ This approval has been credited to ${manpowerName}'s performance record</p>
+        <p style="margin: 5px 0; color: #2e7d32;">âœ“ This approval has been credited to ${manpowerName}'s performance record</p>
       </div>
       
       <p style="margin-top: 30px;">This successful warranty approval reflects the quality of service provided by your team. Keep up the excellent work!</p>
@@ -673,7 +673,7 @@ export class EmailService {
       <h2 style="color: #333; margin-top: 0;">Hello ${vendorName},</h2>
       
       <div class="warning-box">
-        <h3 style="color: #856404; margin: 0 0 5px 0;">📋 Application Status Update</h3>
+        <h3 style="color: #856404; margin: 0 0 5px 0;">ðŸ“‹ Application Status Update</h3>
         <p style="margin: 0;">A warranty application submitted through your store could not be approved at this time.</p>
       </div>
       
@@ -690,7 +690,7 @@ export class EmailService {
       </div>
       
       <div class="error-box" style="border-color: #f44336;">
-        <h4 style="margin: 0 0 10px 0; color: #d32f2f;">🔍 Reason for Decision:</h4>
+        <h4 style="margin: 0 0 10px 0; color: #d32f2f;">🔍 Reason for Decision:</h4>
         <p style="margin: 0; color: #d32f2f;">${rejectionReason}</p>
       </div>
       
@@ -711,9 +711,9 @@ export class EmailService {
     await transporter.sendMail({
       from: process.env.EMAIL_FROM,
       to: vendorEmail,
-      subject: '⚠️ Warranty Application Update - Customer Application',
+      subject: 'âš ï¸ Warranty Application Update - Customer Application',
       html: this.getHtmlTemplate({
-        title: '⚠️ Warranty Update',
+        title: 'âš ï¸ Warranty Update',
         content: htmlContent,
         headerColorStart: '#ff9800',
         headerColorEnd: '#ff5722'
@@ -728,7 +728,7 @@ export class EmailService {
       <p>Thank you for registering with the Warranty Portal. We have received your application and it is currently under review.</p>
       
       <div class="info-box" style="background: #e3f2fd; border-left-color: #2196f3;">
-        <h3 style="color: #1565c0; margin: 0 0 5px 0; font-size: 18px;">⏳ Status: Pending Approval</h3>
+        <h3 style="color: #1565c0; margin: 0 0 5px 0; font-size: 18px;">⌛ Status: Pending Approval</h3>
         <p style="margin: 0;">Your account is currently waiting for administrator verification. You will not be able to access the vendor dashboard until your account is approved.</p>
       </div>
       
@@ -796,7 +796,7 @@ export class EmailService {
       </div>
       
       <div class="warning-box">
-        <strong>🔒 Security Reminder:</strong> Never share your OTP. Our team will never ask for it. Always access the portal through the official URL.
+        <strong>ðŸ”’ Security Reminder:</strong> Never share your OTP. Our team will never ask for it. Always access the portal through the official URL.
       </div>
       
       <p>Best regards,<br><strong>Autoform India Team</strong></p>
@@ -805,9 +805,9 @@ export class EmailService {
     await transporter.sendMail({
       from: process.env.EMAIL_FROM,
       to: adminEmail,
-      subject: '🎉 You\'ve Been Invited as an Administrator',
+      subject: 'ðŸŽ‰ You\'ve Been Invited as an Administrator',
       html: this.getHtmlTemplate({
-        title: '🛡️ Seal Guardian',
+        title: 'ðŸ›¡ï¸ Seal Guardian',
         content: htmlContent,
         headerColorStart: '#1e3a5f',
         headerColorEnd: '#2d5a87'
@@ -850,7 +850,7 @@ export class EmailService {
       </div>
       
       <div style="text-align: center; margin: 30px 0;">
-        <a href="${verificationLink}" class="button" style="background: linear-gradient(135deg, #FFB400 0%, #FF9000 100%); margin-right: 15px;">✓ Confirm Installation</a>
+        <a href="${verificationLink}" class="button" style="background: linear-gradient(135deg, #FFB400 0%, #FF9000 100%); margin-right: 15px;">âœ“ Confirm Installation</a>
         
         <p style="margin-top: 20px; font-size: 14px;">
           Is there an issue with this registration?
@@ -866,7 +866,7 @@ export class EmailService {
       to: vendorEmail,
       subject: 'Action Required: Confirm Customer Warranty Registration',
       html: this.getHtmlTemplate({
-        title: '🛡️ Warranty Verification Required',
+        title: 'ðŸ›¡ï¸ Warranty Verification Required',
         content: htmlContent,
         headerColorStart: '#FFB400',
         headerColorEnd: '#FF9000'
@@ -874,9 +874,9 @@ export class EmailService {
     });
   }
 
+
   /**
-   * Send grievance assignment email to an external team member
-   * Subject: "Customer Grievance - {Category} at {Store}"
+   * Send grievance assignment email to external assignee
    */
   static async sendGrievanceAssignmentEmail(
     assigneeEmail: string,
@@ -884,149 +884,137 @@ export class EmailService {
     grievance: {
       ticket_id: string;
       category: string;
-      sub_category?: string | null;
+      sub_category?: string;
       subject: string;
       description: string;
-      customer_name: string;
-      franchise_name?: string | null;
-      franchise_address?: string | null;
-      franchise_city?: string | null;
-      attachments?: string | string[];
+      source_type?: 'customer' | 'franchise'; // Who raised the grievance
+      department?: string;
+      department_details?: string;
+      customer_name?: string;
+      customer_email?: string;
+      franchise_name?: string;
+      franchise_address?: string;
+      franchise_city?: string;
+      attachments?: string;
       created_at: string;
-      estimated_completion_date?: string | null;
+      estimated_completion_date?: string;
     },
     remarks?: string,
     updateToken?: string
   ): Promise<boolean> {
-    // Category display mapping
-    const categoryLabels: Record<string, string> = {
-      product_issue: 'Product Issue',
-      billing_issue: 'Billing Issue',
-      store_issue: 'Store/Dealer Issue',
-      manpower_issue: 'Manpower Issue',
-      service_issue: 'Service Issue',
-      warranty_issue: 'Warranty Issue',
-      other: 'Other',
-    };
+    const categoryDisplay = EmailService.getCategoryDisplay(grievance.category);
+    const submissionDate = new Date(grievance.created_at).toLocaleString('en-IN', {
+      day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit'
+    });
 
-    const categoryDisplay = categoryLabels[grievance.category] || grievance.category;
-    const storeName = grievance.franchise_name || 'Unknown Store';
-    const subject = `Customer Grievance - ${categoryDisplay} at ${storeName}`;
+    const baseUrl = EmailService.getAppUrl();
+    const actionLink = updateToken
+      ? `${baseUrl}/grievance/assignment/${updateToken}`
+      : `${baseUrl}/login`;
 
-    // Generate update link
-    const updateLink = updateToken
-      ? `${this.getAppUrl().replace('5173', '5173')}/assignment/update/${updateToken}`
-      : null;
-
-    // Parse attachments
-    let attachmentUrls: string[] = [];
-    if (grievance.attachments) {
-      try {
-        attachmentUrls = typeof grievance.attachments === 'string'
-          ? JSON.parse(grievance.attachments)
-          : grievance.attachments;
-      } catch {
-        if (typeof grievance.attachments === 'string' && grievance.attachments.startsWith('http')) {
-          attachmentUrls = [grievance.attachments];
+    // Process attachments
+    let attachmentsHtml = '';
+    try {
+      if (grievance.attachments) {
+        const files = JSON.parse(grievance.attachments);
+        if (Array.isArray(files) && files.length > 0) {
+          attachmentsHtml = `
+            <div style="margin-top: 15px; padding-top: 15px; border-top: 1px dashed #ddd;">
+              <p style="font-weight: 600; margin-bottom: 5px; color: #555;">ðŸ“Ž Attachments:</p>
+              <ul style="margin: 0; padding-left: 20px;">
+                ${files.map((url, idx) => `<li><a href="${url}" target="_blank" style="color: #2196F3;">View Attachment ${idx + 1}</a></li>`).join('')}
+              </ul>
+            </div>
+          `;
         }
       }
-    }
-
-    const attachmentsHtml = attachmentUrls.length > 0
-      ? `
-        <div style="margin-top: 20px;">
-          <p style="font-weight: 600; margin-bottom: 10px;">📎 Attachments:</p>
-          <div style="display: flex; gap: 10px; flex-wrap: wrap;">
-            ${attachmentUrls.map((url, i) => `
-              <a href="${this.escapeHtml(url)}" target="_blank" style="display: inline-block; padding: 8px 16px; background: #f0f0f0; border-radius: 6px; text-decoration: none; color: #333; font-size: 14px;">
-                📄 Attachment ${i + 1}
-              </a>
-            `).join('')}
-          </div>
-        </div>
-      `
-      : '';
+    } catch (e) { /* ignore parse error */ }
 
     const htmlContent = `
-      <p>Hi <strong>${this.escapeHtml(assigneeName)}</strong>,</p>
-      <p>You have been assigned to handle the following customer grievance:</p>
+      <p style="font-size: 16px; margin-bottom: 20px;">Hello <strong>${EmailService.escapeHtml(assigneeName)}</strong>,</p>
+      
+      <div class="info-box" style="border-left-color: #2196F3; background: #e3f2fd;">
+        <h3 style="color: #0d47a1; margin: 0 0 5px 0;">ðŸ“‹ New Task Assigned</h3>
+        <p style="margin: 0;">You have been assigned a new grievance ticket for resolution.</p>
+      </div>
+      
+      <div style="background: #fff; border: 1px solid #e0e0e0; border-radius: 8px; padding: 20px; margin: 20px 0;">
+        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #eee; padding-bottom: 15px; margin-bottom: 15px;">
+           <span style="font-size: 18px; font-weight: bold; color: #333;">${EmailService.escapeHtml(grievance.ticket_id)}</span>
+           <span style="background: #FFB400; color: #000; padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: bold;">${EmailService.escapeHtml(categoryDisplay)}</span>
+        </div>
 
-      <div class="info-box" style="background: #f8f9fa; border-left: 4px solid #FFB400; padding: 20px; margin: 20px 0; border-radius: 4px;">
-        <table style="width: 100%; border-collapse: collapse;">
-          <tr>
-            <td style="padding: 8px 0; font-weight: 600; width: 140px; color: #666;">Ticket ID:</td>
-            <td style="padding: 8px 0;"><code style="background: #e9ecef; padding: 2px 8px; border-radius: 4px;">${this.escapeHtml(grievance.ticket_id)}</code></td>
-          </tr>
-          ${grievance.estimated_completion_date ? `
-          <tr>
-            <td style="padding: 8px 0; font-weight: 600; color: #d97706;">Expected Resolution:</td>
-            <td style="padding: 8px 0; font-weight: bold; color: #d97706;">${new Date(grievance.estimated_completion_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}</td>
-          </tr>
-          ` : ''}
-          <tr>
-            <td style="padding: 8px 0; font-weight: 600; color: #666;">Category:</td>
-            <td style="padding: 8px 0;">${this.escapeHtml(categoryDisplay)}${grievance.sub_category ? ` > ${this.escapeHtml(grievance.sub_category)}` : ''}</td>
-          </tr>
-          <tr>
-            <td style="padding: 8px 0; font-weight: 600; color: #666;">Customer:</td>
-            <td style="padding: 8px 0;">${this.escapeHtml(grievance.customer_name)}</td>
-          </tr>
-          <tr>
-            <td style="padding: 8px 0; font-weight: 600; color: #666;">Store:</td>
-            <td style="padding: 8px 0;">
-              ${this.escapeHtml(storeName)}
-              ${grievance.franchise_address ? `<br><span style="color: #888; font-size: 13px;">${this.escapeHtml(grievance.franchise_address)}</span>` : ''}
-              ${grievance.franchise_city ? `<br><span style="color: #888; font-size: 13px;">${this.escapeHtml(grievance.franchise_city)}</span>` : ''}
-            </td>
-          </tr>
-        </table>
+        <p style="font-weight: bold; margin-bottom: 5px;">Subject:</p>
+        <p style="margin-top: 0; color: #555;">${EmailService.escapeHtml(grievance.subject)}</p>
+        
+        <p style="font-weight: bold; margin-bottom: 5px; margin-top: 15px;">Description:</p>
+        <div style="background: #f9f9f9; padding: 10px; border-radius: 4px; color: #555; white-space: pre-wrap;">${EmailService.escapeHtml(grievance.description)}</div>
+        
+        ${attachmentsHtml}
       </div>
 
-      ${updateLink ? `
-      <div style="text-align: center; margin: 30px 0; background: #fffbeb; padding: 25px; border-radius: 10px; border: 1px solid #fef3c7;">
-        <p style="margin: 0 0 15px 0; font-weight: 600; color: #92400e;">Update task status directly:</p>
-        <a href="${updateLink}" class="button" style="background: linear-gradient(135deg, #FFB400 0%, #FF9000 100%); margin: 0 auto; display: inline-block;">
-          ⚡ Update Status & Remarks
-        </a>
-        <p style="margin: 15px 0 0 0; font-size: 12px; color: #b45309;">No login required. Click to provide updates instantly.</p>
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px;">
+         ${grievance.source_type === 'franchise' ? `
+         <div style="background: #f9f9f9; padding: 15px; border-radius: 8px;">
+            <p style="font-weight: bold; margin: 0 0 10px 0; color: #333; border-bottom: 1px solid #9333ea; padding-bottom: 5px;">🏪 Franchise (Source)</p>
+            <p style="margin: 5px 0; font-size: 14px;"><strong>Store:</strong> ${EmailService.escapeHtml(grievance.franchise_name || 'N/A')}</p>
+            ${grievance.department ? `<p style="margin: 5px 0; font-size: 14px;"><strong>Department:</strong> ${EmailService.escapeHtml(grievance.department.toUpperCase())}</p>` : ''}
+            ${grievance.department_details ? `<p style="margin: 5px 0; font-size: 14px;"><strong>Details:</strong> ${EmailService.escapeHtml(grievance.department_details)}</p>` : ''}
+            ${grievance.franchise_city ? `<p style="margin: 5px 0; font-size: 14px;"><strong>City:</strong> ${EmailService.escapeHtml(grievance.franchise_city)}</p>` : ''}
+         </div>
+         <div style="background: #f9f9f9; padding: 15px; border-radius: 8px;">
+            <p style="font-weight: bold; margin: 0 0 10px 0; color: #333; border-bottom: 1px solid #9333ea; padding-bottom: 5px;">ðŸ‘¤ Contact Person</p>
+            <p style="margin: 5px 0; font-size: 14px;"><strong>Name:</strong> ${EmailService.escapeHtml(grievance.customer_name || 'N/A')}</p>
+            ${grievance.customer_email ? `<p style="margin: 5px 0; font-size: 14px;"><strong>Email:</strong> ${EmailService.escapeHtml(grievance.customer_email)}</p>` : ''}
+         </div>
+         ` : `
+         <div style="background: #f9f9f9; padding: 15px; border-radius: 8px;">
+            <p style="font-weight: bold; margin: 0 0 10px 0; color: #333; border-bottom: 1px solid #FFB400; padding-bottom: 5px;">ðŸ‘¤ Customer (Source)</p>
+            <p style="margin: 5px 0; font-size: 14px;"><strong>Name:</strong> ${EmailService.escapeHtml(grievance.customer_name || 'N/A')}</p>
+            ${grievance.customer_email ? `<p style="margin: 5px 0; font-size: 14px;"><strong>Email:</strong> ${EmailService.escapeHtml(grievance.customer_email)}</p>` : ''}
+         </div>
+         ${grievance.franchise_name ? `
+         <div style="background: #f9f9f9; padding: 15px; border-radius: 8px;">
+            <p style="font-weight: bold; margin: 0 0 10px 0; color: #333; border-bottom: 1px solid #FFB400; padding-bottom: 5px;">🏪 Target Franchise</p>
+            <p style="margin: 5px 0; font-size: 14px;"><strong>Store:</strong> ${EmailService.escapeHtml(grievance.franchise_name)}</p>
+            ${grievance.franchise_city ? `<p style="margin: 5px 0; font-size: 14px;"><strong>City:</strong> ${EmailService.escapeHtml(grievance.franchise_city)}</p>` : ''}
+         </div>
+         ` : ''}
+         `}
       </div>
-      ` : ''}
-
-      <div style="margin-top: 20px;">
-        <p style="font-weight: 600; margin-bottom: 10px;">📋 Subject:</p>
-        <p style="background: #fff3cd; padding: 12px 16px; border-radius: 6px; margin: 0;">${this.escapeHtml(grievance.subject)}</p>
-      </div>
-
-      <div style="margin-top: 20px;">
-        <p style="font-weight: 600; margin-bottom: 10px;">📝 Description:</p>
-        <div style="background: #f8f9fa; padding: 16px; border-radius: 6px; white-space: pre-wrap; font-size: 14px; line-height: 1.6;">${this.escapeHtml(grievance.description)}</div>
-      </div>
-
-      ${attachmentsHtml}
 
       ${remarks ? `
-      <div style="margin-top: 20px;">
-        <p style="font-weight: 600; margin-bottom: 10px;">💬 Remarks from Admin:</p>
-        <div style="background: #e8f4fd; padding: 16px; border-radius: 6px; border-left: 4px solid #2196F3; font-size: 14px; line-height: 1.6;">${this.escapeHtml(remarks)}</div>
+      <div style="background: #fff3cd; border: 1px solid #ffeeba; border-radius: 8px; padding: 15px; margin-bottom: 20px;">
+        <p style="font-weight: bold; margin: 0 0 5px 0; color: #856404;">ðŸ“ Admin Remarks / Instructions:</p>
+        <p style="margin: 0; color: #856404;">${EmailService.escapeHtml(remarks)}</p>
       </div>
       ` : ''}
 
-      <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee;">
-        <p style="color: #666; font-size: 14px;">Please review this grievance and take appropriate action. You can contact Noida Office for more details.</p>
+      ${grievance.estimated_completion_date ? `
+      <p style="font-weight: bold; color: #d32f2f;">â° Target Date: ${grievance.estimated_completion_date}</p>
+      ` : ''}
+
+      <div style="text-align: center; margin: 30px 0;">
+        <a href="${actionLink}" class="button">View & Update Status</a>
+        <p style="font-size: 12px; color: #888; margin-top: 10px;">Token-based secure link (No login required)</p>
       </div>
+      
+      <p style="font-size: 14px; color: #666; margin-top: 25px;">
+        Please enable "Reply-All" if you need to coordinate with the admin team regarding this task.
+      </p>
     `;
 
-    return await this.sendWithRetry(
+    return EmailService.sendWithRetry(
       async () => {
         await transporter.sendMail({
           from: process.env.EMAIL_FROM,
           to: assigneeEmail,
-          subject: subject,
-          html: this.getHtmlTemplate({
-            title: '📢 Customer Grievance',
+          subject: `Task Assigned: ${grievance.ticket_id} - ${grievance.subject}`,
+          html: EmailService.getHtmlTemplate({
+            title: 'Task Assignment',
             content: htmlContent,
-            headerColorStart: '#FFB400',
-            headerColorEnd: '#FF9000'
+            headerColorStart: '#2196F3',
+            headerColorEnd: '#1976D2'
           })
         });
       },
@@ -1072,7 +1060,7 @@ export class EmailService {
       <p style="font-size: 16px; margin-bottom: 20px;">Dear <strong>${this.escapeHtml(customerName)}</strong>,</p>
       
       <div class="success-box">
-        <h3>✅ Grievance Submitted Successfully</h3>
+        <h3>âœ… Grievance Submitted Successfully</h3>
         <p style="font-size: 14px; margin: 0;">Your concern has been registered with us.</p>
       </div>
       
@@ -1086,7 +1074,7 @@ export class EmailService {
         </p>
       </div>
       
-      <h3 style="color: #333; border-bottom: 2px solid #FFB400; padding-bottom: 10px; margin-top: 25px;">📋 Submission Details</h3>
+      <h3 style="color: #333; border-bottom: 2px solid #FFB400; padding-bottom: 10px; margin-top: 25px;">ðŸ“‹ Submission Details</h3>
       
       <table style="width: 100%; border-collapse: collapse; margin: 15px 0;">
         <tr style="border-bottom: 1px solid #eee;">
@@ -1110,7 +1098,7 @@ export class EmailService {
       </table>
       
       <div style="background: #e8f5e9; border-radius: 8px; padding: 15px; margin: 20px 0;">
-        <h4 style="color: #2e7d32; margin: 0 0 10px 0;">📌 What happens next?</h4>
+        <h4 style="color: #2e7d32; margin: 0 0 10px 0;">ðŸ“Œ What happens next?</h4>
         <ul style="margin: 0; padding-left: 20px; color: #333;">
           <li>Our team will review your grievance within <strong>24-48 hours</strong></li>
           <li>You will receive updates via email as we work on your case</li>
@@ -1135,7 +1123,7 @@ export class EmailService {
           to: customerEmail,
           subject: `Grievance Registered - ${grievance.ticket_id} | Autoform India`,
           html: this.getHtmlTemplate({
-            title: '🎫 Grievance Registered',
+            title: 'ðŸŽ« Grievance Registered',
             content: htmlContent,
             headerColorStart: '#4CAF50',
             headerColorEnd: '#45a049'
@@ -1178,7 +1166,7 @@ export class EmailService {
       <p style="font-size: 16px; margin-bottom: 20px;">Dear <strong>${EmailService.escapeHtml(franchiseName)}</strong>,</p>
       
       <div class="success-box">
-        <h3>✅ Grievance Submitted Successfully</h3>
+        <h3>âœ… Grievance Submitted Successfully</h3>
         <p style="font-size: 14px; margin: 0;">Your concern has been registered with our team.</p>
       </div>
       
@@ -1192,7 +1180,7 @@ export class EmailService {
         </p>
       </div>
       
-      <h3 style="color: #333; border-bottom: 2px solid #9333ea; padding-bottom: 10px; margin-top: 25px;">📋 Submission Details</h3>
+      <h3 style="color: #333; border-bottom: 2px solid #9333ea; padding-bottom: 10px; margin-top: 25px;">ðŸ“‹ Submission Details</h3>
       
       <table style="width: 100%; border-collapse: collapse; margin: 15px 0;">
         <tr style="border-bottom: 1px solid #eee;">
@@ -1214,7 +1202,7 @@ export class EmailService {
       </table>
       
       <div style="background: #f3e8ff; border-radius: 8px; padding: 15px; margin: 20px 0;">
-        <h4 style="color: #7c3aed; margin: 0 0 10px 0;">📌 What happens next?</h4>
+        <h4 style="color: #7c3aed; margin: 0 0 10px 0;">ðŸ“Œ What happens next?</h4>
         <ul style="margin: 0; padding-left: 20px; color: #333;">
           <li>Our team will review your grievance and take appropriate action</li>
           <li>You will receive updates via email as we work on your case</li>
@@ -1239,7 +1227,7 @@ export class EmailService {
           to: franchiseEmail,
           subject: `Franchise Grievance Registered - ${grievance.ticket_id} | Autoform India`,
           html: EmailService.getHtmlTemplate({
-            title: '🏪 Franchise Grievance Registered',
+            title: 'ðŸª Franchise Grievance Registered',
             content: htmlContent,
             headerColorStart: '#9333ea',
             headerColorEnd: '#7c3aed'

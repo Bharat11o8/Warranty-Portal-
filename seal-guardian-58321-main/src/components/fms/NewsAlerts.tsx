@@ -37,7 +37,9 @@ export const NewsAlerts = () => {
     // Base filter: only show alert/system/product types (admin broadcasts, news)
     // Warranty notifications are shown separately in the NotificationPopover, not here
     const baseNotifications = fullHistory.filter(n =>
-        (n.type === 'alert' || n.type === 'system' || n.type === 'product') && !n.is_cleared
+        (n.type === 'alert' || n.type === 'system' || n.type === 'product') &&
+        !n.is_cleared &&
+        !n.title.toLowerCase().includes('grievance') // Exclude grievance assignments/updates as per user request
     );
 
     // Apply active tab filter and search query
@@ -472,14 +474,6 @@ export const NewsAlerts = () => {
                                             </div>
                                         </div>
                                     </div>
-                                    <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 rounded-full"
-                                        onClick={() => setSelectedNotification(null)}
-                                    >
-                                        <X className="h-5 w-5" />
-                                    </Button>
                                 </DialogHeader>
 
                                 <div className="p-6 md:p-8 pt-0 space-y-6">

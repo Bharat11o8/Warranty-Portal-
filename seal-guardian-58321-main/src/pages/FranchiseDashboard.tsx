@@ -40,7 +40,7 @@ interface DashboardContext {
 }
 
 const FranchiseDashboard = () => {
-    const { user, loading: authLoading } = useAuth();
+    const { user, logout, loading: authLoading } = useAuth();
     const { toast } = useToast();
     const { fullHistory } = useNotifications();
     const context = useOutletContext<DashboardContext>();
@@ -946,7 +946,6 @@ const FranchiseDashboard = () => {
                                 variant="ghost"
                                 className="w-full h-12 justify-start gap-4 px-4 rounded-[32px] transition-all text-slate-400 hover:text-red-500 hover:bg-red-50"
                                 onClick={() => {
-                                    const { logout } = useAuth(); // Local access or use outer scope
                                     logout();
                                     setIsMobileMenuOpen(false);
                                 }}

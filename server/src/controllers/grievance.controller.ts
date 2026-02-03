@@ -89,8 +89,8 @@ class GrievanceController {
 
             const [result] = await db.execute(
                 `INSERT INTO grievances 
-         (ticket_id, customer_id, franchise_id, warranty_uid, category, sub_category, subject, description, attachments)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         (ticket_id, customer_id, franchise_id, warranty_uid, category, sub_category, subject, description, attachments, source_type)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'customer')`,
                 [
                     ticketId,
                     userId,
@@ -1041,18 +1041,35 @@ class GrievanceController {
                 });
             }
 
-            // Fetch grievance with all required data
+            // Fetch grievance with all required data, handling both Customer and Franchise sources
             const [rows]: any = await db.execute(
-                `SELECT g.*, 
-                p.name as customer_name, 
+                `SELECT g.*,
+                p.name as customer_name,
                 p.email as customer_email,
-                vd.store_name as franchise_name,
-                vd.address as franchise_address,
-                vd.city as franchise_city
-         FROM grievances g
-         LEFT JOIN profiles p ON g.customer_id = p.id
-         LEFT JOIN vendor_details vd ON g.franchise_id = vd.id
-         WHERE g.id = ?`,
+                
+                -- Determine specific details based on source type
+                CASE 
+                    WHEN g.source_type = 'franchise' THEN COALESCE(vd_owner.store_name, 'Unknown Franchise')
+                    ELSE COALESCE(vd_target.store_name, 'Unknown Store')
+                END as franchise_name,
+                
+                CASE 
+                    WHEN g.source_type = 'franchise' THEN vd_owner.address
+                    ELSE vd_target.address 
+                END as franchise_address,
+                
+                CASE 
+                    WHEN g.source_type = 'franchise' THEN vd_owner.city
+                    ELSE vd_target.city 
+                END as franchise_city
+
+             FROM grievances g
+             LEFT JOIN profiles p ON g.customer_id = p.id
+             -- For Customer Grievances: Join on franchise_id (the target franchise)
+             LEFT JOIN vendor_details vd_target ON g.franchise_id = vd_target.id
+             -- For Franchise Grievances: Join on customer_id (the franchise owner)
+             LEFT JOIN vendor_details vd_owner ON g.source_type = 'franchise' AND g.customer_id = vd_owner.user_id
+             WHERE g.id = ?`,
                 [id]
             );
 
@@ -1102,7 +1119,11 @@ class GrievanceController {
                     sub_category: grievance.sub_category,
                     subject: grievance.subject,
                     description: grievance.description,
+                    source_type: grievance.source_type, // 'customer' or 'franchise'
+                    department: grievance.department,
+                    department_details: grievance.department_details,
                     customer_name: grievance.customer_name,
+                    customer_email: grievance.customer_email,
                     franchise_name: grievance.franchise_name,
                     franchise_address: grievance.franchise_address,
                     franchise_city: grievance.franchise_city,

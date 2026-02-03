@@ -250,8 +250,8 @@ const Header = ({ className }: { className?: string }) => {
                     <Button
                       variant="ghost"
                       className="w-full justify-start text-red-600 hover:bg-red-50 hover:text-red-700"
-                      onClick={() => {
-                        logout();
+                      onClick={async () => {
+                        await logout();
                         setIsOpen(false);
                         navigate("/");
                       }}
