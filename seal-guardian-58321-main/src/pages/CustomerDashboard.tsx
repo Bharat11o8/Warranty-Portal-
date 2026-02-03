@@ -13,7 +13,15 @@ import api from "@/lib/api";
 import { cn, getWarrantyExpiration, formatToIST } from "@/lib/utils";
 import EVProductsForm from "@/components/warranty/EVProductsForm";
 import SeatCoverForm from "@/components/warranty/SeatCoverForm";
-import { Pagination } from "@/components/Pagination";
+import {
+    Pagination,
+    PaginationContent,
+    PaginationEllipsis,
+    PaginationItem,
+    PaginationLink,
+    PaginationNext,
+    PaginationPrevious,
+} from "@/components/ui/pagination";
 import { WarrantySpecSheet } from "@/components/warranty/WarrantySpecSheet";
 
 const CustomerDashboard = () => {
@@ -647,15 +655,43 @@ const CustomerDashboard = () => {
             </Tabs>
 
             {/* Pagination */}
-            <div className="mt-8">
-                <Pagination
-                    currentPage={warrantyPagination.currentPage}
-                    totalPages={warrantyPagination.totalPages}
-                    totalCount={warrantyPagination.totalCount}
-                    limit={warrantyPagination.limit}
-                    onPageChange={(page) => fetchWarranties(page)}
-                />
-            </div>
+            {warrantyPagination.totalPages > 1 && (
+                <div className="mt-8">
+                    <Pagination>
+                        <PaginationContent>
+                            <PaginationItem>
+                                <PaginationPrevious
+                                    onClick={() => fetchWarranties(Math.max(1, warrantyPagination.currentPage - 1))}
+                                    aria-disabled={warrantyPagination.currentPage === 1}
+                                    className={warrantyPagination.currentPage === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                                />
+                            </PaginationItem>
+                            {Array.from({ length: warrantyPagination.totalPages }, (_, i) => i + 1)
+                                .filter(page => page === 1 || page === warrantyPagination.totalPages || Math.abs(page - warrantyPagination.currentPage) <= 1)
+                                .map((page, index, array) => {
+                                    if (index > 0 && array[index - 1] !== page - 1) {
+                                        return (
+                                            <div key={`ellipsis-${page}`} className="flex items-center">
+                                                <PaginationEllipsis />
+                                                <PaginationItem>
+                                                    <PaginationLink isActive={warrantyPagination.currentPage === page} onClick={() => fetchWarranties(page)} className="cursor-pointer">{page}</PaginationLink>
+                                                </PaginationItem>
+                                            </div>
+                                        );
+                                    }
+                                    return (<PaginationItem key={page}><PaginationLink isActive={warrantyPagination.currentPage === page} onClick={() => fetchWarranties(page)} className="cursor-pointer">{page}</PaginationLink></PaginationItem>);
+                                })}
+                            <PaginationItem>
+                                <PaginationNext
+                                    onClick={() => fetchWarranties(Math.min(warrantyPagination.totalPages, warrantyPagination.currentPage + 1))}
+                                    aria-disabled={warrantyPagination.currentPage === warrantyPagination.totalPages}
+                                    className={warrantyPagination.currentPage === warrantyPagination.totalPages ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                                />
+                            </PaginationItem>
+                        </PaginationContent>
+                    </Pagination>
+                </div>
+            )}
 
             {/* The Spec Sheet Component */}
             <WarrantySpecSheet

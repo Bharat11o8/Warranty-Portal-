@@ -68,7 +68,10 @@ const CustomerDetails = ({ formData, updateFormData, onNext, onPrev, isCustomer 
             type="text"
             placeholder="First name"
             value={formData.customerFname}
-            onChange={(e) => updateFormData({ customerFname: e.target.value })}
+            onChange={(e) => {
+              const textOnly = e.target.value.replace(/[^A-Za-z\s]/g, '');
+              updateFormData({ customerFname: textOnly });
+            }}
             required
             readOnly={isCustomer}
             className={isCustomer ? 'bg-muted cursor-not-allowed' : ''}
@@ -85,7 +88,10 @@ const CustomerDetails = ({ formData, updateFormData, onNext, onPrev, isCustomer 
             type="text"
             placeholder="Last name"
             value={formData.customerLname}
-            onChange={(e) => updateFormData({ customerLname: e.target.value })}
+            onChange={(e) => {
+              const textOnly = e.target.value.replace(/[^A-Za-z\s]/g, '');
+              updateFormData({ customerLname: textOnly });
+            }}
             readOnly={isCustomer}
             className={isCustomer ? 'bg-muted cursor-not-allowed' : ''}
           />
@@ -101,10 +107,14 @@ const CustomerDetails = ({ formData, updateFormData, onNext, onPrev, isCustomer 
           <Input
             id="customerMobile"
             type="tel"
-            placeholder="+91 XXXXX XXXXX"
+            placeholder="9876543210"
             value={formData.customerMobile}
-            onChange={(e) => updateFormData({ customerMobile: e.target.value })}
+            onChange={(e) => {
+              const digitsOnly = e.target.value.replace(/\D/g, '').slice(0, 10);
+              updateFormData({ customerMobile: digitsOnly });
+            }}
             required
+            maxLength={10}
             readOnly={isCustomer}
             className={isCustomer ? 'bg-muted cursor-not-allowed' : ''}
           />

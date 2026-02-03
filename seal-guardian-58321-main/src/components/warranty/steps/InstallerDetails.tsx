@@ -179,7 +179,7 @@ const InstallerDetails = ({ formData, updateFormData, onNext }: InstallerDetails
           <Input
             id="dealerMobile"
             type="tel"
-            placeholder="+91 XXXXX XXXXX"
+            placeholder="9876543210"
             value={formData.dealerMobile}
             onChange={(e) => updateFormData({ dealerMobile: e.target.value })}
             required

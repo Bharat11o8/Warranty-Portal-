@@ -103,7 +103,10 @@ const CarDetails = ({ formData, updateFormData, onNext, onPrev }: CarDetailsProp
             type="text"
             placeholder="e.g., City"
             value={formData.carModel}
-            onChange={(e) => updateFormData({ carModel: e.target.value })}
+            onChange={(e) => {
+              const textOnly = e.target.value.replace(/[^A-Za-z\s]/g, '');
+              updateFormData({ carModel: textOnly });
+            }}
             required
           />
         </div>

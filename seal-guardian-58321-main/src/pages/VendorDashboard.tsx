@@ -15,7 +15,6 @@ import { downloadCSV, getWarrantyExpiration, cn, formatToIST } from "@/lib/utils
 import { Input } from "@/components/ui/input";
 import EVProductsForm from "@/components/warranty/EVProductsForm";
 import SeatCoverForm from "@/components/warranty/SeatCoverForm";
-import { Pagination } from "@/components/Pagination";
 import { WarrantySpecSheet } from "@/components/warranty/WarrantySpecSheet";
 import { ProductCatalog } from "@/components/vendor/ProductCatalog";
 import VendorGrievances from "@/components/fms/VendorGrievances";
