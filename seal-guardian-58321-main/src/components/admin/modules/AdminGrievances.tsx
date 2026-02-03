@@ -44,6 +44,7 @@ interface Grievance {
     created_at: string;
     resolved_at: string | null;
     status_updated_at: string | null;
+    updated_at?: string;
     franchise_address?: string;
     franchise_city?: string;
     source_type?: 'customer' | 'franchise';
