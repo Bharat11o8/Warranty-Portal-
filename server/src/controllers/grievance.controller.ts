@@ -521,12 +521,13 @@ class GrievanceController {
          LEFT JOIN vendor_details vd_customer ON g.franchise_id = vd_customer.id
          LEFT JOIN vendor_details vd_franchise ON g.source_type = 'franchise' AND g.customer_id = vd_franchise.user_id
          ORDER BY 
-           CASE g.priority 
-             WHEN 'urgent' THEN 1 
-             WHEN 'high' THEN 2 
-             ELSE 3 
-           END,
-           g.created_at DESC`
+            g.updated_at DESC,
+            CASE g.priority 
+              WHEN 'urgent' THEN 1 
+              WHEN 'high' THEN 2 
+              ELSE 3 
+            END,
+            g.created_at DESC`
             );
 
             return res.json({ success: true, data: grievances });
@@ -883,6 +884,9 @@ class GrievanceController {
             }
 
             if (updates.length > 0) {
+                updates.push('updated_at = ?');
+                values.push(getISTTimestamp());
+
                 values.push(id);
                 await db.execute(
                     `UPDATE grievances SET ${updates.join(', ')} WHERE id = ?`,
@@ -1139,7 +1143,7 @@ class GrievanceController {
             }
 
             const [assignments] = await db.execute(
-                `SELECT id, assignee_name, assignee_email, remarks, assignment_type, status,
+                `SELECT id, assignee_name, assignee_email, remarks, completion_remarks, assignment_type, status,
                         email_sent_at, sent_by, sent_by_name
                  FROM grievance_assignments 
                  WHERE grievance_id = ?
@@ -1236,13 +1240,24 @@ class GrievanceController {
                 ]
             );
 
-            // 4. Optionally update main grievance status if completed
+            // 4. Update main grievance status based on assignee progress
+            let mainGrievanceStatus = null;
             if (status === 'completed') {
-                // We don't automatically resolve the grievance, but we could update it to 'in_progress'
-                // Let's at least mark it as 'under_review' or similar if it was 'submitted'
+                mainGrievanceStatus = 'resolved';
+            } else if (status === 'in_progress') {
+                mainGrievanceStatus = 'under_review';
+            }
+
+            if (mainGrievanceStatus) {
                 await db.execute(
-                    "UPDATE grievances SET status = 'under_review' WHERE id = ? AND status = 'submitted'",
-                    [assignment.grievance_id]
+                    "UPDATE grievances SET status = ?, updated_at = ?, status_updated_at = ? WHERE id = ?",
+                    [mainGrievanceStatus, getISTTimestamp(), getISTTimestamp(), assignment.grievance_id]
+                );
+            } else {
+                // Just update the timestamp if status didn't change automatically
+                await db.execute(
+                    "UPDATE grievances SET updated_at = ?, status_updated_at = ? WHERE id = ?",
+                    [getISTTimestamp(), getISTTimestamp(), assignment.grievance_id]
                 );
             }
 

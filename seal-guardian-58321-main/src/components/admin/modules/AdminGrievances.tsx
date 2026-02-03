@@ -57,6 +57,7 @@ interface AssignmentRecord {
     assignee_name: string;
     assignee_email: string;
     remarks: string | null;
+    completion_remarks: string | null;
     assignment_type: 'initial' | 'follow_up';
     status: 'pending' | 'in_progress' | 'completed' | 'follow_up_sent';
     email_sent_at: string;
@@ -506,7 +507,7 @@ export const AdminGrievances = () => {
                                                     {g.assigned_to || <span className="text-slate-300 italic">Unassigned</span>}
                                                 </td>
                                                 <td className="p-4 text-xs text-slate-400">
-                                                    {g.status_updated_at ? formatToIST(g.status_updated_at) : '-'}
+                                                    {g.updated_at ? formatToIST(g.updated_at) : (g.status_updated_at ? formatToIST(g.status_updated_at) : formatToIST(g.created_at))}
                                                 </td>
                                             </tr>
                                         ))}
@@ -924,7 +925,16 @@ export const AdminGrievances = () => {
                                                         </div>
                                                         <p className="text-xs text-slate-500">{record.assignee_email}</p>
                                                         {record.remarks && (
-                                                            <p className="text-sm mt-2 p-2 bg-white rounded border border-slate-100 text-slate-600">"{record.remarks}"</p>
+                                                            <p className="text-sm mt-2 p-2 bg-white rounded border border-slate-100 text-slate-600">
+                                                                <strong className="text-xs text-slate-400 block mb-1">ADMIN INSTRUCTIONS:</strong>
+                                                                "{record.remarks}"
+                                                            </p>
+                                                        )}
+                                                        {record.completion_remarks && (
+                                                            <p className="text-sm mt-2 p-2 bg-green-50 rounded border border-green-100 text-green-700">
+                                                                <strong className="text-xs text-green-400 block mb-1 uppercase">Assignee Update:</strong>
+                                                                "{record.completion_remarks}"
+                                                            </p>
                                                         )}
                                                     </div>
                                                 ))}
