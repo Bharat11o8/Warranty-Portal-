@@ -128,7 +128,7 @@ class GrievanceController {
                         subject,
                         description,
                         store_name: storeName,
-                        created_at: new Date().toISOString()
+                        created_at: getISTTimestamp()
                     }
                 ).catch((err: any) => console.error('Failed to send grievance confirmation email:', err));
 

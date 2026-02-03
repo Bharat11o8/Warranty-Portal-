@@ -594,6 +594,51 @@ export class AdminController {
             res.status(500).json({ error: 'Failed to fetch warranties' });
         }
     }
+    static async getWarrantyById(req, res) {
+        try {
+            const { id } = req.params;
+            // Try to find warranty by uid, id, or as a UUID in uid
+            const query = `
+                SELECT 
+                    wr.*,
+                    p.name as submitted_by_name,
+                    p.email as submitted_by_email,
+                    ur.role as submitted_by_role,
+                    m.name as manpower_name_from_db,
+                    vd.store_name as vendor_store_name,
+                    vd.store_email as vendor_store_email,
+                    vp.phone_number as vendor_phone_number
+                FROM warranty_registrations wr
+                LEFT JOIN profiles p ON wr.user_id = p.id
+                LEFT JOIN user_roles ur ON p.id = ur.user_id
+                LEFT JOIN manpower m ON wr.manpower_id = m.id
+                LEFT JOIN vendor_details vd ON m.vendor_id = vd.id
+                LEFT JOIN profiles vp ON vd.user_id = vp.id
+                WHERE wr.uid = ? OR wr.id = ?
+                LIMIT 1
+            `;
+            const [result] = await db.execute(query, [id, id]);
+            if (result.length === 0) {
+                return res.status(404).json({
+                    success: false,
+                    error: 'Warranty not found'
+                });
+            }
+            // Parse JSON product_details
+            const warranty = {
+                ...result[0],
+                product_details: JSON.parse(result[0].product_details || '{}')
+            };
+            res.json({
+                success: true,
+                warranty
+            });
+        }
+        catch (error) {
+            console.error('Get warranty by ID error:', error);
+            res.status(500).json({ error: 'Failed to fetch warranty' });
+        }
+    }
     static async getCustomers(req, res) {
         try {
             // Get unique customers with their warranty statistics

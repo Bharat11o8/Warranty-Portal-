@@ -1,4 +1,5 @@
 ﻿import { transporter } from '../config/email.js';
+import { formatDateIST } from '../utils/dateUtils.js';
 import dotenv from 'dotenv';
 
 dotenv.config();
@@ -235,7 +236,7 @@ export class EmailService {
         <p><strong>Store Name:</strong> ${vendorName}</p>
         <p><strong>Store Email:</strong> ${vendorEmail}</p>
         <p><strong>Phone:</strong> ${vendorPhone}</p>
-        <p><strong>Registration Date:</strong> ${new Date().toLocaleDateString()}</p>
+        <p><strong>Registration Date:</strong> ${formatDateIST()}</p>
       </div>
       
       <p>Please review this vendor registration and click the button below to approve:</p>
@@ -385,7 +386,7 @@ export class EmailService {
         ` : ''}
         <p><strong>Product:</strong> ${String(productName).replace(/-/g, ' ').toUpperCase()}</p>
         <p><strong>Product Type:</strong> ${productType}</p>
-        <p><strong>Registration Date:</strong> ${new Date().toLocaleDateString()}</p>
+        <p><strong>Registration Date:</strong> ${formatDateIST()}</p>
       </div>
       
       <p>Your warranty is now active. Please keep this email for your records.</p>
@@ -450,7 +451,7 @@ export class EmailService {
         <p><strong>Product Type:</strong> ${productType}</p>
         <p><strong>Warranty Type:</strong> ${warrantyType || '1 Year'}</p>
         <p><strong>Vehicle:</strong> ${carMake} ${carModel}</p>
-        <p><strong>Approval Date:</strong> ${new Date().toLocaleDateString()}</p>
+        <p><strong>Approval Date:</strong> ${formatDateIST()}</p>
         <p><strong>Status:</strong> <span style="color: #28a745; font-weight: bold;">ACTIVE</span></p>
       </div>
       
@@ -529,7 +530,7 @@ export class EmailService {
         <p><strong>Product Type:</strong> ${productType}</p>
         <p><strong>Warranty Type:</strong> ${warrantyType || '1 Year'}</p>
         <p><strong>Vehicle:</strong> ${carMake} ${carModel}</p>
-        <p><strong>Review Date:</strong> ${new Date().toLocaleDateString()}</p>
+        <p><strong>Review Date:</strong> ${formatDateIST()}</p>
       </div>
       
       ${storeName ? `
@@ -846,7 +847,7 @@ export class EmailService {
           <p><strong>Serial Number:</strong> ${productDetails?.serialNumber || 'N/A'}</p>
           <p><strong>Vehicle Reg:</strong> ${productDetails?.carRegistration || 'N/A'}</p>
         ` : ''}
-        <p><strong>Date:</strong> ${new Date().toLocaleDateString()}</p>
+        <p><strong>Date:</strong> ${formatDateIST()}</p>
       </div>
       
       <div style="text-align: center; margin: 30px 0;">

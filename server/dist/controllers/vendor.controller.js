@@ -594,6 +594,59 @@ export class VendorController {
             res.status(500).json({ error: 'Failed to update manpower' });
         }
     }
+    static async getManpowerWarranties(req, res) {
+        try {
+            const userId = req.user?.id;
+            const { manpowerId } = req.params;
+            const { status } = req.query; // 'validated', 'pending', 'rejected', or 'all'
+            if (!userId) {
+                return res.status(401).json({ error: 'User not authenticated' });
+            }
+            // Get vendor details id to ensure ownership
+            const [vendorDetails] = await db.execute('SELECT id FROM vendor_details WHERE user_id = ?', [userId]);
+            if (vendorDetails.length === 0) {
+                return res.status(404).json({ error: 'Vendor details not found' });
+            }
+            const vendorId = vendorDetails[0].id;
+            // Verify manpower belongs to this vendor
+            const [manpowerCheck] = await db.execute('SELECT id, name FROM manpower WHERE id = ? AND vendor_id = ?', [manpowerId, vendorId]);
+            if (manpowerCheck.length === 0) {
+                return res.status(403).json({ error: 'Unauthorized access to manpower' });
+            }
+            // Build WHERE clause
+            let whereClause = 'w.manpower_id = ?';
+            const params = [manpowerId];
+            if (status && status !== 'all') {
+                if (status === 'pending') {
+                    whereClause += " AND w.status IN ('pending', 'pending_vendor')";
+                }
+                else {
+                    whereClause += ' AND w.status = ?';
+                    params.push(status);
+                }
+            }
+            // Fetch warranties for this manpower
+            const [warranties] = await db.execute(`SELECT w.* FROM warranty_registrations w
+         WHERE ${whereClause}
+         ORDER BY w.created_at DESC`, params);
+            // Parse product_details JSON
+            const formattedWarranties = warranties.map((w) => ({
+                ...w,
+                product_details: typeof w.product_details === 'string'
+                    ? JSON.parse(w.product_details)
+                    : w.product_details
+            }));
+            res.json({
+                success: true,
+                warranties: formattedWarranties,
+                manpower: manpowerCheck[0]
+            });
+        }
+        catch (error) {
+            console.error('Get manpower warranties error:', error);
+            res.status(500).json({ error: 'Failed to fetch manpower warranties' });
+        }
+    }
     static async approveWarranty(req, res) {
         try {
             const { uid } = req.params;
@@ -601,20 +654,45 @@ export class VendorController {
             if (!userId) {
                 return res.status(401).json({ error: 'User not authenticated' });
             }
-            // Get vendor's vendor_details_id
-            const [vendorDetails] = await db.execute('SELECT id FROM vendor_details WHERE user_id = ?', [userId]);
+            // Get vendor's vendor_details
+            const [vendorDetails] = await db.execute('SELECT id, store_name FROM vendor_details WHERE user_id = ?', [userId]);
             if (vendorDetails.length === 0) {
                 return res.status(403).json({ error: 'Vendor details not found' });
             }
             const vendorId = vendorDetails[0].id;
-            // Update only if warranty's manpower belongs to this vendor
-            const [result] = await db.execute(`UPDATE warranty_registrations wr
-         INNER JOIN manpower m ON wr.manpower_id = m.id
-         SET wr.status = 'pending'
-         WHERE wr.uid = ? AND wr.status = 'pending_vendor' AND m.vendor_id = ?`, [uid, vendorId]);
-            if (result.affectedRows === 0) {
-                return res.status(404).json({ error: 'Warranty not found or not authorized to approve' });
+            const storeName = vendorDetails[0].store_name;
+            // First, fetch the warranty to check authorization
+            const [warranty] = await db.execute(`SELECT wr.*, m.vendor_id as manpower_vendor_id 
+         FROM warranty_registrations wr 
+         LEFT JOIN manpower m ON wr.manpower_id = m.id 
+         WHERE wr.uid = ? AND wr.status = 'pending_vendor'`, [uid]);
+            if (warranty.length === 0) {
+                return res.status(404).json({ error: 'Warranty not found or not in pending_vendor status' });
             }
+            const w = warranty[0];
+            // Check authorization: 
+            // 1. Manpower belongs to vendor
+            // 2. OR Vendor submitted it directly
+            // 3. OR Store name matches installer_name
+            const isManpowerOwner = w.manpower_vendor_id === vendorId;
+            const isVendorSubmitter = w.user_id === userId;
+            const isStoreMatch = storeName && w.installer_name &&
+                w.installer_name.toLowerCase() === storeName.toLowerCase();
+            if (!isManpowerOwner && !isVendorSubmitter && !isStoreMatch) {
+                console.log('Authorization failed:', {
+                    warrantyId: uid,
+                    manpowerVendorId: w.manpower_vendor_id,
+                    vendorId,
+                    warrantyUserId: w.user_id,
+                    userId,
+                    installerName: w.installer_name,
+                    storeName
+                });
+                return res.status(403).json({ error: 'Not authorized to approve this warranty' });
+            }
+            // Update the warranty status
+            await db.execute(`UPDATE warranty_registrations SET status = 'pending' WHERE uid = ?`, [uid]);
+            console.log(`✓ Warranty ${uid} approved by vendor ${storeName}`);
             // Notify relevant parties
             try {
                 // 1. Notify Admin
@@ -658,20 +736,44 @@ export class VendorController {
             if (!reason) {
                 return res.status(400).json({ error: 'Rejection reason is required' });
             }
-            // Get vendor's vendor_details_id
-            const [vendorDetails] = await db.execute('SELECT id FROM vendor_details WHERE user_id = ?', [userId]);
+            // Get vendor's vendor_details
+            const [vendorDetails] = await db.execute('SELECT id, store_name FROM vendor_details WHERE user_id = ?', [userId]);
             if (vendorDetails.length === 0) {
                 return res.status(403).json({ error: 'Vendor details not found' });
             }
             const vendorId = vendorDetails[0].id;
-            // Update only if warranty's manpower belongs to this vendor
-            const [result] = await db.execute(`UPDATE warranty_registrations wr
-         INNER JOIN manpower m ON wr.manpower_id = m.id
-         SET wr.status = 'rejected', wr.rejection_reason = ?
-         WHERE wr.uid = ? AND wr.status = 'pending_vendor' AND m.vendor_id = ?`, [reason, uid, vendorId]);
-            if (result.affectedRows === 0) {
-                return res.status(404).json({ error: 'Warranty not found or not authorized to reject' });
+            const storeName = vendorDetails[0].store_name;
+            // First, fetch the warranty to check authorization
+            const [warrantyCheck] = await db.execute(`SELECT wr.*, m.vendor_id as manpower_vendor_id 
+         FROM warranty_registrations wr 
+         LEFT JOIN manpower m ON wr.manpower_id = m.id 
+         WHERE wr.uid = ? AND wr.status = 'pending_vendor'`, [uid]);
+            if (warrantyCheck.length === 0) {
+                return res.status(404).json({ error: 'Warranty not found or not in pending_vendor status' });
             }
+            const w = warrantyCheck[0];
+            // Check authorization: 
+            // 1. Manpower belongs to vendor
+            // 2. OR Vendor submitted it directly
+            // 3. OR Store name matches installer_name
+            const isManpowerOwner = w.manpower_vendor_id === vendorId;
+            const isVendorSubmitter = w.user_id === userId;
+            const isStoreMatch = storeName && w.installer_name &&
+                w.installer_name.toLowerCase() === storeName.toLowerCase();
+            if (!isManpowerOwner && !isVendorSubmitter && !isStoreMatch) {
+                console.log('Reject authorization failed:', {
+                    warrantyId: uid,
+                    manpowerVendorId: w.manpower_vendor_id,
+                    vendorId,
+                    warrantyUserId: w.user_id,
+                    userId,
+                    installerName: w.installer_name,
+                    storeName
+                });
+                return res.status(403).json({ error: 'Not authorized to reject this warranty' });
+            }
+            // Update the warranty status
+            await db.execute(`UPDATE warranty_registrations SET status = 'rejected', rejection_reason = ? WHERE uid = ?`, [reason, uid]);
             // Fetch details and send email to Customer
             const [warranty] = await db.execute('SELECT * FROM warranty_registrations WHERE uid = ?', [uid]);
             if (warranty.length > 0) {

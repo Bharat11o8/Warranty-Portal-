@@ -1,6 +1,7 @@
 import express from 'express';
 import { createServer } from 'http';
 import cors from 'cors';
+import compression from 'compression';
 import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
@@ -16,12 +17,16 @@ import adminRoutes from './routes/admin.routes.js';
 import publicRoutes from './routes/public.routes.js';
 import catalogRoutes from './routes/catalog.routes.js';
 import grievanceRoutes from './routes/grievance.routes.js';
+import assignmentRoutes from './routes/assignment.routes.js';
 import notificationRoutes from './routes/notification.routes.js';
 import uploadRoutes from './routes/upload.routes.js';
 import oldWarrantiesRoutes from './routes/old-warranties.routes.js';
 import settingsRoutes from './routes/settings.routes.js';
 import posmRoutes from './routes/posm.routes.js';
+import { AssignmentSchedulerService } from './services/assignment-scheduler.service.js';
 import { initSocket } from './socket.js';
+// Start background services
+AssignmentSchedulerService.start();
 // Get current directory for ES modules
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -77,6 +82,10 @@ app.use(cors({
     allowedHeaders: ['Origin', 'X-Requested-With', 'Content-Type', 'Accept', 'Authorization', 'X-Request-Id']
 }));
 // ===========================================
+// COMPRESSION (Gzip/Brotli for smaller responses)
+// ===========================================
+app.use(compression());
+// ===========================================
 // BODY PARSERS
 // ===========================================
 app.use(express.json({ limit: '10mb' }));
@@ -103,6 +112,7 @@ app.use('/api/admin', generalApiLimiter, adminRoutes);
 app.use('/api/public', generalApiLimiter, publicRoutes);
 app.use('/api/catalog', generalApiLimiter, catalogRoutes);
 app.use('/api/grievance', generalApiLimiter, grievanceRoutes);
+app.use('/api/assignment', generalApiLimiter, assignmentRoutes);
 app.use('/api/notifications', generalApiLimiter, notificationRoutes);
 app.use('/api/upload', generalApiLimiter, uploadRoutes);
 app.use('/api/admin/old-warranties', generalApiLimiter, oldWarrantiesRoutes);

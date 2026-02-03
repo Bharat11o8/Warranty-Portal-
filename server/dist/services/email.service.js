@@ -1,4 +1,5 @@
 import { transporter } from '../config/email.js';
+import { formatDateIST } from '../utils/dateUtils.js';
 import dotenv from 'dotenv';
 dotenv.config();
 /**
@@ -6,78 +7,81 @@ dotenv.config();
  * Optimized to reduce duplication and ensure consistent styling
  */
 export class EmailService {
-  /**
-   * HTML escape utility to prevent XSS in email templates
-   */
-  static escapeHtml(str) {
-    if (!str)
-      return '';
-    const htmlEscapes = {
-      '&': '&amp;',
-      '<': '&lt;',
-      '>': '&gt;',
-      '"': '&quot;',
-      "'": '&#39;'
-    };
-    return str.replace(/[&<>"']/g, char => htmlEscapes[char] || char);
-  }
-  /**
-   * Helper to get the correct application URL based on environment
-   * Centralizes the logic for Production vs Localhost
-   */
-  static getAppUrl() {
-    // Force production URL if running on Vercel or in production mode
-    const isProduction = process.env.NODE_ENV === 'production' || process.env.VERCEL === '1';
-    const appUrl = isProduction
-      ? (process.env.BACKEND_URL || 'https://server-bharat-maheshwaris-projects.vercel.app')
-      : (process.env.APP_URL || 'http://localhost:5173');
-    // Remove trailing slash if present
-    return appUrl.endsWith('/') ? appUrl.slice(0, -1) : appUrl;
-  }
-  /**
-   * Send email with retry and exponential backoff
-   * @param emailFn - Async function that sends the email
-   * @param context - Description of what email was being sent (for logging)
-   * @param retries - Number of retry attempts (default 3)
-   * @returns true if email sent successfully, false otherwise
-   */
-  static async sendWithRetry(emailFn, context, retries = 3) {
-    for (let attempt = 1; attempt <= retries; attempt++) {
-      try {
-        await emailFn();
-        return true; // Success
-      }
-      catch (error) {
-        console.error(`[Email] Attempt ${attempt}/${retries} failed for "${context}":`, error.message);
-        if (attempt < retries) {
-          // Exponential backoff: 1s, 2s, 4s
-          const delay = 1000 * Math.pow(2, attempt - 1);
-          await new Promise(resolve => setTimeout(resolve, delay));
+    /**
+     * HTML escape utility to prevent XSS in email templates
+     */
+    static escapeHtml(str) {
+        if (!str)
+            return '';
+        const htmlEscapes = {
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            '"': '&quot;',
+            "'": '&#39;'
+        };
+        return str.replace(/[&<>"']/g, char => htmlEscapes[char] || char);
+    }
+    /**
+     * Helper to get the correct application URL based on environment
+     * Centralizes the logic for Production vs Localhost
+     */
+    static getAppUrl() {
+        // Priority 1: Explicitly defined FRONTEND_URL
+        if (process.env.FRONTEND_URL)
+            return process.env.FRONTEND_URL.replace(/\/$/, '');
+        // Priority 2: Use known production domain if in production mode
+        const isProduction = process.env.NODE_ENV === 'production' || process.env.VERCEL === '1';
+        if (isProduction) {
+            return 'https://warranty.emporiobyautoform.in';
         }
-      }
+        // Default to APP_URL from env or localhost
+        return (process.env.APP_URL || 'http://localhost:5173').replace(/\/$/, '');
     }
-    // All retries failed - alert admin
-    console.error(`[Email] All ${retries} attempts failed for "${context}". Alerting admin.`);
-    await this.alertAdminOfFailure(context);
-    return false;
-  }
-  /**
-   * Alert admin when email delivery fails after all retries
-   */
-  static async alertAdminOfFailure(context) {
-    const adminEmail = process.env.ADMIN_ALERT_EMAIL || process.env.EMAIL_FROM;
-    if (!adminEmail) {
-      console.error('[Email] No admin email configured for failure alerts');
-      return;
+    /**
+     * Send email with retry and exponential backoff
+     * @param emailFn - Async function that sends the email
+     * @param context - Description of what email was being sent (for logging)
+     * @param retries - Number of retry attempts (default 3)
+     * @returns true if email sent successfully, false otherwise
+     */
+    static async sendWithRetry(emailFn, context, retries = 3) {
+        for (let attempt = 1; attempt <= retries; attempt++) {
+            try {
+                await emailFn();
+                return true; // Success
+            }
+            catch (error) {
+                console.error(`[Email] Attempt ${attempt}/${retries} failed for "${context}":`, error.message);
+                if (attempt < retries) {
+                    // Exponential backoff: 1s, 2s, 4s
+                    const delay = 1000 * Math.pow(2, attempt - 1);
+                    await new Promise(resolve => setTimeout(resolve, delay));
+                }
+            }
+        }
+        // All retries failed - alert admin
+        console.error(`[Email] All ${retries} attempts failed for "${context}". Alerting admin.`);
+        await this.alertAdminOfFailure(context);
+        return false;
     }
-    try {
-      await transporter.sendMail({
-        from: process.env.EMAIL_FROM,
-        to: adminEmail,
-        subject: '⚠️ Email Delivery Failed - Warranty Portal',
-        html: `
+    /**
+     * Alert admin when email delivery fails after all retries
+     */
+    static async alertAdminOfFailure(context) {
+        const adminEmail = process.env.ADMIN_ALERT_EMAIL || process.env.EMAIL_FROM;
+        if (!adminEmail) {
+            console.error('[Email] No admin email configured for failure alerts');
+            return;
+        }
+        try {
+            await transporter.sendMail({
+                from: process.env.EMAIL_FROM,
+                to: adminEmail,
+                subject: 'âš ï¸ Email Delivery Failed - Warranty Portal',
+                html: `
           <div style="font-family: Arial, sans-serif; padding: 20px;">
-            <h2 style="color: #dc3545;">⚠️ Email Delivery Failure Alert</h2>
+            <h2 style="color: #dc3545;">âš ï¸ Email Delivery Failure Alert</h2>
             <p>An email failed to send after multiple retry attempts:</p>
             <div style="background: #f8f9fa; padding: 15px; border-left: 4px solid #dc3545; margin: 15px 0;">
               <strong>Failed Email:</strong> ${this.escapeHtml(context)}<br>
@@ -87,19 +91,19 @@ export class EmailService {
             <p style="color: #666;">Please check the server logs for more details and consider manual follow-up.</p>
           </div>
         `
-      });
+            });
+        }
+        catch (alertError) {
+            // Even the alert failed - just log it
+            console.error('[Email] Failed to send admin alert:', alertError);
+        }
     }
-    catch (alertError) {
-      // Even the alert failed - just log it
-      console.error('[Email] Failed to send admin alert:', alertError);
-    }
-  }
-  /**
-   * Helper to generate consistent HTML email templates
-   * Eliminates the need to repeat CSS and layout boilerplate 10+ times
-   */
-  static getHtmlTemplate({ title, content, headerColorStart = '#FFB400', headerColorEnd = '#FF8C00', footerText = `© ${new Date().getFullYear()} Autoform India. All rights reserved.` }) {
-    return `
+    /**
+     * Helper to generate consistent HTML email templates
+     * Eliminates the need to repeat CSS and layout boilerplate 10+ times
+     */
+    static getHtmlTemplate({ title, content, headerColorStart = '#FFB400', headerColorEnd = '#FF8C00', footerText = `© ${new Date().getFullYear()} Autoform India. All rights reserved.` }) {
+        return `
       <!DOCTYPE html>
       <html>
       <head>
@@ -154,9 +158,9 @@ export class EmailService {
       </body>
       </html>
     `;
-  }
-  static async sendOTP(email, name, otp) {
-    const htmlContent = `
+    }
+    static async sendOTP(email, name, otp) {
+        const htmlContent = `
       <h2 style="color: #333; margin-top: 0;">Hello ${name},</h2>
       <p>You've requested to login to your Warranty Portal account. Please use the OTP below to complete your login:</p>
       
@@ -174,25 +178,25 @@ export class EmailService {
       
       <p style="margin-top: 30px;">Best regards,<br><strong>Autoform India Team</strong></p>
     `;
-    await this.sendWithRetry(async () => {
-      await transporter.sendMail({
-        from: process.env.EMAIL_FROM,
-        to: email,
-        subject: '🔐 Your OTP for Warranty Portal Login',
-        html: this.getHtmlTemplate({
-          title: 'Warranty Portal Login',
-          content: htmlContent,
-          headerColorStart: '#FFB400',
-          headerColorEnd: '#FF8C00'
-        })
-      });
-    }, `OTP to ${email}`);
-  }
-  static async sendVendorVerificationRequest(vendorEmail, vendorName, vendorPhone, userId, token) {
-    const baseUrl = this.getAppUrl();
-    // Using Backend API endpoints for verification logic
-    const verificationLink = `${baseUrl}/api/vendor/verify?token=${token}`;
-    const htmlContent = `
+        await this.sendWithRetry(async () => {
+            await transporter.sendMail({
+                from: process.env.EMAIL_FROM,
+                to: email,
+                subject: '🔑 Your OTP for Warranty Portal Login',
+                html: this.getHtmlTemplate({
+                    title: 'Warranty Portal Login',
+                    content: htmlContent,
+                    headerColorStart: '#FFB400',
+                    headerColorEnd: '#FF8C00'
+                })
+            });
+        }, `OTP to ${email}`);
+    }
+    static async sendVendorVerificationRequest(vendorEmail, vendorName, vendorPhone, userId, token) {
+        const baseUrl = this.getAppUrl();
+        // Using Backend API endpoints for verification logic
+        const verificationLink = `${baseUrl}/api/vendor/verify?token=${token}`;
+        const htmlContent = `
       <h2 style="color: #333; margin-top: 0;">Vendor Verification Required</h2>
       <p>A new vendor has registered on the Warranty Portal and requires verification:</p>
       
@@ -200,7 +204,7 @@ export class EmailService {
         <p><strong>Store Name:</strong> ${vendorName}</p>
         <p><strong>Store Email:</strong> ${vendorEmail}</p>
         <p><strong>Phone:</strong> ${vendorPhone}</p>
-        <p><strong>Registration Date:</strong> ${new Date().toLocaleDateString()}</p>
+        <p><strong>Registration Date:</strong> ${formatDateIST()}</p>
       </div>
       
       <p>Please review this vendor registration and click the button below to approve:</p>
@@ -213,23 +217,23 @@ export class EmailService {
       
       <p style="margin-top: 20px; font-size: 14px;"><strong>Note:</strong> Once verified, the vendor will receive an email notification with login instructions.</p>
     `;
-    await transporter.sendMail({
-      from: process.env.EMAIL_FROM,
-      to: process.env.EMAIL_FROM, // Send to admin/marketing
-      subject: 'New Vendor Registration - Verification Required',
-      html: this.getHtmlTemplate({
-        title: '🏪 New Vendor Registration',
-        content: htmlContent,
-        headerColorStart: '#f093fb',
-        headerColorEnd: '#f5576c'
-      })
-    });
-  }
-  static async sendVendorApprovalConfirmation(vendorEmail, vendorName) {
-    // Assuming Frontend URL is same as App URL for login page, or explicitly defined
-    const baseUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
-    const loginLink = `${baseUrl}/login?role=vendor`;
-    const htmlContent = `
+        await transporter.sendMail({
+            from: process.env.EMAIL_FROM,
+            to: process.env.EMAIL_FROM, // Send to admin/marketing
+            subject: 'New Vendor Registration - Verification Required',
+            html: this.getHtmlTemplate({
+                title: 'ðŸª New Vendor Registration',
+                content: htmlContent,
+                headerColorStart: '#f093fb',
+                headerColorEnd: '#f5576c'
+            })
+        });
+    }
+    static async sendVendorApprovalConfirmation(vendorEmail, vendorName) {
+        // Assuming Frontend URL is same as App URL for login page, or explicitly defined
+        const baseUrl = EmailService.getAppUrl();
+        const loginLink = `${baseUrl}/login?role=vendor`;
+        const htmlContent = `
       <h2 style="color: #333; margin-top: 0;">Hello ${vendorName},</h2>
       
       <div class="success-box">
@@ -251,31 +255,31 @@ export class EmailService {
       </div>
 
       <div style="text-align: center; margin: 30px 0;">
-        <a href="${loginLink}" class="button" style="background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);">🔐 Login to Your Account</a>
+        <a href="${loginLink}" class="button" style="background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);">ðŸ” Login to Your Account</a>
       </div>
 
       <div class="warning-box">
-        <strong>📝 Note:</strong> You'll need to enter your registered email and verify via OTP to access your account securely.
+        <strong>ðŸ“ Note:</strong> You'll need to enter your registered email and verify via OTP to access your account securely.
       </div>
       
       <p style="margin-top: 30px;">If you have any questions, please contact our support team at <a href="mailto:${process.env.EMAIL_FROM}" style="color: #11998e;">${process.env.EMAIL_FROM}</a>.</p>
       
       <p>Best regards,<br><strong>Autoform India Team</strong></p>
     `;
-    await transporter.sendMail({
-      from: process.env.EMAIL_FROM,
-      to: vendorEmail,
-      subject: '🎉 Your Vendor Account Has Been Approved!',
-      html: this.getHtmlTemplate({
-        title: '✅ Account Approved!',
-        content: htmlContent,
-        headerColorStart: '#11998e',
-        headerColorEnd: '#38ef7d'
-      })
-    });
-  }
-  static async sendVendorRejectionNotification(vendorEmail, vendorName, rejectionReason) {
-    const htmlContent = `
+        await transporter.sendMail({
+            from: process.env.EMAIL_FROM,
+            to: vendorEmail,
+            subject: '🎉 Your Vendor Account Has Been Approved!',
+            html: this.getHtmlTemplate({
+                title: '✅ Account Approved!',
+                content: htmlContent,
+                headerColorStart: '#11998e',
+                headerColorEnd: '#38ef7d'
+            })
+        });
+    }
+    static async sendVendorRejectionNotification(vendorEmail, vendorName, rejectionReason) {
+        const htmlContent = `
       <h2 style="color: #333; margin-top: 0;">Hello ${vendorName},</h2>
       
       <div class="warning-box">
@@ -305,21 +309,21 @@ export class EmailService {
       
       <p>Best regards,<br><strong>Autoform India Team</strong></p>
     `;
-    await transporter.sendMail({
-      from: process.env.EMAIL_FROM,
-      to: vendorEmail,
-      subject: 'Vendor Application Status Update',
-      html: this.getHtmlTemplate({
-        title: '⚠️ Application Status Update',
-        content: htmlContent,
-        headerColorStart: '#ff416c',
-        headerColorEnd: '#ff4b2b'
-      })
-    });
-  }
-  static async sendWarrantyConfirmation(customerEmail, customerName, uid, productType, productDetails, carMake, carModel) {
-    const productName = productDetails?.product || productDetails?.productName || productType;
-    const htmlContent = `
+        await transporter.sendMail({
+            from: process.env.EMAIL_FROM,
+            to: vendorEmail,
+            subject: 'Vendor Application Status Update',
+            html: this.getHtmlTemplate({
+                title: 'âš ï¸ Application Status Update',
+                content: htmlContent,
+                headerColorStart: '#ff416c',
+                headerColorEnd: '#ff4b2b'
+            })
+        });
+    }
+    static async sendWarrantyConfirmation(customerEmail, customerName, uid, productType, productDetails, carMake, carModel) {
+        const productName = productDetails?.product || productDetails?.productName || productType;
+        const htmlContent = `
       <h2 style="color: #333; margin-top: 0;">Hello ${customerName},</h2>
       <p>Your warranty registration has been successfully completed!</p>
       
@@ -334,7 +338,7 @@ export class EmailService {
         ` : ''}
         <p><strong>Product:</strong> ${String(productName).replace(/-/g, ' ').toUpperCase()}</p>
         <p><strong>Product Type:</strong> ${productType}</p>
-        <p><strong>Registration Date:</strong> ${new Date().toLocaleDateString()}</p>
+        <p><strong>Registration Date:</strong> ${formatDateIST()}</p>
       </div>
       
       <p>Your warranty is now active. Please keep this email for your records.</p>
@@ -347,21 +351,21 @@ export class EmailService {
       
       <p>Best regards,<br><strong>Autoform India Team</strong></p>
     `;
-    await transporter.sendMail({
-      from: process.env.EMAIL_FROM,
-      to: customerEmail,
-      subject: 'Warranty Registration Confirmation',
-      html: this.getHtmlTemplate({
-        title: '🛡️ Warranty Registration Confirmed',
-        content: htmlContent,
-        headerColorStart: '#667eea',
-        headerColorEnd: '#764ba2'
-      })
-    });
-  }
-  static async sendWarrantyApprovalToCustomer(customerEmail, customerName, uid, productType, carMake, carModel, productDetails, warrantyType, storeName, storeAddress, storePhone, applicatorName) {
-    const productName = productDetails?.product || productDetails?.productName || productType;
-    const htmlContent = `
+        await transporter.sendMail({
+            from: process.env.EMAIL_FROM,
+            to: customerEmail,
+            subject: 'Warranty Registration Confirmation',
+            html: this.getHtmlTemplate({
+                title: 'ðŸ›¡ï¸ Warranty Registration Confirmed',
+                content: htmlContent,
+                headerColorStart: '#667eea',
+                headerColorEnd: '#764ba2'
+            })
+        });
+    }
+    static async sendWarrantyApprovalToCustomer(customerEmail, customerName, uid, productType, carMake, carModel, productDetails, warrantyType, storeName, storeAddress, storePhone, applicatorName) {
+        const productName = productDetails?.product || productDetails?.productName || productType;
+        const htmlContent = `
       <h2 style="color: #333; margin-top: 0;">Hello ${customerName},</h2>
       
       <div class="success-box">
@@ -383,13 +387,13 @@ export class EmailService {
         <p><strong>Product Type:</strong> ${productType}</p>
         <p><strong>Warranty Type:</strong> ${warrantyType || '1 Year'}</p>
         <p><strong>Vehicle:</strong> ${carMake} ${carModel}</p>
-        <p><strong>Approval Date:</strong> ${new Date().toLocaleDateString()}</p>
+        <p><strong>Approval Date:</strong> ${formatDateIST()}</p>
         <p><strong>Status:</strong> <span style="color: #28a745; font-weight: bold;">ACTIVE</span></p>
       </div>
       
       ${storeName ? `
       <div class="info-box">
-        <p style="margin: 0 0 10px 0; font-weight: bold; color: #667eea;">🏪 Store Details:</p>
+        <p style="margin: 0 0 10px 0; font-weight: bold; color: #667eea;">ðŸª Store Details:</p>
         <p><strong>Store Name:</strong> ${storeName}</p>
         ${storeAddress ? `<p><strong>Address:</strong> ${storeAddress}</p>` : ''}
         ${storePhone ? `<p><strong>Phone:</strong> ${storePhone}</p>` : ''}
@@ -410,21 +414,21 @@ export class EmailService {
       
       <p>Best regards,<br><strong>Autoform India Team</strong></p>
     `;
-    await transporter.sendMail({
-      from: process.env.EMAIL_FROM,
-      to: customerEmail,
-      subject: '✅ Your Warranty Has Been Approved!',
-      html: this.getHtmlTemplate({
-        title: '✅ Warranty Approved!',
-        content: htmlContent,
-        headerColorStart: '#4facfe',
-        headerColorEnd: '#00f2fe'
-      })
-    });
-  }
-  static async sendWarrantyRejectionToCustomer(customerEmail, customerName, uid, productType, carMake, carModel, rejectionReason, productDetails, warrantyType, storeName, storeAddress, storePhone, applicatorName) {
-    const productName = productDetails?.product || productDetails?.productName || productType;
-    const htmlContent = `
+        await transporter.sendMail({
+            from: process.env.EMAIL_FROM,
+            to: customerEmail,
+            subject: '✅ Your Warranty Has Been Approved!',
+            html: this.getHtmlTemplate({
+                title: '✅ Warranty Approved!',
+                content: htmlContent,
+                headerColorStart: '#4facfe',
+                headerColorEnd: '#00f2fe'
+            })
+        });
+    }
+    static async sendWarrantyRejectionToCustomer(customerEmail, customerName, uid, productType, carMake, carModel, rejectionReason, productDetails, warrantyType, storeName, storeAddress, storePhone, applicatorName) {
+        const productName = productDetails?.product || productDetails?.productName || productType;
+        const htmlContent = `
       <h2 style="color: #333; margin-top: 0;">Hello ${customerName},</h2>
       
       <div class="warning-box">
@@ -445,19 +449,19 @@ export class EmailService {
         <p><strong>Product Type:</strong> ${productType}</p>
         <p><strong>Warranty Type:</strong> ${warrantyType || '1 Year'}</p>
         <p><strong>Vehicle:</strong> ${carMake} ${carModel}</p>
-        <p><strong>Review Date:</strong> ${new Date().toLocaleDateString()}</p>
+        <p><strong>Review Date:</strong> ${formatDateIST()}</p>
       </div>
       
       ${storeName ? `
       <div class="info-box">
-        <p style="margin: 0 0 10px 0; font-weight: bold; color: #667eea;">🏪 Store Details:</p>
+        <p style="margin: 0 0 10px 0; font-weight: bold; color: #667eea;">ðŸª Store Details:</p>
         <p><strong>Store Name:</strong> ${storeName}</p>
         ${storeAddress ? `<p><strong>Address:</strong> ${storeAddress}</p>` : ''}
       </div>
       ` : ''}
 
       <div class="error-box" style="border-color: #ff6b6b;">
-        <h4 style="margin: 0 0 10px 0; color: #d32f2f;">🔍 Reason for Decision:</h4>
+        <h4 style="margin: 0 0 10px 0; color: #d32f2f;">🔍 Reason for Decision:</h4>
         <p style="margin: 0; color: #d32f2f;">${rejectionReason}</p>
       </div>
 
@@ -475,29 +479,29 @@ export class EmailService {
       
       <p>Best regards,<br><strong>Autoform India Team</strong></p>
     `;
-    await transporter.sendMail({
-      from: process.env.EMAIL_FROM,
-      to: customerEmail,
-      subject: 'Warranty Application Update - Action Required',
-      html: this.getHtmlTemplate({
-        title: '⚠️ Application Update',
-        content: htmlContent,
-        headerColorStart: '#ff6b6b',
-        headerColorEnd: '#ee5a6f'
-      })
-    });
-  }
-  static async sendWarrantyApprovalToVendor(vendorEmail, vendorName, customerName, customerPhone, productType, carMake, carModel, manpowerName, uid, productDetails, warrantyType, customerAddress) {
-    const productNameMapping = {
-      'paint-protection': 'Paint Protection Films',
-      'sun-protection': 'Sun Protection Films',
-      'seat-cover': 'Seat Cover',
-      'ev-products': 'EV Products'
-    };
-    const rawProductName = productDetails?.product || productDetails?.productName || productType;
-    const productName = productNameMapping[rawProductName] || rawProductName;
-    const idLabel = productType === 'seat-cover' ? 'UID' : productType === 'ev-products' ? 'Serial Number' : 'Registration Number';
-    const htmlContent = `
+        await transporter.sendMail({
+            from: process.env.EMAIL_FROM,
+            to: customerEmail,
+            subject: 'Warranty Application Update - Action Required',
+            html: this.getHtmlTemplate({
+                title: 'âš ï¸ Application Update',
+                content: htmlContent,
+                headerColorStart: '#ff6b6b',
+                headerColorEnd: '#ee5a6f'
+            })
+        });
+    }
+    static async sendWarrantyApprovalToVendor(vendorEmail, vendorName, customerName, customerPhone, productType, carMake, carModel, manpowerName, uid, productDetails, warrantyType, customerAddress) {
+        const productNameMapping = {
+            'paint-protection': 'Paint Protection Films',
+            'sun-protection': 'Sun Protection Films',
+            'seat-cover': 'Seat Cover',
+            'ev-products': 'EV Products'
+        };
+        const rawProductName = productDetails?.product || productDetails?.productName || productType;
+        const productName = productNameMapping[rawProductName] || rawProductName;
+        const idLabel = productType === 'seat-cover' ? 'UID' : productType === 'ev-products' ? 'Serial Number' : 'Registration Number';
+        const htmlContent = `
       <h2 style="color: #333; margin-top: 0;">Hello ${vendorName},</h2>
       
       <div class="success-box">
@@ -521,40 +525,40 @@ export class EmailService {
       <div class="success-box" style="background: #e8f5e9; border: 2px solid #4caf50;">
         <h4 style="margin: 0 0 10px 0; color: #2e7d32;">👷 Manpower Credit:</h4>
         <p style="margin: 5px 0;"><strong>Installer:</strong> ${manpowerName}</p>
-        <p style="margin: 5px 0; color: #2e7d32;">✓ This approval has been credited to ${manpowerName}'s performance record</p>
+        <p style="margin: 5px 0; color: #2e7d32;">âœ“ This approval has been credited to ${manpowerName}'s performance record</p>
       </div>
       
       <p style="margin-top: 30px;">This successful warranty approval reflects the quality of service provided by your team. Keep up the excellent work!</p>
       
       <p>Best regards,<br><strong>Autoform India Team</strong></p>
     `;
-    await transporter.sendMail({
-      from: process.env.EMAIL_FROM,
-      to: vendorEmail,
-      subject: '🎉 Warranty Approved - Customer Application',
-      html: this.getHtmlTemplate({
-        title: '🎉 Warranty Approved!',
-        content: htmlContent,
-        headerColorStart: '#11998e',
-        headerColorEnd: '#38ef7d'
-      })
-    });
-  }
-  static async sendWarrantyRejectionToVendor(vendorEmail, vendorName, customerName, customerPhone, productType, carMake, carModel, manpowerName, uid, rejectionReason, productDetails, warrantyType, customerAddress) {
-    const productNameMapping = {
-      'paint-protection': 'Paint Protection Films',
-      'sun-protection': 'Sun Protection Films',
-      'seat-cover': 'Seat Cover',
-      'ev-products': 'EV Products'
-    };
-    const rawProductName = productDetails?.product || productDetails?.productName || productType;
-    const productName = productNameMapping[rawProductName] || rawProductName;
-    const idLabel = productType === 'seat-cover' ? 'UID' : productType === 'ev-products' ? 'Serial Number' : 'Registration Number';
-    const htmlContent = `
+        await transporter.sendMail({
+            from: process.env.EMAIL_FROM,
+            to: vendorEmail,
+            subject: '🎉 Warranty Approved - Customer Application',
+            html: this.getHtmlTemplate({
+                title: '🎉 Warranty Approved!',
+                content: htmlContent,
+                headerColorStart: '#11998e',
+                headerColorEnd: '#38ef7d'
+            })
+        });
+    }
+    static async sendWarrantyRejectionToVendor(vendorEmail, vendorName, customerName, customerPhone, productType, carMake, carModel, manpowerName, uid, rejectionReason, productDetails, warrantyType, customerAddress) {
+        const productNameMapping = {
+            'paint-protection': 'Paint Protection Films',
+            'sun-protection': 'Sun Protection Films',
+            'seat-cover': 'Seat Cover',
+            'ev-products': 'EV Products'
+        };
+        const rawProductName = productDetails?.product || productDetails?.productName || productType;
+        const productName = productNameMapping[rawProductName] || rawProductName;
+        const idLabel = productType === 'seat-cover' ? 'UID' : productType === 'ev-products' ? 'Serial Number' : 'Registration Number';
+        const htmlContent = `
       <h2 style="color: #333; margin-top: 0;">Hello ${vendorName},</h2>
       
       <div class="warning-box">
-        <h3 style="color: #856404; margin: 0 0 5px 0;">📋 Application Status Update</h3>
+        <h3 style="color: #856404; margin: 0 0 5px 0;">ðŸ“‹ Application Status Update</h3>
         <p style="margin: 0;">A warranty application submitted through your store could not be approved at this time.</p>
       </div>
       
@@ -571,7 +575,7 @@ export class EmailService {
       </div>
       
       <div class="error-box" style="border-color: #f44336;">
-        <h4 style="margin: 0 0 10px 0; color: #d32f2f;">🔍 Reason for Decision:</h4>
+        <h4 style="margin: 0 0 10px 0; color: #d32f2f;">🔍 Reason for Decision:</h4>
         <p style="margin: 0; color: #d32f2f;">${rejectionReason}</p>
       </div>
       
@@ -588,26 +592,26 @@ export class EmailService {
       
       <p>Best regards,<br><strong>Autoform India Team</strong></p>
     `;
-    await transporter.sendMail({
-      from: process.env.EMAIL_FROM,
-      to: vendorEmail,
-      subject: '⚠️ Warranty Application Update - Customer Application',
-      html: this.getHtmlTemplate({
-        title: '⚠️ Warranty Update',
-        content: htmlContent,
-        headerColorStart: '#ff9800',
-        headerColorEnd: '#ff5722'
-      })
-    });
-  }
-  static async sendVendorRegistrationConfirmation(vendorEmail, vendorName) {
-    const htmlContent = `
+        await transporter.sendMail({
+            from: process.env.EMAIL_FROM,
+            to: vendorEmail,
+            subject: 'âš ï¸ Warranty Application Update - Customer Application',
+            html: this.getHtmlTemplate({
+                title: 'âš ï¸ Warranty Update',
+                content: htmlContent,
+                headerColorStart: '#ff9800',
+                headerColorEnd: '#ff5722'
+            })
+        });
+    }
+    static async sendVendorRegistrationConfirmation(vendorEmail, vendorName) {
+        const htmlContent = `
       <h2 style="color: #333; margin-top: 0;">Hello ${vendorName},</h2>
       
       <p>Thank you for registering with the Warranty Portal. We have received your application and it is currently under review.</p>
       
       <div class="info-box" style="background: #e3f2fd; border-left-color: #2196f3;">
-        <h3 style="color: #1565c0; margin: 0 0 5px 0; font-size: 18px;">⏳ Status: Pending Approval</h3>
+        <h3 style="color: #1565c0; margin: 0 0 5px 0; font-size: 18px;">⌛ Status: Pending Approval</h3>
         <p style="margin: 0;">Your account is currently waiting for administrator verification. You will not be able to access the vendor dashboard until your account is approved.</p>
       </div>
       
@@ -632,21 +636,21 @@ export class EmailService {
       
       <p>Best regards,<br><strong>Autoform India Team</strong></p>
     `;
-    await transporter.sendMail({
-      from: process.env.EMAIL_FROM,
-      to: vendorEmail,
-      subject: 'Registration Received - Pending Approval',
-      html: this.getHtmlTemplate({
-        title: 'Registration Received',
-        content: htmlContent,
-        headerColorStart: '#667eea',
-        headerColorEnd: '#764ba2'
-      })
-    });
-  }
-  static async sendAdminInvitation(adminEmail, adminName, invitedByName) {
-    const loginUrl = process.env.FRONTEND_URL || 'https://warranty.emporiobyautoform.in/login?role=admin';
-    const htmlContent = `
+        await transporter.sendMail({
+            from: process.env.EMAIL_FROM,
+            to: vendorEmail,
+            subject: 'Registration Received - Pending Approval',
+            html: this.getHtmlTemplate({
+                title: 'Registration Received',
+                content: htmlContent,
+                headerColorStart: '#667eea',
+                headerColorEnd: '#764ba2'
+            })
+        });
+    }
+    static async sendAdminInvitation(adminEmail, adminName, invitedByName) {
+        const loginUrl = process.env.FRONTEND_URL || 'https://warranty.emporiobyautoform.in/login?role=admin';
+        const htmlContent = `
       <h2 style="color: #333; margin-top: 0;">Hello ${adminName},</h2>
       
       <div class="success-box" style="background: linear-gradient(135deg, #e8f4fd 0%, #d4e9f7 100%); border-color: #2d5a87;">
@@ -668,30 +672,30 @@ export class EmailService {
       </div>
       
       <div class="warning-box">
-        <strong>🔒 Security Reminder:</strong> Never share your OTP. Our team will never ask for it. Always access the portal through the official URL.
+        <strong>ðŸ”’ Security Reminder:</strong> Never share your OTP. Our team will never ask for it. Always access the portal through the official URL.
       </div>
       
       <p>Best regards,<br><strong>Autoform India Team</strong></p>
     `;
-    await transporter.sendMail({
-      from: process.env.EMAIL_FROM,
-      to: adminEmail,
-      subject: '🎉 You\'ve Been Invited as an Administrator',
-      html: this.getHtmlTemplate({
-        title: '🛡️FMS Admin',
-        content: htmlContent,
-        headerColorStart: '#1e3a5f',
-        headerColorEnd: '#2d5a87'
-      })
-    });
-  }
-  static async sendVendorConfirmationEmail(vendorEmail, vendorName, customerName, token, productType, productDetails, carMake, carModel) {
-    const baseUrl = this.getAppUrl();
-    // Links for actions - these go to backend API endpoints
-    const verificationLink = `${baseUrl}/api/public/verify-warranty?token=${token}`;
-    const rejectionLink = `${baseUrl}/api/public/reject-warranty?token=${token}`;
-    const productName = productDetails?.product || productDetails?.productName || productType;
-    const htmlContent = `
+        await transporter.sendMail({
+            from: process.env.EMAIL_FROM,
+            to: adminEmail,
+            subject: 'ðŸŽ‰ You\'ve Been Invited as an Administrator',
+            html: this.getHtmlTemplate({
+                title: '🛡️ FMS Admin',
+                content: htmlContent,
+                headerColorStart: '#1e3a5f',
+                headerColorEnd: '#2d5a87'
+            })
+        });
+    }
+    static async sendVendorConfirmationEmail(vendorEmail, vendorName, customerName, token, productType, productDetails, carMake, carModel) {
+        const baseUrl = this.getAppUrl();
+        // Links for actions - these go to backend API endpoints
+        const verificationLink = `${baseUrl}/api/public/verify-warranty?token=${token}`;
+        const rejectionLink = `${baseUrl}/api/public/reject-warranty?token=${token}`;
+        const productName = productDetails?.product || productDetails?.productName || productType;
+        const htmlContent = `
       <h2 style="color: #333; margin-top: 0;">Hello ${vendorName},</h2>
       <p>A customer has registered a warranty for a product installed at your store. Please verify specific details to proceed.</p>
       
@@ -705,11 +709,11 @@ export class EmailService {
           <p><strong>Serial Number:</strong> ${productDetails?.serialNumber || 'N/A'}</p>
           <p><strong>Vehicle Reg:</strong> ${productDetails?.carRegistration || 'N/A'}</p>
         ` : ''}
-        <p><strong>Date:</strong> ${new Date().toLocaleDateString()}</p>
+        <p><strong>Date:</strong> ${formatDateIST()}</p>
       </div>
       
       <div style="text-align: center; margin: 30px 0;">
-        <a href="${verificationLink}" class="button" style="background: linear-gradient(135deg, #FFB400 0%, #FF9000 100%); margin-right: 15px;">✓ Confirm Installation</a>
+        <a href="${verificationLink}" class="button" style="background: linear-gradient(135deg, #FFB400 0%, #FF9000 100%); margin-right: 15px;">âœ“ Confirm Installation</a>
         
         <p style="margin-top: 20px; font-size: 14px;">
           Is there an issue with this registration?
@@ -719,160 +723,161 @@ export class EmailService {
       
       <p style="color: #666; font-size: 12px; text-align: center;">can't click the button? Copy this link: ${verificationLink}</p>
     `;
-    await transporter.sendMail({
-      from: process.env.EMAIL_FROM,
-      to: vendorEmail,
-      subject: 'Action Required: Confirm Customer Warranty Registration',
-      html: this.getHtmlTemplate({
-        title: '🛡️ Warranty Verification Required',
-        content: htmlContent,
-        headerColorStart: '#FFB400',
-        headerColorEnd: '#FF9000'
-      })
-    });
-  }
-  /**
-   * Send grievance assignment email to an external team member
-   * Subject: "Customer Grievance - {Category} at {Store}"
-   */
-  static async sendGrievanceAssignmentEmail(assigneeEmail, assigneeName, grievance, remarks) {
-    // Category display mapping
-    const categoryLabels = {
-      product_issue: 'Product Issue',
-      billing_issue: 'Billing Issue',
-      store_issue: 'Store/Dealer Issue',
-      manpower_issue: 'Manpower Issue',
-      service_issue: 'Service Issue',
-      warranty_issue: 'Warranty Issue',
-      other: 'Other',
-    };
-    const categoryDisplay = categoryLabels[grievance.category] || grievance.category;
-    const storeName = grievance.franchise_name || 'Unknown Store';
-    const subject = `Customer Grievance - ${categoryDisplay} at ${storeName}`;
-    // Parse attachments
-    let attachmentUrls = [];
-    if (grievance.attachments) {
-      try {
-        attachmentUrls = typeof grievance.attachments === 'string'
-          ? JSON.parse(grievance.attachments)
-          : grievance.attachments;
-      }
-      catch {
-        if (typeof grievance.attachments === 'string' && grievance.attachments.startsWith('http')) {
-          attachmentUrls = [grievance.attachments];
-        }
-      }
+        await transporter.sendMail({
+            from: process.env.EMAIL_FROM,
+            to: vendorEmail,
+            subject: 'Action Required: Confirm Customer Warranty Registration',
+            html: this.getHtmlTemplate({
+                title: 'ðŸ›¡ï¸ Warranty Verification Required',
+                content: htmlContent,
+                headerColorStart: '#FFB400',
+                headerColorEnd: '#FF9000'
+            })
+        });
     }
-    const attachmentsHtml = attachmentUrls.length > 0
-      ? `
-        <div style="margin-top: 20px;">
-          <p style="font-weight: 600; margin-bottom: 10px;">📎 Attachments:</p>
-          <div style="display: flex; gap: 10px; flex-wrap: wrap;">
-            ${attachmentUrls.map((url, i) => `
-              <a href="${this.escapeHtml(url)}" target="_blank" style="display: inline-block; padding: 8px 16px; background: #f0f0f0; border-radius: 6px; text-decoration: none; color: #333; font-size: 14px;">
-                📄 Attachment ${i + 1}
-              </a>
-            `).join('')}
-          </div>
+    /**
+     * Send grievance assignment email to external assignee
+     */
+    static async sendGrievanceAssignmentEmail(assigneeEmail, assigneeName, grievance, remarks, updateToken) {
+        const categoryDisplay = EmailService.getCategoryDisplay(grievance.category);
+        const submissionDate = new Date(grievance.created_at).toLocaleString('en-IN', {
+            day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit'
+        });
+        const baseUrl = EmailService.getAppUrl();
+        const actionLink = updateToken
+            ? `${baseUrl}/grievance/assignment/${updateToken}`
+            : `${baseUrl}/login`;
+        // Process attachments
+        let attachmentsHtml = '';
+        try {
+            if (grievance.attachments) {
+                const files = JSON.parse(grievance.attachments);
+                if (Array.isArray(files) && files.length > 0) {
+                    attachmentsHtml = `
+            <div style="margin-top: 15px; padding-top: 15px; border-top: 1px dashed #ddd;">
+              <p style="font-weight: 600; margin-bottom: 5px; color: #555;">ðŸ“Ž Attachments:</p>
+              <ul style="margin: 0; padding-left: 20px;">
+                ${files.map((url, idx) => `<li><a href="${url}" target="_blank" style="color: #2196F3;">View Attachment ${idx + 1}</a></li>`).join('')}
+              </ul>
+            </div>
+          `;
+                }
+            }
+        }
+        catch (e) { /* ignore parse error */ }
+        const htmlContent = `
+      <p style="font-size: 16px; margin-bottom: 20px;">Hello <strong>${EmailService.escapeHtml(assigneeName)}</strong>,</p>
+      
+      <div class="info-box" style="border-left-color: #2196F3; background: #e3f2fd;">
+        <h3 style="color: #0d47a1; margin: 0 0 5px 0;">ðŸ“‹ New Task Assigned</h3>
+        <p style="margin: 0;">You have been assigned a new grievance ticket for resolution.</p>
+      </div>
+      
+      <div style="background: #fff; border: 1px solid #e0e0e0; border-radius: 8px; padding: 20px; margin: 20px 0;">
+        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #eee; padding-bottom: 15px; margin-bottom: 15px;">
+           <span style="font-size: 18px; font-weight: bold; color: #333;">${EmailService.escapeHtml(grievance.ticket_id)}</span>
+           <span style="background: #FFB400; color: #000; padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: bold;">${EmailService.escapeHtml(categoryDisplay)}</span>
         </div>
-      `
-      : '';
-    const htmlContent = `
-      <p>Hi <strong>${this.escapeHtml(assigneeName)}</strong>,</p>
-      <p>You have been assigned to handle the following customer grievance:</p>
 
-      <div class="info-box" style="background: #f8f9fa; border-left: 4px solid #FFB400; padding: 20px; margin: 20px 0; border-radius: 4px;">
-        <table style="width: 100%; border-collapse: collapse;">
-          <tr>
-            <td style="padding: 8px 0; font-weight: 600; width: 140px; color: #666;">Ticket ID:</td>
-            <td style="padding: 8px 0;"><code style="background: #e9ecef; padding: 2px 8px; border-radius: 4px;">${this.escapeHtml(grievance.ticket_id)}</code></td>
-          </tr>
-          <tr>
-            <td style="padding: 8px 0; font-weight: 600; color: #666;">Category:</td>
-            <td style="padding: 8px 0;">${this.escapeHtml(categoryDisplay)}${grievance.sub_category ? ` > ${this.escapeHtml(grievance.sub_category)}` : ''}</td>
-          </tr>
-          <tr>
-            <td style="padding: 8px 0; font-weight: 600; color: #666;">Customer:</td>
-            <td style="padding: 8px 0;">${this.escapeHtml(grievance.customer_name)}</td>
-          </tr>
-          <tr>
-            <td style="padding: 8px 0; font-weight: 600; color: #666;">Store:</td>
-            <td style="padding: 8px 0;">
-              ${this.escapeHtml(storeName)}
-              ${grievance.franchise_address ? `<br><span style="color: #888; font-size: 13px;">${this.escapeHtml(grievance.franchise_address)}</span>` : ''}
-              ${grievance.franchise_city ? `<br><span style="color: #888; font-size: 13px;">${this.escapeHtml(grievance.franchise_city)}</span>` : ''}
-            </td>
-          </tr>
-          <tr>
-            <td style="padding: 8px 0; font-weight: 600; color: #666;">Date Submitted:</td>
-            <td style="padding: 8px 0;">${new Date(grievance.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}</td>
-          </tr>
-        </table>
+        <p style="font-weight: bold; margin-bottom: 5px;">Subject:</p>
+        <p style="margin-top: 0; color: #555;">${EmailService.escapeHtml(grievance.subject)}</p>
+        
+        <p style="font-weight: bold; margin-bottom: 5px; margin-top: 15px;">Description:</p>
+        <div style="background: #f9f9f9; padding: 10px; border-radius: 4px; color: #555; white-space: pre-wrap;">${EmailService.escapeHtml(grievance.description)}</div>
+        
+        ${attachmentsHtml}
       </div>
 
-      <div style="margin-top: 20px;">
-        <p style="font-weight: 600; margin-bottom: 10px;">📋 Subject:</p>
-        <p style="background: #fff3cd; padding: 12px 16px; border-radius: 6px; margin: 0;">${this.escapeHtml(grievance.subject)}</p>
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px;">
+         ${grievance.source_type === 'franchise' ? `
+         <div style="background: #f9f9f9; padding: 15px; border-radius: 8px;">
+            <p style="font-weight: bold; margin: 0 0 10px 0; color: #333; border-bottom: 1px solid #9333ea; padding-bottom: 5px;">🏪 Franchise (Source)</p>
+            <p style="margin: 5px 0; font-size: 14px;"><strong>Store:</strong> ${EmailService.escapeHtml(grievance.franchise_name || 'N/A')}</p>
+            ${grievance.department ? `<p style="margin: 5px 0; font-size: 14px;"><strong>Department:</strong> ${EmailService.escapeHtml(grievance.department.toUpperCase())}</p>` : ''}
+            ${grievance.department_details ? `<p style="margin: 5px 0; font-size: 14px;"><strong>Details:</strong> ${EmailService.escapeHtml(grievance.department_details)}</p>` : ''}
+            ${grievance.franchise_city ? `<p style="margin: 5px 0; font-size: 14px;"><strong>City:</strong> ${EmailService.escapeHtml(grievance.franchise_city)}</p>` : ''}
+         </div>
+         <div style="background: #f9f9f9; padding: 15px; border-radius: 8px;">
+            <p style="font-weight: bold; margin: 0 0 10px 0; color: #333; border-bottom: 1px solid #9333ea; padding-bottom: 5px;">ðŸ‘¤ Contact Person</p>
+            <p style="margin: 5px 0; font-size: 14px;"><strong>Name:</strong> ${EmailService.escapeHtml(grievance.customer_name || 'N/A')}</p>
+            ${grievance.customer_email ? `<p style="margin: 5px 0; font-size: 14px;"><strong>Email:</strong> ${EmailService.escapeHtml(grievance.customer_email)}</p>` : ''}
+         </div>
+         ` : `
+         <div style="background: #f9f9f9; padding: 15px; border-radius: 8px;">
+            <p style="font-weight: bold; margin: 0 0 10px 0; color: #333; border-bottom: 1px solid #FFB400; padding-bottom: 5px;">ðŸ‘¤ Customer (Source)</p>
+            <p style="margin: 5px 0; font-size: 14px;"><strong>Name:</strong> ${EmailService.escapeHtml(grievance.customer_name || 'N/A')}</p>
+            ${grievance.customer_email ? `<p style="margin: 5px 0; font-size: 14px;"><strong>Email:</strong> ${EmailService.escapeHtml(grievance.customer_email)}</p>` : ''}
+         </div>
+         ${grievance.franchise_name ? `
+         <div style="background: #f9f9f9; padding: 15px; border-radius: 8px;">
+            <p style="font-weight: bold; margin: 0 0 10px 0; color: #333; border-bottom: 1px solid #FFB400; padding-bottom: 5px;">🏪 Target Franchise</p>
+            <p style="margin: 5px 0; font-size: 14px;"><strong>Store:</strong> ${EmailService.escapeHtml(grievance.franchise_name)}</p>
+            ${grievance.franchise_city ? `<p style="margin: 5px 0; font-size: 14px;"><strong>City:</strong> ${EmailService.escapeHtml(grievance.franchise_city)}</p>` : ''}
+         </div>
+         ` : ''}
+         `}
       </div>
-
-      <div style="margin-top: 20px;">
-        <p style="font-weight: 600; margin-bottom: 10px;">📝 Description:</p>
-        <div style="background: #f8f9fa; padding: 16px; border-radius: 6px; white-space: pre-wrap; font-size: 14px; line-height: 1.6;">${this.escapeHtml(grievance.description)}</div>
-      </div>
-
-      ${attachmentsHtml}
 
       ${remarks ? `
-      <div style="margin-top: 20px;">
-        <p style="font-weight: 600; margin-bottom: 10px;">💬 Remarks from Admin:</p>
-        <div style="background: #e8f4fd; padding: 16px; border-radius: 6px; border-left: 4px solid #2196F3; font-size: 14px; line-height: 1.6;">${this.escapeHtml(remarks)}</div>
+      <div style="background: #fff3cd; border: 1px solid #ffeeba; border-radius: 8px; padding: 15px; margin-bottom: 20px;">
+        <p style="font-weight: bold; margin: 0 0 5px 0; color: #856404;">ðŸ“ Admin Remarks / Instructions:</p>
+        <p style="margin: 0; color: #856404;">${EmailService.escapeHtml(remarks)}</p>
       </div>
       ` : ''}
 
-      <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee;">
-        <p style="color: #666; font-size: 14px;">Please review this grievance and take appropriate action. You can contact Noida Office for more details.</p>
+      ${grievance.estimated_completion_date ? `
+      <p style="font-weight: bold; color: #d32f2f;">â° Target Date: ${grievance.estimated_completion_date}</p>
+      ` : ''}
+
+      <div style="text-align: center; margin: 30px 0;">
+        <a href="${actionLink}" class="button">View & Update Status</a>
+        <p style="font-size: 12px; color: #888; margin-top: 10px;">Token-based secure link (No login required)</p>
       </div>
+      
+      <p style="font-size: 14px; color: #666; margin-top: 25px;">
+        Please enable "Reply-All" if you need to coordinate with the admin team regarding this task.
+      </p>
     `;
-    return await this.sendWithRetry(async () => {
-      await transporter.sendMail({
-        from: process.env.EMAIL_FROM,
-        to: assigneeEmail,
-        subject: subject,
-        html: this.getHtmlTemplate({
-          title: '📢 Customer Grievance',
-          content: htmlContent,
-          headerColorStart: '#FFB400',
-          headerColorEnd: '#FF9000'
-        })
-      });
-    }, `Grievance assignment email to ${assigneeEmail} for ${grievance.ticket_id}`);
-  }
-  /**
-   * Send confirmation email to customer when grievance is submitted
-   */
-  static async sendGrievanceConfirmationEmail(customerEmail, customerName, grievance) {
-    const categoryLabels = {
-      product_issue: 'Product Issue',
-      billing_issue: 'Billing Issue',
-      store_issue: 'Store/Dealer Issue',
-      manpower_issue: 'Manpower Issue',
-      service_issue: 'Service Issue',
-      warranty_issue: 'Warranty Issue',
-      other: 'Other'
-    };
-    const categoryDisplay = categoryLabels[grievance.category] || grievance.category;
-    const submissionDate = new Date(grievance.created_at).toLocaleString('en-IN', {
-      day: 'numeric',
-      month: 'long',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-    const htmlContent = `
+        return EmailService.sendWithRetry(async () => {
+            await transporter.sendMail({
+                from: process.env.EMAIL_FROM,
+                to: assigneeEmail,
+                subject: `Task Assigned: ${grievance.ticket_id} - ${grievance.subject}`,
+                html: EmailService.getHtmlTemplate({
+                    title: 'Task Assignment',
+                    content: htmlContent,
+                    headerColorStart: '#2196F3',
+                    headerColorEnd: '#1976D2'
+                })
+            });
+        }, `Grievance assignment email to ${assigneeEmail} for ${grievance.ticket_id}`);
+    }
+    /**
+     * Send confirmation email to customer when grievance is submitted
+     */
+    static async sendGrievanceConfirmationEmail(customerEmail, customerName, grievance) {
+        const categoryLabels = {
+            product_issue: 'Product Issue',
+            billing_issue: 'Billing Issue',
+            store_issue: 'Store/Dealer Issue',
+            manpower_issue: 'Manpower Issue',
+            service_issue: 'Service Issue',
+            warranty_issue: 'Warranty Issue',
+            other: 'Other'
+        };
+        const categoryDisplay = categoryLabels[grievance.category] || grievance.category;
+        const submissionDate = new Date(grievance.created_at).toLocaleString('en-IN', {
+            day: 'numeric',
+            month: 'long',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+        const htmlContent = `
       <p style="font-size: 16px; margin-bottom: 20px;">Dear <strong>${this.escapeHtml(customerName)}</strong>,</p>
       
       <div class="success-box">
-        <h3>✅ Grievance Submitted Successfully</h3>
+        <h3>âœ… Grievance Submitted Successfully</h3>
         <p style="font-size: 14px; margin: 0;">Your concern has been registered with us.</p>
       </div>
       
@@ -886,7 +891,7 @@ export class EmailService {
         </p>
       </div>
       
-      <h3 style="color: #333; border-bottom: 2px solid #FFB400; padding-bottom: 10px; margin-top: 25px;">📋 Submission Details</h3>
+      <h3 style="color: #333; border-bottom: 2px solid #FFB400; padding-bottom: 10px; margin-top: 25px;">ðŸ“‹ Submission Details</h3>
       
       <table style="width: 100%; border-collapse: collapse; margin: 15px 0;">
         <tr style="border-bottom: 1px solid #eee;">
@@ -910,7 +915,7 @@ export class EmailService {
       </table>
       
       <div style="background: #e8f5e9; border-radius: 8px; padding: 15px; margin: 20px 0;">
-        <h4 style="color: #2e7d32; margin: 0 0 10px 0;">📌 What happens next?</h4>
+        <h4 style="color: #2e7d32; margin: 0 0 10px 0;">ðŸ“Œ What happens next?</h4>
         <ul style="margin: 0; padding-left: 20px; color: #333;">
           <li>Our team will review your grievance within <strong>24-48 hours</strong></li>
           <li>You will receive updates via email as we work on your case</li>
@@ -927,41 +932,41 @@ export class EmailService {
         <strong>Team Autoform India</strong>
       </p>
     `;
-    return this.sendWithRetry(async () => {
-      await transporter.sendMail({
-        from: process.env.EMAIL_FROM,
-        to: customerEmail,
-        subject: `Grievance Registered - ${grievance.ticket_id} | Autoform India`,
-        html: this.getHtmlTemplate({
-          title: '🎫 Grievance Registered',
-          content: htmlContent,
-          headerColorStart: '#4CAF50',
-          headerColorEnd: '#45a049'
-        })
-      });
-    }, `Grievance confirmation email to ${customerEmail} for ${grievance.ticket_id}`);
-  }
-  /**
-   * Send confirmation email to franchise when they submit a grievance
-   */
-  static async sendFranchiseGrievanceConfirmationEmail(franchiseEmail, franchiseName, grievance) {
-    const categoryDisplay = EmailService.getCategoryDisplay(grievance.category);
-    const submissionDate = new Date().toLocaleDateString('en-IN', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-    const departmentDisplay = grievance.department.charAt(0).toUpperCase() + grievance.department.slice(1);
-    const targetInfo = grievance.department_details
-      ? `${departmentDisplay} - ${EmailService.escapeHtml(grievance.department_details)}`
-      : departmentDisplay;
-    const htmlContent = `
+        return this.sendWithRetry(async () => {
+            await transporter.sendMail({
+                from: process.env.EMAIL_FROM,
+                to: customerEmail,
+                subject: `Grievance Registered - ${grievance.ticket_id} | Autoform India`,
+                html: this.getHtmlTemplate({
+                    title: 'ðŸŽ« Grievance Registered',
+                    content: htmlContent,
+                    headerColorStart: '#4CAF50',
+                    headerColorEnd: '#45a049'
+                })
+            });
+        }, `Grievance confirmation email to ${customerEmail} for ${grievance.ticket_id}`);
+    }
+    /**
+     * Send confirmation email to franchise when they submit a grievance
+     */
+    static async sendFranchiseGrievanceConfirmationEmail(franchiseEmail, franchiseName, grievance) {
+        const categoryDisplay = EmailService.getCategoryDisplay(grievance.category);
+        const submissionDate = new Date().toLocaleDateString('en-IN', {
+            day: '2-digit',
+            month: 'short',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+        const departmentDisplay = grievance.department.charAt(0).toUpperCase() + grievance.department.slice(1);
+        const targetInfo = grievance.department_details
+            ? `${departmentDisplay} - ${EmailService.escapeHtml(grievance.department_details)}`
+            : departmentDisplay;
+        const htmlContent = `
       <p style="font-size: 16px; margin-bottom: 20px;">Dear <strong>${EmailService.escapeHtml(franchiseName)}</strong>,</p>
       
       <div class="success-box">
-        <h3>✅ Grievance Submitted Successfully</h3>
+        <h3>âœ… Grievance Submitted Successfully</h3>
         <p style="font-size: 14px; margin: 0;">Your concern has been registered with our team.</p>
       </div>
       
@@ -975,7 +980,7 @@ export class EmailService {
         </p>
       </div>
       
-      <h3 style="color: #333; border-bottom: 2px solid #9333ea; padding-bottom: 10px; margin-top: 25px;">📋 Submission Details</h3>
+      <h3 style="color: #333; border-bottom: 2px solid #9333ea; padding-bottom: 10px; margin-top: 25px;">ðŸ“‹ Submission Details</h3>
       
       <table style="width: 100%; border-collapse: collapse; margin: 15px 0;">
         <tr style="border-bottom: 1px solid #eee;">
@@ -997,7 +1002,7 @@ export class EmailService {
       </table>
       
       <div style="background: #f3e8ff; border-radius: 8px; padding: 15px; margin: 20px 0;">
-        <h4 style="color: #7c3aed; margin: 0 0 10px 0;">📌 What happens next?</h4>
+        <h4 style="color: #7c3aed; margin: 0 0 10px 0;">ðŸ“Œ What happens next?</h4>
         <ul style="margin: 0; padding-left: 20px; color: #333;">
           <li>Our team will review your grievance and take appropriate action</li>
           <li>You will receive updates via email as we work on your case</li>
@@ -1014,36 +1019,36 @@ export class EmailService {
         <strong>Team Autoform India</strong>
       </p>
     `;
-    return EmailService.sendWithRetry(async () => {
-      await transporter.sendMail({
-        from: process.env.EMAIL_FROM,
-        to: franchiseEmail,
-        subject: `Franchise Grievance Registered - ${grievance.ticket_id} | Autoform India`,
-        html: EmailService.getHtmlTemplate({
-          title: '🏪 Franchise Grievance Registered',
-          content: htmlContent,
-          headerColorStart: '#9333ea',
-          headerColorEnd: '#7c3aed'
-        })
-      });
-    }, `Franchise grievance confirmation email to ${franchiseEmail} for ${grievance.ticket_id}`);
-  }
-  /**
-   * Helper to get display text for category
-   */
-  static getCategoryDisplay(category) {
-    const categories = {
-      product_issue: 'Product Issue',
-      warranty_issue: 'Warranty Issue',
-      logistics_issue: 'Logistics Issue',
-      stock_issue: 'Stock Issue',
-      software_issue: 'Software/Portal Issue',
-      billing_issue: 'Billing Issue',
-      store_issue: 'Store/Dealer Issue',
-      manpower_issue: 'Manpower Issue',
-      service_issue: 'Service Issue',
-      other: 'Other'
-    };
-    return categories[category] || category;
-  }
+        return EmailService.sendWithRetry(async () => {
+            await transporter.sendMail({
+                from: process.env.EMAIL_FROM,
+                to: franchiseEmail,
+                subject: `Franchise Grievance Registered - ${grievance.ticket_id} | Autoform India`,
+                html: EmailService.getHtmlTemplate({
+                    title: 'ðŸª Franchise Grievance Registered',
+                    content: htmlContent,
+                    headerColorStart: '#9333ea',
+                    headerColorEnd: '#7c3aed'
+                })
+            });
+        }, `Franchise grievance confirmation email to ${franchiseEmail} for ${grievance.ticket_id}`);
+    }
+    /**
+     * Helper to get display text for category
+     */
+    static getCategoryDisplay(category) {
+        const categories = {
+            product_issue: 'Product Issue',
+            warranty_issue: 'Warranty Issue',
+            logistics_issue: 'Logistics Issue',
+            stock_issue: 'Stock Issue',
+            software_issue: 'Software/Portal Issue',
+            billing_issue: 'Billing Issue',
+            store_issue: 'Store/Dealer Issue',
+            manpower_issue: 'Manpower Issue',
+            service_issue: 'Service Issue',
+            other: 'Other'
+        };
+        return categories[category] || category;
+    }
 }

@@ -1,4 +1,5 @@
 import db from '../config/database.js';
+import { getISTTimestamp } from '../utils/dateUtils.js';
 import { getIO } from '../socket.js';
 
 // Simple in-memory cache for deduplication
@@ -141,7 +142,7 @@ export class NotificationService {
                 type,
                 link,
                 metadata: data.metadata,
-                created_at: new Date().toISOString(),
+                created_at: getISTTimestamp(),
                 is_read: false
             };
 
