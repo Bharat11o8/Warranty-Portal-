@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import api from "@/lib/api";
-import { downloadCSV } from "@/lib/utils";
+import { downloadCSV, getISTTodayISO } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import {
     Card,
@@ -182,7 +182,7 @@ export const AdminVendors = () => {
                 "Rejected Warranties": v.rejected_warranties || 0
             }));
 
-            downloadCSV(exportData, `franchises_${new Date().toISOString().split('T')[0]}.csv`);
+            downloadCSV(exportData, `franchises_${getISTTodayISO()}.csv`);
 
         } catch (error) {
             console.error("Export error:", error);

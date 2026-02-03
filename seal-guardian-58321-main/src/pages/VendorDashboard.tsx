@@ -11,7 +11,7 @@ import { Link } from "react-router-dom";
 import { useState, useEffect } from "react";
 import api from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
-import { downloadCSV, getWarrantyExpiration, cn, formatToIST } from "@/lib/utils";
+import { downloadCSV, getWarrantyExpiration, cn, formatToIST, getISTTodayISO } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import EVProductsForm from "@/components/warranty/EVProductsForm";
 import SeatCoverForm from "@/components/warranty/SeatCoverForm";
@@ -380,7 +380,7 @@ const VendorDashboard = () => {
                 'Purchase Date': formatToIST(w.purchase_date)
             };
         });
-        downloadCSV(exportData, `my_warranties_export_${new Date().toISOString().split('T')[0]}.csv`);
+        downloadCSV(exportData, `my_warranties_export_${getISTTodayISO()}.csv`);
         toast({
             title: "Export Successful",
             description: `${exportData.length} warranties exported to CSV.`,

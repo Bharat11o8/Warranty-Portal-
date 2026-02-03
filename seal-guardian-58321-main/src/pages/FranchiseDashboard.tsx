@@ -4,7 +4,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import api from "@/lib/api";
 import { Loader2, Plus, Download, X, ChevronRight, Search } from "lucide-react";
-import { downloadCSV, cn, formatToIST } from "@/lib/utils";
+import { downloadCSV, cn, formatToIST, getISTTodayISO } from "@/lib/utils";
 import { fetchProducts, Product, fetchCategories, Category } from '@/lib/catalogService';
 import { useNotifications } from "@/contexts/NotificationContext";
 
@@ -481,7 +481,7 @@ const FranchiseDashboard = () => {
                 return data;
             });
 
-            downloadCSV(exportData, `warranties_full_export_${new Date().toISOString().split('T')[0]}.csv`);
+            downloadCSV(exportData, `warranties_full_export_${getISTTodayISO()}.csv`);
             toast({ title: "Export Successful", description: `Exported ${exportData.length} filtered records.` });
         } catch (error) {
             console.error("Export failed", error);

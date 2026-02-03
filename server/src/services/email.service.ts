@@ -1,5 +1,5 @@
 ﻿import { transporter } from '../config/email.js';
-import { formatDateIST, formatDateTimeIST } from '../utils/dateUtils.js';
+import { formatDateIST, formatDateTimeIST, getISTYear } from '../utils/dateUtils.js';
 import dotenv from 'dotenv';
 
 dotenv.config();
@@ -120,7 +120,7 @@ export class EmailService {
     content,
     headerColorStart = '#FFB400',
     headerColorEnd = '#FF8C00',
-    footerText = `© ${new Date().getFullYear()} Autoform India. All rights reserved.`
+    footerText = `© ${getISTYear()} Autoform India. All rights reserved.`
   }: {
     title: string;
     content: string;

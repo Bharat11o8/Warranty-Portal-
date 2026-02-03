@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import api from "@/lib/api";
-import { formatToIST, cn } from "@/lib/utils";
+import { formatToIST, cn, getISTTodayISO } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -832,7 +832,7 @@ export const AdminGrievances = () => {
                                             <div>
                                                 <label className="text-xs text-slate-500">Expected Resolution Date</label>
                                                 <Input type="date" value={estimatedCompletionDate}
-                                                    min={new Date().toISOString().split('T')[0]}
+                                                    min={getISTTodayISO()}
                                                     onChange={(e) => setEstimatedCompletionDate(e.target.value)}
                                                     className="mt-1" />
                                             </div>

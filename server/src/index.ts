@@ -27,6 +27,7 @@ import settingsRoutes from './routes/settings.routes.js';
 import posmRoutes from './routes/posm.routes.js';
 import { AssignmentSchedulerService } from './services/assignment-scheduler.service.js';
 import { initSocket } from './socket.js';
+import { getISTTimestamp } from './utils/dateUtils.js';
 
 // Start background services
 AssignmentSchedulerService.start();
@@ -117,7 +118,7 @@ app.get('/health', (req, res) => {
   res.json({
     status: 'ok',
     message: 'Warranty Portal API is running',
-    timestamp: new Date().toISOString()
+    timestamp: getISTTimestamp()
   });
 });
 

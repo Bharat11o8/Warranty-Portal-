@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { formatToIST } from "@/lib/utils";
+import { formatToIST, getISTTodayISO } from "@/lib/utils";
 import api from "@/lib/api";
 
 const Terms = () => {
@@ -49,7 +49,7 @@ const Terms = () => {
             )}
 
             <p className="text-sm text-muted-foreground mt-8 border-t pt-8">
-              Last updated: {formatToIST(new Date())}
+              Last updated: {formatToIST(getISTTodayISO())}
             </p>
           </CardContent>
         </Card>

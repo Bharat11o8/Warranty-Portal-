@@ -7,6 +7,7 @@ import {
   getPhoneError,
   getEmailError
 } from "@/lib/validation";
+import { getISTTodayISO, getISTYear } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -504,7 +505,7 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing }: SeatCo
                     onChange={(e) => handleChange("purchaseDate", e.target.value)}
                     required
                     disabled={loading}
-                    max={new Date().toISOString().split('T')[0]}
+                    max={getISTTodayISO()}
                     className="pl-9 bg-white border-slate-200"
                   />
                 </div>
@@ -654,7 +655,7 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing }: SeatCo
                     <SelectValue placeholder="Year" />
                   </SelectTrigger>
                   <SelectContent>
-                    {Array.from({ length: new Date().getFullYear() - 1979 }, (_, i) => new Date().getFullYear() - i).map(year => (
+                    {Array.from({ length: getISTYear() - 1979 }, (_, i) => getISTYear() - i).map(year => (
                       <SelectItem key={year} value={year.toString()}>
                         {year}
                       </SelectItem>

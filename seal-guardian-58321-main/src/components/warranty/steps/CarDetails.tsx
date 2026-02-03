@@ -6,6 +6,7 @@ import { Combobox } from "@/components/ui/combobox";
 import { CAR_MAKES } from "@/lib/carMakes";
 import { validateVehicleReg, formatVehicleRegLive, getVehicleRegError } from "@/lib/validation";
 import { EVFormData } from "../EVProductsForm";
+import { getISTTodayISO, getISTYear } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 
 interface CarDetailsProps {
@@ -76,7 +77,7 @@ const CarDetails = ({ formData, updateFormData, onNext, onPrev }: CarDetailsProp
             value={formData.installationDate}
             onChange={(e) => updateFormData({ installationDate: e.target.value })}
             required
-            max={new Date().toISOString().split('T')[0]}
+            max={getISTTodayISO()}
           />
         </div>
 
@@ -123,7 +124,7 @@ const CarDetails = ({ formData, updateFormData, onNext, onPrev }: CarDetailsProp
               <SelectValue placeholder="Select year..." />
             </SelectTrigger>
             <SelectContent>
-              {Array.from({ length: new Date().getFullYear() - 1979 }, (_, i) => new Date().getFullYear() - i).map(year => (
+              {Array.from({ length: getISTYear() - 1979 }, (_, i) => getISTYear() - i).map(year => (
                 <SelectItem key={year} value={year.toString()}>
                   {year}
                 </SelectItem>

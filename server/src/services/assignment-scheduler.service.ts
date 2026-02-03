@@ -1,5 +1,5 @@
-
-import db, { getISTTimestamp } from '../config/database.js';
+import db from '../config/database.js';
+import { getISTTimestamp } from '../utils/dateUtils.js';
 import { EmailService } from './email.service.js';
 
 /**
@@ -144,22 +144,21 @@ export class AssignmentSchedulerService {
         }
     }
 
-    /**
-     * Helper to get timestamp for X hours ago
-     */
     private static getTimestampMinusHours(hours: number): string {
         const date = new Date();
-        // IST correction logic (similar to getISTTimestamp but subtract hours)
         const istOffset = 5.5 * 60 * 60 * 1000;
         const targetTime = new Date(date.getTime() + istOffset - (hours * 60 * 60 * 1000));
 
-        const year = targetTime.getUTCFullYear();
-        const month = String(targetTime.getUTCMonth() + 1).padStart(2, '0');
-        const day = String(targetTime.getUTCDate()).padStart(2, '0');
-        const h = String(targetTime.getUTCHours()).padStart(2, '0');
-        const m = String(targetTime.getUTCMinutes()).padStart(2, '0');
-        const s = String(targetTime.getUTCSeconds()).padStart(2, '0');
+        const get = (d: Date) => {
+            const y = d.getUTCFullYear();
+            const mo = String(d.getUTCMonth() + 1).padStart(2, '0');
+            const da = String(d.getUTCDate()).padStart(2, '0');
+            const h = String(d.getUTCHours()).padStart(2, '0');
+            const m = String(d.getUTCMinutes()).padStart(2, '0');
+            const s = String(d.getUTCSeconds()).padStart(2, '0');
+            return `${y}-${mo}-${da} ${h}:${m}:${s}`;
+        };
 
-        return `${year}-${month}-${day} ${h}:${m}:${s}`;
+        return get(targetTime);
     }
 }

@@ -1,4 +1,4 @@
-import { downloadCSV, formatToIST } from "@/lib/utils";
+import { downloadCSV, formatToIST, getISTTodayISO } from "@/lib/utils";
 
 /**
  * Format warranty data for export
@@ -82,7 +82,7 @@ export const formatManpowerForExport = (m: any) => ({
  */
 export const exportWarrantiesToCSV = (warranties: any[], filename?: string) => {
     const exportData = warranties.map(formatWarrantyForExport);
-    downloadCSV(exportData, filename || `warranties_export_${new Date().toISOString().split('T')[0]}.csv`);
+    downloadCSV(exportData, filename || `warranties_export_${getISTTodayISO()}.csv`);
 };
 
 /**
@@ -90,7 +90,7 @@ export const exportWarrantiesToCSV = (warranties: any[], filename?: string) => {
  */
 export const exportVendorsToCSV = (vendors: any[], filename?: string) => {
     const exportData = vendors.map(formatVendorForExport);
-    downloadCSV(exportData, filename || `vendors_export_${new Date().toISOString().split('T')[0]}.csv`);
+    downloadCSV(exportData, filename || `vendors_export_${getISTTodayISO()}.csv`);
 };
 
 /**
@@ -98,7 +98,7 @@ export const exportVendorsToCSV = (vendors: any[], filename?: string) => {
  */
 export const exportCustomersToCSV = (customers: any[], filename?: string) => {
     const exportData = customers.map(formatCustomerForExport);
-    downloadCSV(exportData, filename || `customers_export_${new Date().toISOString().split('T')[0]}.csv`);
+    downloadCSV(exportData, filename || `customers_export_${getISTTodayISO()}.csv`);
 };
 
 /**
@@ -106,5 +106,5 @@ export const exportCustomersToCSV = (customers: any[], filename?: string) => {
  */
 export const exportManpowerToCSV = (manpower: any[], filename?: string) => {
     const exportData = manpower.map(formatManpowerForExport);
-    downloadCSV(exportData, filename || `manpower_export_${new Date().toISOString().split('T')[0]}.csv`);
+    downloadCSV(exportData, filename || `manpower_export_${getISTTodayISO()}.csv`);
 };

@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import helmet from 'helmet';
 import { v4 as uuidv4 } from 'uuid';
+import { getISTTimestamp } from '../utils/dateUtils.js';
 
 /**
  * Security headers middleware using Helmet.js
@@ -39,7 +40,7 @@ export const requestIdMiddleware = (req: Request, res: Response, next: NextFunct
  */
 export const enhancedLogger = (req: Request, res: Response, next: NextFunction) => {
     const requestId = (req as RequestWithId).requestId || 'no-id';
-    const timestamp = new Date().toISOString();
+    const timestamp = getISTTimestamp();
 
     // Only log in development or if explicitly enabled
     if (process.env.NODE_ENV !== 'production' || process.env.ENABLE_REQUEST_LOGGING === 'true') {

@@ -112,6 +112,26 @@ export function formatToIST(dateInput: string | Date | number | undefined | null
 }
 
 /**
+ * Get current year in IST
+ */
+export function getISTYear(): number {
+  return new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata' })).getFullYear();
+}
+
+/**
+ * Get current date in IST formatted as YYYY-MM-DD
+ * Useful for min/max attributes on date inputs
+ */
+export function getISTTodayISO(): string {
+  const now = new Date();
+  const istDateString = now.toLocaleString('en-CA', {
+    timeZone: 'Asia/Kolkata',
+    hour12: false
+  }).split(',')[0];
+  return istDateString;
+}
+
+/**
  * Optimize Cloudinary image URLs with automatic format and quality.
  * Adds f_auto (format), q_auto (quality), and optional width transformations.
  * 

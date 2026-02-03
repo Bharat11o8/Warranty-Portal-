@@ -54,8 +54,8 @@ export function getISTTimestamp(): string {
 }
 
 /**
- * Get current IST date as MySQL date string (YYYY-MM-DD)
+ * Get current year in IST
  */
-export function getISTDate(): string {
-    return getISTTimestamp().split(' ')[0];
+export function getISTYear(): number {
+    return new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata' })).getFullYear();
 }

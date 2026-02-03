@@ -29,6 +29,8 @@ import { useToast } from '../components/ui/use-toast';
 // Re-using Button from ui/button
 import { Button } from '../components/ui/button';
 
+import { getISTYear } from '../lib/utils';
+
 export default function AssignmentUpdatePanel() {
     const { token } = useParams<{ token: string }>();
     const { toast } = useToast();
@@ -344,7 +346,7 @@ export default function AssignmentUpdatePanel() {
                 </div>
 
                 <footer className="text-center text-xs text-muted-foreground pb-10 mt-10">
-                    &copy; {new Date().getFullYear()} Autoform India - Secured Task Portal
+                    &copy; {getISTYear()} Autoform India - Secured Task Portal
                 </footer>
             </div>
         </div>
