@@ -772,7 +772,7 @@ export class EmailService {
     adminName: string,
     invitedByName: string
   ): Promise<void> {
-    const loginUrl = process.env.FRONTEND_URL || 'https://warranty.autoformindia.com';
+    const loginUrl = process.env.FRONTEND_URL || 'https://warranty.emporiobyautoform.in/login?role=admin';
 
     const htmlContent = `
       <h2 style="color: #333; margin-top: 0;">Hello ${adminName},</h2>
@@ -807,7 +807,7 @@ export class EmailService {
       to: adminEmail,
       subject: 'ðŸŽ‰ You\'ve Been Invited as an Administrator',
       html: this.getHtmlTemplate({
-        title: 'ðŸ›¡ï¸ Seal Guardian',
+        title: '🛡️ FMS Admin',
         content: htmlContent,
         headerColorStart: '#1e3a5f',
         headerColorEnd: '#2d5a87'

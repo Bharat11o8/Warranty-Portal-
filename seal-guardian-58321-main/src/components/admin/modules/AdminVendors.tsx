@@ -182,17 +182,6 @@ export const AdminVendors = () => {
                 "Rejected Warranties": v.rejected_warranties || 0
             }));
 
-            // Use the utility from lib/utils (need to ensure it's imported, but I see it in imports list in step 8152? No wait, step 8143 doesn't show it imported)
-            // I need to update imports first if downloadCSV isn't imported.
-            // Wait, step 8143 imports are: import { cn } from "@/lib/utils"; is NOT there.
-            // Actually Step 8143 file content lines 1-38 do NOT show "downloadCSV".
-            // I will implement the functionality assuming I can add the import.
-            // Since replace_file_content is single block, I should check if I can modify imports too. 
-            // Or just inline the logic if it's cleaner than multiple edits. 
-            // But reuse is better.
-
-            // Let's assume I'll add the import in a separate call or use a multi-replace.
-            // For this specific block replacement, I'll call `downloadCSV`.
             downloadCSV(exportData, `franchises_${new Date().toISOString().split('T')[0]}.csv`);
 
         } catch (error) {

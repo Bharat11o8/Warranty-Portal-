@@ -200,7 +200,7 @@ export const AdminWarranties = () => {
         else setLoading(true);
 
         try {
-            const response = await api.get("/admin/warranties"); // Assuming this endpoint exists based on AdminDashboard
+            const response = await api.get("/admin/warranties?limit=1000");
             if (response.data.success) {
                 setWarranties(response.data.warranties);
                 if (isRefresh) {

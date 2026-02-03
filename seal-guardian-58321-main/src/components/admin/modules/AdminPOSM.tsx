@@ -10,6 +10,15 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Loader2, RefreshCw, MessageSquare, Search, Paperclip, Store, User, Mail, Send, Clock, Eye, Filter, CheckCircle2, X, FileImage, FileVideo, FileText } from "lucide-react";
+import {
+    Pagination,
+    PaginationContent,
+    PaginationEllipsis,
+    PaginationItem,
+    PaginationLink,
+    PaginationNext,
+    PaginationPrevious,
+} from "@/components/ui/pagination";
 
 interface POSMRequest {
     id: number;
@@ -80,6 +89,10 @@ export const AdminPOSM = () => {
     const [statusFilter, setStatusFilter] = useState("all");
     const [activeTab, setActiveTab] = useState<'details' | 'chat'>('details');
 
+    // Pagination State
+    const [currentPage, setCurrentPage] = useState(1);
+    const itemsPerPage = 15;
+
     const fetchRequests = async () => {
         setLoading(true);
         try {
@@ -136,7 +149,13 @@ export const AdminPOSM = () => {
         }
 
         setFilteredRequests(result);
+        setCurrentPage(1); // Reset to first page when filters change
     }, [searchQuery, statusFilter, requests]);
+
+    // Pagination Calculation
+    const totalPages = Math.ceil(filteredRequests.length / itemsPerPage);
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const paginatedRequests = filteredRequests.slice(startIndex, startIndex + itemsPerPage);
 
     const handleOpenDetail = (r: POSMRequest) => {
         setSelectedRequest(r);
@@ -309,7 +328,7 @@ export const AdminPOSM = () => {
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-orange-50 bg-white">
-                            {filteredRequests.map((r) => (
+                            {paginatedRequests.map((r) => (
                                 <tr key={r.id} className="hover:bg-orange-50/30 transition-colors">
                                     <td className="p-6 text-slate-500 font-medium whitespace-nowrap">
                                         {formatToIST(r.created_at)}
@@ -359,7 +378,7 @@ export const AdminPOSM = () => {
 
             {/* Mobile Cards View */}
             <div className="md:hidden space-y-4">
-                {filteredRequests.map((r) => (
+                {paginatedRequests.map((r) => (
                     <Card key={r.id} className="border-orange-100 shadow-sm rounded-3xl overflow-hidden" onClick={() => handleOpenDetail(r)}>
                         <CardContent className="p-6">
                             <div className="flex justify-between items-start mb-4">
@@ -382,6 +401,66 @@ export const AdminPOSM = () => {
                     </Card>
                 ))}
             </div>
+
+            {/* Pagination */}
+            {totalPages > 1 && (
+                <Pagination className="mt-4">
+                    <PaginationContent>
+                        <PaginationItem>
+                            <PaginationPrevious
+                                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                                aria-disabled={currentPage === 1}
+                                className={currentPage === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                            />
+                        </PaginationItem>
+
+                        {Array.from({ length: totalPages }, (_, i) => i + 1)
+                            .filter(page => {
+                                return page === 1 ||
+                                    page === totalPages ||
+                                    Math.abs(page - currentPage) <= 1;
+                            })
+                            .map((page, index, array) => {
+                                if (index > 0 && array[index - 1] !== page - 1) {
+                                    return (
+                                        <div key={`ellipsis-${page}`} className="flex items-center">
+                                            <PaginationEllipsis />
+                                            <PaginationItem>
+                                                <PaginationLink
+                                                    isActive={currentPage === page}
+                                                    onClick={() => setCurrentPage(page)}
+                                                    className="cursor-pointer"
+                                                >
+                                                    {page}
+                                                </PaginationLink>
+                                            </PaginationItem>
+                                        </div>
+                                    );
+                                }
+
+                                return (
+                                    <PaginationItem key={page}>
+                                        <PaginationLink
+                                            isActive={currentPage === page}
+                                            onClick={() => setCurrentPage(page)}
+                                            className="cursor-pointer"
+                                        >
+                                            {page}
+                                        </PaginationLink>
+                                    </PaginationItem>
+                                );
+                            })}
+
+                        <PaginationItem>
+                            <PaginationNext
+                                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                                aria-disabled={currentPage === totalPages}
+                                className={currentPage === totalPages ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                            />
+                        </PaginationItem>
+                    </PaginationContent>
+                </Pagination>
+            )}
 
             {/* Detail & Chat Dialog */}
             <Dialog open={!!selectedRequest} onOpenChange={() => setSelectedRequest(null)}>

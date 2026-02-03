@@ -114,7 +114,10 @@ const AdminManagement = () => {
                                     className="w-full p-2 rounded-md border border-input bg-background"
                                     placeholder="John Doe"
                                     value={newAdminForm.name}
-                                    onChange={(e) => setNewAdminForm({ ...newAdminForm, name: e.target.value })}
+                                    onChange={(e) => {
+                                        const textOnly = e.target.value.replace(/[^A-Za-z\s]/g, '');
+                                        setNewAdminForm({ ...newAdminForm, name: textOnly });
+                                    }}
                                 />
                             </div>
                             <div className="space-y-2">
@@ -133,8 +136,12 @@ const AdminManagement = () => {
                                     type="tel"
                                     className="w-full p-2 rounded-md border border-input bg-background"
                                     placeholder="9876543210"
+                                    maxLength={10}
                                     value={newAdminForm.phone}
-                                    onChange={(e) => setNewAdminForm({ ...newAdminForm, phone: e.target.value })}
+                                    onChange={(e) => {
+                                        const digitsOnly = e.target.value.replace(/\D/g, '').slice(0, 10);
+                                        setNewAdminForm({ ...newAdminForm, phone: digitsOnly });
+                                    }}
                                 />
                             </div>
                             <Button

@@ -138,7 +138,6 @@ export const SidebarContent = ({
                 },
 
                 { id: 'warranty-products' as const, label: "Warranty Products", icon: Store },
-                { id: 'announcements' as const, label: "Announcements", icon: Megaphone },
                 { id: 'warranty-form' as const, label: "New Registration", icon: PenTool },
             ]
         },

@@ -6,6 +6,15 @@ import { Button } from "@/components/ui/button";
 import { Search, Loader2 } from "lucide-react";
 import api from "@/lib/api";
 import { formatToIST } from "@/lib/utils";
+import {
+    Pagination,
+    PaginationContent,
+    PaginationEllipsis,
+    PaginationItem,
+    PaginationLink,
+    PaginationNext,
+    PaginationPrevious,
+} from "@/components/ui/pagination";
 
 export const AdminActivityLogs = () => {
     const { user } = useAuth();
@@ -20,6 +29,10 @@ export const AdminActivityLogs = () => {
     const [logSortOrder, setLogSortOrder] = useState<'asc' | 'desc'>('desc');
     const [logDateFrom, setLogDateFrom] = useState('');
     const [logDateTo, setLogDateTo] = useState('');
+
+    // Pagination State
+    const [currentPage, setCurrentPage] = useState(1);
+    const itemsPerPage = 20;
 
     useEffect(() => {
         fetchActivityLogs();
@@ -89,6 +102,16 @@ export const AdminActivityLogs = () => {
     };
 
     const filteredLogs = filterAndSortLogs(activityLogs);
+
+    // Pagination Calculation
+    const totalPages = Math.ceil(filteredLogs.length / itemsPerPage);
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const paginatedLogs = filteredLogs.slice(startIndex, startIndex + itemsPerPage);
+
+    // Reset page when filters change
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [logSearch, logDateFrom, logDateTo, logSortField, logSortOrder]);
 
     return (
         <div className="space-y-6">
@@ -171,7 +194,7 @@ export const AdminActivityLogs = () => {
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-100 bg-white">
-                                    {filteredLogs.map((log: any) => {
+                                    {paginatedLogs.map((log: any) => {
                                         // Helper to format details
                                         const getActionDetails = (log: any) => {
                                             const details = typeof log.details === 'string' ? JSON.parse(log.details) : log.details;
@@ -238,6 +261,66 @@ export const AdminActivityLogs = () => {
                     )}
                 </CardContent>
             </Card>
+
+            {/* Pagination */}
+            {totalPages > 1 && (
+                <Pagination className="mt-4">
+                    <PaginationContent>
+                        <PaginationItem>
+                            <PaginationPrevious
+                                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                                aria-disabled={currentPage === 1}
+                                className={currentPage === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                            />
+                        </PaginationItem>
+
+                        {Array.from({ length: totalPages }, (_, i) => i + 1)
+                            .filter(page => {
+                                return page === 1 ||
+                                    page === totalPages ||
+                                    Math.abs(page - currentPage) <= 1;
+                            })
+                            .map((page, index, array) => {
+                                if (index > 0 && array[index - 1] !== page - 1) {
+                                    return (
+                                        <div key={`ellipsis-${page}`} className="flex items-center">
+                                            <PaginationEllipsis />
+                                            <PaginationItem>
+                                                <PaginationLink
+                                                    isActive={currentPage === page}
+                                                    onClick={() => setCurrentPage(page)}
+                                                    className="cursor-pointer"
+                                                >
+                                                    {page}
+                                                </PaginationLink>
+                                            </PaginationItem>
+                                        </div>
+                                    );
+                                }
+
+                                return (
+                                    <PaginationItem key={page}>
+                                        <PaginationLink
+                                            isActive={currentPage === page}
+                                            onClick={() => setCurrentPage(page)}
+                                            className="cursor-pointer"
+                                        >
+                                            {page}
+                                        </PaginationLink>
+                                    </PaginationItem>
+                                );
+                            })}
+
+                        <PaginationItem>
+                            <PaginationNext
+                                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                                aria-disabled={currentPage === totalPages}
+                                className={currentPage === totalPages ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                            />
+                        </PaginationItem>
+                    </PaginationContent>
+                </Pagination>
+            )}
         </div>
     );
 };

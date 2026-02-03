@@ -47,6 +47,15 @@ import { useToast } from "@/hooks/use-toast";
 import api from "@/lib/api";
 import { downloadCSV } from "@/lib/utils";
 import { Trash2, Plus, Package, Pencil, FolderTree, X, Loader2, Search, Download, Upload, ImageIcon, Video } from "lucide-react";
+import {
+    Pagination,
+    PaginationContent,
+    PaginationEllipsis,
+    PaginationItem,
+    PaginationLink,
+    PaginationNext,
+    PaginationPrevious,
+} from "@/components/ui/pagination";
 
 
 interface Category {
@@ -87,6 +96,10 @@ export function AdminProducts() {
     const [products, setProducts] = useState<Product[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState("");
+
+    // Pagination State
+    const [currentPage, setCurrentPage] = useState(1);
+    const itemsPerPage = 20;
 
     // Category State
     const [isCatDialogOpen, setIsCatDialogOpen] = useState(false);
@@ -147,6 +160,16 @@ export function AdminProducts() {
             (Array.isArray(p.description) && p.description.some(d => d.toLowerCase().includes(term))) ||
             (typeof p.description === 'string' && p.description.toLowerCase().includes(term));
     });
+
+    // Pagination Calculation
+    const totalPages = Math.ceil(filteredProducts.length / itemsPerPage);
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const paginatedProducts = filteredProducts.slice(startIndex, startIndex + itemsPerPage);
+
+    // Reset page when search changes
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [searchQuery]);
 
     // Helper functions (Images, Variations, etc.)
     const removeImage = (index: number) => {
@@ -458,7 +481,7 @@ export function AdminProducts() {
                                 ) : filteredProducts.length === 0 ? (
                                     <TableRow><TableCell colSpan={5} className="text-center py-8 text-muted-foreground">No products found</TableCell></TableRow>
                                 ) : (
-                                    filteredProducts.map(product => (
+                                    paginatedProducts.map(product => (
                                         <TableRow key={product.id} className="hover:bg-slate-50/50">
                                             <TableCell className="font-medium">
                                                 <div className="flex items-center gap-3">
@@ -501,6 +524,66 @@ export function AdminProducts() {
                             </TableBody>
                         </Table>
                     </div>
+
+                    {/* Pagination */}
+                    {totalPages > 1 && (
+                        <Pagination className="mt-4">
+                            <PaginationContent>
+                                <PaginationItem>
+                                    <PaginationPrevious
+                                        onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                                        aria-disabled={currentPage === 1}
+                                        className={currentPage === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                                    />
+                                </PaginationItem>
+
+                                {Array.from({ length: totalPages }, (_, i) => i + 1)
+                                    .filter(page => {
+                                        return page === 1 ||
+                                            page === totalPages ||
+                                            Math.abs(page - currentPage) <= 1;
+                                    })
+                                    .map((page, index, array) => {
+                                        if (index > 0 && array[index - 1] !== page - 1) {
+                                            return (
+                                                <div key={`ellipsis-${page}`} className="flex items-center">
+                                                    <PaginationEllipsis />
+                                                    <PaginationItem>
+                                                        <PaginationLink
+                                                            isActive={currentPage === page}
+                                                            onClick={() => setCurrentPage(page)}
+                                                            className="cursor-pointer"
+                                                        >
+                                                            {page}
+                                                        </PaginationLink>
+                                                    </PaginationItem>
+                                                </div>
+                                            );
+                                        }
+
+                                        return (
+                                            <PaginationItem key={page}>
+                                                <PaginationLink
+                                                    isActive={currentPage === page}
+                                                    onClick={() => setCurrentPage(page)}
+                                                    className="cursor-pointer"
+                                                >
+                                                    {page}
+                                                </PaginationLink>
+                                            </PaginationItem>
+                                        );
+                                    })}
+
+                                <PaginationItem>
+                                    <PaginationNext
+                                        onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                                        aria-disabled={currentPage === totalPages}
+                                        className={currentPage === totalPages ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                                    />
+                                </PaginationItem>
+                            </PaginationContent>
+                        </Pagination>
+                    )}
                 </TabsContent>
 
                 <TabsContent value="categories" className="space-y-4">

@@ -81,6 +81,10 @@ const Register = () => {
     } else if (name === 'email') {
       setCustomerData(prev => ({ ...prev, [name]: value }));
       setErrors(prev => ({ ...prev, email: getEmailError(value) }));
+    } else if (name === 'name') {
+      // Allow only letters and spaces for name
+      const textOnly = value.replace(/[^A-Za-z\s]/g, '');
+      setCustomerData(prev => ({ ...prev, [name]: textOnly }));
     } else {
       setCustomerData(prev => ({ ...prev, [name]: value }));
     }
@@ -101,6 +105,10 @@ const Register = () => {
       const cleaned = value.replace(/\D/g, '').slice(0, 6);
       setVendorData(prev => ({ ...prev, [name]: cleaned }));
       setErrors(prev => ({ ...prev, pincode: getPincodeError(cleaned) }));
+    } else if (['contactName', 'storeName', 'city', 'state'].includes(name)) {
+      // Allow only letters and spaces for name and location fields
+      const textOnly = value.replace(/[^A-Za-z\s]/g, '');
+      setVendorData(prev => ({ ...prev, [name]: textOnly }));
     } else {
       setVendorData(prev => ({ ...prev, [name]: value }));
     }
@@ -127,6 +135,9 @@ const Register = () => {
         // Clean phone number for manpower
         if (field === 'phoneNumber') {
           processedValue = cleanPhoneNumber(value);
+        } else if (field === 'name') {
+          // Allow only letters and spaces for name
+          processedValue = value.replace(/[^A-Za-z\s]/g, '');
         }
 
         const updatedItem = { ...item, [field]: processedValue };

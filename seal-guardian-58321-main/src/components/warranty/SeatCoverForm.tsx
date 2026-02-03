@@ -345,7 +345,19 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing }: SeatCo
   };
 
   const handleChange = (name: string, value: string) => {
-    setFormData(prev => ({ ...prev, [name]: value }));
+    let processedValue = value;
+
+    if (name === 'customerMobile') {
+      processedValue = value.replace(/\D/g, '').slice(0, 10);
+    } else if (name === 'customerName' || name === 'carModel') {
+      // Allow only letters and spaces
+      processedValue = value.replace(/[^A-Za-z\s]/g, '');
+    } else if (name === 'uid') {
+      // UID should be only digits
+      processedValue = value.replace(/\D/g, '').slice(0, 16);
+    }
+
+    setFormData(prev => ({ ...prev, [name]: processedValue }));
   };
 
   const ALLOWED_FILE_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/heic', 'image/heif', 'application/pdf'];
@@ -571,7 +583,7 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing }: SeatCo
                   <Input
                     id="customerMobile"
                     type="tel"
-                    placeholder="+91 XXXXX XXXXX"
+                    placeholder="9876543210"
                     value={formData.customerMobile}
                     onChange={(e) => handleChange("customerMobile", e.target.value)}
                     required

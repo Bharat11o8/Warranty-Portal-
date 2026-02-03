@@ -104,17 +104,32 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
             // Socket.io expects the root URL, not the /api path. Strip /api if present.
             const baseUrl = apiUrl.endsWith('/api') ? apiUrl.slice(0, -4) : apiUrl;
 
+            // Skip socket connection for Vercel/serverless backends (they don't support Socket.io)
+            const isVercelBackend = baseUrl.includes('vercel.app');
+
+            if (isVercelBackend) {
+                console.log("⚠️ Socket.io disabled for Vercel backend - using HTTP polling for notifications");
+                // Don't initialize socket for Vercel - it doesn't support persistent connections
+                return;
+            }
+
             console.log("🔌 Initializing Socket.io connection to:", baseUrl);
 
             const newSocket = io(baseUrl, {
                 auth: {
                     token: localStorage.getItem("auth_token")
                 },
-                transports: ['websocket', 'polling'] // Force websocket first if possible
+                transports: ['polling', 'websocket'],
+                reconnectionAttempts: 3, // Limit retries
+                reconnectionDelay: 2000
             });
 
             newSocket.on("connect", () => {
                 console.log("📡 Connected to notification socket");
+            });
+
+            newSocket.on("connect_error", (error) => {
+                console.warn("⚠️ Socket connection failed:", error.message);
             });
 
             newSocket.on("notification:new", (notification: Notification) => {

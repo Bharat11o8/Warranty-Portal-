@@ -13,6 +13,15 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Loader2, RefreshCw, MessageSquare, Search, Paperclip, Store, Users, Mail, Send, Clock, Eye, Filter, ShieldCheck } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { WarrantySpecSheet } from "@/components/warranty/WarrantySpecSheet";
+import {
+    Pagination,
+    PaginationContent,
+    PaginationEllipsis,
+    PaginationItem,
+    PaginationLink,
+    PaginationNext,
+    PaginationPrevious,
+} from "@/components/ui/pagination";
 
 interface Grievance {
     id: number;
@@ -35,6 +44,7 @@ interface Grievance {
     created_at: string;
     resolved_at: string | null;
     status_updated_at: string | null;
+    updated_at?: string;
     franchise_address?: string;
     franchise_city?: string;
     source_type?: 'customer' | 'franchise';
@@ -86,6 +96,10 @@ export const AdminGrievances = () => {
     // Filters
     const [searchQuery, setSearchQuery] = useState("");
     const [statusFilter, setStatusFilter] = useState("all");
+
+    // Pagination State
+    const [currentPage, setCurrentPage] = useState(1);
+    const itemsPerPage = 15;
 
     // Assignment Email State
     const [assigneeName, setAssigneeName] = useState("");
@@ -155,7 +169,13 @@ export const AdminGrievances = () => {
         }
 
         setFilteredGrievances(result);
+        setCurrentPage(1); // Reset to first page when filters change
     }, [searchQuery, statusFilter, grievances, activeTab]);
+
+    // Pagination Calculation
+    const totalPages = Math.ceil(filteredGrievances.length / itemsPerPage);
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const paginatedGrievances = filteredGrievances.slice(startIndex, startIndex + itemsPerPage);
 
     const handleViewWarranty = async (warrantyId: string | number) => {
         setLoadingWarranty(true);
@@ -387,7 +407,7 @@ export const AdminGrievances = () => {
                     <>
                         {/* Mobile View: Cards */}
                         <div className="grid grid-cols-1 gap-4 md:hidden">
-                            {filteredGrievances.map((g) => (
+                            {paginatedGrievances.map((g) => (
                                 <Card key={g.id} className="border-orange-100 shadow-sm hover:shadow-md transition-shadow">
                                     <CardContent className="p-4">
                                         <div className="flex justify-between items-start mb-3">
@@ -461,13 +481,13 @@ export const AdminGrievances = () => {
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-100 bg-white">
-                                        {filteredGrievances.map((g, index) => (
+                                        {paginatedGrievances.map((g, index) => (
                                             <tr
                                                 key={g.id}
                                                 className="hover:bg-slate-50/50 cursor-pointer transition-colors"
                                                 onClick={() => handleOpenDetail(g)}
                                             >
-                                                <td className="p-4 text-slate-400">{index + 1}</td>
+                                                <td className="p-4 text-slate-400">{startIndex + index + 1}</td>
                                                 <td className="p-4 text-slate-600">
                                                     {formatToIST(g.created_at)}
                                                 </td>
@@ -496,6 +516,66 @@ export const AdminGrievances = () => {
                                 </table>
                             </div>
                         </Card>
+
+                        {/* Pagination */}
+                        {totalPages > 1 && (
+                            <Pagination className="mt-4">
+                                <PaginationContent>
+                                    <PaginationItem>
+                                        <PaginationPrevious
+                                            onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                                            aria-disabled={currentPage === 1}
+                                            className={currentPage === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                                        />
+                                    </PaginationItem>
+
+                                    {Array.from({ length: totalPages }, (_, i) => i + 1)
+                                        .filter(page => {
+                                            return page === 1 ||
+                                                page === totalPages ||
+                                                Math.abs(page - currentPage) <= 1;
+                                        })
+                                        .map((page, index, array) => {
+                                            if (index > 0 && array[index - 1] !== page - 1) {
+                                                return (
+                                                    <div key={`ellipsis-${page}`} className="flex items-center">
+                                                        <PaginationEllipsis />
+                                                        <PaginationItem>
+                                                            <PaginationLink
+                                                                isActive={currentPage === page}
+                                                                onClick={() => setCurrentPage(page)}
+                                                                className="cursor-pointer"
+                                                            >
+                                                                {page}
+                                                            </PaginationLink>
+                                                        </PaginationItem>
+                                                    </div>
+                                                );
+                                            }
+
+                                            return (
+                                                <PaginationItem key={page}>
+                                                    <PaginationLink
+                                                        isActive={currentPage === page}
+                                                        onClick={() => setCurrentPage(page)}
+                                                        className="cursor-pointer"
+                                                    >
+                                                        {page}
+                                                    </PaginationLink>
+                                                </PaginationItem>
+                                            );
+                                        })}
+
+                                    <PaginationItem>
+                                        <PaginationNext
+                                            onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                                            aria-disabled={currentPage === totalPages}
+                                            className={currentPage === totalPages ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                                        />
+                                    </PaginationItem>
+                                </PaginationContent>
+                            </Pagination>
+                        )}
                     </>
                 )}
             </div>
@@ -640,7 +720,7 @@ export const AdminGrievances = () => {
                                                         if (linkedWarrantyId) {
                                                             handleViewWarranty(linkedWarrantyId);
                                                         } else {
-                                                            toast({ description: "No Warranty ID linked to this grievance.", variant: "secondary" });
+                                                            toast({ description: "No Warranty ID linked to this grievance." });
                                                         }
                                                     }}
                                                     disabled={!linkedWarrantyId || loadingWarranty}

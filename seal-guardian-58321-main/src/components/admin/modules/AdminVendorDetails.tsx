@@ -8,6 +8,15 @@ import { MapPin, User, Mail, Phone, Download, Search, Loader2 } from "lucide-rea
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AdminWarrantyList } from "@/components/admin/AdminWarrantyList";
 import { formatWarrantyForExport, formatManpowerForExport } from "@/lib/adminExports";
+import {
+    Pagination,
+    PaginationContent,
+    PaginationEllipsis,
+    PaginationItem,
+    PaginationLink,
+    PaginationNext,
+    PaginationPrevious,
+} from "@/components/ui/pagination";
 import { downloadCSV, formatToIST, cn } from "@/lib/utils";
 import api from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
@@ -54,6 +63,11 @@ export const AdminVendorDetails = ({ vendor: initialVendor, onBack }: AdminVendo
             fetchDetails();
         }
     }, [initialVendor.id]);
+
+    // Pagination State
+    const [warrantyPage, setWarrantyPage] = useState(1);
+    const [manpowerPage, setManpowerPage] = useState(1);
+    const itemsPerPage = 20;
 
     // Derived states
     const warranties = vendor.warranties || [];
@@ -147,8 +161,59 @@ export const AdminVendorDetails = ({ vendor: initialVendor, onBack }: AdminVendo
         setRejectDialogOpen(true);
     };
 
+    // Reset pagination when filters change
+    useEffect(() => {
+        setWarrantyPage(1);
+    }, [warrantyFilter, warrantySearch, warrantyDateFrom, warrantyDateTo, warrantySortField, warrantySortOrder]);
+
+    useEffect(() => {
+        setManpowerPage(1);
+    }, [manpowerSearch, manpowerSortField, manpowerSortOrder]);
+
+    const filteredWarranties = (vendor.warranties || [])
+        .filter((w: any) => {
+            if (warrantyFilter !== 'all' && w.status !== warrantyFilter) return false;
+            if (warrantyDateFrom || warrantyDateTo) {
+                const d = new Date(w.created_at);
+                d.setHours(0, 0, 0, 0);
+                if (warrantyDateFrom && d < new Date(warrantyDateFrom)) return false;
+                const endDate = new Date(warrantyDateTo);
+                endDate.setHours(23, 59, 59, 999);
+                if (warrantyDateTo && d > endDate) return false;
+            }
+            if (warrantySearch) {
+                const s = warrantySearch.toLowerCase();
+                const pd = typeof w.product_details === 'string' ? JSON.parse(w.product_details || '{}') : w.product_details || {};
+                const pName = pd.product || pd.productName || w.product_type || '';
+                return (
+                    w.customer_name?.toLowerCase().includes(s) ||
+                    w.customer_phone?.includes(s) ||
+                    w.uid?.toLowerCase().includes(s) ||
+                    pName.toLowerCase().includes(s)
+                );
+            }
+            return true;
+        })
+        .sort((a: any, b: any) => {
+            let aVal = a[warrantySortField];
+            let bVal = b[warrantySortField];
+            if (warrantySortField === 'created_at') {
+                aVal = new Date(aVal).getTime();
+                bVal = new Date(bVal).getTime();
+            } else {
+                aVal = (aVal || '').toString().toLowerCase();
+                bVal = (bVal || '').toString().toLowerCase();
+            }
+            return warrantySortOrder === 'asc' ? (aVal > bVal ? 1 : -1) : (aVal < bVal ? 1 : -1);
+        });
+
+    const paginatedWarranties = filteredWarranties.slice(
+        (warrantyPage - 1) * itemsPerPage,
+        warrantyPage * itemsPerPage
+    );
+
     return (
-        <div className="bg-gradient-to-b from-background to-muted/30 min-h-screen">
+        <div className="min-h-screen">
             <div className="mb-6">
                 <Button variant="ghost" onClick={onBack} className="gap-2">
                     ← Back to Franchises
@@ -157,7 +222,7 @@ export const AdminVendorDetails = ({ vendor: initialVendor, onBack }: AdminVendo
 
             {/* Enhanced Vendor Header */}
             <Card className="mb-6 overflow-hidden border-orange-100 shadow-md">
-                <div className="bg-gradient-to-r from-slate-800 to-slate-900 p-8 text-white">
+                <div className="bg-gradient-to-br from-slate-600 to-slate-800 p-8 text-white">
                     <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
                         <div>
                             <h1 className="text-3xl font-bold mb-2 tracking-tight">{vendor.store_name}</h1>
@@ -298,51 +363,55 @@ export const AdminVendorDetails = ({ vendor: initialVendor, onBack }: AdminVendo
                                     No warranties registered yet.
                                 </div>
                             ) : (
-                                <AdminWarrantyList
-                                    items={(vendor.warranties || [])
-                                        .filter((w: any) => {
-                                            if (warrantyFilter !== 'all' && w.status !== warrantyFilter) return false;
-                                            if (warrantyDateFrom || warrantyDateTo) {
-                                                const d = new Date(w.created_at);
-                                                d.setHours(0, 0, 0, 0);
-                                                if (warrantyDateFrom && d < new Date(warrantyDateFrom)) return false;
-                                                // Fix date to inclusive end of day
-                                                const endDate = new Date(warrantyDateTo);
-                                                endDate.setHours(23, 59, 59, 999);
-                                                if (warrantyDateTo && d > endDate) return false;
-                                            }
-                                            if (warrantySearch) {
-                                                const s = warrantySearch.toLowerCase();
-                                                const pd = typeof w.product_details === 'string' ? JSON.parse(w.product_details || '{}') : w.product_details || {};
-                                                const pName = pd.product || pd.productName || w.product_type || '';
-                                                return (
-                                                    w.customer_name?.toLowerCase().includes(s) ||
-                                                    w.customer_phone?.includes(s) ||
-                                                    w.uid?.toLowerCase().includes(s) ||
-                                                    pName.toLowerCase().includes(s)
-                                                );
-                                            }
-                                            return true;
-                                        })
-                                        .sort((a: any, b: any) => {
-                                            let aVal = a[warrantySortField];
-                                            let bVal = b[warrantySortField];
-                                            if (warrantySortField === 'created_at') {
-                                                aVal = new Date(aVal).getTime();
-                                                bVal = new Date(bVal).getTime();
-                                            } else {
-                                                aVal = (aVal || '').toString().toLowerCase();
-                                                bVal = (bVal || '').toString().toLowerCase();
-                                            }
-                                            return warrantySortOrder === 'asc' ? (aVal > bVal ? 1 : -1) : (aVal < bVal ? 1 : -1);
-                                        })
-                                    }
-                                    processingWarranty={processingWarranty}
-                                    onApprove={(id) => handleUpdateStatus(id, 'validated')}
-                                    onReject={(id) => openRejectDialog(id)}
-                                    showActions={true}
-                                    showRejectionReason={true}
-                                />
+                                <div className="space-y-6">
+                                    <AdminWarrantyList
+                                        items={paginatedWarranties}
+                                        processingWarranty={processingWarranty}
+                                        onApprove={(id) => handleUpdateStatus(id, 'validated')}
+                                        onReject={(id) => openRejectDialog(id)}
+                                        showActions={true}
+                                        showRejectionReason={true}
+                                    />
+
+                                    {filteredWarranties.length > itemsPerPage && (
+                                        <Pagination className="mt-4">
+                                            <PaginationContent>
+                                                <PaginationItem>
+                                                    <PaginationPrevious
+                                                        onClick={() => setWarrantyPage(p => Math.max(1, p - 1))}
+                                                        aria-disabled={warrantyPage === 1}
+                                                        className={warrantyPage === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                                                    />
+                                                </PaginationItem>
+                                                {(() => {
+                                                    const totalPages = Math.ceil(filteredWarranties.length / itemsPerPage);
+                                                    return Array.from({ length: totalPages }, (_, i) => i + 1)
+                                                        .filter(page => page === 1 || page === totalPages || Math.abs(page - warrantyPage) <= 1)
+                                                        .map((page, index, array) => {
+                                                            if (index > 0 && array[index - 1] !== page - 1) {
+                                                                return (
+                                                                    <div key={`ellipsis-${page}`} className="flex items-center">
+                                                                        <PaginationEllipsis />
+                                                                        <PaginationItem>
+                                                                            <PaginationLink isActive={warrantyPage === page} onClick={() => setWarrantyPage(page)} className="cursor-pointer">{page}</PaginationLink>
+                                                                        </PaginationItem>
+                                                                    </div>
+                                                                );
+                                                            }
+                                                            return (<PaginationItem key={page}><PaginationLink isActive={warrantyPage === page} onClick={() => setWarrantyPage(page)} className="cursor-pointer">{page}</PaginationLink></PaginationItem>);
+                                                        });
+                                                })()}
+                                                <PaginationItem>
+                                                    <PaginationNext
+                                                        onClick={() => setWarrantyPage(p => Math.min(Math.ceil(filteredWarranties.length / itemsPerPage), p + 1))}
+                                                        aria-disabled={warrantyPage === Math.ceil(filteredWarranties.length / itemsPerPage)}
+                                                        className={warrantyPage === Math.ceil(filteredWarranties.length / itemsPerPage) ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                                                    />
+                                                </PaginationItem>
+                                            </PaginationContent>
+                                        </Pagination>
+                                    )}
+                                </div>
                             )}
                         </CardContent>
                     </Card>
@@ -396,6 +465,7 @@ export const AdminVendorDetails = ({ vendor: initialVendor, onBack }: AdminVendo
                                                     }
                                                     return true;
                                                 })
+                                                .slice((manpowerPage - 1) * itemsPerPage, manpowerPage * itemsPerPage)
                                                 .map((member: any) => (
                                                     <div key={member.id} className="flex items-center justify-between p-4 border rounded-xl bg-slate-50/50 hover:bg-slate-50 transition-colors">
                                                         <div className="flex items-center gap-4">
@@ -434,9 +504,64 @@ export const AdminVendorDetails = ({ vendor: initialVendor, onBack }: AdminVendo
                                                         </div>
                                                     </div>
                                                 ))}
-                                            {vendor.manpower?.filter((m: any) => Boolean(m.is_active) === (status === 'active')).length === 0 && (
-                                                <div className="text-center py-8 text-slate-400 italic">No {status} team members found.</div>
-                                            )}
+
+                                            {(() => {
+                                                const tabManpower = (vendor.manpower || []).filter((m: any) => {
+                                                    const isActive = status === 'active';
+                                                    if (Boolean(m.is_active) !== isActive) return false;
+                                                    if (manpowerSearch) {
+                                                        const s = manpowerSearch.toLowerCase();
+                                                        return m.name?.toLowerCase().includes(s) || m.phone_number?.includes(s);
+                                                    }
+                                                    return true;
+                                                });
+
+                                                return (
+                                                    <>
+                                                        {tabManpower.length === 0 && (
+                                                            <div className="text-center py-8 text-slate-400 italic">No {status} team members found.</div>
+                                                        )}
+                                                        {tabManpower.length > itemsPerPage && (
+                                                            <Pagination className="mt-4">
+                                                                <PaginationContent>
+                                                                    <PaginationItem>
+                                                                        <PaginationPrevious
+                                                                            onClick={() => setManpowerPage(p => Math.max(1, p - 1))}
+                                                                            aria-disabled={manpowerPage === 1}
+                                                                            className={manpowerPage === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                                                                        />
+                                                                    </PaginationItem>
+                                                                    {(() => {
+                                                                        const totalPages = Math.ceil(tabManpower.length / itemsPerPage);
+                                                                        return Array.from({ length: totalPages }, (_, i) => i + 1)
+                                                                            .filter(page => page === 1 || page === totalPages || Math.abs(page - manpowerPage) <= 1)
+                                                                            .map((page, index, array) => {
+                                                                                if (index > 0 && array[index - 1] !== page - 1) {
+                                                                                    return (
+                                                                                        <div key={`ellipsis-${page}`} className="flex items-center">
+                                                                                            <PaginationEllipsis />
+                                                                                            <PaginationItem>
+                                                                                                <PaginationLink isActive={manpowerPage === page} onClick={() => setManpowerPage(page)} className="cursor-pointer">{page}</PaginationLink>
+                                                                                            </PaginationItem>
+                                                                                        </div>
+                                                                                    );
+                                                                                }
+                                                                                return (<PaginationItem key={page}><PaginationLink isActive={manpowerPage === page} onClick={() => setManpowerPage(page)} className="cursor-pointer">{page}</PaginationLink></PaginationItem>);
+                                                                            });
+                                                                    })()}
+                                                                    <PaginationItem>
+                                                                        <PaginationNext
+                                                                            onClick={() => setManpowerPage(p => Math.min(Math.ceil(tabManpower.length / itemsPerPage), p + 1))}
+                                                                            aria-disabled={manpowerPage === Math.ceil(tabManpower.length / itemsPerPage)}
+                                                                            className={manpowerPage === Math.ceil(tabManpower.length / itemsPerPage) ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                                                                        />
+                                                                    </PaginationItem>
+                                                                </PaginationContent>
+                                                            </Pagination>
+                                                        )}
+                                                    </>
+                                                );
+                                            })()}
                                         </div>
                                     </TabsContent>
                                 ))}
