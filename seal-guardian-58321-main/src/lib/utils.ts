@@ -85,24 +85,13 @@ export function formatToIST(dateInput: string | Date | number | undefined | null
 
   // Handle MySQL datetime strings (e.g., "2026-01-22 10:00:00" or "2026-01-22T10:00:00.000Z")
   if (typeof dateInput === 'string') {
-    // Check if it's already an ISO string with timezone (ends with Z or has offset)
-    if (dateInput.endsWith('Z') || /[+-]\d{2}:\d{2}$/.test(dateInput)) {
-      // It's a UTC timestamp, convert to IST
-      date = new Date(dateInput);
-    } else {
-      // MySQL datetime format without timezone - treat as already IST
-      // Just parse it and display as-is without timezone conversion
-      const cleanDate = dateInput.replace(' ', 'T');
+    // MySQL datetime format without timezone - append Z to treat as UTC
+    // This ensures consistent conversion to IST regardless of server timezone
+    if (!dateInput.endsWith('Z') && !/[+-]\d{2}:\d{2}$/.test(dateInput)) {
+      const cleanDate = dateInput.replace(' ', 'T') + 'Z';
       date = new Date(cleanDate);
-      // Format without timezone conversion since it's already IST
-      return date.toLocaleString('en-IN', {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: true
-      });
+    } else {
+      date = new Date(dateInput);
     }
   } else {
     date = new Date(dateInput);
@@ -110,6 +99,7 @@ export function formatToIST(dateInput: string | Date | number | undefined | null
 
   if (isNaN(date.getTime())) return "Invalid Date";
 
+  // ALWAYS apply IST timezone for consistent display
   return date.toLocaleString('en-IN', {
     timeZone: 'Asia/Kolkata',
     year: 'numeric',

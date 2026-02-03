@@ -1,5 +1,5 @@
 import { transporter } from '../config/email.js';
-import { formatDateIST } from '../utils/dateUtils.js';
+import { formatDateIST, formatDateTimeIST } from '../utils/dateUtils.js';
 import dotenv from 'dotenv';
 dotenv.config();
 /**
@@ -85,7 +85,7 @@ export class EmailService {
             <p>An email failed to send after multiple retry attempts:</p>
             <div style="background: #f8f9fa; padding: 15px; border-left: 4px solid #dc3545; margin: 15px 0;">
               <strong>Failed Email:</strong> ${this.escapeHtml(context)}<br>
-              <strong>Time:</strong> ${new Date().toISOString()}<br>
+              <strong>Time:</strong> ${formatDateTimeIST()}<br>
               <strong>Environment:</strong> ${process.env.NODE_ENV || 'development'}
             </div>
             <p style="color: #666;">Please check the server logs for more details and consider manual follow-up.</p>
@@ -951,13 +951,7 @@ export class EmailService {
      */
     static async sendFranchiseGrievanceConfirmationEmail(franchiseEmail, franchiseName, grievance) {
         const categoryDisplay = EmailService.getCategoryDisplay(grievance.category);
-        const submissionDate = new Date().toLocaleDateString('en-IN', {
-            day: '2-digit',
-            month: 'short',
-            year: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit'
-        });
+        const submissionDate = formatDateTimeIST();
         const departmentDisplay = grievance.department.charAt(0).toUpperCase() + grievance.department.slice(1);
         const targetInfo = grievance.department_details
             ? `${departmentDisplay} - ${EmailService.escapeHtml(grievance.department_details)}`

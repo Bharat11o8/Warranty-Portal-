@@ -1,4 +1,5 @@
 import db, { getISTTimestamp } from '../config/database.js';
+import { formatDateTimeIST } from '../utils/dateUtils.js';
 import { EmailService } from '../services/email.service.js';
 import { v4 as uuidv4 } from 'uuid';
 import { NotificationService } from '../services/notification.service.js';
@@ -260,7 +261,7 @@ export class VendorController {
             <div class="vendor-info">
               <p><strong>Vendor Name:</strong> ${vendors[0].name}</p>
               <p><strong>Email:</strong> ${vendors[0].email}</p>
-              <p><strong>Verification Date:</strong> ${new Date().toLocaleString()}</p>
+              <p><strong>Verification Date:</strong> ${formatDateTimeIST()}</p>
             </div>
 
             <div class="info-box">
