@@ -17,7 +17,7 @@ if (process.env.NODE_ENV !== 'production') {
   console.log('User:', process.env.DB_USER);
   console.log('Database:', process.env.DB_NAME);
   console.log('Port:', process.env.DB_PORT);
-  console.log('Timezone:', 'local (system)');
+  console.log('Timezone:', 'IST (+05:30)');
 }
 
 /**
@@ -36,10 +36,9 @@ const pool = mysql.createPool({
   database: process.env.DB_NAME,
   port: parseInt(process.env.DB_PORT || '3306'),
 
-  // Timezone Configuration
-  // 'local' means use the Node.js process timezone
-  // This ensures dates inserted match your system time
-  timezone: 'local',
+  // ✅ CRITICAL: Set timezone to IST (+05:30)
+  // This ensures all date operations use IST
+  timezone: '+05:30',
 
   // Connection Pool Settings (environment-configurable)
   waitForConnections: true,
@@ -56,9 +55,8 @@ const pool = mysql.createPool({
   idleTimeout: parseInt(process.env.DB_IDLE_TIMEOUT || '60000'),
 });
 
-// ✅ CRITICAL: Set IST timezone on EVERY connection from the pool
-// This ensures all queries use IST regardless of which connection is used
-pool.on('connection', (connection) => {
+// Set IST timezone on connection events (for underlying callback pool)
+pool.pool.on('connection', (connection: any) => {
   connection.query("SET time_zone = '+05:30'");
 });
 
@@ -66,6 +64,9 @@ pool.on('connection', (connection) => {
 (async () => {
   try {
     const conn = await pool.getConnection();
+
+    // Ensure timezone is set for this test connection
+    await conn.query("SET time_zone = '+05:30'");
 
     if (process.env.NODE_ENV !== 'production') {
       const [rows]: any = await conn.query("SELECT NOW() as db_now, @@session.time_zone as session_tz, @@global.time_zone as global_tz");
