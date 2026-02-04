@@ -54,9 +54,8 @@ const getClientIP = (req: Request): string => {
 // Helper to create Redis middleware
 const createRedisLimiter = (limiter: Ratelimit | null, errorCode: string, errorMessage: string) => {
     return async (req: Request, res: Response, next: NextFunction) => {
-        // Skip in test environment or for localhost
-        const ip = getClientIP(req);
-        if (process.env.NODE_ENV === 'test' || ip === '::1' || ip === '127.0.0.1' || ip === '::ffff:127.0.0.1') {
+        // Skip in test environment
+        if (process.env.NODE_ENV === 'test') {
             return next();
         }
 
@@ -66,6 +65,7 @@ const createRedisLimiter = (limiter: Ratelimit | null, errorCode: string, errorM
         }
 
         try {
+            const ip = getClientIP(req);
             const { success, remaining, reset } = await limiter.limit(ip);
 
             // Set rate limit headers
@@ -113,10 +113,7 @@ export const authRateLimiter = redis
         },
         standardHeaders: true,
         legacyHeaders: false,
-        skip: (req: Request) => {
-            const ip = getClientIP(req);
-            return process.env.NODE_ENV === 'test' || ip === '::1' || ip === '127.0.0.1' || ip === '::ffff:127.0.0.1';
-        }
+        skip: (req: Request) => process.env.NODE_ENV === 'test'
     });
 
 /**
@@ -136,11 +133,7 @@ export const otpResendLimiter = redis
             }
         },
         standardHeaders: true,
-        legacyHeaders: false,
-        skip: (req: Request) => {
-            const ip = getClientIP(req);
-            return process.env.NODE_ENV === 'test' || ip === '::1' || ip === '127.0.0.1' || ip === '::ffff:127.0.0.1';
-        }
+        legacyHeaders: false
     });
 
 /**
@@ -161,8 +154,5 @@ export const generalApiLimiter = redis
         },
         standardHeaders: true,
         legacyHeaders: false,
-        skip: (req: Request) => {
-            const ip = getClientIP(req);
-            return process.env.NODE_ENV === 'test' || ip === '::1' || ip === '127.0.0.1' || ip === '::ffff:127.0.0.1';
-        }
+        skip: (req: Request) => process.env.NODE_ENV === 'test'
     });
