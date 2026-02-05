@@ -114,6 +114,7 @@ export class AdminController {
                     vd.address as full_address,
                     vd.pincode,
                     COALESCE(vv.is_verified, false) as is_verified,
+                    COALESCE(vv.is_active, true) as is_active,
                     vv.verified_at,
                     (SELECT COUNT(*) FROM manpower WHERE vendor_id = vd.id) as manpower_count,
                     (SELECT GROUP_CONCAT(name SEPARATOR ', ') FROM manpower WHERE vendor_id = vd.id) as manpower_names,
@@ -320,6 +321,73 @@ export class AdminController {
         } catch (error: any) {
             console.error('Update vendor verification error:', error);
             res.status(500).json({ error: 'Failed to update vendor verification' });
+        }
+    }
+
+    /**
+     * Toggle vendor activation status
+     */
+    static async toggleVendorActivation(req: Request, res: Response) {
+        try {
+            const { id } = req.params;
+            const { is_active } = req.body;
+
+            if (typeof is_active !== 'boolean') {
+                return res.status(400).json({ error: 'is_active must be a boolean' });
+            }
+
+            // Get vendor details
+            const [vendor]: any = await db.execute(
+                'SELECT name, email FROM profiles WHERE id = ?',
+                [id]
+            );
+
+            if (vendor.length === 0) {
+                return res.status(404).json({ error: 'Vendor not found' });
+            }
+
+            const vendorData = vendor[0];
+
+            // Update activation status
+            await db.execute(
+                'UPDATE vendor_verification SET is_active = ? WHERE user_id = ?',
+                [is_active, id]
+            );
+
+            // Send real-time notification
+            try {
+                await NotificationService.notify(id, {
+                    title: is_active ? 'Store Activated' : 'Store Deactivated',
+                    message: is_active
+                        ? 'Your store has been activated. You can now access your account.'
+                        : 'Your store has been deactivated. Please contact admin for assistance.',
+                    type: is_active ? 'system' : 'alert',
+                    link: '/profile'
+                });
+            } catch (notifError) {
+                console.error('Failed to send vendor activation notification:', notifError);
+            }
+
+            // Log the activity
+            const admin = (req as any).user;
+            await ActivityLogService.log({
+                adminId: admin.id,
+                adminName: admin.name,
+                adminEmail: admin.email,
+                actionType: is_active ? 'VENDOR_ACTIVATED' : 'VENDOR_DEACTIVATED',
+                targetType: 'VENDOR',
+                targetId: id,
+                targetName: vendorData.name,
+                ipAddress: req.ip || req.socket?.remoteAddress
+            });
+
+            res.json({
+                success: true,
+                message: `Franchise ${is_active ? 'activated' : 'deactivated'} successfully`
+            });
+        } catch (error: any) {
+            console.error('Toggle vendor activation error:', error);
+            res.status(500).json({ error: 'Failed to toggle vendor activation' });
         }
     }
 

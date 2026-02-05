@@ -10,6 +10,7 @@ router.get('/stats', authenticateToken, requireRole('admin'), AdminController.ge
 router.get('/vendors', authenticateToken, requireRole('admin'), AdminController.getAllVendors);
 router.get('/vendors/:id', authenticateToken, requireRole('admin'), AdminController.getVendorDetails);
 router.put('/vendors/:id/verification', authenticateToken, requireRole('admin'), AdminController.updateVendorVerification);
+router.put('/vendors/:id/activation', authenticateToken, requireRole('admin'), AdminController.toggleVendorActivation);
 router.delete('/vendors/:id', authenticateToken, requireRole('admin'), AdminController.deleteVendor);
 router.put('/warranties/:uid/status', authenticateToken, requireRole('admin'), AdminController.updateWarrantyStatus);
 router.get('/warranties/:id', authenticateToken, requireRole('admin'), AdminController.getWarrantyById);

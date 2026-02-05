@@ -91,10 +91,10 @@ export class EmailService {
       await transporter.sendMail({
         from: process.env.EMAIL_FROM,
         to: adminEmail,
-        subject: 'âš ï¸ Email Delivery Failed - Warranty Portal',
+        subject: 'Email Delivery Failed - Warranty Portal',
         html: `
           <div style="font-family: Arial, sans-serif; padding: 20px;">
-            <h2 style="color: #dc3545;">âš ï¸ Email Delivery Failure Alert</h2>
+            <h2 style="color: #dc3545;">Email Delivery Failure Alert</h2>
             <p>An email failed to send after multiple retry attempts:</p>
             <div style="background: #f8f9fa; padding: 15px; border-left: 4px solid #dc3545; margin: 15px 0;">
               <strong>Failed Email:</strong> ${this.escapeHtml(context)}<br>
@@ -210,7 +210,7 @@ export class EmailService {
         await transporter.sendMail({
           from: process.env.EMAIL_FROM,
           to: email,
-          subject: '🔑 Your OTP for Warranty Portal Login',
+          subject: 'Your OTP for Warranty Portal Login',
           html: this.getHtmlTemplate({
             title: 'Warranty Portal Login',
             content: htmlContent,
@@ -255,7 +255,7 @@ export class EmailService {
       to: process.env.EMAIL_FROM, // Send to admin/marketing
       subject: 'New Vendor Registration - Verification Required',
       html: this.getHtmlTemplate({
-        title: 'ðŸª New Vendor Registration',
+        title: 'New Vendor Registration',
         content: htmlContent,
         headerColorStart: '#f093fb',
         headerColorEnd: '#f5576c'
@@ -272,7 +272,7 @@ export class EmailService {
       <h2 style="color: #333; margin-top: 0;">Hello ${vendorName},</h2>
       
       <div class="success-box">
-        <div style="font-size: 48px; margin-bottom: 10px;">🎉</div>
+        <div style="font-size: 48px; margin-bottom: 10px;"></div>
         <h3>Your vendor account has been verified and approved!</h3>
         <p style="color: #155724; margin: 5px 0 0 0;">Welcome to Autoform India</p>
       </div>
@@ -280,7 +280,7 @@ export class EmailService {
       <p>Congratulations! Your vendor registration has been reviewed and approved by our team. You now have full access to all vendor features on the Warranty Portal.</p>
       
       <div class="info-box" style="border-left-color: #38ef7d;">
-        <p style="margin: 0 0 10px 0; font-weight: bold; color: #11998e;">📋 What You Can Do Now:</p>
+        <p style="margin: 0 0 10px 0; font-weight: bold; color: #11998e;">What You Can Do Now:</p>
         <ul style="padding-left: 20px; margin: 0;">
           <li>Login to your vendor dashboard</li>
           <li>Manage warranty registrations</li>
@@ -290,11 +290,11 @@ export class EmailService {
       </div>
 
       <div style="text-align: center; margin: 30px 0;">
-        <a href="${loginLink}" class="button" style="background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);">ðŸ” Login to Your Account</a>
+        <a href="${loginLink}" class="button" style="background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);">Login to Your Account</a>
       </div>
 
       <div class="warning-box">
-        <strong>ðŸ“ Note:</strong> You'll need to enter your registered email and verify via OTP to access your account securely.
+        <strong>Note:</strong> You'll need to enter your registered email and verify via OTP to access your account securely.
       </div>
       
       <p style="margin-top: 30px;">If you have any questions, please contact our support team at <a href="mailto:${process.env.EMAIL_FROM}" style="color: #11998e;">${process.env.EMAIL_FROM}</a>.</p>
@@ -305,9 +305,9 @@ export class EmailService {
     await transporter.sendMail({
       from: process.env.EMAIL_FROM,
       to: vendorEmail,
-      subject: '🎉 Your Vendor Account Has Been Approved!',
+      subject: 'Your Vendor Account Has Been Approved!',
       html: this.getHtmlTemplate({
-        title: '✅ Account Approved!',
+        title: 'Account Approved!',
         content: htmlContent,
         headerColorStart: '#11998e',
         headerColorEnd: '#38ef7d'
@@ -320,7 +320,7 @@ export class EmailService {
       <h2 style="color: #333; margin-top: 0;">Hello ${vendorName},</h2>
       
       <div class="warning-box">
-        <h3 style="color: #856404; margin: 0 0 5px 0;">📋 Vendor Application Update</h3>
+        <h3 style="color: #856404; margin: 0 0 5px 0;">Vendor Application Update</h3>
         <p style="margin: 0;">Thank you for your interest in becoming a vendor partner with Autoform India Warranty Portal.</p>
       </div>
       
@@ -334,7 +334,7 @@ export class EmailService {
       ` : ''}
       
       <div class="info-box" style="border-left-color: #ff4b2b;">
-        <p style="margin: 0 0 10px 0; font-weight: bold; color: #ff4b2b;">📌 What This Means:</p>
+        <p style="margin: 0 0 10px 0; font-weight: bold; color: #ff4b2b;">What This Means:</p>
         <ul style="padding-left: 20px; margin: 0;">
           <li>Your vendor account registration has not been approved</li>
           <li>You will not be able to access vendor dashboard features</li>
@@ -352,7 +352,7 @@ export class EmailService {
       to: vendorEmail,
       subject: 'Vendor Application Status Update',
       html: this.getHtmlTemplate({
-        title: 'âš ï¸ Application Status Update',
+        title: 'Application Status Update',
         content: htmlContent,
         headerColorStart: '#ff416c',
         headerColorEnd: '#ff4b2b'
@@ -405,7 +405,7 @@ export class EmailService {
       to: customerEmail,
       subject: 'Warranty Registration Confirmation',
       html: this.getHtmlTemplate({
-        title: 'ðŸ›¡ï¸ Warranty Registration Confirmed',
+        title: 'Warranty Registration Confirmed',
         content: htmlContent,
         headerColorStart: '#667eea',
         headerColorEnd: '#764ba2'
@@ -433,7 +433,7 @@ export class EmailService {
       <h2 style="color: #333; margin-top: 0;">Hello ${customerName},</h2>
       
       <div class="success-box">
-        <div style="font-size: 48px; margin-bottom: 10px;">🎉</div>
+        <div style="font-size: 48px; margin-bottom: 10px;"></div>
         <h3>Your warranty has been approved!</h3>
         <p style="color: #155724; margin: 5px 0 0 0;">Your product is now covered under warranty</p>
       </div>
@@ -441,7 +441,7 @@ export class EmailService {
       <p>Great news! We're pleased to inform you that your warranty registration has been reviewed and approved by our team.</p>
       
       <div class="info-box" style="border-left-color: #00f2fe;">
-        <p style="margin: 0 0 10px 0; font-weight: bold; color: #0088cc;">📋 Warranty Details:</p>
+        <p style="margin: 0 0 10px 0; font-weight: bold; color: #0088cc;">Warranty Details:</p>
         ${productType === 'seat-cover' ? `<p><strong>UID:</strong> ${uid}</p>` : ''}
         ${productType === 'ev-products' ? `
           <p><strong>Serial Number:</strong> ${productDetails?.serialNumber || 'N/A'}</p>
@@ -466,7 +466,7 @@ export class EmailService {
       ` : ''}
 
       <div class="warning-box">
-        <p style="margin: 0 0 5px 0;"><strong>📌 Important Information:</strong></p>
+        <p style="margin: 0 0 5px 0;"><strong>Important Information:</strong></p>
         <ul style="margin: 0; padding-left: 20px;">
           <li>Keep this email for your records</li>
           <li>Your warranty is now active and valid</li>
@@ -482,9 +482,9 @@ export class EmailService {
     await transporter.sendMail({
       from: process.env.EMAIL_FROM,
       to: customerEmail,
-      subject: '✅ Your Warranty Has Been Approved!',
+      subject: 'Your Warranty Has Been Approved!',
       html: this.getHtmlTemplate({
-        title: '✅ Warranty Approved!',
+        title: 'Warranty Approved!',
         content: htmlContent,
         headerColorStart: '#4facfe',
         headerColorEnd: '#00f2fe'
@@ -513,7 +513,7 @@ export class EmailService {
       <h2 style="color: #333; margin-top: 0;">Hello ${customerName},</h2>
       
       <div class="warning-box">
-        <h3 style="color: #856404; margin: 0 0 5px 0;">📋 Application Status Update</h3>
+        <h3 style="color: #856404; margin: 0 0 5px 0;">Application Status Update</h3>
         <p style="margin: 0;">We've reviewed your warranty application and need to inform you of an important update.</p>
       </div>
       
@@ -547,7 +547,7 @@ export class EmailService {
       </div>
 
       <div class="info-box" style="background: #e3f2fd; border-left-color: #2196f3;">
-        <h4 style="margin: 0 0 10px 0; color: #1976d2;">📌 What You Can Do:</h4>
+        <h4 style="margin: 0 0 10px 0; color: #1976d2;">What You Can Do:</h4>
         <ul style="margin: 0; padding-left: 20px;">
           <li>Review the reason provided above</li>
           <li>Address the mentioned concerns</li>
@@ -566,7 +566,7 @@ export class EmailService {
       to: customerEmail,
       subject: 'Warranty Application Update - Action Required',
       html: this.getHtmlTemplate({
-        title: 'âš ï¸ Application Update',
+        title: 'Application Update',
         content: htmlContent,
         headerColorStart: '#ff6b6b',
         headerColorEnd: '#ee5a6f'
@@ -603,13 +603,13 @@ export class EmailService {
       <h2 style="color: #333; margin-top: 0;">Hello ${vendorName},</h2>
       
       <div class="success-box">
-        <div style="font-size: 48px; margin-bottom: 10px;">✅</div>
+        <div style="font-size: 48px; margin-bottom: 10px;"></div>
         <h3>Great News!</h3>
         <p style="color: #155724; margin: 5px 0 0 0;">A warranty application has been approved for your customer</p>
       </div>
       
       <div class="info-box" style="border-left-color: #38ef7d;">
-        <p style="margin: 0 0 10px 0; font-weight: bold; color: #11998e;">📋 Customer Details:</p>
+        <p style="margin: 0 0 10px 0; font-weight: bold; color: #11998e;">Customer Details:</p>
         <p><strong>Customer Name:</strong> ${customerName}</p>
         <p><strong>Phone:</strong> ${customerPhone}</p>
         ${customerAddress ? `<p><strong>Address:</strong> ${customerAddress}</p>` : ''}
@@ -621,9 +621,9 @@ export class EmailService {
       </div>
       
       <div class="success-box" style="background: #e8f5e9; border: 2px solid #4caf50;">
-        <h4 style="margin: 0 0 10px 0; color: #2e7d32;">👷 Manpower Credit:</h4>
+        <h4 style="margin: 0 0 10px 0; color: #2e7d32;">Manpower Credit:</h4>
         <p style="margin: 5px 0;"><strong>Installer:</strong> ${manpowerName}</p>
-        <p style="margin: 5px 0; color: #2e7d32;">âœ“ This approval has been credited to ${manpowerName}'s performance record</p>
+        <p style="margin: 5px 0; color: #2e7d32;">This approval has been credited to ${manpowerName}'s performance record</p>
       </div>
       
       <p style="margin-top: 30px;">This successful warranty approval reflects the quality of service provided by your team. Keep up the excellent work!</p>
@@ -634,9 +634,9 @@ export class EmailService {
     await transporter.sendMail({
       from: process.env.EMAIL_FROM,
       to: vendorEmail,
-      subject: '🎉 Warranty Approved - Customer Application',
+      subject: 'Warranty Approved - Customer Application',
       html: this.getHtmlTemplate({
-        title: '🎉 Warranty Approved!',
+        title: 'Warranty Approved!',
         content: htmlContent,
         headerColorStart: '#11998e',
         headerColorEnd: '#38ef7d'
@@ -674,7 +674,7 @@ export class EmailService {
       <h2 style="color: #333; margin-top: 0;">Hello ${vendorName},</h2>
       
       <div class="warning-box">
-        <h3 style="color: #856404; margin: 0 0 5px 0;">ðŸ“‹ Application Status Update</h3>
+        <h3 style="color: #856404; margin: 0 0 5px 0;">Application Status Update</h3>
         <p style="margin: 0;">A warranty application submitted through your store could not be approved at this time.</p>
       </div>
       
@@ -696,7 +696,7 @@ export class EmailService {
       </div>
       
       <div class="info-box" style="background: #e3f2fd; border-left-color: #2196f3;">
-        <h4 style="margin: 0 0 10px 0; color: #1976d2;">📌 Recommended Actions:</h4>
+        <h4 style="margin: 0 0 10px 0; color: #1976d2;">Recommended Actions:</h4>
         <ul style="margin: 0; padding-left: 20px;">
           <li>Review the rejection reason with your team</li>
           <li>Contact the customer to explain the situation</li>
@@ -712,9 +712,9 @@ export class EmailService {
     await transporter.sendMail({
       from: process.env.EMAIL_FROM,
       to: vendorEmail,
-      subject: 'âš ï¸ Warranty Application Update - Customer Application',
+      subject: 'Warranty Application Update - Customer Application',
       html: this.getHtmlTemplate({
-        title: 'âš ï¸ Warranty Update',
+        title: 'Warranty Update',
         content: htmlContent,
         headerColorStart: '#ff9800',
         headerColorEnd: '#ff5722'
@@ -729,7 +729,7 @@ export class EmailService {
       <p>Thank you for registering with the Warranty Portal. We have received your application and it is currently under review.</p>
       
       <div class="info-box" style="background: #e3f2fd; border-left-color: #2196f3;">
-        <h3 style="color: #1565c0; margin: 0 0 5px 0; font-size: 18px;">⌛ Status: Pending Approval</h3>
+        <h3 style="color: #1565c0; margin: 0 0 5px 0; font-size: 18px;">Status: Pending Approval</h3>
         <p style="margin: 0;">Your account is currently waiting for administrator verification. You will not be able to access the vendor dashboard until your account is approved.</p>
       </div>
       
@@ -779,7 +779,7 @@ export class EmailService {
       <h2 style="color: #333; margin-top: 0;">Hello ${adminName},</h2>
       
       <div class="success-box" style="background: linear-gradient(135deg, #e8f4fd 0%, #d4e9f7 100%); border-color: #2d5a87;">
-        <div style="font-size: 48px; margin-bottom: 10px;">🎉</div>
+        <div style="font-size: 48px; margin-bottom: 10px;"></div>
         <h3 style="color: #1e3a5f;">Welcome to the Admin Team!</h3>
         <p style="color: #1e3a5f; margin: 5px 0 0 0;">You have been invited as an Administrator by ${invitedByName}</p>
       </div>
@@ -787,7 +787,7 @@ export class EmailService {
       <p>Congratulations! You've been granted administrative access to the Autoform India Warranty Portal.</p>
       
       <div class="info-box" style="border-left-color: #2d5a87;">
-        <p style="margin: 0 0 10px 0; font-weight: bold; color: #2d5a87;">📧 Your Login Credentials:</p>
+        <p style="margin: 0 0 10px 0; font-weight: bold; color: #2d5a87;">Your Login Credentials:</p>
         <p><strong>Email:</strong> ${adminEmail}</p>
         <p><strong>Authentication:</strong> OTP-based (One-Time Password)</p>
       </div>
@@ -797,7 +797,7 @@ export class EmailService {
       </div>
       
       <div class="warning-box">
-        <strong>ðŸ”’ Security Reminder:</strong> Never share your OTP. Our team will never ask for it. Always access the portal through the official URL.
+        <strong>Security Reminder:</strong> Never share your OTP. Our team will never ask for it. Always access the portal through the official URL.
       </div>
       
       <p>Best regards,<br><strong>Autoform India Team</strong></p>
@@ -806,9 +806,9 @@ export class EmailService {
     await transporter.sendMail({
       from: process.env.EMAIL_FROM,
       to: adminEmail,
-      subject: 'ðŸŽ‰ You\'ve Been Invited as an Administrator',
+      subject: 'You\'ve Been Invited as an Administrator',
       html: this.getHtmlTemplate({
-        title: '🛡️ FMS Admin',
+        title: 'FMS Admin',
         content: htmlContent,
         headerColorStart: '#1e3a5f',
         headerColorEnd: '#2d5a87'
@@ -851,7 +851,7 @@ export class EmailService {
       </div>
       
       <div style="text-align: center; margin: 30px 0;">
-        <a href="${verificationLink}" class="button" style="background: linear-gradient(135deg, #FFB400 0%, #FF9000 100%); margin-right: 15px;">âœ“ Confirm Installation</a>
+        <a href="${verificationLink}" class="button" style="background: linear-gradient(135deg, #FFB400 0%, #FF9000 100%); margin-right: 15px;">Confirm Installation</a>
         
         <p style="margin-top: 20px; font-size: 14px;">
           Is there an issue with this registration?
@@ -867,7 +867,7 @@ export class EmailService {
       to: vendorEmail,
       subject: 'Action Required: Confirm Customer Warranty Registration',
       html: this.getHtmlTemplate({
-        title: 'ðŸ›¡ï¸ Warranty Verification Required',
+        title: 'Warranty Verification Required',
         content: htmlContent,
         headerColorStart: '#FFB400',
         headerColorEnd: '#FF9000'
@@ -921,7 +921,7 @@ export class EmailService {
         if (Array.isArray(files) && files.length > 0) {
           attachmentsHtml = `
             <div style="margin-top: 15px; padding-top: 15px; border-top: 1px dashed #ddd;">
-              <p style="font-weight: 600; margin-bottom: 5px; color: #555;">ðŸ“Ž Attachments:</p>
+              <p style="font-weight: 600; margin-bottom: 5px; color: #555;">Attachments:</p>
               <ul style="margin: 0; padding-left: 20px;">
                 ${files.map((url, idx) => `<li><a href="${url}" target="_blank" style="color: #2196F3;">View Attachment ${idx + 1}</a></li>`).join('')}
               </ul>
@@ -935,7 +935,7 @@ export class EmailService {
       <p style="font-size: 16px; margin-bottom: 20px;">Hello <strong>${EmailService.escapeHtml(assigneeName)}</strong>,</p>
       
       <div class="info-box" style="border-left-color: #2196F3; background: #e3f2fd;">
-        <h3 style="color: #0d47a1; margin: 0 0 5px 0;">ðŸ“‹ New Task Assigned</h3>
+        <h3 style="color: #0d47a1; margin: 0 0 5px 0;">New Task Assigned</h3>
         <p style="margin: 0;">You have been assigned a new grievance ticket for resolution.</p>
       </div>
       
@@ -1061,7 +1061,7 @@ export class EmailService {
       <p style="font-size: 16px; margin-bottom: 20px;">Dear <strong>${this.escapeHtml(customerName)}</strong>,</p>
       
       <div class="success-box">
-        <h3>âœ… Grievance Submitted Successfully</h3>
+        <h3>Grievance Submitted Successfully</h3>
         <p style="font-size: 14px; margin: 0;">Your concern has been registered with us.</p>
       </div>
       
@@ -1075,7 +1075,7 @@ export class EmailService {
         </p>
       </div>
       
-      <h3 style="color: #333; border-bottom: 2px solid #FFB400; padding-bottom: 10px; margin-top: 25px;">ðŸ“‹ Submission Details</h3>
+      <h3 style="color: #333; border-bottom: 2px solid #FFB400; padding-bottom: 10px; margin-top: 25px;">Submission Details</h3>
       
       <table style="width: 100%; border-collapse: collapse; margin: 15px 0;">
         <tr style="border-bottom: 1px solid #eee;">
@@ -1099,7 +1099,7 @@ export class EmailService {
       </table>
       
       <div style="background: #e8f5e9; border-radius: 8px; padding: 15px; margin: 20px 0;">
-        <h4 style="color: #2e7d32; margin: 0 0 10px 0;">ðŸ“Œ What happens next?</h4>
+        <h4 style="color: #2e7d32; margin: 0 0 10px 0;">What happens next?</h4>
         <ul style="margin: 0; padding-left: 20px; color: #333;">
           <li>Our team will review your grievance within <strong>24-48 hours</strong></li>
           <li>You will receive updates via email as we work on your case</li>
@@ -1124,7 +1124,7 @@ export class EmailService {
           to: customerEmail,
           subject: `Grievance Registered - ${grievance.ticket_id} | Autoform India`,
           html: this.getHtmlTemplate({
-            title: 'ðŸŽ« Grievance Registered',
+            title: 'Grievance Registered',
             content: htmlContent,
             headerColorStart: '#4CAF50',
             headerColorEnd: '#45a049'
@@ -1161,7 +1161,7 @@ export class EmailService {
       <p style="font-size: 16px; margin-bottom: 20px;">Dear <strong>${EmailService.escapeHtml(franchiseName)}</strong>,</p>
       
       <div class="success-box">
-        <h3>âœ… Grievance Submitted Successfully</h3>
+        <h3>Grievance Submitted Successfully</h3>
         <p style="font-size: 14px; margin: 0;">Your concern has been registered with our team.</p>
       </div>
       
@@ -1175,7 +1175,7 @@ export class EmailService {
         </p>
       </div>
       
-      <h3 style="color: #333; border-bottom: 2px solid #9333ea; padding-bottom: 10px; margin-top: 25px;">ðŸ“‹ Submission Details</h3>
+      <h3 style="color: #333; border-bottom: 2px solid #9333ea; padding-bottom: 10px; margin-top: 25px;">Submission Details</h3>
       
       <table style="width: 100%; border-collapse: collapse; margin: 15px 0;">
         <tr style="border-bottom: 1px solid #eee;">
@@ -1197,7 +1197,7 @@ export class EmailService {
       </table>
       
       <div style="background: #f3e8ff; border-radius: 8px; padding: 15px; margin: 20px 0;">
-        <h4 style="color: #7c3aed; margin: 0 0 10px 0;">ðŸ“Œ What happens next?</h4>
+        <h4 style="color: #7c3aed; margin: 0 0 10px 0;">What happens next?</h4>
         <ul style="margin: 0; padding-left: 20px; color: #333;">
           <li>Our team will review your grievance and take appropriate action</li>
           <li>You will receive updates via email as we work on your case</li>
@@ -1222,7 +1222,7 @@ export class EmailService {
           to: franchiseEmail,
           subject: `Franchise Grievance Registered - ${grievance.ticket_id} | Autoform India`,
           html: EmailService.getHtmlTemplate({
-            title: 'ðŸª Franchise Grievance Registered',
+            title: 'Franchise Grievance Registered',
             content: htmlContent,
             headerColorStart: '#9333ea',
             headerColorEnd: '#7c3aed'

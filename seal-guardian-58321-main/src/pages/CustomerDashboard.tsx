@@ -145,7 +145,7 @@ const CustomerDashboard = () => {
             : EVProductsForm;
 
         return (
-            <div className="bg-gradient-to-b from-background to-muted/30">
+            <div className="">
                 <div className="container mx-auto px-4 py-8">
                     <Button
                         variant="ghost"

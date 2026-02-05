@@ -20,7 +20,8 @@ export class PublicController {
         FROM vendor_details vd
         JOIN profiles p ON vd.user_id = p.id
         JOIN vendor_verification vv ON vd.user_id = vv.user_id
-        WHERE vv.is_verified = TRUE
+        WHERE vv.is_verified = TRUE 
+        AND COALESCE(vv.is_active, TRUE) = TRUE
         ORDER BY vd.store_name ASC
       `);
 

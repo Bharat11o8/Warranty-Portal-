@@ -699,6 +699,40 @@ const FranchiseDashboard = () => {
         return null;
     };
 
+    // Show deactivation message if franchise is deactivated
+    if (user?.isActive === false) {
+        return (
+            <div className="flex h-screen bg-[#fffaf5] items-center justify-center">
+                <div className="max-w-lg w-full px-4">
+                    <div className="bg-white border-2 border-red-100 rounded-2xl p-8 shadow-xl text-center">
+                        <div className="w-20 h-20 mx-auto mb-6 bg-red-50 rounded-full flex items-center justify-center">
+                            <svg className="w-10 h-10 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+                            </svg>
+                        </div>
+                        <h1 className="text-2xl font-bold text-slate-800 mb-3">Franchise Deactivated</h1>
+                        <p className="text-slate-500 mb-8 leading-relaxed">
+                            Your franchise account has been deactivated. Access to the dashboard and all features has been restricted.
+                        </p>
+                        <div className="bg-slate-50 rounded-xl p-6 border border-slate-100">
+                            <p className="text-sm text-slate-500 font-medium mb-2 uppercase tracking-wide">For assistance contact</p>
+                            <p className="text-lg font-bold text-slate-800">Noida Head Office</p>
+                            <p className="text-sm text-slate-400 mt-1">Our support team will guide you through current status</p>
+                        </div>
+                        <Button
+                            variant="ghost"
+                            className="mt-8 text-slate-400 hover:text-slate-600"
+                            onClick={logout}
+                        >
+                            <LogOut className="w-4 h-4 mr-2" />
+                            Sign Out
+                        </Button>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
     return (
         <div className="flex h-screen bg-[#fffaf5]">
             <DashboardSidebar

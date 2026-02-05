@@ -566,6 +566,35 @@ const VendorDashboard = () => {
         return <Navigate to="/" />;
     }
 
+    // Show deactivation message if vendor is deactivated
+    if (user.isActive === false) {
+        return (
+            <div className="min-h-screen bg-gradient-to-b from-background to-muted/30">
+                <Header />
+                <main className="container mx-auto px-4 py-16">
+                    <div className="max-w-lg mx-auto text-center">
+                        <div className="bg-red-50 border-2 border-red-200 rounded-2xl p-8 shadow-lg">
+                            <div className="w-20 h-20 mx-auto mb-6 bg-red-100 rounded-full flex items-center justify-center">
+                                <svg className="w-10 h-10 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+                                </svg>
+                            </div>
+                            <h1 className="text-2xl font-bold text-red-700 mb-4">Store Deactivated</h1>
+                            <p className="text-gray-600 mb-6 leading-relaxed">
+                                Your franchise account has been deactivated. You currently do not have access to the dashboard or any features.
+                            </p>
+                            <div className="bg-white rounded-lg p-4 border border-red-100">
+                                <p className="text-sm text-gray-700 font-medium mb-2">For further information, please contact:</p>
+                                <p className="text-lg font-semibold text-gray-800">Noida Office</p>
+                                <p className="text-sm text-gray-500 mt-1">Our team will assist you with reactivation process</p>
+                            </div>
+                        </div>
+                    </div>
+                </main>
+            </div>
+        );
+    }
+
 
 
     // Main dashboard view

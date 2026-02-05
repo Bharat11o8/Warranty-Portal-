@@ -10,6 +10,7 @@ export interface User {
   role: UserRole;
   phoneNumber: string;
   isValidated?: boolean;
+  isActive?: boolean;
 }
 
 interface AuthContextType {

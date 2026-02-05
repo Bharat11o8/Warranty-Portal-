@@ -166,10 +166,10 @@ export class AuthController {
         });
       }
 
-      // Check vendor verification
+      // Check vendor verification and activation status
       if (userRole === 'vendor') {
         const [verification]: any = await db.execute(
-          'SELECT is_verified FROM vendor_verification WHERE user_id = ?',
+          'SELECT is_verified, is_active FROM vendor_verification WHERE user_id = ?',
           [user.id]
         );
 
@@ -178,6 +178,9 @@ export class AuthController {
             error: 'Vendor account pending verification. Please wait for admin approval.'
           });
         }
+
+        // Note: We allow login for deactivated vendors but return isActive=false
+        // Frontend will handle showing deactivation message
       }
 
       // Generate OTP
@@ -363,14 +366,19 @@ export class AuthController {
 
       const userRole = roles[0].role;
 
-      // Get verification status for vendors
+      // Get verification and activation status for vendors
       let isValidated = userRole === 'customer';
+      let isActive = true;
       if (userRole === 'vendor') {
         const [verification]: any = await db.execute(
-          'SELECT is_verified FROM vendor_verification WHERE user_id = ?',
+          'SELECT is_verified, is_active FROM vendor_verification WHERE user_id = ?',
           [userId]
         );
         isValidated = verification[0]?.is_verified || false;
+        // Fix: MySQL returns 0 for false, which !== false evaluates to true. 
+        // We must check if it is 1 or true.
+        const activeVal = verification[0]?.is_active;
+        isActive = (activeVal === 1 || activeVal === true);
 
         // If vendor not validated, don't provide token
         if (!isValidated) {
@@ -404,7 +412,8 @@ export class AuthController {
           name: user.name,
           role: userRole,
           phoneNumber: user.phone_number,
-          isValidated
+          isValidated,
+          isActive
         }
       });
 
@@ -513,14 +522,23 @@ export class AuthController {
 
       const userRole = roles[0].role;
 
-      // Get verification status for vendors
+      // Get verification and activation status for vendors
       let isValidated = userRole === 'customer';
+      let isActive = true;
       if (userRole === 'vendor') {
         const [verification]: any = await db.execute(
-          'SELECT is_verified FROM vendor_verification WHERE user_id = ?',
+          'SELECT is_verified, is_active FROM vendor_verification WHERE user_id = ?',
           [decoded.id]
         );
+        console.log(`[Auth] User ${decoded.id} verification record:`, verification[0]);
         isValidated = verification[0]?.is_verified || false;
+
+        // Fix: MySQL returns 0 for false.
+        const activeVal = verification[0]?.is_active;
+        console.log(`[Auth] User ${decoded.id} raw is_active:`, activeVal, 'Type:', typeof activeVal);
+
+        isActive = (activeVal === 1 || activeVal === true || activeVal === '1');
+        console.log(`[Auth] User ${decoded.id} parsed isActive:`, isActive);
       }
 
       res.json({
@@ -530,7 +548,8 @@ export class AuthController {
           name: user.name,
           role: userRole,
           phoneNumber: user.phone_number,
-          isValidated
+          isValidated,
+          isActive
         }
       });
     } catch (error: any) {
