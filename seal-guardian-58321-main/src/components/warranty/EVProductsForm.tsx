@@ -61,9 +61,22 @@ interface EVProductsFormProps {
   onSuccess?: () => void;
   isUniversal?: boolean;
   isEditing?: boolean;
+  isPublic?: boolean;
+  storeDetails?: {
+    id: number;
+    store_name: string;
+    store_email: string;
+    contact_number: string;
+    address_line1?: string;
+    city?: string;
+    state?: string;
+    store_code?: string;
+    vendor_details_id?: number;
+  };
+  installers?: any[];
 }
 
-const EVProductsForm = ({ initialData, warrantyId, onSuccess, isUniversal, isEditing }: EVProductsFormProps) => {
+const EVProductsForm = ({ initialData, warrantyId, onSuccess, isUniversal, isEditing, isPublic, storeDetails, installers }: EVProductsFormProps) => {
   const { toast } = useToast();
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -196,6 +209,21 @@ const EVProductsForm = ({ initialData, warrantyId, onSuccess, isUniversal, isEdi
     }
   }, [user, initialData]);
 
+  // Auto-fill store details for public QR flow
+  useEffect(() => {
+    if (isPublic && storeDetails) {
+      setFormData(prev => ({
+        ...prev,
+        storeName: storeDetails.store_name || "",
+        storeEmail: storeDetails.store_email || "",
+        dealerMobile: storeDetails.contact_number || "",
+        dealerAddr1: storeDetails.address_line1 || "",
+        dealerCity: storeDetails.city || "",
+        dealerState: storeDetails.state || "",
+      }));
+    }
+  }, [isPublic, storeDetails]);
+
   const steps = [
     { number: 1, label: "Installer Details" },
     { number: 2, label: "Customer Details" },
@@ -218,13 +246,21 @@ const EVProductsForm = ({ initialData, warrantyId, onSuccess, isUniversal, isEdi
   };
 
   const handleSubmit = async () => {
-    // === Step 1: Installer Details Validation ===
-    if (!formData.storeName) {
-      toast({ title: "Store Name Required", description: "Please select a store", variant: "destructive" });
-      return;
+    // === Step 1: Installer Details Validation (skip for public mode) ===
+    if (!isPublic) {
+      if (!formData.storeName) {
+        toast({ title: "Store Name Required", description: "Please select a store", variant: "destructive" });
+        return;
+      }
+      if (!formData.installerName) {
+        toast({ title: "Installer Name Required", description: "Please select an installer", variant: "destructive" });
+        return;
+      }
     }
-    if (!formData.installerName) {
-      toast({ title: "Installer Name Required", description: "Please select an installer", variant: "destructive" });
+
+    // Email is required for public flow
+    if (isPublic && !formData.customerEmail) {
+      toast({ title: "Email Required", description: "Please enter your email address", variant: "destructive" });
       return;
     }
 
@@ -371,6 +407,42 @@ const EVProductsForm = ({ initialData, warrantyId, onSuccess, isUniversal, isEdi
         toast({
           title: "Warranty Updated",
           description: "Warranty updated successfully.",
+        });
+      } else if (isPublic) {
+        // Public flow: use public API endpoint
+        const formDataPayload = new FormData();
+
+        // Add warranty data fields
+        Object.entries(warrantyData).forEach(([key, value]) => {
+          if (key === 'productDetails') {
+            const pd = value as any;
+            // Extract photos before stringifying
+            const photos = pd.photos || {};
+            const pdWithoutPhotos = { ...pd };
+            delete pdWithoutPhotos.photos;
+            formDataPayload.append('productDetails', JSON.stringify(pdWithoutPhotos));
+
+            // Append photo files
+            if (photos.lhs instanceof File) formDataPayload.append('lhsPhoto', photos.lhs);
+            if (photos.rhs instanceof File) formDataPayload.append('rhsPhoto', photos.rhs);
+            if (photos.frontReg instanceof File) formDataPayload.append('frontRegPhoto', photos.frontReg);
+            if (photos.backReg instanceof File) formDataPayload.append('backRegPhoto', photos.backReg);
+            if (photos.warranty instanceof File) formDataPayload.append('warrantyPhoto', photos.warranty);
+          } else if (value !== null && value !== undefined) {
+            formDataPayload.append(key, String(value));
+          }
+        });
+
+        const response = await api.post('/public/warranty/submit', formDataPayload, {
+          headers: { 'Content-Type': 'multipart/form-data' }
+        });
+        result = response.data;
+        console.log('[DEBUG] Public submit result:', result);
+        toast({
+          title: "Warranty Submitted!",
+          description: result.isNewUser
+            ? "Your warranty has been submitted. Check your email for account details!"
+            : "Your warranty has been submitted and is awaiting store verification.",
         });
       } else {
         result = await submitWarranty(warrantyData);
@@ -549,6 +621,8 @@ const EVProductsForm = ({ initialData, warrantyId, onSuccess, isUniversal, isEdi
                   formData={formData}
                   updateFormData={updateFormData}
                   onNext={handleNext}
+                  isPublic={isPublic}
+                  installers={installers}
                 />
               </div>
             )}

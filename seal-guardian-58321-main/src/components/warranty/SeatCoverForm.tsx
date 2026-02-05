@@ -28,9 +28,22 @@ interface SeatCoverFormProps {
   warrantyId?: string;
   onSuccess?: () => void;
   isEditing?: boolean;
+  isPublic?: boolean;
+  storeDetails?: {
+    id: number;
+    store_name: string;
+    store_email: string;
+    contact_number: string;
+    address_line1?: string;
+    city?: string;
+    state?: string;
+    store_code?: string;
+    vendor_details_id?: number;
+  };
+  installers?: any[];
 }
 
-const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing }: SeatCoverFormProps = {}) => {
+const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic, storeDetails, installers }: SeatCoverFormProps = {}) => {
   const { toast } = useToast();
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -144,6 +157,20 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing }: SeatCo
     fetchProducts();
   }, []);
 
+  // Auto-fill store details for public QR flow
+  useEffect(() => {
+    if (isPublic && storeDetails) {
+      setFormData(prev => ({
+        ...prev,
+        storeName: storeDetails.store_name || "",
+        storeEmail: storeDetails.store_email || "",
+      }));
+      if (installers) {
+        setManpowerList(installers);
+      }
+    }
+  }, [isPublic, storeDetails, installers]);
+
   // Fetch manpower when store changes
   useEffect(() => {
     const fetchManpower = async () => {
@@ -222,7 +249,16 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing }: SeatCo
       }
 
       // Validate Customer Email (if provided or required)
-      // Note: Email is required for non-vendors, or if provided
+      // Note: Email is required for non-vendors and for public flow
+      if (isPublic && !formData.customerEmail) {
+        toast({
+          title: "Email Required",
+          description: "Please enter your email address",
+          variant: "destructive",
+        });
+        setLoading(false);
+        return;
+      }
       if (formData.customerEmail && !validateEmail(formData.customerEmail)) {
         toast({
           title: "Invalid Email",
@@ -288,21 +324,79 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing }: SeatCo
       };
 
       // Submit or update warranty registration
-      const result = warrantyId
-        ? await updateWarranty(warrantyId, warrantyData)
-        : await submitWarranty(warrantyData);
+      let result;
+      if (warrantyId) {
+        result = await updateWarranty(warrantyId, warrantyData);
+        toast({
+          title: "Warranty Updated",
+          description: "Warranty updated and resubmitted successfully!",
+        });
+      } else if (isPublic) {
+        // Public flow: use public API endpoint
+        const formDataPayload = new FormData();
 
-      toast({
-        title: warrantyId ? "Warranty Updated" : "Warranty Registered",
-        description: warrantyId
-          ? "Warranty updated and resubmitted successfully!"
-          : `Warranty registered successfully. UID: ${formData.uid}`,
-      });
+        // Add warranty data fields
+        Object.entries(warrantyData).forEach(([key, value]) => {
+          if (key === 'productDetails') {
+            const pd = value as any;
+            // Extract invoice file before stringifying
+            const invoiceFile = pd.invoiceFile;
+            const pdWithoutFile = { ...pd };
+            delete pdWithoutFile.invoiceFile;
+            formDataPayload.append('productDetails', JSON.stringify(pdWithoutFile));
+
+            // Append invoice file
+            if (invoiceFile instanceof File) formDataPayload.append('invoiceFile', invoiceFile);
+          } else if (value !== null && value !== undefined) {
+            formDataPayload.append(key, String(value));
+          }
+        });
+
+        const response = await api.post('/public/warranty/submit', formDataPayload, {
+          headers: { 'Content-Type': 'multipart/form-data' }
+        });
+        result = response.data;
+        toast({
+          title: "Warranty Submitted!",
+          description: result.isNewUser
+            ? "Your warranty has been submitted. Check your email for account details!"
+            : "Your warranty has been submitted and is awaiting store verification.",
+        });
+      } else {
+        result = await submitWarranty(warrantyData);
+        toast({
+          title: "Warranty Registered",
+          description: `Warranty registered successfully. UID: ${formData.uid}`,
+        });
+      }
 
       // Call onSuccess callback if provided
       if (onSuccess) {
         onSuccess();
         return; // Don't reset form if callback provided
+      }
+
+      // For public flow, show success message and don't navigate
+      if (isPublic) {
+        // Reset form for another submission
+        setFormData({
+          uid: "",
+          customerName: "",
+          customerEmail: "",
+          customerMobile: "",
+          productName: "",
+          storeEmail: storeDetails?.store_email || "",
+          purchaseDate: "",
+          storeName: storeDetails?.store_name || "",
+          manpowerId: "",
+          carMake: "",
+          carModel: "",
+          carYear: "",
+          warrantyType: "1 Year",
+          invoiceFile: null,
+          termsAccepted: false,
+        });
+        return;
       }
 
       // Reset form
@@ -311,7 +405,6 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing }: SeatCo
         customerName: "",
         customerEmail: "",
         customerMobile: "",
-
         productName: "",
         storeEmail: "",
         purchaseDate: "",
@@ -427,13 +520,13 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing }: SeatCo
                 <Label htmlFor="storeName" className="text-sm font-medium text-slate-700">
                   Store Name <span className="text-destructive">*</span>
                 </Label>
-                {user?.role === 'vendor' ? (
+                {user?.role === 'vendor' || isPublic ? (
                   <Input
                     id="storeName"
                     value={formData.storeName}
                     readOnly
                     className="bg-slate-50 border-slate-200"
-                    placeholder="Loading store name..."
+                    placeholder={isPublic ? "Store Name" : "Loading store name..."}
                   />
                 ) : (
                   <Combobox

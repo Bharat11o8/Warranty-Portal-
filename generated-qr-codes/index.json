@@ -1,0 +1,39 @@
+{
+  "generatedAt": "2026-02-05T10:06:28.011Z",
+  "baseUrl": "https://autoformwarranty.com",
+  "totalStores": 4,
+  "stores": [
+    {
+      "storeCode": "FRG065fd8d2-5318-46b",
+      "storeName": "autocruze",
+      "email": "thakur09654@gmail.com",
+      "location": "patna, bihar",
+      "qrUrl": "https://autoformwarranty.com/connect/FRG065fd8d2-5318-46b",
+      "qrFile": "FRG065fd8d2-5318-46b_autocruze.png"
+    },
+    {
+      "storeCode": "FRG73d0d048-f038-438",
+      "storeName": "BM_TEST Store ",
+      "email": "bharat@amatostore.com",
+      "location": "Noida, Uttar Pradesh",
+      "qrUrl": "https://autoformwarranty.com/connect/FRG73d0d048-f038-438",
+      "qrFile": "FRG73d0d048-f038-438_BM_TEST_Store_.png"
+    },
+    {
+      "storeCode": "FRG32d356f6-e855-40c",
+      "storeName": "ram-store",
+      "email": "prabhatthakur866@gmail.com",
+      "location": "New Delhi, Delhi",
+      "qrUrl": "https://autoformwarranty.com/connect/FRG32d356f6-e855-40c",
+      "qrFile": "FRG32d356f6-e855-40c_ram-store.png"
+    },
+    {
+      "storeCode": "FRGad49bfa4-9b3b-49c",
+      "storeName": "SK TEST STORE",
+      "email": "raosadhna8@gmail.com",
+      "location": "NOIDA, U.P",
+      "qrUrl": "https://autoformwarranty.com/connect/FRGad49bfa4-9b3b-49c",
+      "qrFile": "FRGad49bfa4-9b3b-49c_SK_TEST_STORE.png"
+    }
+  ]
+}

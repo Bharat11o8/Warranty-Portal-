@@ -35,6 +35,58 @@ export class PublicController {
         }
     }
 
+    /**
+     * Get store details by store code (for QR registration)
+     */
+    static async getStoreByCode(req: Request, res: Response) {
+        try {
+            const { code } = req.params;
+
+            if (!code) {
+                return res.status(400).json({ error: 'Store code is required' });
+            }
+
+            // Fetch store by store_code
+            const [stores]: any = await db.execute(`
+                SELECT 
+                    vd.id as vendor_details_id,
+                    vd.store_name,
+                    vd.store_code,
+                    vd.address as address_line1,
+                    vd.city,
+                    vd.state,
+                    vd.pincode,
+                    vd.store_email,
+                    p.phone_number as contact_number,
+                    vd.user_id
+                FROM vendor_details vd
+                JOIN profiles p ON vd.user_id = p.id
+                JOIN vendor_verification vv ON vd.user_id = vv.user_id
+                WHERE vd.store_code = ? AND vv.is_verified = TRUE
+                LIMIT 1
+            `, [code]);
+
+            if (stores.length === 0) {
+                return res.status(404).json({ error: 'Store not found or not verified' });
+            }
+
+            // Also fetch installers/manpower for this store
+            const [manpower]: any = await db.execute(
+                'SELECT id, name, manpower_id FROM manpower WHERE vendor_id = ? AND is_active = TRUE ORDER BY name ASC',
+                [stores[0].vendor_details_id]
+            );
+
+            res.json({
+                success: true,
+                store: stores[0],
+                installers: manpower
+            });
+        } catch (error: any) {
+            console.error('Get store by code error:', error);
+            res.status(500).json({ error: 'Failed to fetch store details' });
+        }
+    }
+
     static async getStoreManpower(req: Request, res: Response) {
         try {
             const { vendorDetailsId } = req.params;
@@ -226,6 +278,184 @@ export class PublicController {
         } catch (error: any) {
             console.error('Warranty rejection error:', error);
             res.status(400).send('Rejection failed or token invalid.');
+        }
+    }
+
+    /**
+     * Submit warranty from public QR flow
+     * Auto-creates user if not exists, then creates warranty
+     */
+    static async submitPublicWarranty(req: Request, res: Response) {
+        try {
+            const warrantyData = req.body;
+
+            // Parse productDetails if it's a string
+            if (typeof warrantyData.productDetails === 'string') {
+                try {
+                    warrantyData.productDetails = JSON.parse(warrantyData.productDetails);
+                } catch (e) {
+                    console.error('Failed to parse productDetails string:', e);
+                    return res.status(400).json({ error: 'Invalid productDetails format' });
+                }
+            }
+
+            // Handle uploaded files (same logic as WarrantyController)
+            const files = req.files as Express.Multer.File[];
+            if (files && files.length > 0) {
+                files.forEach(file => {
+                    if (file.fieldname === 'invoiceFile') {
+                        warrantyData.productDetails.invoiceFileName = file.path;
+                    } else if (['lhsPhoto', 'rhsPhoto', 'frontRegPhoto', 'backRegPhoto', 'warrantyPhoto'].includes(file.fieldname)) {
+                        if (!warrantyData.productDetails.photos) {
+                            warrantyData.productDetails.photos = {};
+                        }
+                        let key = file.fieldname.replace('Photo', '');
+                        if (file.fieldname === 'frontRegPhoto') key = 'frontReg';
+                        if (file.fieldname === 'backRegPhoto') key = 'backReg';
+                        warrantyData.productDetails.photos[key] = file.path;
+                    }
+                });
+            }
+
+            // Validate required fields
+            if (!warrantyData.productType || !warrantyData.customerName ||
+                !warrantyData.customerPhone || !warrantyData.customerEmail ||
+                !warrantyData.carMake || !warrantyData.carModel || !warrantyData.carYear ||
+                !warrantyData.purchaseDate || !warrantyData.warrantyType) {
+                return res.status(400).json({ error: 'Missing required fields' });
+            }
+
+            // UID required for seat-cover
+            if (warrantyData.productType === 'seat-cover' && !warrantyData.productDetails?.uid) {
+                return res.status(400).json({ error: 'UID is required for seat-cover products' });
+            }
+
+            const customerEmail = warrantyData.customerEmail.toLowerCase().trim();
+            const customerPhone = warrantyData.customerPhone.trim();
+            const customerName = warrantyData.customerName.trim();
+
+            // Step 1: Find or create customer user
+            let userId: number;
+            let isNewUser = false;
+
+            const [existingUsers]: any = await db.execute(
+                'SELECT id FROM profiles WHERE email = ?',
+                [customerEmail]
+            );
+
+            if (existingUsers.length > 0) {
+                // Existing user
+                userId = existingUsers[0].id;
+            } else {
+                // Create new customer user
+                isNewUser = true;
+                const bcrypt = await import('bcryptjs');
+                const { v4: uuidv4 } = await import('uuid');
+
+                // Generate random password (user will use OTP login or reset)
+                const tempPassword = uuidv4().substring(0, 12);
+                const hashedPassword = await bcrypt.hash(tempPassword, 10);
+
+                const [result]: any = await db.execute(
+                    `INSERT INTO profiles (name, email, phone_number, password, role, email_verified)
+                     VALUES (?, ?, ?, ?, 'customer', TRUE)`,
+                    [customerName, customerEmail, customerPhone, hashedPassword]
+                );
+
+                userId = result.insertId;
+            }
+
+            // Step 2: Check UID/Serial duplication
+            const checkId = warrantyData.productDetails.uid || warrantyData.productDetails.serialNumber;
+            if (checkId) {
+                const [existingWarranty]: any = await db.execute(
+                    'SELECT uid FROM warranty_registrations WHERE uid = ?',
+                    [checkId]
+                );
+                if (existingWarranty.length > 0) {
+                    return res.status(400).json({
+                        error: `This ${warrantyData.productDetails.uid ? 'UID' : 'Serial Number'} is already registered.`
+                    });
+                }
+            }
+
+            // Step 3: Insert warranty
+            // For public submissions, it goes to pending_vendor (Franchise needs to verify)
+            const initialStatus = 'pending_vendor';
+            const { v4: uuidv4 } = await import('uuid');
+            const warrantyId = warrantyData.productDetails.uid || warrantyData.productDetails.serialNumber || uuidv4();
+
+            await db.execute(
+                `INSERT INTO warranty_registrations 
+                (uid, user_id, product_type, customer_name, customer_email, customer_phone, 
+                 customer_address, car_make, car_model, car_year, 
+                 purchase_date, installer_name, installer_contact, product_details, manpower_id, warranty_type, status) 
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                [
+                    warrantyId,
+                    userId,
+                    warrantyData.productType,
+                    customerName,
+                    customerEmail,
+                    customerPhone,
+                    warrantyData.customerAddress || '',
+                    warrantyData.carMake,
+                    warrantyData.carModel,
+                    warrantyData.carYear,
+                    warrantyData.purchaseDate,
+                    warrantyData.installerName || null,
+                    warrantyData.installerContact || null,
+                    JSON.stringify(warrantyData.productDetails),
+                    warrantyData.manpowerId || null,
+                    warrantyData.warrantyType,
+                    initialStatus
+                ]
+            );
+
+            // Step 4: Send vendor confirmation email
+            if (warrantyData.installerContact) {
+                const token = jwt.sign(
+                    { warrantyId: warrantyId, vendorEmail: warrantyData.installerContact },
+                    process.env.JWT_SECRET || 'your-secret-key',
+                    { expiresIn: '7d' }
+                );
+
+                let vendorEmail = warrantyData.installerContact;
+                if (vendorEmail.includes('|')) {
+                    vendorEmail = vendorEmail.split('|')[0].trim();
+                }
+
+                await EmailService.sendVendorConfirmationEmail(
+                    vendorEmail,
+                    warrantyData.installerName || 'Partner',
+                    customerName,
+                    warrantyData.carMake,
+                    warrantyData.carModel,
+                    warrantyData.productType,
+                    warrantyId,
+                    token
+                );
+            }
+
+            // Step 5: Send welcome email for new users
+            if (isNewUser) {
+                await EmailService.sendPublicRegistrationWelcome(
+                    customerEmail,
+                    customerName,
+                    warrantyId
+                );
+            }
+
+            res.json({
+                success: true,
+                warrantyId,
+                message: 'Warranty submitted successfully. Awaiting store verification.',
+                isNewUser
+            });
+
+        } catch (error: any) {
+            console.error('Public warranty submission error:', error);
+            res.status(500).json({ error: 'Failed to submit warranty', details: error.message });
         }
     }
 }

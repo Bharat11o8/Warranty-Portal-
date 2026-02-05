@@ -1234,6 +1234,78 @@ export class EmailService {
   }
 
   /**
+   * Send welcome email to new customers registered via public QR flow
+   */
+  static async sendPublicRegistrationWelcome(
+    customerEmail: string,
+    customerName: string,
+    warrantyId: string
+  ): Promise<void> {
+    const loginUrl = this.getAppUrl() + '/login';
+
+    const htmlContent = `
+      <h2 style="color: #333; margin-top: 0;">Welcome to Autoform India, ${customerName}!</h2>
+      
+      <div class="success-box">
+        <div style="font-size: 48px; margin-bottom: 10px;">🎉</div>
+        <h3>Your Account Has Been Created!</h3>
+        <p style="color: #155724; margin: 5px 0 0 0;">Your warranty registration has been submitted successfully.</p>
+      </div>
+      
+      <div class="info-box" style="border-left-color: #FFB400;">
+        <p style="margin: 0 0 10px 0; font-weight: bold; color: #FFB400;">📋 Registration Details:</p>
+        <p><strong>Warranty ID:</strong> ${warrantyId}</p>
+        <p><strong>Email:</strong> ${customerEmail}</p>
+        <p><strong>Status:</strong> Pending Store Verification</p>
+      </div>
+      
+      <div style="border: 1px solid #ddd; border-radius: 8px; padding: 20px; margin: 20px 0; background: white;">
+        <h3 style="margin-top: 0; color: #444;">What happens next?</h3>
+        
+        <div style="margin-bottom: 15px;">
+          <strong style="color: #667eea;">1. Store Verification</strong>
+          <p style="margin: 5px 0 0 0; color: #666; font-size: 14px;">The store where you got your product installed will verify your registration.</p>
+        </div>
+        
+        <div style="margin-bottom: 15px;">
+          <strong style="color: #667eea;">2. Admin Approval</strong>
+          <p style="margin: 5px 0 0 0; color: #666; font-size: 14px;">After store verification, our admin team will review and approve your warranty.</p>
+        </div>
+        
+        <div>
+          <strong style="color: #667eea;">3. Warranty Activated</strong>
+          <p style="margin: 5px 0 0 0; color: #666; font-size: 14px;">Once approved, you will receive a confirmation email with your warranty certificate.</p>
+        </div>
+      </div>
+      
+      <div class="warning-box">
+        <p style="margin: 0 0 5px 0;"><strong>📌 How to Access Your Dashboard:</strong></p>
+        <p style="margin: 0;">Use OTP-based login with your registered email (${customerEmail}) to check your warranty status anytime.</p>
+      </div>
+      
+      <div style="text-align: center; margin: 30px 0;">
+        <a href="${loginUrl}" class="button">Access Your Dashboard</a>
+      </div>
+      
+      <p style="margin-top: 30px;">If you have any questions, please contact our support team at <a href="mailto:${process.env.EMAIL_FROM}">${process.env.EMAIL_FROM}</a>.</p>
+      
+      <p>Best regards,<br><strong>Autoform India Team</strong></p>
+    `;
+
+    await transporter.sendMail({
+      from: process.env.EMAIL_FROM,
+      to: customerEmail,
+      subject: '🎉 Welcome to Autoform India - Warranty Registration Received',
+      html: this.getHtmlTemplate({
+        title: '🎉 Welcome!',
+        content: htmlContent,
+        headerColorStart: '#FFB400',
+        headerColorEnd: '#FF9000'
+      })
+    });
+  }
+
+  /**
    * Helper to get display text for category
    */
   static getCategoryDisplay(category: string): string {

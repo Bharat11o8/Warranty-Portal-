@@ -13,16 +13,23 @@ interface InstallerDetailsProps {
   formData: EVFormData;
   updateFormData: (updates: Partial<EVFormData>) => void;
   onNext: () => void;
+  isPublic?: boolean;
+  installers?: any[];
 }
 
-const InstallerDetails = ({ formData, updateFormData, onNext }: InstallerDetailsProps) => {
+const InstallerDetails = ({ formData, updateFormData, onNext, isPublic, installers }: InstallerDetailsProps) => {
   const { user } = useAuth();
   const { toast } = useToast();
   const [stores, setStores] = useState<any[]>([]);
-  const [manpowerList, setManpowerList] = useState<any[]>([]);
+  const [manpowerList, setManpowerList] = useState<any[]>(installers || []);
 
-  // Fetch stores on mount
+  // Fetch stores on mount (only if not public or no store data)
   useEffect(() => {
+    if (isPublic && installers) {
+      setManpowerList(installers);
+      return;
+    }
+
     const fetchStores = async () => {
       try {
         const response = await api.get('/public/stores');
@@ -73,10 +80,15 @@ const InstallerDetails = ({ formData, updateFormData, onNext }: InstallerDetails
       }
     };
 
+    if (isPublic && installers) {
+      setManpowerList(installers);
+      return;
+    }
+
     if (formData.storeName) {
       fetchManpower();
     }
-  }, [formData.storeName, stores]);
+  }, [formData.storeName, stores, isPublic, installers]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -106,13 +118,13 @@ const InstallerDetails = ({ formData, updateFormData, onNext }: InstallerDetails
           <Label htmlFor="storeName">
             Store Name <span className="text-destructive">*</span>
           </Label>
-          {user?.role === 'vendor' ? (
+          {user?.role === 'vendor' || isPublic ? (
             <Input
               id="storeName"
               value={formData.storeName}
               readOnly
               className="bg-muted"
-              placeholder="Loading store name..."
+              placeholder={isPublic ? "Store Name" : "Loading store name..."}
             />
           ) : (
             <Combobox

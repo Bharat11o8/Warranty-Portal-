@@ -30,6 +30,8 @@ const CategoryPage = lazy(() => import("./pages/eshop/CategoryPage"));
 const ProductPage = lazy(() => import("./pages/eshop/ProductPage"));
 const Profile = lazy(() => import("./pages/Profile"));
 const AssignmentUpdatePanel = lazy(() => import("./pages/AssignmentUpdatePanel"));
+const PublicLayout = lazy(() => import("./components/layouts/PublicLayout"));
+const ConnectStorePage = lazy(() => import("./pages/public/ConnectStorePage"));
 
 const queryClient = new QueryClient();
 
@@ -76,6 +78,10 @@ const App = () => (
                 <Route path="/product/:productId" element={<ProductPage />} />
                 <Route path="/admin/grievances" element={<AdminGrievancesPage />} />
                 <Route path="/assignment/update/:token" element={<AssignmentUpdatePanel />} />
+                {/* Public QR Registration Route */}
+                <Route element={<PublicLayout />}>
+                  <Route path="/connect/:storeCode" element={<ConnectStorePage />} />
+                </Route>
                 {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
                 <Route path="*" element={<NotFound />} />
               </Routes>
