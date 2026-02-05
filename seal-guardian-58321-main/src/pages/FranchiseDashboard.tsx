@@ -26,6 +26,8 @@ import ProductPage from "./eshop/ProductPage";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { LogOut } from "lucide-react";
+import { SelectiveExportDialog } from "@/components/warranty/SelectiveExportDialog";
+import { exportWarrantiesToCSV } from "@/lib/adminExports";
 
 // Existing Components for Modals
 import EVProductsForm from "@/components/warranty/EVProductsForm";
@@ -86,6 +88,7 @@ const FranchiseDashboard = () => {
     const [viewingCategoryId, setViewingCategoryId] = useState<string | null>(null);
     const [expandedMobileCategory, setExpandedMobileCategory] = useState<string | null>(null);
     const [isMobileSearchActive, setIsMobileSearchActive] = useState(false);
+    const [exportDialogOpen, setExportDialogOpen] = useState(false);
 
     useEffect(() => {
         const scrollContainer = document.getElementById('main-dashboard-content-area');
@@ -382,7 +385,11 @@ const FranchiseDashboard = () => {
         }
     };
 
-    const handleExportWarranties = async () => {
+    const handleExportWarranties = () => {
+        setExportDialogOpen(true);
+    };
+
+    const handleSelectiveExport = async (selectedFields: string[]) => {
         setLoading(true);
         try {
             // Fetch all records for export (using a high limit to get everything)
@@ -390,7 +397,7 @@ const FranchiseDashboard = () => {
             let allWarranties = response.data.success ? response.data.warranties : warranties;
 
             // Apply the same filters as in the view
-            allWarranties = allWarranties.filter((w: any) => {
+            const filteredForExport = allWarranties.filter((w: any) => {
                 // Status Tab Filter
                 const matchesStatus = activeStatusTab === 'all' ? true :
                     activeStatusTab === 'pending' ? w.status === 'pending_vendor' :
@@ -439,50 +446,19 @@ const FranchiseDashboard = () => {
                 return true;
             });
 
-            const exportData = allWarranties.map((w: any) => {
-                const productDetails = typeof w.product_details === 'string' ? JSON.parse(w.product_details) : w.product_details || {};
+            if (filteredForExport.length === 0) {
+                toast({ description: "No records found to export", variant: "destructive" });
+                return;
+            }
 
-                // Base fields
-                const data: any = {
-                    'UID / Serial': w.uid || productDetails.serialNumber || 'N/A',
-                    'Registration Number': w.registration_number || productDetails.carRegistration || 'N/A',
-                    'Registered Date': formatToIST(w.created_at),
-                    'Product Category': w.product_type?.toUpperCase(),
-                    'Product Name': productDetails.product || productDetails.productName || 'N/A',
-                    'Warranty Type': w.warranty_type || 'N/A',
-                    'Status': w.status.toUpperCase(),
-                    'Customer Name': w.customer_name,
-                    'Customer Phone': w.customer_phone,
-                    'Customer Email': w.customer_email || 'N/A',
-                    'Vehicle Make': w.car_make || 'N/A',
-                    'Vehicle Model': w.car_model || 'N/A',
-                    'Store Name': productDetails.storeName || w.installer_name || 'N/A',
-                    'Store Email': productDetails.storeEmail || (w.installer_contact?.includes('|') ? w.installer_contact.split('|')[0].trim() : w.installer_contact) || 'N/A',
-                    'Store Phone': productDetails.dealerMobile || (w.installer_contact?.includes('|') ? w.installer_contact.split('|')[1].trim() : '') || 'N/A',
-                    'Applicator Name': productDetails.manpowerName || w.manpower_name_from_db || 'N/A',
-                    'Purchase Date': formatToIST(w.purchase_date),
-                    'Approved Date': w.validated_at ? formatToIST(w.validated_at) : 'N/A',
-                };
+            exportWarrantiesToCSV(
+                filteredForExport,
+                `warranties_export_${getISTTodayISO()}.csv`,
+                selectedFields
+            );
 
-                // Documentation Links
-                if (w.product_type === 'seat-cover' && productDetails.invoiceFileName) {
-                    const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
-                    data['Invoice / MRP Sticker Link'] = productDetails.invoiceFileName.startsWith('http')
-                        ? productDetails.invoiceFileName
-                        : `${baseUrl}/uploads/${productDetails.invoiceFileName}`;
-                } else if (w.product_type === 'ev-products' && productDetails.photos) {
-                    data['LHS Photo'] = productDetails.photos.lhs || 'N/A';
-                    data['RHS Photo'] = productDetails.photos.rhs || 'N/A';
-                    data['Front Reg Photo'] = productDetails.photos.frontReg || 'N/A';
-                    data['Back Reg Photo'] = productDetails.photos.backReg || 'N/A';
-                    data['Invoice Photo'] = productDetails.photos.warranty || 'N/A';
-                }
-
-                return data;
-            });
-
-            downloadCSV(exportData, `warranties_full_export_${getISTTodayISO()}.csv`);
-            toast({ title: "Export Successful", description: `Exported ${exportData.length} filtered records.` });
+            toast({ title: "Export Successful", description: `Exported ${filteredForExport.length} records with ${selectedFields.length} fields` });
+            setExportDialogOpen(false);
         } catch (error) {
             console.error("Export failed", error);
             toast({ title: "Export Failed", description: "Could not fetch records for export.", variant: "destructive" });
@@ -780,6 +756,15 @@ const FranchiseDashboard = () => {
                         )}
                     </DialogContent>
                 </Dialog>
+
+                {/* Selective Export Dialog */}
+                <SelectiveExportDialog
+                    isOpen={exportDialogOpen}
+                    onClose={() => setExportDialogOpen(false)}
+                    onExport={handleSelectiveExport}
+                    title="Selective Warranty Export"
+                    description="Choose the information you want to include in your CSV report."
+                />
 
                 {/* Manpower Warranty Details Dialog */}
                 <Dialog open={manpowerWarrantyDialogOpen} onOpenChange={setManpowerWarrantyDialogOpen}>

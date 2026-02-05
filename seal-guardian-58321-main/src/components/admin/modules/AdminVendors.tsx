@@ -23,7 +23,8 @@ import {
     Store,
     MapPin,
     Phone,
-    Mail
+    Mail,
+    ArrowUpDown
 } from "lucide-react";
 import {
     Dialog,
@@ -44,6 +45,14 @@ import {
     PaginationNext,
     PaginationPrevious,
 } from "@/components/ui/pagination";
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuLabel,
+    DropdownMenuSeparator,
+    DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { AdminVendorDetails } from "./AdminVendorDetails";
 
 export const AdminVendors = () => {
@@ -219,14 +228,25 @@ export const AdminVendors = () => {
         .sort((a, b) => {
             let aVal = a[sortField];
             let bVal = b[sortField];
+
             if (sortField === 'created_at') {
-                aVal = new Date(aVal).getTime();
-                bVal = new Date(bVal).getTime();
+                aVal = new Date(aVal || 0).getTime();
+                bVal = new Date(bVal || 0).getTime();
+            } else if (sortField === 'total_warranties') {
+                aVal = Number(aVal) || 0;
+                bVal = Number(bVal) || 0;
+            } else if (sortField === 'status') {
+                // Verified/Active first in desc
+                aVal = a.is_verified ? 1 : (a.verified_at ? -1 : 0);
+                bVal = b.is_verified ? 1 : (b.verified_at ? -1 : 0);
             } else {
                 aVal = (aVal || '').toString().toLowerCase();
                 bVal = (bVal || '').toString().toLowerCase();
             }
-            return sortOrder === 'asc' ? (aVal > bVal ? 1 : -1) : (aVal < bVal ? 1 : -1);
+
+            if (aVal === bVal) return 0;
+            const result = aVal > bVal ? 1 : -1;
+            return sortOrder === 'asc' ? result : -result;
         });
 
     // Pagination Calculation
@@ -271,24 +291,79 @@ export const AdminVendors = () => {
                     </TabsList>
                 </Tabs>
 
-                <div className="flex w-full md:w-auto gap-2">
-                    <div className="relative flex-1 md:w-64">
+                <div className="flex flex-col sm:flex-row w-full md:w-auto gap-2">
+                    <div className="relative flex-1 sm:w-64">
                         <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-slate-400" />
                         <Input
                             placeholder="Search franchises..."
-                            className="pl-10 bg-white border-orange-100 focus:border-orange-300 focus:ring-orange-200"
+                            className="pl-10 bg-white border-orange-100 focus:border-orange-300 focus:ring-orange-200 h-11 sm:h-10"
                             value={search}
                             onChange={(e) => setSearch(e.target.value)}
                         />
                     </div>
-                    <Button variant="outline" size="icon" onClick={() => setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc')}>
-                        <span className="sr-only">Sort</span>
-                        {sortOrder === 'asc' ? "↑" : "↓"}
-                    </Button>
-                    <Button variant="outline" onClick={handleExportVendors} className="hidden md:flex gap-2 text-slate-600">
-                        <Download className="h-4 w-4" />
-                        <span className="hidden sm:inline">Export</span>
-                    </Button>
+                    <div className="flex gap-2">
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                                <Button variant="outline" className="flex-1 sm:flex-none flex items-center gap-2 border-orange-100 h-11 sm:h-10">
+                                    <ArrowUpDown className="h-4 w-4 text-orange-500" />
+                                    {sortField === 'store_name' ? 'Name' : sortField === 'total_warranties' ? 'Stats' : sortField === 'city' ? 'Location' : sortField === 'status' ? 'Status' : 'Date'}
+                                    {sortOrder === 'asc' ? '↑' : '↓'}
+                                </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent className="rounded-2xl border-orange-100 shadow-xl p-2 w-48">
+                                <DropdownMenuLabel className="text-[10px] uppercase tracking-widest text-slate-400 px-3 py-2">Sort By</DropdownMenuLabel>
+                                <DropdownMenuSeparator className="bg-orange-50" />
+                                <DropdownMenuItem
+                                    onClick={() => { setSortField('created_at'); }}
+                                    className="flex items-center justify-between text-xs font-bold py-3 px-3 rounded-xl cursor-pointer hover:bg-orange-50 focus:bg-orange-50 group"
+                                >
+                                    Registration Date {sortField === 'created_at' && <Check className="h-4 w-4 text-orange-500" />}
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                    onClick={() => { setSortField('store_name'); }}
+                                    className="flex items-center justify-between text-xs font-bold py-3 px-3 rounded-xl cursor-pointer hover:bg-orange-50 focus:bg-orange-50 group"
+                                >
+                                    Store Name {sortField === 'store_name' && <Check className="h-4 w-4 text-orange-500" />}
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                    onClick={() => { setSortField('city'); }}
+                                    className="flex items-center justify-between text-xs font-bold py-3 px-3 rounded-xl cursor-pointer hover:bg-orange-50 focus:bg-orange-50 group"
+                                >
+                                    Location {sortField === 'city' && <Check className="h-4 w-4 text-orange-500" />}
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                    onClick={() => { setSortField('status'); }}
+                                    className="flex items-center justify-between text-xs font-bold py-3 px-3 rounded-xl cursor-pointer hover:bg-orange-50 focus:bg-orange-50 group"
+                                >
+                                    Status {sortField === 'status' && <Check className="h-4 w-4 text-orange-500" />}
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                    onClick={() => { setSortField('total_warranties'); }}
+                                    className="flex items-center justify-between text-xs font-bold py-3 px-3 rounded-xl cursor-pointer hover:bg-orange-50 focus:bg-orange-50 group"
+                                >
+                                    Total Warranties {sortField === 'total_warranties' && <Check className="h-4 w-4 text-orange-500" />}
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator className="bg-orange-50" />
+                                <DropdownMenuLabel className="text-[10px] uppercase tracking-widest text-slate-400 px-3 py-2">Order</DropdownMenuLabel>
+                                <DropdownMenuItem
+                                    onClick={() => setSortOrder('desc')}
+                                    className="flex items-center justify-between text-xs font-bold py-3 px-3 rounded-xl cursor-pointer hover:bg-orange-50 focus:bg-orange-50 group"
+                                >
+                                    Newest/Highest First {sortOrder === 'desc' && <Check className="h-4 w-4 text-orange-500" />}
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                    onClick={() => setSortOrder('asc')}
+                                    className="flex items-center justify-between text-xs font-bold py-3 px-3 rounded-xl cursor-pointer hover:bg-orange-50 focus:bg-orange-50 group"
+                                >
+                                    Oldest/Lowest First {sortOrder === 'asc' && <Check className="h-4 w-4 text-orange-500" />}
+                                </DropdownMenuItem>
+                            </DropdownMenuContent>
+                        </DropdownMenu>
+                        <Button variant="outline" onClick={handleExportVendors} className="flex-1 sm:flex-none h-11 sm:h-10 text-slate-600">
+                            <Download className="h-4 w-4 mr-2" />
+                            <span>Export</span>
+                        </Button>
+                    </div>
                 </div>
             </div>
 
@@ -316,120 +391,217 @@ export const AdminVendors = () => {
                             <p>No franchises found matching your criteria</p>
                         </div>
                     ) : (
-                        <table className="w-full text-sm text-left">
-                            <thead className="bg-slate-50 text-slate-500 font-medium border-b border-slate-100">
-                                <tr>
-                                    <th className="px-6 py-4">Store Details</th>
-                                    <th className="px-6 py-4">Contact</th>
-                                    <th className="px-6 py-4">Location</th>
-                                    <th className="px-6 py-4 text-center">Status</th>
-                                    <th className="px-6 py-4 text-center">Stats</th>
-                                    <th className="px-6 py-4 text-right">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-100">
+                        <>
+                            {/* Mobile View: Cards */}
+                            <div className="grid grid-cols-1 gap-4 p-4 md:hidden">
                                 {paginatedVendors.map((vendor) => (
-                                    <tr key={vendor.id} className="hover:bg-slate-50/50 transition-colors group">
-                                        <td className="px-6 py-4">
-                                            <div className="font-bold text-slate-800">{vendor.store_name}</div>
-                                            <div className="text-xs text-slate-500 flex items-center gap-1 mt-1">
-                                                <Mail className="h-3 w-3" /> {vendor.store_email}
-                                            </div>
-                                        </td>
-                                        <td className="px-6 py-4">
-                                            <div className="font-medium text-slate-700">{vendor.contact_name}</div>
-                                            <div className="text-xs text-slate-500 flex items-center gap-1 mt-1">
-                                                <Phone className="h-3 w-3" /> {vendor.phone_number}
-                                            </div>
-                                        </td>
-                                        <td className="px-6 py-4">
-                                            <div className="flex items-center gap-1 text-slate-700">
-                                                <MapPin className="h-3.5 w-3.5 text-slate-400" />
-                                                {vendor.city}
-                                            </div>
-                                            <div className="text-xs text-slate-400 ml-4.5">{vendor.state}</div>
-                                        </td>
-                                        <td className="px-6 py-4 text-center">
-                                            {vendor.is_verified ? (
-                                                <Badge className="bg-green-100 text-green-700 hover:bg-green-100 border-green-200">Active</Badge>
-                                            ) : vendor.verified_at ? (
-                                                <Badge variant="destructive" className="bg-red-100 text-red-700 hover:bg-red-100 border-red-200">Rejected</Badge>
-                                            ) : (
-                                                <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100 border-amber-200">Pending</Badge>
-                                            )}
-                                        </td>
-                                        <td className="px-6 py-4">
-                                            <div className="flex justify-center gap-3 text-xs font-medium">
-                                                <div className="text-center">
-                                                    <div className="text-green-600">{vendor.validated_warranties || 0}</div>
-                                                    <div className="text-[10px] text-slate-400">Approved</div>
-                                                </div>
-                                                <div className="text-center">
-                                                    <div className="text-red-600">{vendor.rejected_warranties || 0}</div>
-                                                    <div className="text-[10px] text-slate-400">Rejected</div>
-                                                </div>
-                                                <div className="text-center">
-                                                    <div className="text-amber-600">{vendor.pending_warranties || 0}</div>
-                                                    <div className="text-[10px] text-slate-400">Pending</div>
-                                                </div>
-                                                <div className="text-center">
-                                                    <div className="text-slate-700">{vendor.total_warranties || 0}</div>
-                                                    <div className="text-[10px] text-slate-400">Total</div>
+                                    <div key={vendor.id} className="bg-white border border-orange-100 rounded-2xl p-5 shadow-sm space-y-4">
+                                        <div className="flex justify-between items-start">
+                                            <div>
+                                                <div className="font-bold text-slate-800 text-lg leading-tight">{vendor.store_name}</div>
+                                                <div className="text-xs text-slate-500 flex items-center gap-1.5 mt-1.5">
+                                                    <Mail className="h-3.5 w-3.5" /> {vendor.store_email}
                                                 </div>
                                             </div>
-                                        </td>
-                                        <td className="px-6 py-4 text-right">
-                                            <div className="flex justify-end items-center gap-2">
+                                            <div className="flex gap-2">
                                                 <Button
                                                     size="icon"
                                                     variant="ghost"
-                                                    className="h-8 w-8 text-slate-400 hover:text-blue-500 hover:bg-blue-50 rounded-full"
+                                                    className="h-10 w-10 bg-blue-50 text-blue-500 rounded-xl"
                                                     onClick={() => handleViewVendor(vendor)}
-                                                    title="View Details"
                                                 >
-                                                    <Eye className="h-4 w-4" />
+                                                    <Eye className="h-5 w-5" />
                                                 </Button>
-
                                                 {!vendor.is_verified && (
-                                                    <>
+                                                    <div className="flex gap-2">
                                                         <Button
                                                             size="icon"
-                                                            className="h-8 w-8 bg-green-500 hover:bg-green-600 text-white rounded-full shadow-sm"
+                                                            className="h-10 w-10 bg-green-500 text-white rounded-xl shadow-sm"
                                                             onClick={() => handleVendorVerification(vendor.id, true)}
-                                                            title="Approve"
                                                         >
-                                                            <Check className="h-4 w-4" />
+                                                            <Check className="h-5 w-5" />
                                                         </Button>
                                                         <Button
                                                             size="icon"
                                                             variant="destructive"
-                                                            className="h-8 w-8 rounded-full shadow-sm"
+                                                            className="h-10 w-10 rounded-xl shadow-sm"
                                                             onClick={() => {
                                                                 setSelectedVendor(vendor);
                                                                 setRejectDialogOpen(true);
                                                             }}
-                                                            title="Reject"
                                                         >
-                                                            <X className="h-4 w-4" />
+                                                            <X className="h-5 w-5" />
                                                         </Button>
-                                                    </>
+                                                    </div>
                                                 )}
-
                                                 <Button
                                                     size="icon"
                                                     variant="ghost"
-                                                    className="h-8 w-8 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-full"
+                                                    className="h-10 w-10 bg-red-50 text-red-500 rounded-xl"
                                                     onClick={() => handleDeleteVendor(vendor.id)}
-                                                    title="Delete"
                                                 >
-                                                    <Trash2 className="h-4 w-4" />
+                                                    <Trash2 className="h-5 w-5" />
                                                 </Button>
                                             </div>
-                                        </td>
-                                    </tr>
+                                        </div>
+
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div className="space-y-1">
+                                                <div className="text-[10px] uppercase tracking-wider text-slate-400 font-bold">Contact</div>
+                                                <div className="text-sm font-medium text-slate-700">{vendor.contact_name}</div>
+                                                <div className="text-[11px] text-slate-500 flex items-center gap-1">
+                                                    <Phone className="h-3 w-3" /> {vendor.phone_number}
+                                                </div>
+                                            </div>
+                                            <div className="space-y-1 text-right">
+                                                <div className="text-[10px] uppercase tracking-wider text-slate-400 font-bold">Location</div>
+                                                <div className="text-sm font-medium text-slate-700">{vendor.city}</div>
+                                                <div className="text-[11px] text-slate-500 truncate">{vendor.state}</div>
+                                            </div>
+                                        </div>
+
+                                        <div className="flex items-center justify-between pt-2 border-t border-orange-50">
+                                            <div className="space-y-1">
+                                                <div className="text-[10px] uppercase tracking-wider text-slate-400 font-bold">Status</div>
+                                                {vendor.is_verified ? (
+                                                    <Badge className="bg-green-100 text-green-700 hover:bg-green-100 border-green-200">Active</Badge>
+                                                ) : vendor.verified_at ? (
+                                                    <Badge variant="destructive" className="bg-red-100 text-red-700 hover:bg-red-100 border-red-200">Rejected</Badge>
+                                                ) : (
+                                                    <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100 border-amber-200">Pending</Badge>
+                                                )}
+                                            </div>
+                                            <div className="flex gap-4">
+                                                <div className="text-center">
+                                                    <div className="text-green-600 font-bold text-sm">{vendor.validated_warranties || 0}</div>
+                                                    <div className="text-[8px] uppercase tracking-tighter text-slate-400">Approved</div>
+                                                </div>
+                                                <div className="text-center">
+                                                    <div className="text-slate-700 font-bold text-sm">{vendor.total_warranties || 0}</div>
+                                                    <div className="text-[8px] uppercase tracking-tighter text-slate-400">Total</div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
                                 ))}
-                            </tbody>
-                        </table>
+                            </div>
+
+                            {/* Desktop View: Table */}
+                            <table className="w-full text-sm text-left hidden md:table">
+                                <thead className="bg-slate-50 text-slate-500 font-medium border-b border-slate-100">
+                                    <tr>
+                                        <th className="px-6 py-4">Store Details</th>
+                                        <th className="px-6 py-4">Contact</th>
+                                        <th className="px-6 py-4">Location</th>
+                                        <th className="px-6 py-4 text-center">Status</th>
+                                        <th className="px-6 py-4 text-center">Stats</th>
+                                        <th className="px-6 py-4 text-right">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100">
+                                    {paginatedVendors.map((vendor) => (
+                                        <tr key={vendor.id} className="hover:bg-slate-50/50 transition-colors group">
+                                            <td className="px-6 py-4">
+                                                <div className="font-bold text-slate-800">{vendor.store_name}</div>
+                                                <div className="text-xs text-slate-500 flex items-center gap-1 mt-1">
+                                                    <Mail className="h-3 w-3" /> {vendor.store_email}
+                                                </div>
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                <div className="font-medium text-slate-700">{vendor.contact_name}</div>
+                                                <div className="text-xs text-slate-500 flex items-center gap-1 mt-1">
+                                                    <Phone className="h-3 w-3" /> {vendor.phone_number}
+                                                </div>
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                <div className="flex items-center gap-1 text-slate-700">
+                                                    <MapPin className="h-3.5 w-3.5 text-slate-400" />
+                                                    {vendor.city}
+                                                </div>
+                                                <div className="text-xs text-slate-400 ml-4.5">{vendor.state}</div>
+                                            </td>
+                                            <td className="px-6 py-4 text-center">
+                                                {vendor.is_verified ? (
+                                                    <Badge className="bg-green-100 text-green-700 hover:bg-green-100 border-green-200">Active</Badge>
+                                                ) : vendor.verified_at ? (
+                                                    <Badge variant="destructive" className="bg-red-100 text-red-700 hover:bg-red-100 border-red-200">Rejected</Badge>
+                                                ) : (
+                                                    <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100 border-amber-200">Pending</Badge>
+                                                )}
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                <div className="flex justify-center gap-3 text-xs font-medium">
+                                                    <div className="text-center">
+                                                        <div className="text-green-600">{vendor.validated_warranties || 0}</div>
+                                                        <div className="text-[10px] text-slate-400">Approved</div>
+                                                    </div>
+                                                    <div className="text-center">
+                                                        <div className="text-red-600">{vendor.rejected_warranties || 0}</div>
+                                                        <div className="text-[10px] text-slate-400">Rejected</div>
+                                                    </div>
+                                                    <div className="text-center">
+                                                        <div className="text-amber-600">{vendor.pending_warranties || 0}</div>
+                                                        <div className="text-[10px] text-slate-400">Pending</div>
+                                                    </div>
+                                                    <div className="text-center">
+                                                        <div className="text-slate-700">{vendor.total_warranties || 0}</div>
+                                                        <div className="text-[10px] text-slate-400">Total</div>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td className="px-6 py-4 text-right">
+                                                <div className="flex justify-end items-center gap-2">
+                                                    <Button
+                                                        size="icon"
+                                                        variant="ghost"
+                                                        className="h-8 w-8 text-slate-400 hover:text-blue-500 hover:bg-blue-50 rounded-full"
+                                                        onClick={() => handleViewVendor(vendor)}
+                                                        title="View Details"
+                                                    >
+                                                        <Eye className="h-4 w-4" />
+                                                    </Button>
+
+                                                    {!vendor.is_verified && (
+                                                        <>
+                                                            <Button
+                                                                size="icon"
+                                                                className="h-8 w-8 bg-green-500 hover:bg-green-600 text-white rounded-full shadow-sm"
+                                                                onClick={() => handleVendorVerification(vendor.id, true)}
+                                                                title="Approve"
+                                                            >
+                                                                <Check className="h-4 w-4" />
+                                                            </Button>
+                                                            <Button
+                                                                size="icon"
+                                                                variant="destructive"
+                                                                className="h-8 w-8 rounded-full shadow-sm"
+                                                                onClick={() => {
+                                                                    setSelectedVendor(vendor);
+                                                                    setRejectDialogOpen(true);
+                                                                }}
+                                                                title="Reject"
+                                                            >
+                                                                <X className="h-4 w-4" />
+                                                            </Button>
+                                                        </>
+                                                    )}
+
+                                                    <Button
+                                                        size="icon"
+                                                        variant="ghost"
+                                                        className="h-8 w-8 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-full"
+                                                        onClick={() => handleDeleteVendor(vendor.id)}
+                                                        title="Delete"
+                                                    >
+                                                        <Trash2 className="h-4 w-4" />
+                                                    </Button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </>
                     )}
                 </div>
             </Card>

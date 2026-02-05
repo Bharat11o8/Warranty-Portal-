@@ -1,29 +1,99 @@
 import { downloadCSV, formatToIST, getISTTodayISO } from "@/lib/utils";
 
 /**
+ * Available warranty export fields
+ */
+export const WARRANTY_EXPORT_FIELDS = [
+    { id: 'date', label: 'Registration Date' },
+    { id: 'productName', label: 'Product Name' },
+    { id: 'productType', label: 'Product Category' },
+    { id: 'warrantyType', label: 'Warranty Type' },
+    { id: 'uid', label: 'UID / Serial' },
+    { id: 'status', label: 'Status' },
+    { id: 'customerName', label: 'Customer Name' },
+    { id: 'customerPhone', label: 'Customer Phone' },
+    { id: 'customerEmail', label: 'Customer Email' },
+    { id: 'vehicle', label: 'Vehicle (Make/Model/Year)' },
+    { id: 'vehicleMake', label: 'Vehicle Make' },
+    { id: 'vehicleModel', label: 'Vehicle Model' },
+    { id: 'vehicleYear', label: 'Vehicle Year' },
+    { id: 'vehicleReg', label: 'Vehicle Registration' },
+    { id: 'installerStore', label: 'Store Name' },
+    { id: 'installerEmail', label: 'Store Email' },
+    { id: 'installerPhone', label: 'Store Phone' },
+    { id: 'installerManpower', label: 'Applicator Name' },
+    { id: 'purchaseDate', label: 'Purchase Date' },
+    { id: 'approvedDate', label: 'Approved Date' },
+    { id: 'rejectionReason', label: 'Rejection Reason' },
+    { id: 'links', label: 'Documentation Links' }
+];
+
+/**
  * Format warranty data for export
  */
-export const formatWarrantyForExport = (w: any) => {
+export const formatWarrantyForExport = (w: any, selectedFields?: string[]) => {
     const productDetails = typeof w.product_details === 'string'
         ? JSON.parse(w.product_details)
         : w.product_details || {};
+
     const rawProductName = productDetails.product || productDetails.productName || w.product_type;
     const productName = rawProductName?.replace(/-/g, ' ').toUpperCase() || w.product_type;
 
-    return {
-        Date: formatToIST(w.created_at),
-        'Product Name': productName,
-        'Product Type': w.product_type,
-        'UID/Lot': w.uid || productDetails.lotNumber || 'N/A',
-        'Customer Name': w.customer_name,
-        'Customer Phone': w.customer_phone,
-        'Vehicle': `${w.car_make || ''} ${w.car_model || ''} (${w.car_year || ''})`.trim(),
-        'Vehicle Reg': w.registration_number || productDetails.carRegistration || 'N/A',
-        'Installer Store': productDetails.storeName || w.installer_name || 'N/A',
-        'Installer Manpower': w.manpower_name || 'N/A',
-        'Status': w.status?.toUpperCase() || 'N/A',
-        'Purchase Date': w.purchase_date ? formatToIST(w.purchase_date) : 'N/A'
+    const fullData: any = {
+        date: formatToIST(w.created_at),
+        productName: productName,
+        productType: w.product_type?.toUpperCase(),
+        warrantyType: w.warranty_type || 'N/A',
+        uid: w.uid || productDetails.lotNumber || productDetails.serialNumber || 'N/A',
+        status: w.status?.toUpperCase() || 'N/A',
+        customerName: w.customer_name,
+        customerPhone: w.customer_phone,
+        customerEmail: w.customer_email || 'N/A',
+        vehicle: `${w.car_make || ''} ${w.car_model || ''} (${w.car_year || ''})`.trim(),
+        vehicleMake: w.car_make || 'N/A',
+        vehicleModel: w.car_model || 'N/A',
+        vehicleYear: w.car_year || 'N/A',
+        vehicleReg: w.registration_number || productDetails.carRegistration || 'N/A',
+        installerStore: productDetails.storeName || w.installer_name || 'N/A',
+        installerEmail: productDetails.storeEmail || (w.installer_contact?.includes('|') ? w.installer_contact.split('|')[0].trim() : w.installer_contact) || 'N/A',
+        installerPhone: productDetails.dealerMobile || (w.installer_contact?.includes('|') ? w.installer_contact.split('|')[1].trim() : '') || 'N/A',
+        installerManpower: w.manpower_name || productDetails.manpowerName || w.manpower_name_from_db || 'N/A',
+        purchaseDate: w.purchase_date ? formatToIST(w.purchase_date) : 'N/A',
+        approvedDate: w.validated_at ? formatToIST(w.validated_at) : 'N/A',
+        rejectionReason: w.rejection_reason || 'N/A',
     };
+
+    // Documentation Links
+    if (w.product_type === 'seat-cover' && productDetails.invoiceFileName) {
+        const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+        fullData.links = productDetails.invoiceFileName.startsWith('http')
+            ? productDetails.invoiceFileName
+            : `${baseUrl}/uploads/${productDetails.invoiceFileName}`;
+    } else if (w.product_type === 'ev-products' && productDetails.photos) {
+        fullData.links = Object.values(productDetails.photos).filter(Boolean).join(", ");
+    } else {
+        fullData.links = 'N/A';
+    }
+
+    if (!selectedFields || selectedFields.length === 0) {
+        // Return original format if no fields specified for backward compatibility
+        // Mapping fullData keys to the labels used in WARRANTY_EXPORT_FIELDS for CSV headers
+        const result: any = {};
+        WARRANTY_EXPORT_FIELDS.forEach(field => {
+            result[field.label] = fullData[field.id];
+        });
+        return result;
+    }
+
+    const filteredData: any = {};
+    selectedFields.forEach(fieldId => {
+        const fieldMeta = WARRANTY_EXPORT_FIELDS.find(f => f.id === fieldId);
+        if (fieldMeta) {
+            filteredData[fieldMeta.label] = fullData[fieldId];
+        }
+    });
+
+    return filteredData;
 };
 
 /**
@@ -80,8 +150,8 @@ export const formatManpowerForExport = (m: any) => ({
 /**
  * Export warranties to CSV
  */
-export const exportWarrantiesToCSV = (warranties: any[], filename?: string) => {
-    const exportData = warranties.map(formatWarrantyForExport);
+export const exportWarrantiesToCSV = (warranties: any[], filename?: string, selectedFields?: string[]) => {
+    const exportData = warranties.map(w => formatWarrantyForExport(w, selectedFields));
     downloadCSV(exportData, filename || `warranties_export_${getISTTodayISO()}.csv`);
 };
 

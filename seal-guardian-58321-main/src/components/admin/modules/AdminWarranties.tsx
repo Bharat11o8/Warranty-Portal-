@@ -62,6 +62,8 @@ import {
 import { format, isWithinInterval, startOfDay, endOfDay } from "date-fns";
 import { DateRange } from "react-day-picker";
 import { AdminWarrantyList } from "@/components/admin/AdminWarrantyList";
+import { SelectiveExportDialog } from "@/components/warranty/SelectiveExportDialog";
+import { exportWarrantiesToCSV } from "@/lib/adminExports";
 
 export const AdminWarranties = () => {
     const { toast } = useToast();
@@ -134,57 +136,21 @@ export const AdminWarranties = () => {
         setCurrentPage(1);
     }, [statusFilter, productTypeFilter, selectedMake, selectedModel, dateRange, search]);
 
-    const handleExportByType = (type: 'Seat Cover' | 'PPF') => {
+    const handleSelectiveExport = (selectedFields: string[]) => {
         try {
-            // Filter by selected type - allow partial matches (e.g. "Seat Cover" matches "Seat Cover (2 Row)")
-            const typeLower = type.toLowerCase();
-            const exportItems = filteredWarranties.filter(w => {
-                const pType = (w.product_type || "").toLowerCase();
-                if (type === 'PPF') return pType.includes('ppf') || pType.includes('ev');
-                return pType.includes('seat') || pType.includes('cover');
-            });
-
-            if (exportItems.length === 0) {
-                toast({ description: `No ${type} warranties found to export`, variant: "destructive" });
+            if (filteredWarranties.length === 0) {
+                toast({ description: "No records found to export", variant: "destructive" });
                 return;
             }
 
-            const exportData = exportItems.map(w => {
-                let details: any = {};
-                try {
-                    if (typeof w.product_details === 'string') {
-                        details = JSON.parse(w.product_details);
-                    } else if (typeof w.product_details === 'object' && w.product_details) {
-                        details = w.product_details;
-                    }
-                } catch (err) { /* ignore */ }
+            exportWarrantiesToCSV(
+                filteredWarranties,
+                `warranties_export_${new Date().toISOString().split('T')[0]}.csv`,
+                selectedFields
+            );
 
-                return {
-                    "UID": w.uid,
-                    "Status": w.status,
-                    "Customer Name": w.customer_name,
-                    "Customer Phone": w.customer_phone,
-                    "Customer Email": w.customer_email,
-                    "Product Type": w.product_type,
-                    "Product Name": details.product || details.productName || w.product_name || "N/A", // Fixed fallback order
-                    "Make": (w.car_make || details.selectedMake || "N/A").charAt(0).toUpperCase() + (w.car_make || details.selectedMake || "N/A").slice(1),  // Added Make with capitalization
-                    "Model": w.car_model || details.selectedModel || "N/A",
-                    "Year": w.car_year || details.selectedYear || "N/A",
-                    "Vehicle Reg": w.car_reg || details.carRegistration || "N/A", // Added Reg number
-                    "Franchise Name": w.vendor_store_name || details.storeName || w.store_name || "N/A",
-                    "Store Email": w.vendor_store_email || details.storeEmail || w.installer_contact || "N/A",
-                    "Installer": w.manpower_name_from_db || details.manpowerName || details.installerName || "N/A",
-                    "Date": w.created_at ? new Date(w.created_at).toLocaleDateString() : "N/A",
-                    "Images": type === 'PPF'
-                        ? (details.photos ? Object.values(details.photos).filter(Boolean).join(", ") : "N/A")
-                        : (details.invoiceFileName || "N/A"),
-                    "Rejection Reason": w.rejection_reason || ""
-                };
-            });
-
-            downloadCSV(exportData, `${type.replace(' ', '_')}_Warranties_${new Date().toISOString().split('T')[0]}.csv`);
+            toast({ title: "Export Successful", description: `Exported ${filteredWarranties.length} records with ${selectedFields.length} fields` });
             setExportDialogOpen(false);
-            toast({ title: "Export Successful", description: `Exported ${exportItems.length} records` });
         } catch (error) {
             console.error("Export failed:", error);
             toast({ title: "Export Failed", variant: "destructive" });
@@ -642,32 +608,13 @@ export const AdminWarranties = () => {
                 </Pagination>
             )}
 
-            <Dialog open={exportDialogOpen} onOpenChange={setExportDialogOpen}>
-                <DialogContent>
-                    <DialogHeader>
-                        <DialogTitle>Export Warranties</DialogTitle>
-                        <DialogDescription>Select the product type to export</DialogDescription>
-                    </DialogHeader>
-                    <div className="grid grid-cols-2 gap-4 py-4">
-                        <Button
-                            variant="outline"
-                            className="h-24 flex flex-col gap-2 hover:bg-orange-50 hover:border-orange-200"
-                            onClick={() => handleExportByType('Seat Cover')}
-                        >
-                            <span className="text-2xl">💺</span>
-                            <span className="font-semibold">Seat Covers</span>
-                        </Button>
-                        <Button
-                            variant="outline"
-                            className="h-24 flex flex-col gap-2 hover:bg-blue-50 hover:border-blue-200"
-                            onClick={() => handleExportByType('PPF')}
-                        >
-                            <span className="text-2xl">🚙</span>
-                            <span className="font-semibold">PPF (EV Products)</span>
-                        </Button>
-                    </div>
-                </DialogContent>
-            </Dialog>
+            <SelectiveExportDialog
+                isOpen={exportDialogOpen}
+                onClose={() => setExportDialogOpen(false)}
+                onExport={handleSelectiveExport}
+                title="Selective Warranty Export"
+                description="Choose the information you want to include in your CSV report."
+            />
 
             {/* Rejection Reason Dialog */}
             <Dialog open={rejectDialogOpen} onOpenChange={setRejectDialogOpen}>

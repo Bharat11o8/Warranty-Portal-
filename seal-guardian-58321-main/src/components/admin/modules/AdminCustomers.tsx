@@ -20,9 +20,19 @@ import {
     Eye,
     Phone,
     Mail,
-    ArrowLeft
+    ArrowLeft,
+    ArrowUpDown,
+    Check
 } from "lucide-react";
 import { AdminWarrantyList } from "@/components/admin/AdminWarrantyList";
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuLabel,
+    DropdownMenuSeparator,
+    DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
     Pagination,
     PaginationContent,
@@ -186,17 +196,22 @@ export const AdminCustomers = () => {
     }).sort((a, b) => {
         let aVal = a[sortField];
         let bVal = b[sortField];
-        if (sortField === 'created_at') {
-            aVal = new Date(aVal).getTime();
-            bVal = new Date(bVal).getTime();
-        } else if (sortField === 'warranty_count') {
-            aVal = Number(aVal) || 0;
-            bVal = Number(bVal) || 0;
+
+        // Map sort field to data field if necessary
+        if (sortField === 'created_at' || sortField === 'first_warranty_date') {
+            aVal = new Date(a.first_warranty_date || a.created_at || 0).getTime();
+            bVal = new Date(b.first_warranty_date || b.created_at || 0).getTime();
+        } else if (sortField === 'total_warranties' || sortField === 'warranty_count') {
+            aVal = Number(a.total_warranties) || 0;
+            bVal = Number(b.total_warranties) || 0;
         } else {
             aVal = (aVal || '').toString().toLowerCase();
             bVal = (bVal || '').toString().toLowerCase();
         }
-        return sortOrder === 'asc' ? (aVal > bVal ? 1 : -1) : (aVal < bVal ? 1 : -1);
+
+        if (aVal === bVal) return 0;
+        const result = aVal > bVal ? 1 : -1;
+        return sortOrder === 'asc' ? result : -result;
     });
 
     // Pagination Calculation
@@ -239,22 +254,112 @@ export const AdminCustomers = () => {
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
                     <Input
                         placeholder="Search customers..."
-                        className="pl-10 border-orange-100"
+                        className="pl-10 border-orange-100 h-11 md:h-10"
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
                     />
                 </div>
-                <div className="flex gap-2">
-                    <Button variant="outline" onClick={() => setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc')}>
-                        {sortOrder === 'asc' ? "Date ↑" : "Date ↓"}
-                    </Button>
-                    <Button variant="outline" onClick={handleExportCustomers} className="hidden md:flex">
-                        <Download className="h-4 w-4 mr-2" /> Export
+                <div className="flex gap-2 w-full md:w-auto">
+                    <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                            <Button variant="outline" className="flex-1 md:flex-none flex items-center gap-2 border-orange-100 h-11 md:h-10">
+                                <ArrowUpDown className="h-4 w-4 text-orange-500" />
+                                {sortField === 'customer_name' ? 'Name' : sortField === 'total_warranties' ? 'Stats' : 'Date'}
+                                {sortOrder === 'asc' ? '↑' : '↓'}
+                            </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent className="rounded-2xl border-orange-100 shadow-xl p-2 w-48">
+                            <DropdownMenuLabel className="text-[10px] uppercase tracking-widest text-slate-400 px-3 py-2">Sort By</DropdownMenuLabel>
+                            <DropdownMenuSeparator className="bg-orange-50" />
+                            <DropdownMenuItem
+                                onClick={() => { setSortField('first_warranty_date'); }}
+                                className="flex items-center justify-between text-xs font-bold py-3 px-3 rounded-xl cursor-pointer hover:bg-orange-50 focus:bg-orange-50 group"
+                            >
+                                Registered Date {sortField === 'first_warranty_date' && <Check className="h-4 w-4 text-orange-500" />}
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                                onClick={() => { setSortField('customer_name'); }}
+                                className="flex items-center justify-between text-xs font-bold py-3 px-3 rounded-xl cursor-pointer hover:bg-orange-50 focus:bg-orange-50 group"
+                            >
+                                Customer Name {sortField === 'customer_name' && <Check className="h-4 w-4 text-orange-500" />}
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                                onClick={() => { setSortField('total_warranties'); }}
+                                className="flex items-center justify-between text-xs font-bold py-3 px-3 rounded-xl cursor-pointer hover:bg-orange-50 focus:bg-orange-50 group"
+                            >
+                                Total Warranties {sortField === 'total_warranties' && <Check className="h-4 w-4 text-orange-500" />}
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator className="bg-orange-50" />
+                            <DropdownMenuLabel className="text-[10px] uppercase tracking-widest text-slate-400 px-3 py-2">Order</DropdownMenuLabel>
+                            <DropdownMenuItem
+                                onClick={() => setSortOrder('desc')}
+                                className="flex items-center justify-between text-xs font-bold py-3 px-3 rounded-xl cursor-pointer hover:bg-orange-50 focus:bg-orange-50 group"
+                            >
+                                Newest/Highest First {sortOrder === 'desc' && <Check className="h-4 w-4 text-orange-500" />}
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                                onClick={() => setSortOrder('asc')}
+                                className="flex items-center justify-between text-xs font-bold py-3 px-3 rounded-xl cursor-pointer hover:bg-orange-50 focus:bg-orange-50 group"
+                            >
+                                Oldest/Lowest First {sortOrder === 'asc' && <Check className="h-4 w-4 text-orange-500" />}
+                            </DropdownMenuItem>
+                        </DropdownMenuContent>
+                    </DropdownMenu>
+                    <Button variant="outline" onClick={handleExportCustomers} className="flex-1 md:flex-none h-11 md:h-10">
+                        <Download className="h-4 w-4 mr-2" />
+                        <span className="md:inline">Export</span>
                     </Button>
                 </div>
             </div>
 
-            <Card className="border-orange-100 shadow-sm">
+            {/* Mobile View: Cards */}
+            <div className="grid grid-cols-1 gap-4 md:hidden">
+                {loading ? (
+                    <div className="flex justify-center p-8 bg-white rounded-2xl border border-orange-100">
+                        <Loader2 className="h-8 w-8 text-orange-500 animate-spin" />
+                    </div>
+                ) : paginatedCustomers.length === 0 ? (
+                    <div className="p-8 text-center text-slate-400 bg-white rounded-2xl border border-orange-100">No customers found</div>
+                ) : paginatedCustomers.map((customer) => (
+                    <Card key={customer.customer_email} className="border-orange-100 shadow-sm overflow-hidden rounded-2xl">
+                        <div className="p-5 space-y-4">
+                            <div className="flex justify-between items-start">
+                                <div>
+                                    <div className="font-bold text-slate-900 text-lg leading-tight mb-1">{customer.customer_name}</div>
+                                    <div className="text-sm text-slate-500 flex items-center gap-1.5">
+                                        <Mail className="h-3.5 w-3.5" /> {customer.customer_email}
+                                    </div>
+                                    <div className="text-sm text-slate-500 flex items-center gap-1.5 mt-1">
+                                        <Phone className="h-3.5 w-3.5" /> {customer.customer_phone}
+                                    </div>
+                                </div>
+                                <div className="flex gap-2">
+                                    <Button size="icon" variant="ghost" className="h-10 w-10 rounded-xl bg-orange-50 text-orange-600 hover:bg-orange-100" onClick={() => handleViewCustomer(customer.customer_email)}>
+                                        <Eye className="h-5 w-5" />
+                                    </Button>
+                                    <Button size="icon" variant="ghost" className="h-10 w-10 rounded-xl bg-red-50 text-red-500 hover:bg-red-100" onClick={() => handleDeleteCustomer(customer.customer_email)}>
+                                        <Trash2 className="h-5 w-5" />
+                                    </Button>
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-3 pt-2">
+                                <div className="bg-orange-50/50 p-3 rounded-xl border border-orange-100/50">
+                                    <div className="text-[10px] uppercase font-bold text-orange-400 mb-1">Total Warranties</div>
+                                    <div className="font-bold text-slate-700 text-lg">{customer.total_warranties || 0}</div>
+                                </div>
+                                <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
+                                    <div className="text-[10px] uppercase font-bold text-slate-400 mb-1">Registered</div>
+                                    <div className="font-bold text-slate-600 truncate">{formatToIST(customer.first_warranty_date)}</div>
+                                </div>
+                            </div>
+                        </div>
+                    </Card>
+                ))}
+            </div>
+
+            {/* Desktop View: Table */}
+            <Card className="border-orange-100 shadow-sm hidden md:block">
                 <div className="overflow-x-auto">
                     <table className="w-full text-sm text-left">
                         <thead className="bg-slate-50 text-slate-500 font-medium border-b border-slate-100">
