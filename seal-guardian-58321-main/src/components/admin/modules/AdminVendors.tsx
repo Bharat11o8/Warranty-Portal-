@@ -25,11 +25,8 @@ import {
     MapPin,
     Phone,
     Mail,
-<<<<<<< Updated upstream
-    ArrowUpDown
-=======
+    ArrowUpDown,
     Power
->>>>>>> Stashed changes
 } from "lucide-react";
 import {
     Dialog,
@@ -429,65 +426,12 @@ export const AdminVendors = () => {
                             {/* Mobile View: Cards */}
                             <div className="grid grid-cols-1 gap-4 p-4 md:hidden">
                                 {paginatedVendors.map((vendor) => (
-<<<<<<< Updated upstream
                                     <div key={vendor.id} className="bg-white border border-orange-100 rounded-2xl p-5 shadow-sm space-y-4">
                                         <div className="flex justify-between items-start">
                                             <div>
                                                 <div className="font-bold text-slate-800 text-lg leading-tight">{vendor.store_name}</div>
                                                 <div className="text-xs text-slate-500 flex items-center gap-1.5 mt-1.5">
                                                     <Mail className="h-3.5 w-3.5" /> {vendor.store_email}
-=======
-                                    <tr key={vendor.id} className="hover:bg-slate-50/50 transition-colors group">
-                                        <td className="px-6 py-4">
-                                            <div className="font-bold text-slate-800">{vendor.store_name}</div>
-                                            <div className="text-xs text-slate-500 flex items-center gap-1 mt-1">
-                                                <Mail className="h-3 w-3" /> {vendor.store_email}
-                                            </div>
-                                        </td>
-                                        <td className="px-6 py-4">
-                                            <div className="font-medium text-slate-700">{vendor.contact_name}</div>
-                                            <div className="text-xs text-slate-500 flex items-center gap-1 mt-1">
-                                                <Phone className="h-3 w-3" /> {vendor.phone_number}
-                                            </div>
-                                        </td>
-                                        <td className="px-6 py-4">
-                                            <div className="flex items-center gap-1 text-slate-700">
-                                                <MapPin className="h-3.5 w-3.5 text-slate-400" />
-                                                {vendor.city}
-                                            </div>
-                                            <div className="text-xs text-slate-400 ml-4.5">{vendor.state}</div>
-                                        </td>
-                                        <td className="px-6 py-4 text-center">
-                                            {vendor.is_verified ? (
-                                                vendor.is_active === false ? (
-                                                    <Badge className="bg-slate-100 text-slate-600 hover:bg-slate-100 border-slate-300">Deactivated</Badge>
-                                                ) : (
-                                                    <Badge className="bg-green-100 text-green-700 hover:bg-green-100 border-green-200">Active</Badge>
-                                                )
-                                            ) : vendor.verified_at ? (
-                                                <Badge variant="destructive" className="bg-red-100 text-red-700 hover:bg-red-100 border-red-200">Rejected</Badge>
-                                            ) : (
-                                                <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100 border-amber-200">Pending</Badge>
-                                            )}
-                                        </td>
-                                        <td className="px-6 py-4">
-                                            <div className="flex justify-center gap-3 text-xs font-medium">
-                                                <div className="text-center">
-                                                    <div className="text-green-600">{vendor.validated_warranties || 0}</div>
-                                                    <div className="text-[10px] text-slate-400">Approved</div>
-                                                </div>
-                                                <div className="text-center">
-                                                    <div className="text-red-600">{vendor.rejected_warranties || 0}</div>
-                                                    <div className="text-[10px] text-slate-400">Rejected</div>
-                                                </div>
-                                                <div className="text-center">
-                                                    <div className="text-amber-600">{vendor.pending_warranties || 0}</div>
-                                                    <div className="text-[10px] text-slate-400">Pending</div>
-                                                </div>
-                                                <div className="text-center">
-                                                    <div className="text-slate-700">{vendor.total_warranties || 0}</div>
-                                                    <div className="text-[10px] text-slate-400">Total</div>
->>>>>>> Stashed changes
                                                 </div>
                                             </div>
                                             <div className="flex gap-2">
@@ -499,9 +443,6 @@ export const AdminVendors = () => {
                                                 >
                                                     <Eye className="h-5 w-5" />
                                                 </Button>
-<<<<<<< Updated upstream
-=======
-
                                                 {/* Activation Toggle - only for verified vendors */}
                                                 {vendor.is_verified && (
                                                     <div className="flex items-center gap-1" title={vendor.is_active ? "Deactivate Franchise" : "Activate Franchise"}>
@@ -513,8 +454,6 @@ export const AdminVendors = () => {
                                                         />
                                                     </div>
                                                 )}
-
->>>>>>> Stashed changes
                                                 {!vendor.is_verified && (
                                                     <div className="flex gap-2">
                                                         <Button
