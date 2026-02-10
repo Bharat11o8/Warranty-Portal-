@@ -16,7 +16,8 @@ import {
     ChevronRight,
     ChevronLeft,
     LogOut,
-    User
+    User,
+    PlusCircle
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNotifications } from "@/contexts/NotificationContext";
@@ -31,6 +32,7 @@ import {
 export type FmsModule =
     | 'home'
     | 'warranty'
+    | 'register'
     | 'orders'
     | 'grievances'
     | 'manpower'
@@ -136,6 +138,7 @@ export const menuGroups = [
         label: "Core",
         items: [
             { id: 'home' as const, label: "Home", icon: Home },
+            { id: 'register' as const, label: "Register Warranty", icon: PlusCircle },
             {
                 id: 'warranty' as const,
                 label: "Warranty Management",
@@ -147,15 +150,20 @@ export const menuGroups = [
         label: "Operations",
         items: [
             {
+                id: 'catalogue' as const,
+                label: "Product Catalogue",
+                icon: Box,
+            },
+            {
+                id: 'posm' as const,
+                label: "POSM Requirements",
+                icon: ImageIcon,
+            },
+            {
                 id: 'orders' as const,
                 label: "Order Management",
                 icon: ShoppingBag,
                 comingSoon: true,
-            },
-            {
-                id: 'catalogue' as const,
-                label: "Product Catalogue",
-                icon: Box,
             },
             {
                 id: 'offers' as const,
@@ -163,19 +171,7 @@ export const menuGroups = [
                 icon: Gift,
                 comingSoon: true,
             },
-            {
-                id: 'posm' as const,
-                label: "POSM Requirements",
-                icon: ImageIcon,
-            },
             { id: 'audit' as const, label: "Audit & Compliance", icon: ClipboardCheck, comingSoon: true },
-        ]
-    },
-    {
-        label: "Team & Performance",
-        items: [
-            { id: 'manpower' as const, label: "Manpower Control", icon: Users },
-            { id: 'targets' as const, label: "Targets & Achievements", icon: Target, comingSoon: true },
         ]
     },
     {
@@ -188,9 +184,16 @@ export const menuGroups = [
             },
             { id: 'grievances' as const, label: "Grievance Redressal", icon: LifeBuoy },
         ]
+    },
+    {
+        label: "Team & Performance",
+        items: [
+            { id: 'profile' as const, label: "My Profile", icon: User },
+            { id: 'manpower' as const, label: "Manpower Control", icon: Users },
+            { id: 'targets' as const, label: "Targets & Achievements", icon: Target, comingSoon: true },
+        ]
     }
 ];
-
 export const DashboardSidebar = ({ activeModule, onModuleChange, isCollapsed, onToggleCollapse }: DashboardSidebarProps) => {
     const { logout, user } = useAuth();
     const { notifications } = useNotifications();
@@ -207,8 +210,6 @@ export const DashboardSidebar = ({ activeModule, onModuleChange, isCollapsed, on
             let badge;
             if (item.id === 'orders') {
                 badge = getBadgeCount('order') > 0 ? getBadgeCount('order').toString() : undefined;
-            } else if (item.id === 'catalogue') {
-                badge = getBadgeCount('product') > 0 ? getBadgeCount('product').toString() : undefined;
             } else if (item.id === 'offers') {
                 badge = getBadgeCount('scheme') > 0 ? getBadgeCount('scheme').toString() : undefined;
             } else if (item.id === 'posm') {

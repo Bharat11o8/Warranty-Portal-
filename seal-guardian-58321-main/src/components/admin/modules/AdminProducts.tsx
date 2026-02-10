@@ -711,6 +711,14 @@ export function AdminProducts() {
                                     <Label>In Stock</Label>
                                     <Switch checked={prodForm.inStock} onCheckedChange={v => setProdForm({ ...prodForm, inStock: v })} />
                                 </div>
+                                <div className="flex items-center gap-4 mt-2">
+                                    <Label>Featured</Label>
+                                    <Switch checked={prodForm.isFeatured} onCheckedChange={v => setProdForm({ ...prodForm, isFeatured: v })} />
+                                </div>
+                                <div className="flex items-center gap-4 mt-2">
+                                    <Label>New Arrival</Label>
+                                    <Switch checked={prodForm.isNewArrival} onCheckedChange={v => setProdForm({ ...prodForm, isNewArrival: v })} />
+                                </div>
                             </div>
                         </div>
 

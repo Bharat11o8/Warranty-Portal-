@@ -22,7 +22,8 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // Configuration
-const BASE_URL = process.env.FRONTEND_URL || 'https://autoformwarranty.com';
+const BASE_URL = 'https://warranty.emporiobyautoform.in'; // Correct Vercel Production URL
+// const BASE_URL = process.env.FRONTEND_URL || 'https://autoformwarranty.com';
 const OUTPUT_DIR = path.join(__dirname, '../../../generated-qr-codes');
 
 interface Store {

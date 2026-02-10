@@ -36,6 +36,8 @@ export interface Product {
     price: number | { twoRow?: number; threeRow?: number };
     categoryId: string;
     inStock: boolean;
+    isFeatured?: boolean;
+    isNewArrival?: boolean;
     images: string[];
     videos?: string[];
     reviews: ProductReview[];

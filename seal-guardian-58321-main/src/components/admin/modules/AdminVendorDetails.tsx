@@ -4,7 +4,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
-import { MapPin, User, Mail, Phone, Download, Search, Loader2 } from "lucide-react";
+import { MapPin, User, Mail, Phone, Download, Search, Loader2, QrCode } from "lucide-react";
+import { QRCodeSVG } from "qrcode.react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AdminWarrantyList } from "@/components/admin/AdminWarrantyList";
 import { formatWarrantyForExport, formatManpowerForExport } from "@/lib/adminExports";
@@ -96,6 +97,60 @@ export const AdminVendorDetails = ({ vendor: initialVendor, onBack }: AdminVendo
     const [manpowerWarrantyDialogOpen, setManpowerWarrantyDialogOpen] = useState(false);
     const [manpowerWarrantyDialogData, setManpowerWarrantyDialogData] = useState<{ member: any; status: 'validated' | 'pending' | 'rejected'; warranties: any[] }>({ member: null, status: 'validated', warranties: [] });
 
+    // QR Code State
+    const [storeCodeInput, setStoreCodeInput] = useState("");
+    const [savingStoreCode, setSavingStoreCode] = useState(false);
+    const QR_BASE_URL = 'https://warranty.emporiobyautoform.in';
+
+    const handleSaveStoreCode = async () => {
+        if (!storeCodeInput.trim()) {
+            toast({ title: "Error", description: "Please enter a store code", variant: "destructive" });
+            return;
+        }
+        setSavingStoreCode(true);
+        try {
+            const response = await api.put(`/admin/vendors/${vendor.user_id}/store-code`, {
+                store_code: storeCodeInput.trim()
+            });
+            if (response.data.success) {
+                toast({ title: "Store Code Saved", description: `QR code generated for ${response.data.store_code}` });
+                setVendor((prev: any) => ({ ...prev, store_code: response.data.store_code }));
+                setStoreCodeInput("");
+            }
+        } catch (error: any) {
+            toast({
+                title: "Error",
+                description: error.response?.data?.error || "Failed to save store code",
+                variant: "destructive"
+            });
+        } finally {
+            setSavingStoreCode(false);
+        }
+    };
+
+    const handleDownloadQR = () => {
+        const svg = document.getElementById('vendor-qr-code');
+        if (!svg) return;
+
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        const svgData = new XMLSerializer().serializeToString(svg);
+        const img = new Image();
+
+        img.onload = () => {
+            canvas.width = 400;
+            canvas.height = 400;
+            ctx?.drawImage(img, 0, 0, 400, 400);
+            const link = document.createElement('a');
+            link.download = `${vendor.store_code}_qr.png`;
+            link.href = canvas.toDataURL('image/png');
+            link.click();
+        };
+
+        img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgData)));
+    };
+
+
     const handleUpdateStatus = async (warrantyId: string, status: 'validated' | 'rejected', reason?: string) => {
         setProcessingWarranty(warrantyId);
         try {
@@ -139,7 +194,7 @@ export const AdminVendorDetails = ({ vendor: initialVendor, onBack }: AdminVendo
     };
 
     const handleExportWarranties = (filteredWarranties: any[]) => {
-        const exportData = filteredWarranties.map(formatWarrantyForExport);
+        const exportData = filteredWarranties.map((w: any) => formatWarrantyForExport(w));
         downloadCSV(exportData, `vendor_warranties_export_${new Date().toISOString().split('T')[0]}.csv`);
     };
 
@@ -273,6 +328,84 @@ export const AdminVendorDetails = ({ vendor: initialVendor, onBack }: AdminVendo
                             </div>
                         </div>
                     </div>
+                </CardContent>
+            </Card>
+
+            {/* QR Code Section */}
+            <Card className="mb-6 border-orange-100 shadow-sm">
+                <CardHeader className="pb-3">
+                    <div className="flex items-center gap-2">
+                        <QrCode className="h-5 w-5 text-orange-500" />
+                        <CardTitle className="text-lg">Store QR Code</CardTitle>
+                    </div>
+                </CardHeader>
+                <CardContent>
+                    {vendor.store_code ? (
+                        <div className="flex flex-col md:flex-row items-center gap-6">
+                            <div className="bg-white p-4 rounded-xl border-2 border-slate-100 shadow-sm">
+                                <QRCodeSVG
+                                    id="vendor-qr-code"
+                                    value={`${QR_BASE_URL}/connect/${vendor.store_code}`}
+                                    size={160}
+                                    level="H"
+                                    includeMargin={true}
+                                />
+                            </div>
+                            <div className="flex-1 space-y-3 text-center md:text-left">
+                                <div>
+                                    <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Store Code</p>
+                                    <p className="font-mono text-xl font-bold text-slate-800">{vendor.store_code}</p>
+                                </div>
+                                <div>
+                                    <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">QR URL</p>
+                                    <a
+                                        href={`${QR_BASE_URL}/connect/${vendor.store_code}`}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="text-sm text-blue-600 hover:underline break-all"
+                                    >
+                                        {QR_BASE_URL}/connect/{vendor.store_code}
+                                    </a>
+                                </div>
+                                <Button
+                                    onClick={handleDownloadQR}
+                                    variant="outline"
+                                    className="gap-2 mt-2"
+                                >
+                                    <Download className="h-4 w-4" />
+                                    Download QR Code
+                                </Button>
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="text-center py-6 space-y-4">
+                            <div className="inline-flex items-center justify-center h-16 w-16 rounded-full bg-slate-100">
+                                <QrCode className="h-8 w-8 text-slate-400" />
+                            </div>
+                            <div>
+                                <p className="text-slate-600 font-medium">No QR code generated yet</p>
+                                <p className="text-sm text-slate-400 mt-1">Enter a store code to generate a QR for warranty registration</p>
+                            </div>
+                            <div className="flex flex-col sm:flex-row items-center justify-center gap-3 max-w-md mx-auto">
+                                <Input
+                                    placeholder="Enter store code (e.g., FGM168)"
+                                    value={storeCodeInput}
+                                    onChange={(e) => setStoreCodeInput(e.target.value.toUpperCase())}
+                                    className="text-center font-mono uppercase"
+                                    maxLength={20}
+                                />
+                                <Button
+                                    onClick={handleSaveStoreCode}
+                                    disabled={savingStoreCode || !storeCodeInput.trim()}
+                                    className="gap-2 bg-orange-500 hover:bg-orange-600 whitespace-nowrap"
+                                >
+                                    {savingStoreCode ? <Loader2 className="h-4 w-4 animate-spin" /> : <QrCode className="h-4 w-4" />}
+                                    Generate QR
+                                </Button>
+                            </div>
+                            <p className="text-xs text-slate-400">Format: 3-20 alphanumeric characters (letters + numbers)</p>
+                        </div>
+                    )}
                 </CardContent>
             </Card>
 

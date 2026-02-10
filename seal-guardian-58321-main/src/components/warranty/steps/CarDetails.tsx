@@ -2,6 +2,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { DatePicker } from "@/components/ui/date-picker";
 import { Combobox } from "@/components/ui/combobox";
 import { CAR_MAKES } from "@/lib/carMakes";
 import { validateVehicleReg, formatVehicleRegLive, getVehicleRegError } from "@/lib/validation";
@@ -41,10 +42,7 @@ const CarDetails = ({ formData, updateFormData, onNext, onPrev }: CarDetailsProp
       toast({ title: "Car Model Required", description: "Please enter the car model", variant: "destructive" });
       return;
     }
-    if (!formData.carYear) {
-      toast({ title: "Car Year Required", description: "Please select a car year", variant: "destructive" });
-      return;
-    }
+
     if (!formData.carReg) {
       toast({ title: "Registration Number Required", description: "Please enter vehicle registration number", variant: "destructive" });
       return;
@@ -71,13 +69,11 @@ const CarDetails = ({ formData, updateFormData, onNext, onPrev }: CarDetailsProp
           <Label htmlFor="installationDate">
             Installation Date <span className="text-destructive">*</span>
           </Label>
-          <Input
-            id="installationDate"
-            type="date"
-            value={formData.installationDate}
-            onChange={(e) => updateFormData({ installationDate: e.target.value })}
-            required
-            max={getISTTodayISO()}
+          <DatePicker
+            value={formData.installationDate || undefined}
+            onChange={(value) => updateFormData({ installationDate: value })}
+            maxDate={new Date()}
+            placeholder="Select installation date"
           />
         </div>
 
@@ -105,33 +101,13 @@ const CarDetails = ({ formData, updateFormData, onNext, onPrev }: CarDetailsProp
             placeholder="e.g., City"
             value={formData.carModel}
             onChange={(e) => {
-              const textOnly = e.target.value.replace(/[^A-Za-z\s]/g, '');
-              updateFormData({ carModel: textOnly });
+              updateFormData({ carModel: e.target.value });
             }}
             required
           />
         </div>
 
-        <div className="space-y-2">
-          <Label htmlFor="carYear">
-            Year <span className="text-destructive">*</span>
-          </Label>
-          <Select
-            value={formData.carYear}
-            onValueChange={(value) => updateFormData({ carYear: value })}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Select year..." />
-            </SelectTrigger>
-            <SelectContent>
-              {Array.from({ length: getISTYear() - 1979 }, (_, i) => getISTYear() - i).map(year => (
-                <SelectItem key={year} value={year.toString()}>
-                  {year}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+
 
         <div className="space-y-2 md:col-span-2">
           <Label htmlFor="carReg">

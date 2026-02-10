@@ -2,6 +2,8 @@ import { Request, Response } from 'express';
 import db from '../config/database.js';
 import jwt from 'jsonwebtoken';
 import { EmailService } from '../services/email.service.js';
+import bcrypt from 'bcryptjs';
+import { v4 as uuidv4 } from 'uuid';
 
 export class PublicController {
     static async getStores(req: Request, res: Response) {
@@ -72,7 +74,7 @@ export class PublicController {
 
             // Also fetch installers/manpower for this store
             const [manpower]: any = await db.execute(
-                'SELECT id, name, manpower_id FROM manpower WHERE vendor_id = ? AND is_active = TRUE ORDER BY name ASC',
+                'SELECT id, name, manpower_id, applicator_type FROM manpower WHERE vendor_id = ? AND is_active = TRUE ORDER BY name ASC',
                 [stores[0].vendor_details_id]
             );
 
@@ -349,20 +351,18 @@ export class PublicController {
             } else {
                 // Create new customer user
                 isNewUser = true;
-                const bcrypt = await import('bcryptjs');
-                const { v4: uuidv4 } = await import('uuid');
 
                 // Generate random password (user will use OTP login or reset)
                 const tempPassword = uuidv4().substring(0, 12);
                 const hashedPassword = await bcrypt.hash(tempPassword, 10);
 
+                const newUserId = uuidv4();
                 const [result]: any = await db.execute(
-                    `INSERT INTO profiles (name, email, phone_number, password, role, email_verified)
-                     VALUES (?, ?, ?, ?, 'customer', TRUE)`,
-                    [customerName, customerEmail, customerPhone, hashedPassword]
+                    `INSERT INTO profiles (id, name, email, phone_number, password) VALUES (?, ?, ?, ?, ?)`,
+                    [newUserId, customerName, customerEmail, customerPhone, hashedPassword]
                 );
 
-                userId = result.insertId;
+                userId = result.insertId || newUserId;
             }
 
             // Step 2: Check UID/Serial duplication
@@ -382,7 +382,6 @@ export class PublicController {
             // Step 3: Insert warranty
             // For public submissions, it goes to pending_vendor (Franchise needs to verify)
             const initialStatus = 'pending_vendor';
-            const { v4: uuidv4 } = await import('uuid');
             const warrantyId = warrantyData.productDetails.uid || warrantyData.productDetails.serialNumber || uuidv4();
 
             await db.execute(
@@ -429,11 +428,11 @@ export class PublicController {
                     vendorEmail,
                     warrantyData.installerName || 'Partner',
                     customerName,
-                    warrantyData.carMake,
-                    warrantyData.carModel,
+                    token,
                     warrantyData.productType,
-                    warrantyId,
-                    token
+                    warrantyData.productDetails,
+                    warrantyData.carMake,
+                    warrantyData.carModel
                 );
             }
 

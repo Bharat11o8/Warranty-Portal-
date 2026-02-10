@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { MobileSelect } from "@/components/ui/mobile-select";
 import { Combobox } from "@/components/ui/combobox";
 import { EVFormData } from "../EVProductsForm";
 import { useAuth } from "@/contexts/AuthContext";
@@ -142,7 +143,7 @@ const InstallerDetails = ({ formData, updateFormData, onNext, isPublic, installe
           <Label htmlFor="installerName">
             Installer Name <span className="text-destructive">*</span>
           </Label>
-          <Select
+          <MobileSelect
             value={formData.installerName}
             onValueChange={(value) => {
               const selectedManpower = manpowerList.find(mp => mp.name === value);
@@ -153,19 +154,13 @@ const InstallerDetails = ({ formData, updateFormData, onNext, isPublic, installe
               });
             }}
             disabled={!formData.storeName || manpowerList.length === 0}
-            required
-          >
-            <SelectTrigger id="installerName">
-              <SelectValue placeholder={!formData.storeName ? "Select Store First" : manpowerList.length === 0 ? "No Manpower Found" : "Select Installer"} />
-            </SelectTrigger>
-            <SelectContent>
-              {manpowerList.map((mp) => (
-                <SelectItem key={mp.id} value={mp.name}>
-                  {mp.name} ({mp.applicator_type})
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+            placeholder={!formData.storeName ? "Select Store First" : manpowerList.length === 0 ? "No Manpower Found" : "Select Installer"}
+            options={manpowerList.map((mp) => ({
+              value: mp.name,
+              label: `${mp.name} (${mp.applicator_type})`
+            }))}
+            title="Select Installer"
+          />
         </div>
 
         <div className="space-y-2">

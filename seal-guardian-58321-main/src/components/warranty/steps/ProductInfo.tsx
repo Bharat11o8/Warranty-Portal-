@@ -50,18 +50,17 @@ const ProductInfo = ({ formData, updateFormData, onPrev, onSubmit, loading }: Pr
 
   const handleFileChange = async (name: keyof EVFormData, file: File | null) => {
     const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB (after compression)
-    const ALLOWED_FILE_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/heic', 'image/heif', 'application/pdf'];
+    const ALLOWED_FILE_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/heic', 'image/heif'];
 
     if (file) {
       const isAllowedType = ALLOWED_FILE_TYPES.includes(file.type) ||
         file.name.toLowerCase().endsWith('.heic') ||
-        file.name.toLowerCase().endsWith('.heif') ||
-        file.name.toLowerCase().endsWith('.pdf');
+        file.name.toLowerCase().endsWith('.heif');
 
       if (!isAllowedType) {
         toast({
           title: "Invalid File Type",
-          description: "Only JPG, PNG, HEIC, and PDF files are allowed",
+          description: "Only JPG, PNG, and HEIC image files are allowed",
           variant: "destructive",
         });
         return;
@@ -221,7 +220,7 @@ const ProductInfo = ({ formData, updateFormData, onPrev, onSubmit, loading }: Pr
             <Input
               id="lhsPhoto"
               type="file"
-              accept="image/jpeg,image/png,image/heic,image/heif,application/pdf"
+              accept="image/jpeg,image/png,image/heic,image/heif"
               onChange={(e) => handleFileChange("lhsPhoto", e.target.files?.[0] || null)}
               required
               disabled={loading}
@@ -235,7 +234,7 @@ const ProductInfo = ({ formData, updateFormData, onPrev, onSubmit, loading }: Pr
             <Input
               id="rhsPhoto"
               type="file"
-              accept="image/jpeg,image/png,image/heic,image/heif,application/pdf"
+              accept="image/jpeg,image/png,image/heic,image/heif"
               onChange={(e) => handleFileChange("rhsPhoto", e.target.files?.[0] || null)}
               required
               disabled={loading}
@@ -249,7 +248,7 @@ const ProductInfo = ({ formData, updateFormData, onPrev, onSubmit, loading }: Pr
             <Input
               id="frontRegPhoto"
               type="file"
-              accept="image/jpeg,image/png,image/heic,image/heif,application/pdf"
+              accept="image/jpeg,image/png,image/heic,image/heif"
               onChange={(e) => handleFileChange("frontRegPhoto", e.target.files?.[0] || null)}
               required
               disabled={loading}
@@ -263,7 +262,7 @@ const ProductInfo = ({ formData, updateFormData, onPrev, onSubmit, loading }: Pr
             <Input
               id="backRegPhoto"
               type="file"
-              accept="image/jpeg,image/png,image/heic,image/heif,application/pdf"
+              accept="image/jpeg,image/png,image/heic,image/heif"
               onChange={(e) => handleFileChange("backRegPhoto", e.target.files?.[0] || null)}
               required
               disabled={loading}
@@ -277,7 +276,7 @@ const ProductInfo = ({ formData, updateFormData, onPrev, onSubmit, loading }: Pr
             <Input
               id="warrantyPhoto"
               type="file"
-              accept="image/jpeg,image/png,image/heic,image/heif,application/pdf"
+              accept="image/jpeg,image/png,image/heic,image/heif"
               onChange={(e) => handleFileChange("warrantyPhoto", e.target.files?.[0] || null)}
               required
               disabled={loading}
@@ -286,43 +285,31 @@ const ProductInfo = ({ formData, updateFormData, onPrev, onSubmit, loading }: Pr
         </div>
 
         <p className="text-sm text-muted-foreground">
-          Maximum file size: 5 MB per image. Accepted formats: JPG, PNG, HEIC,PDF
+          Maximum file size: 5 MB per image. Accepted formats: JPG, PNG, HEIC
         </p>
       </div>
 
-      {/* Terms & Conditions - Professional Modal Flow */}
+      {/* Terms & Conditions - Simple Checkbox */}
       <div className="pt-4 border-t">
-        <div className={`p-4 rounded-lg border ${formData.termsAccepted ? 'bg-green-50 border-green-200' : 'bg-muted/30 border-border'}`}>
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 sm:gap-0">
-            <div className="flex items-start sm:items-center gap-3">
-              {formData.termsAccepted ? (
-                <CheckCircle2 className="h-6 w-6 text-green-600 shrink-0 mt-0.5 sm:mt-0" />
-              ) : (
-                <FileText className="h-6 w-6 text-muted-foreground shrink-0 mt-0.5 sm:mt-0" />
-              )}
-              <div>
-                <p className={`font-medium ${formData.termsAccepted ? 'text-green-700' : 'text-foreground'}`}>
-                  {formData.termsAccepted ? 'Terms & Conditions Accepted' : 'Terms & Conditions'}
-                  <span className="text-destructive ml-1">*</span>
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  {formData.termsAccepted
-                    ? 'You have read and accepted the warranty terms'
-                    : 'You must read and accept the terms to continue'}
-                </p>
-              </div>
-            </div>
-            <Button
+        <div className="flex items-start gap-3">
+          <input
+            type="checkbox"
+            id="termsCheckbox"
+            checked={formData.termsAccepted}
+            onChange={(e) => updateFormData({ termsAccepted: e.target.checked })}
+            className="mt-1 h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary cursor-pointer"
+            disabled={loading}
+          />
+          <label htmlFor="termsCheckbox" className="text-sm text-slate-700 cursor-pointer">
+            I have read and agree to the{" "}
+            <button
               type="button"
-              variant={formData.termsAccepted ? "outline" : "default"}
-              size="sm"
               onClick={() => setTermsModalOpen(true)}
-              disabled={loading}
-              className="w-full sm:w-auto"
+              className="text-primary font-medium underline hover:text-primary/80"
             >
-              {formData.termsAccepted ? 'View Terms' : 'View & Accept'}
-            </Button>
-          </div>
+              Terms and Conditions
+            </button>
+          </label>
         </div>
       </div>
 

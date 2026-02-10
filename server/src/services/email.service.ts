@@ -28,6 +28,7 @@ export class EmailService {
   /**
    * Helper to get the correct application URL based on environment
    * Centralizes the logic for Production vs Localhost
+   * This returns the FRONTEND URL for user-facing links
    */
   private static getAppUrl(): string {
     // Priority 1: Explicitly defined FRONTEND_URL
@@ -39,8 +40,26 @@ export class EmailService {
       return 'https://warranty.emporiobyautoform.in';
     }
 
-    // Default to APP_URL from env or localhost
-    return (process.env.APP_URL || 'http://localhost:5173').replace(/\/$/, '');
+    // Default to APP_URL from env or Production URL (fallback for when env var is missing in prod)
+    return (process.env.APP_URL || 'https://warranty.emporiobyautoform.in').replace(/\/$/, '');
+  }
+
+  /**
+   * Helper to get the correct API/Backend URL for email action links
+   * These links must point to the backend server, not the frontend
+   */
+  private static getApiUrl(): string {
+    // Priority 1: Explicitly defined API_URL
+    if (process.env.API_URL) return process.env.API_URL.replace(/\/$/, '');
+
+    // Priority 2: Use known production backend if in production mode
+    const isProduction = process.env.NODE_ENV === 'production' || process.env.VERCEL === '1';
+    if (isProduction) {
+      return 'https://server-bharat-maheshwaris-projects.vercel.app';
+    }
+
+    // Default to localhost for development
+    return 'http://localhost:3000';
   }
 
   /**
@@ -826,7 +845,7 @@ export class EmailService {
     carMake?: string,
     carModel?: string
   ): Promise<void> {
-    const baseUrl = this.getAppUrl();
+    const baseUrl = this.getApiUrl();
     // Links for actions - these go to backend API endpoints
     const verificationLink = `${baseUrl}/api/public/verify-warranty?token=${token}`;
     const rejectionLink = `${baseUrl}/api/public/reject-warranty?token=${token}`;
@@ -910,7 +929,7 @@ export class EmailService {
 
     const baseUrl = EmailService.getAppUrl();
     const actionLink = updateToken
-      ? `${baseUrl}/grievance/assignment/${updateToken}`
+      ? `${baseUrl}/assignment/update/${updateToken}`
       : `${baseUrl}/login`;
 
     // Process attachments
@@ -964,13 +983,13 @@ export class EmailService {
             ${grievance.franchise_city ? `<p style="margin: 5px 0; font-size: 14px;"><strong>City:</strong> ${EmailService.escapeHtml(grievance.franchise_city)}</p>` : ''}
          </div>
          <div style="background: #f9f9f9; padding: 15px; border-radius: 8px;">
-            <p style="font-weight: bold; margin: 0 0 10px 0; color: #333; border-bottom: 1px solid #9333ea; padding-bottom: 5px;">ðŸ‘¤ Contact Person</p>
+            <p style="font-weight: bold; margin: 0 0 10px 0; color: #333; border-bottom: 1px solid #9333ea; padding-bottom: 5px;">👤 Contact Person</p>
             <p style="margin: 5px 0; font-size: 14px;"><strong>Name:</strong> ${EmailService.escapeHtml(grievance.customer_name || 'N/A')}</p>
             ${grievance.customer_email ? `<p style="margin: 5px 0; font-size: 14px;"><strong>Email:</strong> ${EmailService.escapeHtml(grievance.customer_email)}</p>` : ''}
          </div>
          ` : `
          <div style="background: #f9f9f9; padding: 15px; border-radius: 8px;">
-            <p style="font-weight: bold; margin: 0 0 10px 0; color: #333; border-bottom: 1px solid #FFB400; padding-bottom: 5px;">ðŸ‘¤ Customer (Source)</p>
+            <p style="font-weight: bold; margin: 0 0 10px 0; color: #333; border-bottom: 1px solid #FFB400; padding-bottom: 5px;">👤 Customer (Source)</p>
             <p style="margin: 5px 0; font-size: 14px;"><strong>Name:</strong> ${EmailService.escapeHtml(grievance.customer_name || 'N/A')}</p>
             ${grievance.customer_email ? `<p style="margin: 5px 0; font-size: 14px;"><strong>Email:</strong> ${EmailService.escapeHtml(grievance.customer_email)}</p>` : ''}
          </div>
@@ -986,13 +1005,13 @@ export class EmailService {
 
       ${remarks ? `
       <div style="background: #fff3cd; border: 1px solid #ffeeba; border-radius: 8px; padding: 15px; margin-bottom: 20px;">
-        <p style="font-weight: bold; margin: 0 0 5px 0; color: #856404;">ðŸ“ Admin Remarks / Instructions:</p>
+        <p style="font-weight: bold; margin: 0 0 5px 0; color: #856404;">📋 Admin Remarks / Instructions:</p>
         <p style="margin: 0; color: #856404;">${EmailService.escapeHtml(remarks)}</p>
       </div>
       ` : ''}
 
       ${grievance.estimated_completion_date ? `
-      <p style="font-weight: bold; color: #d32f2f;">â° Target Date: ${grievance.estimated_completion_date}</p>
+      <p style="font-weight: bold; color: #d32f2f;">⏳ Target Date: ${grievance.estimated_completion_date}</p>
       ` : ''}
 
       <div style="text-align: center; margin: 30px 0;">

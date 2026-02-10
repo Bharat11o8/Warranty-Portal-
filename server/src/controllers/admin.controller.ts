@@ -173,6 +173,7 @@ export class AdminController {
                     p.phone_number,
                     vd.id AS vendor_details_id,
                     vd.store_name,
+                    vd.store_code,
                     vd.address,
                     vd.city,
                     vd.state,
@@ -361,8 +362,7 @@ export class AdminController {
                     message: is_active
                         ? 'Your store has been activated. You can now access your account.'
                         : 'Your store has been deactivated. Please contact admin for assistance.',
-                    type: is_active ? 'system' : 'alert',
-                    link: '/profile'
+                    type: is_active ? 'system' : 'alert'
                 });
             } catch (notifError) {
                 console.error('Failed to send vendor activation notification:', notifError);
@@ -388,6 +388,72 @@ export class AdminController {
         } catch (error: any) {
             console.error('Toggle vendor activation error:', error);
             res.status(500).json({ error: 'Failed to toggle vendor activation' });
+        }
+    }
+
+    /**
+     * Update store code for QR generation
+     */
+    static async updateStoreCode(req: Request, res: Response) {
+        try {
+            const { id } = req.params;
+            const { store_code } = req.body;
+
+            // Validate store_code format (letters + numbers, 3-20 chars)
+            if (!store_code || !/^[A-Za-z0-9]{3,20}$/.test(store_code)) {
+                return res.status(400).json({
+                    error: 'Invalid store code format. Use 3-20 alphanumeric characters (e.g., FGM168)'
+                });
+            }
+
+            // Normalize to uppercase
+            const normalizedCode = store_code.toUpperCase();
+
+            // Check if store_code already exists for another vendor
+            const [existing]: any = await db.execute(
+                'SELECT id FROM vendor_details WHERE store_code = ? AND user_id != ?',
+                [normalizedCode, id]
+            );
+
+            if (existing.length > 0) {
+                return res.status(400).json({
+                    error: 'This store code is already in use by another franchise'
+                });
+            }
+
+            // Update store_code
+            await db.execute(
+                'UPDATE vendor_details SET store_code = ? WHERE user_id = ?',
+                [normalizedCode, id]
+            );
+
+            // Log the activity
+            const admin = (req as any).user;
+            const [vendor]: any = await db.execute(
+                'SELECT store_name FROM vendor_details WHERE user_id = ?',
+                [id]
+            );
+
+            await ActivityLogService.log({
+                adminId: admin.id,
+                adminName: admin.name,
+                adminEmail: admin.email,
+                actionType: 'STORE_CODE_UPDATED',
+                targetType: 'VENDOR',
+                targetId: id,
+                targetName: vendor[0]?.store_name || 'Unknown',
+                details: { store_code: normalizedCode },
+                ipAddress: req.ip || req.socket?.remoteAddress
+            });
+
+            res.json({
+                success: true,
+                store_code: normalizedCode,
+                message: 'Store code updated successfully'
+            });
+        } catch (error: any) {
+            console.error('Update store code error:', error);
+            res.status(500).json({ error: 'Failed to update store code' });
         }
     }
 

@@ -15,6 +15,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Combobox } from "@/components/ui/combobox";
+import { DatePicker } from "@/components/ui/date-picker";
+import { MobileSelect } from "@/components/ui/mobile-select";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { Upload, Loader2, HelpCircle, CheckCircle2, FileText, Building2, User, Car, Smartphone, Mail, Calendar, Package } from "lucide-react";
@@ -22,6 +24,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { submitWarranty, updateWarranty } from "@/lib/warrantyApi";
 import { TermsModal } from "./TermsModal";
 import { CAR_MAKES } from "@/lib/carMakes";
+import { compressImage, isCompressibleImage } from "@/lib/imageCompression";
 
 interface SeatCoverFormProps {
   initialData?: any;
@@ -29,6 +32,8 @@ interface SeatCoverFormProps {
   onSuccess?: () => void;
   isEditing?: boolean;
   isPublic?: boolean;
+  vendorDirect?: boolean;
+  products?: any[];
   storeDetails?: {
     id: number;
     store_name: string;
@@ -43,7 +48,7 @@ interface SeatCoverFormProps {
   installers?: any[];
 }
 
-const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic, storeDetails, installers }: SeatCoverFormProps = {}) => {
+const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic, vendorDirect, storeDetails, installers, products: initialProducts = [] }: SeatCoverFormProps) => {
   const { toast } = useToast();
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -143,6 +148,12 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
     };
 
     const fetchProducts = async () => {
+      // Use pre-fetched products if available
+      if (initialProducts.length > 0) {
+        setProducts(initialProducts);
+        return;
+      }
+
       try {
         const response = await api.get('/public/products');
         if (response.data.success) {
@@ -153,9 +164,11 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
       }
     };
 
-    fetchStores();
+    if (!isPublic) {
+      fetchStores();
+    }
     fetchProducts();
-  }, []);
+  }, [initialProducts, isPublic]);
 
   // Auto-fill store details for public QR flow
   useEffect(() => {
@@ -171,8 +184,12 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
     }
   }, [isPublic, storeDetails, installers]);
 
-  // Fetch manpower when store changes
+  // Fetch manpower when store changes (only for non-public mode)
+  // In public mode, installers are passed as prop and set by the previous effect
   useEffect(() => {
+    // Skip in public mode - we already have installers from props
+    if (isPublic) return;
+
     const fetchManpower = async () => {
       const selectedStore = stores.find(s => s.store_name === formData.storeName);
       if (selectedStore) {
@@ -196,7 +213,7 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
     if (formData.storeName) {
       fetchManpower();
     }
-  }, [formData.storeName, stores]);
+  }, [formData.storeName, stores, isPublic]);
 
   // Auto-select warranty type based on product name
   // Auto-select warranty type based on product name
@@ -280,16 +297,7 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
         return;
       }
 
-      // Validate Car Year
-      if (!formData.carYear) {
-        toast({
-          title: "Car Year Required",
-          description: "Please select a car year",
-          variant: "destructive",
-        });
-        setLoading(false);
-        return;
-      }
+
 
       // Find selected manpower name
       const selectedManpower = manpowerList.find(mp => mp.id === formData.manpowerId);
@@ -321,6 +329,7 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
           invoiceFileName: formData.invoiceFile?.name || null,
           invoiceFile: formData.invoiceFile, // Pass file object for API wrapper
         },
+        vendorDirect: vendorDirect || false,
       };
 
       // Submit or update warranty registration
@@ -443,8 +452,8 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
 
     if (name === 'customerMobile') {
       processedValue = value.replace(/\D/g, '').slice(0, 10);
-    } else if (name === 'customerName' || name === 'carModel') {
-      // Allow only letters and spaces
+    } else if (name === 'customerName') {
+      // Allow only letters and spaces for customer name
       processedValue = value.replace(/[^A-Za-z\s]/g, '');
     } else if (name === 'uid') {
       // UID should be only digits
@@ -457,19 +466,9 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
   const ALLOWED_FILE_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/heic', 'image/heif', 'application/pdf'];
   const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      // Check file size
-      if (file.size > MAX_FILE_SIZE) {
-        toast({
-          title: "File Too Large",
-          description: "Maximum file size is 5 MB",
-          variant: "destructive",
-        });
-        e.target.value = ''; // Reset input
-        return;
-      }
       // Check file type
       if (!ALLOWED_FILE_TYPES.includes(file.type)) {
         toast({
@@ -480,8 +479,36 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
         e.target.value = ''; // Reset input
         return;
       }
+
+      let processedFile = file;
+
+      // Compress image if it's a compressible type (not PDF)
+      if (isCompressibleImage(file)) {
+        try {
+          setLoading(true);
+          processedFile = await compressImage(file, { maxSizeKB: 1024, quality: 0.8 });
+          // Silent compression - no need to inform customer
+        } catch (err) {
+          // Continue with original file if compression fails
+          console.warn("Image compression failed, using original:", err);
+        } finally {
+          setLoading(false);
+        }
+      }
+
+      // Check file size after compression
+      if (processedFile.size > MAX_FILE_SIZE) {
+        toast({
+          title: "File Too Large",
+          description: "Maximum file size is 5 MB",
+          variant: "destructive",
+        });
+        e.target.value = ''; // Reset input
+        return;
+      }
+
+      setFormData(prev => ({ ...prev, invoiceFile: processedFile || null }));
     }
-    setFormData(prev => ({ ...prev, invoiceFile: file || null }));
   };
 
   return (
@@ -567,41 +594,30 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
                 <Label htmlFor="manpowerId" className="text-sm font-medium text-slate-700">
                   Manpower (Installer)
                 </Label>
-                <Select
+                <MobileSelect
+                  options={manpowerList.map((mp) => ({
+                    value: mp.id.toString(),
+                    label: `${mp.name} (${mp.applicator_type || 'Staff'})`
+                  }))}
                   value={formData.manpowerId}
                   onValueChange={(value) => handleChange("manpowerId", value)}
+                  placeholder={!formData.storeName ? "Select Store First" : manpowerList.length === 0 ? "No Manpower Found" : "Select Installer"}
+                  title="Select Installer"
                   disabled={(!formData.storeName || manpowerList.length === 0) || loading}
-                >
-                  <SelectTrigger id="manpowerId" className="bg-white border-slate-200">
-                    <SelectValue placeholder={!formData.storeName ? "Select Store First" : manpowerList.length === 0 ? "No Manpower Found" : "Select Installer"} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {manpowerList.map((mp) => (
-                      <SelectItem key={mp.id} value={mp.id}>
-                        {mp.name} ({mp.applicator_type})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                />
               </div>
 
               <div className="space-y-3">
                 <Label htmlFor="purchaseDate" className="text-sm font-medium text-slate-700">
                   Purchase Date <span className="text-destructive">*</span>
                 </Label>
-                <div className="relative">
-                  <Calendar className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
-                  <Input
-                    id="purchaseDate"
-                    type="date"
-                    value={formData.purchaseDate}
-                    onChange={(e) => handleChange("purchaseDate", e.target.value)}
-                    required
-                    disabled={loading}
-                    max={getISTTodayISO()}
-                    className="pl-9 bg-white border-slate-200"
-                  />
-                </div>
+                <DatePicker
+                  value={formData.purchaseDate}
+                  onChange={(value) => handleChange("purchaseDate", value)}
+                  maxDate={new Date()}
+                  placeholder="Select purchase date"
+                  disabled={loading}
+                />
               </div>
             </div>
           </CardContent>
@@ -699,11 +715,11 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
             </div>
             <div>
               <h3 className="font-semibold text-gray-900">Vehicle Details</h3>
-              <p className="text-xs text-muted-foreground">Car make, model and year</p>
+              <p className="text-xs text-muted-foreground">Car make and model</p>
             </div>
           </div>
           <CardContent className="p-6 md:p-8">
-            <div className="grid md:grid-cols-3 gap-6">
+            <div className="grid md:grid-cols-2 gap-6">
               <div className="space-y-3">
                 <Label htmlFor="carMake" className="text-sm font-medium text-slate-700">
                   Car Make <span className="text-destructive">*</span>
@@ -735,27 +751,7 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
                 />
               </div>
 
-              <div className="space-y-3">
-                <Label htmlFor="carYear" className="text-sm font-medium text-slate-700">
-                  Car Year <span className="text-destructive">*</span>
-                </Label>
-                <Select
-                  value={formData.carYear}
-                  onValueChange={(value) => handleChange("carYear", value)}
-                  disabled={loading}
-                >
-                  <SelectTrigger className="bg-white border-slate-200">
-                    <SelectValue placeholder="Year" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {Array.from({ length: getISTYear() - 1979 }, (_, i) => getISTYear() - i).map(year => (
-                      <SelectItem key={year} value={year.toString()}>
-                        {year}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+
             </div>
           </CardContent>
         </Card>
@@ -794,18 +790,16 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
                 </div>
                 <div className="flex justify-between text-xs px-1 mt-1">
                   <span className="text-muted-foreground">{formData.uid.length}/16 digits</span>
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <div className="flex items-center gap-1 text-orange-600 font-medium hover:text-orange-700 transition-colors cursor-help">
-                          <HelpCircle className="h-3 w-3" /> Where to find?
-                        </div>
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        <p>Locate the sticker on the seat cover product packaging.</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
+                  <button
+                    type="button"
+                    onClick={() => toast({
+                      title: "Where to find UID?",
+                      description: "Locate the sticker on the seat cover product packaging.",
+                    })}
+                    className="flex items-center gap-1 text-orange-600 font-medium hover:text-orange-700 transition-colors"
+                  >
+                    <HelpCircle className="h-3 w-3" /> Where to find?
+                  </button>
                 </div>
               </div>
 
@@ -887,26 +881,25 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
         <Card className="border-0 shadow-lg bg-white/80 backdrop-blur-sm ring-1 ring-slate-100">
           <CardContent className="p-6 md:p-8">
             <div className="flex flex-col gap-6">
-              <div className={`p-4 rounded-xl border transition-colors ${formData.termsAccepted ? 'bg-green-50/50 border-green-200' : 'bg-slate-50 border-slate-200'}`}>
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                  <div className="flex items-start gap-4">
-                    <div className={`mt-1 p-1 rounded-full ${formData.termsAccepted ? 'bg-green-100' : 'bg-slate-200'}`}>
-                      <CheckCircle2 className={`h-4 w-4 ${formData.termsAccepted ? 'text-green-600' : 'text-slate-500'}`} />
-                    </div>
-                    <div>
-                      <h4 className="font-semibold text-gray-900">Terms & Conditions</h4>
-                      <p className="text-sm text-muted-foreground">Please review and accept our policy to proceed.</p>
-                    </div>
-                  </div>
-                  <Button
+              {/* Simple Checkbox T&C */}
+              <div className="flex items-start gap-3">
+                <input
+                  type="checkbox"
+                  id="termsCheckbox"
+                  checked={formData.termsAccepted}
+                  onChange={(e) => setFormData(prev => ({ ...prev, termsAccepted: e.target.checked }))}
+                  className="mt-1 h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary cursor-pointer"
+                />
+                <label htmlFor="termsCheckbox" className="text-sm text-slate-700 cursor-pointer">
+                  I have read and agree to the{" "}
+                  <button
                     type="button"
-                    variant={formData.termsAccepted ? "outline" : "default"}
                     onClick={() => setTermsModalOpen(true)}
-                    className={formData.termsAccepted ? "border-green-200 text-green-700 hover:bg-green-50 hover:text-green-800" : ""}
+                    className="text-primary font-medium underline hover:text-primary/80"
                   >
-                    {formData.termsAccepted ? 'View Terms' : 'View & Accept'}
-                  </Button>
-                </div>
+                    Terms and Conditions
+                  </button>
+                </label>
               </div>
 
               <Button

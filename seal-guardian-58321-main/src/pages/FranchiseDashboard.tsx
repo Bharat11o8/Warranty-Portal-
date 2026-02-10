@@ -35,6 +35,8 @@ import SeatCoverForm from "@/components/warranty/SeatCoverForm";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { WarrantySpecSheet } from "@/components/warranty/WarrantySpecSheet";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Card, CardContent } from "@/components/ui/card";
 
 interface DashboardContext {
     activeModule: FmsModule;
@@ -53,6 +55,7 @@ const FranchiseDashboard = () => {
     const setActiveModule = context?.setActiveModule || setLocalActiveModule;
     const [isCollapsed, setIsCollapsed] = useState(false);
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+    const [registerTab, setRegisterTab] = useState('seat-cover');
 
     // Data States
     const [warranties, setWarranties] = useState<any[]>([]);
@@ -503,8 +506,11 @@ const FranchiseDashboard = () => {
                 };
             });
 
-        // New Arrivals: Latest 8 products
-        const newProducts = [...products].sort((a, b) => b.id.localeCompare(a.id)).slice(0, 8);
+        // New Arrivals: Products marked as new arrivals, or fallback to latest 8 products
+        const markedNewArrivals = products.filter((p: any) => p.isNewArrival);
+        const newProducts = markedNewArrivals.length > 0
+            ? markedNewArrivals.slice(0, 8)
+            : [...products].sort((a, b) => b.id.localeCompare(a.id)).slice(0, 8);
 
         // Platform Updates: Latest 3 alert/system/product notifications (Hidden for Phase 1)
         const latestUpdates = fullHistory
@@ -521,6 +527,55 @@ const FranchiseDashboard = () => {
                     newProducts={newProducts}
                     latestUpdates={latestUpdates}
                 />;
+            case 'register':
+                return (
+                    <div className="-mt-8 md:-mt-14">
+                        <div className="max-w-4xl mx-auto">
+                            <Tabs value={registerTab} onValueChange={setRegisterTab} className="w-full">
+                                <TabsList className="grid w-full grid-cols-2 h-14 bg-slate-100 rounded-2xl p-1 mb-6">
+                                    <TabsTrigger
+                                        value="ev"
+                                        className="rounded-xl h-12 data-[state=active]:bg-white data-[state=active]:shadow-md font-bold"
+                                    >
+                                        <img src="/ppf-icon.png" alt="PPF" className="w-5 h-5 mr-2" />
+                                        PPF / EV Products
+                                    </TabsTrigger>
+                                    <TabsTrigger
+                                        value="seat-cover"
+                                        className="rounded-xl h-12 data-[state=active]:bg-white data-[state=active]:shadow-md font-bold"
+                                    >
+                                        <img src="/seat-cover-icon.png" alt="Seat Cover" className="w-5 h-5 mr-2" />
+                                        Seat Cover
+                                    </TabsTrigger>
+                                </TabsList>
+                                <TabsContent value="ev" forceMount={undefined}>
+                                    {registerTab === 'ev' && (
+                                        <Card className="border-orange-100 rounded-3xl shadow-xl">
+                                            <CardContent className="p-2 md:p-8">
+                                                <EVProductsForm
+                                                    vendorDirect={true}
+                                                    onSuccess={() => { fetchAllData(); setActiveModule('warranty'); }}
+                                                />
+                                            </CardContent>
+                                        </Card>
+                                    )}
+                                </TabsContent>
+                                <TabsContent value="seat-cover" forceMount={undefined}>
+                                    {registerTab === 'seat-cover' && (
+                                        <Card className="border-orange-100 rounded-3xl shadow-xl">
+                                            <CardContent className="p-2 md:p-8">
+                                                <SeatCoverForm
+                                                    vendorDirect={true}
+                                                    onSuccess={() => { fetchAllData(); setActiveModule('warranty'); }}
+                                                />
+                                            </CardContent>
+                                        </Card>
+                                    )}
+                                </TabsContent>
+                            </Tabs>
+                        </div>
+                    </div>
+                );
             case 'warranty':
                 return (
                     <div className="-mt-8 md:-mt-14">

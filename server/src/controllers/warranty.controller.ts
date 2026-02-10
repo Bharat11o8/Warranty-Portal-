@@ -11,6 +11,7 @@ import { NotificationService } from '../services/notification.service.js';
 // Extending WarrantyData interface locally if not updated in types file yet
 interface ExtendedWarrantyData extends WarrantyData {
   manpowerId?: string;
+  vendorDirect?: boolean;
 }
 
 export class WarrantyController {
@@ -145,7 +146,10 @@ export class WarrantyController {
 
       // Insert warranty registration
       // For customer submissions, set status to 'pending_vendor'
-      const initialStatus = req.user.role === 'customer' ? 'pending_vendor' : 'pending';
+      // For vendor direct submissions (vendorDirect=true), bypass vendor confirmation and go directly to admin
+      const initialStatus = warrantyData.vendorDirect
+        ? 'pending'
+        : (req.user.role === 'customer' ? 'pending_vendor' : 'pending');
 
       // Use provided UID (for seat covers) or Serial Number (for EV products)
       // or generate a new UUID (fallback)

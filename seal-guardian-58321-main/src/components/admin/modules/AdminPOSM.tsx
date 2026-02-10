@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
-import { Loader2, RefreshCw, MessageSquare, Search, Paperclip, Store, User, Mail, Send, Clock, Eye, Filter, CheckCircle2, X, FileImage, FileVideo, FileText } from "lucide-react";
+import { Loader2, RefreshCw, MessageSquare, Search, Paperclip, Store, User, Mail, Send, Clock, Eye, Filter, CheckCircle2, X, FileImage, FileVideo, FileText, Download } from "lucide-react";
 import {
     Pagination,
     PaginationContent,
@@ -231,6 +231,40 @@ export const AdminPOSM = () => {
         return <FileText className="h-4 w-4" />;
     };
 
+    // Export to CSV function
+    const exportToCSV = () => {
+        const dataToExport = filteredRequests;
+        if (dataToExport.length === 0) {
+            toast({ title: "No Data", description: "No POSM requests to export with current filters.", variant: "destructive" });
+            return;
+        }
+
+        const headers = ["Date", "Ticket ID", "Franchise", "Contact Name", "Contact Email", "Requirement", "Status", "Last Update"];
+
+        const csvContent = [
+            headers.join(","),
+            ...dataToExport.map(r => [
+                `"${formatToIST(r.created_at)}"`,
+                `"${r.ticket_id}"`,
+                `"${r.store_name.replace(/"/g, '""')}"`,
+                `"${r.contact_name.replace(/"/g, '""')}"`,
+                `"${r.contact_email}"`,
+                `"${r.requirement.replace(/"/g, '""').replace(/\n/g, ' ')}"`,
+                `"${r.status.replace("_", " ")}"`,
+                `"${formatToIST(r.updated_at)}"`
+            ].join(","))
+        ].join("\n");
+
+        const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(blob);
+        link.download = `posm_requests_${new Date().toISOString().split('T')[0]}.csv`;
+        link.click();
+        URL.revokeObjectURL(link.href);
+
+        toast({ title: "Exported", description: `${dataToExport.length} POSM requests exported to CSV.` });
+    };
+
     const stats = {
         total: requests.length,
         open: requests.filter(r => r.status === 'open').length,
@@ -302,6 +336,14 @@ export const AdminPOSM = () => {
                         </SelectContent>
                     </Select>
 
+                    <Button
+                        variant="outline"
+                        onClick={exportToCSV}
+                        className="h-12 border-orange-100 hover:bg-orange-50 rounded-2xl shrink-0 gap-2 text-slate-600"
+                    >
+                        <Download className="h-4 w-4" />
+                        <span>Export</span>
+                    </Button>
                     <Button
                         variant="outline"
                         size="icon"

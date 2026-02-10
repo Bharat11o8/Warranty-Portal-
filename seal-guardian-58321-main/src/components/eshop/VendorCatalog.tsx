@@ -57,11 +57,17 @@ const VendorCatalog = () => {
         loadData();
     }, []);
 
-    // New arrivals: Latest 8 products
-    const newArrivals = [...products].sort((a, b) => b.id.localeCompare(a.id)).slice(0, 8);
+    // New arrivals: Products marked as new arrivals, or fallback to latest 8 products
+    const markedNewArrivals = products.filter((p: any) => p.isNewArrival);
+    const newArrivals = markedNewArrivals.length > 0
+        ? markedNewArrivals.slice(0, 8)
+        : [...products].sort((a, b) => b.id.localeCompare(a.id)).slice(0, 8);
 
-    // Spotlight: Products with many images/reviews or first 10
-    const spotlightProducts = products.slice(0, 10);
+    // Featured Products: Only products marked as featured, fallback to first 10
+    const featuredProducts = products.filter((p: any) => p.isFeatured);
+    const spotlightProducts = featuredProducts.length > 0
+        ? featuredProducts.slice(0, 10)
+        : products.slice(0, 10);
 
     const fourWheelerTabs = [
         { id: '4w-seat', label: 'Car Seat Covers', categoryId: '4-wheeler-seat-cover' },

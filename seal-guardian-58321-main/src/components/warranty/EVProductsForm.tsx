@@ -62,6 +62,7 @@ interface EVProductsFormProps {
   isUniversal?: boolean;
   isEditing?: boolean;
   isPublic?: boolean;
+  vendorDirect?: boolean;
   storeDetails?: {
     id: number;
     store_name: string;
@@ -76,7 +77,7 @@ interface EVProductsFormProps {
   installers?: any[];
 }
 
-const EVProductsForm = ({ initialData, warrantyId, onSuccess, isUniversal, isEditing, isPublic, storeDetails, installers }: EVProductsFormProps) => {
+const EVProductsForm = ({ initialData, warrantyId, onSuccess, isUniversal, isEditing, isPublic, vendorDirect, storeDetails, installers }: EVProductsFormProps) => {
   const { toast } = useToast();
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -287,10 +288,7 @@ const EVProductsForm = ({ initialData, warrantyId, onSuccess, isUniversal, isEdi
       toast({ title: "Car Model Required", description: "Please enter the car model", variant: "destructive" });
       return;
     }
-    if (!formData.carYear) {
-      toast({ title: "Car Year Required", description: "Please select a car year", variant: "destructive" });
-      return;
-    }
+
     if (!formData.carReg) {
       toast({ title: "Registration Number Required", description: "Please enter car registration number", variant: "destructive" });
       return;
@@ -343,20 +341,9 @@ const EVProductsForm = ({ initialData, warrantyId, onSuccess, isUniversal, isEdi
     setLoading(true);
 
     try {
-      console.log('[DEBUG] Starting EV form submission...');
-
       // Use direct values from formData
       const carMake = formData.carMake;
       const carModelName = formData.carModel;
-
-      console.log('[DEBUG] CarMake:', carMake, 'CarModel:', carModelName);
-      console.log('[DEBUG] Photos:', {
-        lhs: formData.lhsPhoto?.name,
-        rhs: formData.rhsPhoto?.name,
-        front: formData.frontRegPhoto?.name,
-        back: formData.backRegPhoto?.name,
-        warranty: formData.warrantyPhoto?.name
-      });
 
       // Prepare warranty data
       const warrantyData = {
@@ -395,9 +382,8 @@ const EVProductsForm = ({ initialData, warrantyId, onSuccess, isUniversal, isEdi
           termsAccepted: formData.termsAccepted,
           installationDate: formData.installationDate,
         },
+        vendorDirect: vendorDirect || false,
       };
-
-      console.log('[DEBUG] Warranty data prepared, calling submitWarranty/updateWarranty...');
 
       // Submit or Update warranty registration
       let result;
@@ -437,7 +423,6 @@ const EVProductsForm = ({ initialData, warrantyId, onSuccess, isUniversal, isEdi
           headers: { 'Content-Type': 'multipart/form-data' }
         });
         result = response.data;
-        console.log('[DEBUG] Public submit result:', result);
         toast({
           title: "Warranty Submitted!",
           description: result.isNewUser
@@ -446,7 +431,6 @@ const EVProductsForm = ({ initialData, warrantyId, onSuccess, isUniversal, isEdi
         });
       } else {
         result = await submitWarranty(warrantyData);
-        console.log('[DEBUG] Submit result:', result);
         toast({
           title: "Warranty Registered",
           description: `Success! Serial No: ${formData.serialNumber}, Vehicle Reg: ${formData.carReg}`,
@@ -505,14 +489,6 @@ const EVProductsForm = ({ initialData, warrantyId, onSuccess, isUniversal, isEdi
         }
       }
     } catch (error: any) {
-      console.error("[DEBUG] Warranty submission error:", error);
-      console.error("[DEBUG] Error details:", {
-        message: error.message,
-        response: error.response?.data,
-        status: error.response?.status,
-        code: error.code
-      });
-
       // Determine specific error message based on error type
       let errorTitle = "Submission Failed";
       let errorMessage = "Failed to submit EV product warranty registration";

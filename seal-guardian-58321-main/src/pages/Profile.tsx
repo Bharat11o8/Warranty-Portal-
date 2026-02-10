@@ -7,10 +7,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
-import { Shield, Store, UserCircle, Mail, Phone, User, ArrowLeft } from "lucide-react";
+import { Shield, Store, UserCircle, Mail, Phone, User, ArrowLeft, Download, ExternalLink, QrCode } from "lucide-react";
 import api from "@/lib/api";
 import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
+import { QRCodeSVG } from "qrcode.react";
+
+const QR_BASE_URL = "https://warranty.emporiobyautoform.in";
 
 const Profile = ({ embedded }: { embedded?: boolean }) => {
     const { user, loading, refreshUser } = useAuth();
@@ -19,7 +22,20 @@ const Profile = ({ embedded }: { embedded?: boolean }) => {
     const [email, setEmail] = useState(user?.email || "");
     const [phoneNumber, setPhoneNumber] = useState(user?.phoneNumber || "");
     const [saving, setSaving] = useState(false);
+    const [vendorDetails, setVendorDetails] = useState<{ store_code?: string; store_name?: string } | null>(null);
 
+    // Fetch vendor details for QR code
+    useEffect(() => {
+        if (user?.role === 'vendor') {
+            api.get('/vendor/profile')
+                .then(res => {
+                    if (res.data.success && res.data.vendorDetails) {
+                        setVendorDetails(res.data.vendorDetails);
+                    }
+                })
+                .catch(err => console.error('Failed to fetch vendor details:', err));
+        }
+    }, [user?.role]);
 
     if (loading) {
         return <div className="p-8 text-center text-slate-500 font-bold">Loading...</div>;
@@ -87,6 +103,32 @@ const Profile = ({ embedded }: { embedded?: boolean }) => {
         }
     };
 
+    const handleDownloadQR = () => {
+        if (!vendorDetails?.store_code) return;
+        const svg = document.getElementById('franchise-qr-code');
+        if (!svg) return;
+
+        const svgData = new XMLSerializer().serializeToString(svg);
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        const img = new Image();
+
+        img.onload = () => {
+            canvas.width = img.width;
+            canvas.height = img.height;
+            ctx?.drawImage(img, 0, 0);
+            const pngUrl = canvas.toDataURL('image/png');
+            const link = document.createElement('a');
+            link.href = pngUrl;
+            link.download = `${vendorDetails.store_code}_qr.png`;
+            link.click();
+        };
+
+        img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgData)));
+    };
+
+    const qrUrl = vendorDetails?.store_code ? `${QR_BASE_URL}/connect/${vendorDetails.store_code}` : null;
+
     return (
         <div className={cn("max-w-[1600px] mx-auto", !embedded && "py-6 px-4 md:px-8")}>
             {/* Header Section - Only show if not embedded */}
@@ -105,7 +147,65 @@ const Profile = ({ embedded }: { embedded?: boolean }) => {
                 </div>
             )}
 
-            <main className={cn("mx-auto", embedded ? "w-full" : "max-w-2xl")}>
+            <main className={cn("mx-auto space-y-6", embedded ? "w-full" : "max-w-2xl")}>
+                {/* Franchise QR Code Section */}
+                {user.role === 'vendor' && vendorDetails?.store_code && (
+                    <Card className="rounded-[32px] border-orange-200 bg-gradient-to-br from-orange-50 to-amber-50/50 shadow-xl shadow-orange-500/10 overflow-hidden">
+                        <CardHeader className="pb-4">
+                            <div className="flex items-center gap-3">
+                                <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-orange-500 to-amber-500 flex items-center justify-center shadow-lg shadow-orange-500/30">
+                                    <QrCode className="h-6 w-6 text-white" />
+                                </div>
+                                <div>
+                                    <CardTitle className="text-xl">Your Store QR Code</CardTitle>
+                                    <CardDescription>Customers scan this to register warranties</CardDescription>
+                                </div>
+                            </div>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="flex flex-col md:flex-row items-center gap-6">
+                                {/* QR Code */}
+                                <div className="bg-white p-4 rounded-2xl shadow-inner border border-orange-100">
+                                    <QRCodeSVG
+                                        id="franchise-qr-code"
+                                        value={qrUrl!}
+                                        size={180}
+                                        level="H"
+                                        includeMargin={true}
+                                        bgColor="#ffffff"
+                                        fgColor="#000000"
+                                    />
+                                </div>
+
+                                {/* Store Info & Actions */}
+                                <div className="flex-1 text-center md:text-left space-y-4">
+                                    <div>
+                                        <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Registration URL</p>
+                                        <a
+                                            href={qrUrl!}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="text-sm text-orange-600 hover:text-orange-700 font-medium break-all flex items-center gap-1 justify-center md:justify-start"
+                                        >
+                                            {qrUrl}
+                                            <ExternalLink className="h-3 w-3 shrink-0" />
+                                        </a>
+                                    </div>
+
+                                    <Button
+                                        onClick={handleDownloadQR}
+                                        className="w-full md:w-auto bg-orange-600 hover:bg-orange-700 text-white font-bold rounded-xl h-11"
+                                    >
+                                        <Download className="h-4 w-4 mr-2" />
+                                        Download QR Code
+                                    </Button>
+                                </div>
+                            </div>
+                        </CardContent>
+                    </Card>
+                )}
+
+                {/* Profile Edit Card */}
                 <Card className="rounded-[32px] border-orange-100 shadow-xl shadow-orange-500/5 overflow-hidden">
                     <CardHeader>
                         <div className="flex items-center gap-4 mb-4">

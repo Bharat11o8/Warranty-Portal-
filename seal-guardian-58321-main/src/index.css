@@ -1,3 +1,11 @@
+/* Roc Grotesk Font - matches Autoform logo typography */
+@font-face {
+  font-family: 'Roc Grotesk';
+  src: url('/fonts/RocGrotesk-Medium.otf') format('opentype');
+  font-weight: 500;
+  font-style: normal;
+}
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;

@@ -428,21 +428,16 @@ export const AdminVendors = () => {
                                 {paginatedVendors.map((vendor) => (
                                     <div key={vendor.id} className="bg-white border border-orange-100 rounded-2xl p-5 shadow-sm space-y-4">
                                         <div className="flex justify-between items-start">
-                                            <div>
-                                                <div className="font-bold text-slate-800 text-lg leading-tight">{vendor.store_name}</div>
+                                            <div
+                                                className="cursor-pointer flex-1"
+                                                onClick={() => handleViewVendor(vendor)}
+                                            >
+                                                <div className="font-bold text-slate-800 text-lg leading-tight hover:text-orange-600 transition-colors">{vendor.store_name}</div>
                                                 <div className="text-xs text-slate-500 flex items-center gap-1.5 mt-1.5">
                                                     <Mail className="h-3.5 w-3.5" /> {vendor.store_email}
                                                 </div>
                                             </div>
                                             <div className="flex gap-2">
-                                                <Button
-                                                    size="icon"
-                                                    variant="ghost"
-                                                    className="h-10 w-10 bg-blue-50 text-blue-500 rounded-xl"
-                                                    onClick={() => handleViewVendor(vendor)}
-                                                >
-                                                    <Eye className="h-5 w-5" />
-                                                </Button>
                                                 {/* Activation Toggle - only for verified vendors */}
                                                 {vendor.is_verified && (
                                                     <div className="flex items-center gap-1" title={vendor.is_active ? "Deactivate Franchise" : "Activate Franchise"}>
@@ -542,9 +537,9 @@ export const AdminVendors = () => {
                                 </thead>
                                 <tbody className="divide-y divide-slate-100">
                                     {paginatedVendors.map((vendor) => (
-                                        <tr key={vendor.id} className="hover:bg-slate-50/50 transition-colors group">
+                                        <tr key={vendor.id} className="hover:bg-orange-50/50 transition-colors group cursor-pointer" onClick={() => handleViewVendor(vendor)}>
                                             <td className="px-6 py-4">
-                                                <div className="font-bold text-slate-800">{vendor.store_name}</div>
+                                                <div className="font-bold text-slate-800 group-hover:text-orange-600 transition-colors">{vendor.store_name}</div>
                                                 <div className="text-xs text-slate-500 flex items-center gap-1 mt-1">
                                                     <Mail className="h-3 w-3" /> {vendor.store_email}
                                                 </div>
@@ -591,17 +586,19 @@ export const AdminVendors = () => {
                                                     </div>
                                                 </div>
                                             </td>
-                                            <td className="px-6 py-4 text-right">
+                                            <td className="px-6 py-4 text-right" onClick={(e) => e.stopPropagation()}>
                                                 <div className="flex justify-end items-center gap-2">
-                                                    <Button
-                                                        size="icon"
-                                                        variant="ghost"
-                                                        className="h-8 w-8 text-slate-400 hover:text-blue-500 hover:bg-blue-50 rounded-full"
-                                                        onClick={() => handleViewVendor(vendor)}
-                                                        title="View Details"
-                                                    >
-                                                        <Eye className="h-4 w-4" />
-                                                    </Button>
+                                                    {/* Activate/Deactivate Toggle - only for verified vendors */}
+                                                    {vendor.is_verified && (
+                                                        <div className="flex items-center gap-1.5 px-2" title={vendor.is_active ? "Deactivate Store" : "Activate Store"}>
+                                                            <Switch
+                                                                checked={vendor.is_active}
+                                                                onCheckedChange={(checked) => handleVendorActivation(vendor.id, checked)}
+                                                                disabled={processingVendor === vendor.id}
+                                                                className="data-[state=checked]:bg-green-500 data-[state=unchecked]:bg-slate-300"
+                                                            />
+                                                        </div>
+                                                    )}
 
                                                     {!vendor.is_verified && (
                                                         <>

@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, RefreshCw, MessageSquare, Search, Paperclip, Store, Users, Mail, Send, Clock, Eye, Filter, ShieldCheck } from "lucide-react";
+import { Loader2, RefreshCw, MessageSquare, Search, Paperclip, Store, Users, Mail, Send, Clock, Eye, Filter, ShieldCheck, Download } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { WarrantySpecSheet } from "@/components/warranty/WarrantySpecSheet";
 import {
@@ -281,6 +281,44 @@ export const AdminGrievances = () => {
 
     const stats = getStats();
 
+    // Export to CSV function
+    const exportToCSV = () => {
+        const dataToExport = filteredGrievances;
+        if (dataToExport.length === 0) {
+            toast({ title: "No Data", description: "No grievances to export with current filters.", variant: "destructive" });
+            return;
+        }
+
+        const headers = [
+            "Date", "Ticket ID", activeTab === 'customer' ? "Customer" : "Raised By",
+            activeTab === 'customer' ? "Franchise" : "Department", "Category", "Subject", "Status", "Assigned To", "Last Update"
+        ];
+
+        const csvContent = [
+            headers.join(","),
+            ...dataToExport.map(g => [
+                `"${formatToIST(g.created_at)}"`,
+                `"${g.ticket_id}"`,
+                `"${g.customer_name || ''}"`,
+                `"${g.franchise_name || '-'}"`,
+                `"${CATEGORIES[g.category] || g.category}"`,
+                `"${g.subject.replace(/"/g, '""')}"`,
+                `"${g.status.replace("_", " ")}"`,
+                `"${g.assigned_to || 'Unassigned'}"`,
+                `"${g.updated_at ? formatToIST(g.updated_at) : (g.status_updated_at ? formatToIST(g.status_updated_at) : formatToIST(g.created_at))}"`
+            ].join(","))
+        ].join("\n");
+
+        const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(blob);
+        link.download = `${activeTab}_grievances_${new Date().toISOString().split('T')[0]}.csv`;
+        link.click();
+        URL.revokeObjectURL(link.href);
+
+        toast({ title: "Exported", description: `${dataToExport.length} ${activeTab} grievances exported to CSV.` });
+    };
+
     if (loading) {
         return (
             <div className="flex items-center justify-center h-[400px]">
@@ -388,6 +426,10 @@ export const AdminGrievances = () => {
                         </Select>
                     </div>
 
+                    <Button variant="outline" onClick={exportToCSV} className="hidden md:flex h-10 border-orange-100 hover:bg-orange-50 shrink-0 gap-2 text-slate-600">
+                        <Download className="h-4 w-4" />
+                        <span>Export</span>
+                    </Button>
                     <Button variant="outline" size="icon" onClick={fetchGrievances} className="h-10 w-10 border-orange-100 hover:bg-orange-50 shrink-0">
                         <RefreshCw className="h-4 w-4" />
                     </Button>
