@@ -125,7 +125,7 @@ export class PublicController {
             });
         } catch (error: any) {
             console.error('Schema check error:', error);
-            res.status(500).json({ error: 'Schema check failed', details: error.message });
+            res.status(500).json({ error: 'Schema check failed', details: 'An internal error occurred' });
         }
     }
 
@@ -138,7 +138,7 @@ export class PublicController {
             }
 
             // Verify token
-            const decoded: any = jwt.verify(token as string, process.env.JWT_SECRET || 'your-secret-key');
+            const decoded: any = jwt.verify(token as string, process.env.JWT_SECRET!);
 
             if (!decoded.warrantyId) {
                 return res.status(400).send('Invalid token payload');
@@ -195,7 +195,7 @@ export class PublicController {
                     <div class="card">
                         <h1>Verification Failed</h1>
                         <p>The link is invalid or has expired.</p>
-                        <p>Error: ${error.message}</p>
+                        <p>An unexpected error occurred while processing your request.</p>
                     </div>
                 </body>
                 </html>
@@ -212,7 +212,7 @@ export class PublicController {
             }
 
             // Verify token
-            const decoded: any = jwt.verify(token as string, process.env.JWT_SECRET || 'your-secret-key');
+            const decoded: any = jwt.verify(token as string, process.env.JWT_SECRET!);
 
             if (!decoded.warrantyId) {
                 return res.status(400).send('Invalid token payload');
@@ -415,7 +415,7 @@ export class PublicController {
             if (warrantyData.installerContact) {
                 const token = jwt.sign(
                     { warrantyId: warrantyId, vendorEmail: warrantyData.installerContact },
-                    process.env.JWT_SECRET || 'your-secret-key',
+                    process.env.JWT_SECRET!,
                     { expiresIn: '7d' }
                 );
 
@@ -454,7 +454,7 @@ export class PublicController {
 
         } catch (error: any) {
             console.error('Public warranty submission error:', error);
-            res.status(500).json({ error: 'Failed to submit warranty', details: error.message });
+            res.status(500).json({ error: 'Failed to submit warranty', details: 'An internal error occurred while processing your request.' });
         }
     }
 }

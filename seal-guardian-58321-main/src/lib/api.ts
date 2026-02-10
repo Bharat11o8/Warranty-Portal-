@@ -12,14 +12,26 @@ const api = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
+  withCredentials: true, // SBP-006: Send HttpOnly cookies with every request
 });
 
-// Add token to requests
-api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('auth_token');
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
+const resolveLoginUrl = () => {
+  const currentUrl = new URL(window.location.href);
+  const role = currentUrl.searchParams.get('role');
+  return role ? `/login?role=${role}` : '/login';
+};
+
+const isSessionValid = async () => {
+  try {
+    await axios.get(`${API_URL}/auth/me`, { withCredentials: true });
+    return true;
+  } catch {
+    return false;
   }
+};
+
+// Request logging (no longer needs to attach token - cookie is sent automatically)
+api.interceptors.request.use((config) => {
   if (isDev) console.log('API Request:', config.method?.toUpperCase(), config.url);
   return config;
 });
@@ -33,18 +45,23 @@ api.interceptors.response.use(
   (error) => {
     if (isDev) console.error('API Error:', error.response?.status, error.config?.url, error.response?.data);
 
-    const isAuthRequest = error.config?.url?.includes('/auth/login') || error.config?.url?.includes('/auth/verify-otp');
+    const requestUrl = error.config?.url || '';
+    const isAuthRequest =
+      requestUrl.includes('/auth/login') ||
+      requestUrl.includes('/auth/verify-otp') ||
+      requestUrl.includes('/auth/register') ||
+      requestUrl.includes('/auth/resend-otp') ||
+      requestUrl.includes('/auth/me');
 
     if ((error.response?.status === 401 || error.response?.status === 403) && !isAuthRequest) {
-      localStorage.removeItem('auth_token');
-      // Preserve the role parameter if it exists in the current URL
-      const currentUrl = new URL(window.location.href);
-      const role = currentUrl.searchParams.get('role');
-      const loginUrl = role ? `/login?role=${role}` : '/login';
-
-      // Only redirect if valid existing token to prevent loops (though removing token above helps)
-      window.location.href = loginUrl;
+      // Confirm session before redirecting, so endpoint-specific 403/401 does not force logout.
+      isSessionValid().then((valid) => {
+        if (!valid && !window.location.pathname.startsWith('/login')) {
+          window.location.href = resolveLoginUrl();
+        }
+      });
     }
+
     return Promise.reject(error);
   }
 );

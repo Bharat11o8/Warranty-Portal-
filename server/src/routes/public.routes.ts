@@ -5,8 +5,6 @@ import multer from 'multer';
 import { CloudinaryStorage } from 'multer-storage-cloudinary';
 import cloudinary from '../config/cloudinary.js';
 
-import { DiagnosticController } from '../controllers/diagnostic.controller.js';
-
 const router = Router();
 
 // Multer storage config for public uploads
@@ -29,9 +27,7 @@ const upload = multer({
 router.get('/stores', PublicController.getStores);
 router.get('/stores/code/:code', PublicController.getStoreByCode);  // QR store lookup
 router.get('/stores/:vendorDetailsId/manpower', PublicController.getStoreManpower);
-router.get('/products', ProductController.getAllProducts); // Added route for fetching all products
-router.get('/migrate', DiagnosticController.runMigration);
-router.get('/check-vendor-schema', PublicController.checkVendorSchema);
+router.get('/products', ProductController.getAllProducts);
 router.get('/verify-warranty', PublicController.verifyVendorWarranty);
 router.get('/reject-warranty', PublicController.rejectVendorWarranty);
 

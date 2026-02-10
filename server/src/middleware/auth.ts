@@ -14,8 +14,11 @@ export interface AuthRequest extends Request {
 }
 
 export const authenticateToken = (req: AuthRequest, res: Response, next: NextFunction) => {
+  // SBP-006: Read token from HttpOnly cookie first, then fall back to Authorization header
+  const cookieToken = req.cookies?.auth_token;
   const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1];
+  const headerToken = authHeader && authHeader.split(' ')[1];
+  const token = cookieToken || headerToken;
 
   if (!token) {
     return res.status(401).json({ error: 'Access token required' });
@@ -26,6 +29,10 @@ export const authenticateToken = (req: AuthRequest, res: Response, next: NextFun
     req.user = decoded;
     next();
   } catch (error) {
+    // Clear invalid cookie if present
+    if (cookieToken) {
+      res.clearCookie('auth_token', { path: '/' });
+    }
     return res.status(403).json({ error: 'Invalid or expired token' });
   }
 };

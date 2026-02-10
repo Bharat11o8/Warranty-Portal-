@@ -96,7 +96,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     };
 
     useEffect(() => {
-        if (user && localStorage.getItem("auth_token")) {
+        if (user) {
             fetchNotifications();
 
             // Initialize Socket
@@ -116,11 +116,9 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
             console.log("🔌 Initializing Socket.io connection to:", baseUrl);
 
             const newSocket = io(baseUrl, {
-                auth: {
-                    token: localStorage.getItem("auth_token")
-                },
+                withCredentials: true, // SBP-006: Sends HttpOnly cookie for auth
                 transports: ['polling', 'websocket'],
-                reconnectionAttempts: 3, // Limit retries
+                reconnectionAttempts: 3,
                 reconnectionDelay: 2000
             });
 

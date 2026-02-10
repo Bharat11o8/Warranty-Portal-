@@ -41,7 +41,7 @@ export const registerSchema = z.object({
     name: z.string().min(2, 'Name must be at least 2 characters'),
     email: emailSchema,
     phoneNumber: z.string().min(10, 'Phone number is required'),
-    role: z.enum(['customer', 'vendor', 'admin']),
+    role: z.enum(['customer', 'vendor']),
     // Vendor-specific fields (optional, but required if role is vendor)
     storeName: z.string().optional(),
     address: z.string().optional(),

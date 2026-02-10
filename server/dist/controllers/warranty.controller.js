@@ -118,7 +118,10 @@ export class WarrantyController {
             }
             // Insert warranty registration
             // For customer submissions, set status to 'pending_vendor'
-            const initialStatus = req.user.role === 'customer' ? 'pending_vendor' : 'pending';
+            // For vendor direct submissions (vendorDirect=true), bypass vendor confirmation and go directly to admin
+            const initialStatus = warrantyData.vendorDirect
+                ? 'pending'
+                : (req.user.role === 'customer' ? 'pending_vendor' : 'pending');
             // Use provided UID (for seat covers) or Serial Number (for EV products)
             // or generate a new UUID (fallback)
             const warrantyId = warrantyData.productDetails.uid || warrantyData.productDetails.serialNumber || uuidv4();
@@ -148,7 +151,7 @@ export class WarrantyController {
             // Handle Email Notifications
             if (initialStatus === 'pending_vendor' && warrantyData.installerContact) {
                 // Generate Token
-                const token = jwt.sign({ warrantyId: warrantyId, vendorEmail: warrantyData.installerContact }, process.env.JWT_SECRET || 'your-secret-key', { expiresIn: '7d' } // Long expiry for email links
+                const token = jwt.sign({ warrantyId: warrantyId, vendorEmail: warrantyData.installerContact }, process.env.JWT_SECRET, { expiresIn: '7d' } // Long expiry for email links
                 );
                 // Send Email to Vendor
                 // Parsing installerContact to get email if it's in "email | phone" format

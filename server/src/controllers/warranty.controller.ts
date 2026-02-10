@@ -187,7 +187,7 @@ export class WarrantyController {
         // Generate Token
         const token = jwt.sign(
           { warrantyId: warrantyId, vendorEmail: warrantyData.installerContact },
-          process.env.JWT_SECRET || 'your-secret-key',
+          process.env.JWT_SECRET!,
           { expiresIn: '7d' } // Long expiry for email links
         );
 

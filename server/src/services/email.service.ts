@@ -408,8 +408,6 @@ export class EmailService {
         <p><strong>Registration Date:</strong> ${formatDateIST()}</p>
       </div>
       
-      <p>Your warranty is now active. Please keep this email for your records.</p>
-      
       <div class="warning-box">
         <strong>Important:</strong> In case of warranty claims, please provide your ${productType === 'seat-cover' ? 'UID' : productType === 'ev-products' ? 'serial number and vehicle registration' : 'warranty details'}.
       </div>
@@ -476,10 +474,10 @@ export class EmailService {
       
       ${storeName ? `
       <div class="info-box">
-        <p style="margin: 0 0 10px 0; font-weight: bold; color: #667eea;">ðŸª Store Details:</p>
+        <p style="margin: 0 0 10px 0; font-weight: bold; color: #667eea;">Store Details:</p>
         <p><strong>Store Name:</strong> ${storeName}</p>
         ${storeAddress ? `<p><strong>Address:</strong> ${storeAddress}</p>` : ''}
-        ${storePhone ? `<p><strong>Phone:</strong> ${storePhone}</p>` : ''}
+        ${storePhone ? `<p><strong>Email:</strong> ${storePhone}</p>` : ''}
         ${applicatorName ? `<p><strong>Applicator:</strong> ${applicatorName}</p>` : ''}
       </div>
       ` : ''}
@@ -494,7 +492,6 @@ export class EmailService {
       </div>
       
       <p style="margin-top: 30px;">If you have any questions, please contact our support team at <a href="mailto:${process.env.EMAIL_FROM}">${process.env.EMAIL_FROM}</a>.</p>
-      
       <p>Best regards,<br><strong>Autoform India Team</strong></p>
     `;
 
@@ -554,7 +551,7 @@ export class EmailService {
       
       ${storeName ? `
       <div class="info-box">
-        <p style="margin: 0 0 10px 0; font-weight: bold; color: #667eea;">ðŸª Store Details:</p>
+        <p style="margin: 0 0 10px 0; font-weight: bold; color: #667eea;">Store Details:</p>
         <p><strong>Store Name:</strong> ${storeName}</p>
         ${storeAddress ? `<p><strong>Address:</strong> ${storeAddress}</p>` : ''}
       </div>
@@ -604,8 +601,7 @@ export class EmailService {
     manpowerName: string,
     uid: string,
     productDetails?: any,
-    warrantyType?: string,
-    customerAddress?: string
+    warrantyType?: string
   ): Promise<void> {
     const productNameMapping: Record<string, string> = {
       'paint-protection': 'Paint Protection Films',
@@ -628,10 +624,9 @@ export class EmailService {
       </div>
       
       <div class="info-box" style="border-left-color: #38ef7d;">
-        <p style="margin: 0 0 10px 0; font-weight: bold; color: #11998e;">Customer Details:</p>
+        <p style="margin: 0 0 10px 0; font-weight: bold; color: #11998e;"></p>
         <p><strong>Customer Name:</strong> ${customerName}</p>
         <p><strong>Phone:</strong> ${customerPhone}</p>
-        ${customerAddress ? `<p><strong>Address:</strong> ${customerAddress}</p>` : ''}
         <p><strong>Product Name:</strong> ${productName}</p>
         <p><strong>Product Type:</strong> ${productType}</p>
         <p><strong>Warranty Type:</strong> ${warrantyType || '1 Year'}</p>
@@ -675,8 +670,7 @@ export class EmailService {
     uid: string,
     rejectionReason: string,
     productDetails?: any,
-    warrantyType?: string,
-    customerAddress?: string
+    warrantyType?: string
   ): Promise<void> {
     const productNameMapping: Record<string, string> = {
       'paint-protection': 'Paint Protection Films',
@@ -701,7 +695,6 @@ export class EmailService {
         <p style="margin: 0 0 10px 0; font-weight: bold; color: #ff9800;">Customer Details:</p>
         <p><strong>Customer Name:</strong> ${customerName}</p>
         <p><strong>Phone:</strong> ${customerPhone}</p>
-        ${customerAddress ? `<p><strong>Address:</strong> ${customerAddress}</p>` : ''}
         <p><strong>Product Name:</strong> ${productName}</p>
         <p><strong>Product Type:</strong> ${productType}</p>
         <p><strong>Vehicle:</strong> ${carMake} ${carModel}</p>

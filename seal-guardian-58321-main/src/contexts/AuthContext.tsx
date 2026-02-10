@@ -37,12 +37,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const token = localStorage.getItem("auth_token");
-    if (token) {
-      fetchCurrentUser();
-    } else {
-      setLoading(false);
-    }
+    // SBP-006: Always attempt to fetch user — server validates the HttpOnly cookie
+    fetchCurrentUser();
   }, []);
 
   const fetchCurrentUser = async () => {
@@ -50,8 +46,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const response = await api.get("/auth/me");
       setUser(response.data.user);
     } catch (error) {
-      console.error("Error fetching user:", error);
-      localStorage.removeItem("auth_token");
+      // Cookie is invalid or missing — user is not authenticated
+      setUser(null);
     } finally {
       setLoading(false);
     }
@@ -74,9 +70,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       throw new Error(response.data.error || "OTP verification failed");
     }
 
-    // If token exists, set it and update user state
-    if (response.data.token) {
-      localStorage.setItem("auth_token", response.data.token);
+    // SBP-006: Token is now set as HttpOnly cookie by the server — just update user state
+    if (response.data.user) {
       setUser(response.data.user);
     }
 
@@ -100,7 +95,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const logout = async (): Promise<void> => {
-    localStorage.removeItem("auth_token");
+    // SBP-006: Call server to clear HttpOnly cookie
+    try {
+      await api.post("/auth/logout");
+    } catch (error) {
+      console.error("Logout error:", error);
+    }
     setUser(null);
   };
 

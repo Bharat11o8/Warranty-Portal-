@@ -180,7 +180,7 @@ class GrievanceController {
             console.error('Submit grievance error:', error.message, error.code, error.sqlMessage);
             return res.status(500).json({
                 success: false,
-                error: 'Failed to submit grievance: ' + (error.sqlMessage || error.message)
+                error: 'Failed to submit grievance. An internal error occurred.'
             });
         }
     }
@@ -345,7 +345,7 @@ class GrievanceController {
             console.error('Submit franchise grievance error:', error.message, error.code, error.sqlMessage);
             return res.status(500).json({
                 success: false,
-                error: 'Failed to submit grievance: ' + (error.sqlMessage || error.message)
+                error: 'Failed to submit grievance. An internal error occurred.'
             });
         }
     }
@@ -536,7 +536,7 @@ class GrievanceController {
             console.error('Get all grievances error:', error.message, error.code, error.sqlMessage);
             return res.status(500).json({
                 success: false,
-                error: 'Failed to fetch grievances: ' + (error.sqlMessage || error.message)
+                error: 'Failed to fetch grievances. An internal error occurred.'
             });
         }
     }
@@ -1204,6 +1204,20 @@ class GrievanceController {
 
             const assignment = rows[0];
 
+            // SBP-007: Expiry check (48 hours)
+            const sentAt = new Date(assignment.email_sent_at).getTime();
+            const now = new Date().getTime();
+            const fortyEightHours = 48 * 60 * 60 * 1000;
+
+            if (now - sentAt > fortyEightHours) {
+                return res.status(403).json({ success: false, error: 'Assignment link has expired (48-hour limit)' });
+            }
+
+            // SBP-007: One-time use check (if already completed)
+            if (assignment.status === 'completed') {
+                return res.status(403).json({ success: false, error: 'This assignment has already been completed' });
+            }
+
             // If already completed, maybe don't allow further updates or just show status
             // For now, let's just return the data
 
@@ -1229,7 +1243,7 @@ class GrievanceController {
 
             // 1. Find assignment
             const [gaRows]: any = await db.execute(
-                'SELECT id, grievance_id, assignee_name FROM grievance_assignments WHERE update_token = ?',
+                'SELECT id, grievance_id, assignee_name, status, email_sent_at, created_at FROM grievance_assignments WHERE update_token = ?',
                 [token]
             );
 
@@ -1238,6 +1252,23 @@ class GrievanceController {
             }
 
             const assignment = gaRows[0];
+
+            // SBP-007: Expiry check (48 hours)
+            const sentAt = new Date(assignment.email_sent_at || assignment.created_at).getTime();
+            if (Number.isNaN(sentAt)) {
+                return res.status(403).json({ success: false, error: 'Assignment link is invalid or expired' });
+            }
+            const now = new Date().getTime();
+            const fortyEightHours = 48 * 60 * 60 * 1000;
+
+            if (now - sentAt > fortyEightHours) {
+                return res.status(403).json({ success: false, error: 'Assignment link has expired (48-hour limit)' });
+            }
+
+            // SBP-007: One-time use check
+            if (assignment.status === 'completed') {
+                return res.status(403).json({ success: false, error: 'This assignment has already been completed' });
+            }
 
             // 2. Update all assignment history records for this token
             await db.execute(

@@ -10,14 +10,27 @@ let io: Server;
 export const initSocket = (server: HttpServer) => {
     io = new Server(server, {
         cors: {
-            origin: "*", // Adjust this in production
-            methods: ["GET", "POST"]
+            // SBP-005: Use strict origin allowlist instead of wildcard
+            origin: process.env.ALLOWED_ORIGINS
+                ? process.env.ALLOWED_ORIGINS.split(',').map(o => o.trim())
+                : ['http://localhost:5173', 'https://warranty.emporiobyautoform.in'],
+            methods: ["GET", "POST"],
+            credentials: true
         }
     });
 
     // Authentication middleware for Socket.io
     io.use((socket, next) => {
-        const token = socket.handshake.auth.token;
+        // SBP-006: Read token from cookie first, then fall back to handshake auth
+        const cookieHeader = socket.handshake.headers.cookie || '';
+        const cookies = Object.fromEntries(
+            cookieHeader.split(';').map(c => {
+                const [key, ...val] = c.trim().split('=');
+                return [key, val.join('=')];
+            })
+        );
+        const token = cookies['auth_token'] || socket.handshake.auth?.token;
+
         if (!token) {
             return next(new Error('Authentication error: Token missing'));
         }

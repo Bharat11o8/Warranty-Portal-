@@ -646,8 +646,7 @@ export class AdminController {
                                 vendor.manpower_name,
                                 warrantyData.uid,
                                 productDetails,
-                                warrantyData.warranty_type,
-                                warrantyData.customer_address
+                                warrantyData.warranty_type
                             );
                             console.log(`✓ Warranty approval email sent to vendor: ${vendor.vendor_email}`);
                         } else {
@@ -664,8 +663,7 @@ export class AdminController {
                                 warrantyData.uid,
                                 rejectionReason,
                                 productDetails,
-                                warrantyData.warranty_type,
-                                warrantyData.customer_address
+                                warrantyData.warranty_type
                             );
                             console.log(`✓ Warranty rejection email sent to vendor: ${vendor.vendor_email}`);
                         }

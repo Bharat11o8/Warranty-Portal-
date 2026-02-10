@@ -341,10 +341,6 @@ export class VendorController {
             <div style="font-size: 64px; color: #dc3545; margin-bottom: 20px;">❌</div>
             <h1>Verification Error</h1>
             <p>An error occurred during verification. Please try again later.</p>
-            <div class="error-details">
-              <strong>Error Details:</strong><br>
-              ${error.message || 'Unknown error occurred'}
-            </div>
             <p style="margin-top: 20px; font-size: 14px; color: #666;">
               If this problem persists, please contact support.
             </p>

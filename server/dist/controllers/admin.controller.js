@@ -102,6 +102,7 @@ export class AdminController {
                     vd.address as full_address,
                     vd.pincode,
                     COALESCE(vv.is_verified, false) as is_verified,
+                    COALESCE(vv.is_active, true) as is_active,
                     vv.verified_at,
                     (SELECT COUNT(*) FROM manpower WHERE vendor_id = vd.id) as manpower_count,
                     (SELECT GROUP_CONCAT(name SEPARATOR ', ') FROM manpower WHERE vendor_id = vd.id) as manpower_names,
@@ -155,6 +156,7 @@ export class AdminController {
                     p.phone_number,
                     vd.id AS vendor_details_id,
                     vd.store_name,
+                    vd.store_code,
                     vd.address,
                     vd.city,
                     vd.state,
@@ -280,6 +282,108 @@ export class AdminController {
         catch (error) {
             console.error('Update vendor verification error:', error);
             res.status(500).json({ error: 'Failed to update vendor verification' });
+        }
+    }
+    /**
+     * Toggle vendor activation status
+     */
+    static async toggleVendorActivation(req, res) {
+        try {
+            const { id } = req.params;
+            const { is_active } = req.body;
+            if (typeof is_active !== 'boolean') {
+                return res.status(400).json({ error: 'is_active must be a boolean' });
+            }
+            // Get vendor details
+            const [vendor] = await db.execute('SELECT name, email FROM profiles WHERE id = ?', [id]);
+            if (vendor.length === 0) {
+                return res.status(404).json({ error: 'Vendor not found' });
+            }
+            const vendorData = vendor[0];
+            // Update activation status
+            await db.execute('UPDATE vendor_verification SET is_active = ? WHERE user_id = ?', [is_active, id]);
+            // Send real-time notification
+            try {
+                await NotificationService.notify(id, {
+                    title: is_active ? 'Store Activated' : 'Store Deactivated',
+                    message: is_active
+                        ? 'Your store has been activated. You can now access your account.'
+                        : 'Your store has been deactivated. Please contact admin for assistance.',
+                    type: is_active ? 'system' : 'alert'
+                });
+            }
+            catch (notifError) {
+                console.error('Failed to send vendor activation notification:', notifError);
+            }
+            // Log the activity
+            const admin = req.user;
+            await ActivityLogService.log({
+                adminId: admin.id,
+                adminName: admin.name,
+                adminEmail: admin.email,
+                actionType: is_active ? 'VENDOR_ACTIVATED' : 'VENDOR_DEACTIVATED',
+                targetType: 'VENDOR',
+                targetId: id,
+                targetName: vendorData.name,
+                ipAddress: req.ip || req.socket?.remoteAddress
+            });
+            res.json({
+                success: true,
+                message: `Franchise ${is_active ? 'activated' : 'deactivated'} successfully`
+            });
+        }
+        catch (error) {
+            console.error('Toggle vendor activation error:', error);
+            res.status(500).json({ error: 'Failed to toggle vendor activation' });
+        }
+    }
+    /**
+     * Update store code for QR generation
+     */
+    static async updateStoreCode(req, res) {
+        try {
+            const { id } = req.params;
+            const { store_code } = req.body;
+            // Validate store_code format (letters + numbers, 3-20 chars)
+            if (!store_code || !/^[A-Za-z0-9]{3,20}$/.test(store_code)) {
+                return res.status(400).json({
+                    error: 'Invalid store code format. Use 3-20 alphanumeric characters (e.g., FGM168)'
+                });
+            }
+            // Normalize to uppercase
+            const normalizedCode = store_code.toUpperCase();
+            // Check if store_code already exists for another vendor
+            const [existing] = await db.execute('SELECT id FROM vendor_details WHERE store_code = ? AND user_id != ?', [normalizedCode, id]);
+            if (existing.length > 0) {
+                return res.status(400).json({
+                    error: 'This store code is already in use by another franchise'
+                });
+            }
+            // Update store_code
+            await db.execute('UPDATE vendor_details SET store_code = ? WHERE user_id = ?', [normalizedCode, id]);
+            // Log the activity
+            const admin = req.user;
+            const [vendor] = await db.execute('SELECT store_name FROM vendor_details WHERE user_id = ?', [id]);
+            await ActivityLogService.log({
+                adminId: admin.id,
+                adminName: admin.name,
+                adminEmail: admin.email,
+                actionType: 'STORE_CODE_UPDATED',
+                targetType: 'VENDOR',
+                targetId: id,
+                targetName: vendor[0]?.store_name || 'Unknown',
+                details: { store_code: normalizedCode },
+                ipAddress: req.ip || req.socket?.remoteAddress
+            });
+            res.json({
+                success: true,
+                store_code: normalizedCode,
+                message: 'Store code updated successfully'
+            });
+        }
+        catch (error) {
+            console.error('Update store code error:', error);
+            res.status(500).json({ error: 'Failed to update store code' });
         }
     }
     static async deleteVendor(req, res) {
@@ -410,12 +514,12 @@ export class AdminController {
                         const vendor = vendorInfo[0];
                         if (status === 'validated') {
                             // Send approval email to vendor
-                            await EmailService.sendWarrantyApprovalToVendor(vendor.vendor_email, vendor.vendor_name, warrantyData.customer_name, warrantyData.customer_phone, warrantyData.product_type, warrantyData.car_make, warrantyData.car_model, vendor.manpower_name, warrantyData.uid, productDetails, warrantyData.warranty_type, warrantyData.customer_address);
+                            await EmailService.sendWarrantyApprovalToVendor(vendor.vendor_email, vendor.vendor_name, warrantyData.customer_name, warrantyData.customer_phone, warrantyData.product_type, warrantyData.car_make, warrantyData.car_model, vendor.manpower_name, warrantyData.uid, productDetails, warrantyData.warranty_type);
                             console.log(`✓ Warranty approval email sent to vendor: ${vendor.vendor_email}`);
                         }
                         else {
                             // Send rejection email to vendor
-                            await EmailService.sendWarrantyRejectionToVendor(vendor.vendor_email, vendor.vendor_name, warrantyData.customer_name, warrantyData.customer_phone, warrantyData.product_type, warrantyData.car_make, warrantyData.car_model, vendor.manpower_name, warrantyData.uid, rejectionReason, productDetails, warrantyData.warranty_type, warrantyData.customer_address);
+                            await EmailService.sendWarrantyRejectionToVendor(vendor.vendor_email, vendor.vendor_name, warrantyData.customer_name, warrantyData.customer_phone, warrantyData.product_type, warrantyData.car_make, warrantyData.car_model, vendor.manpower_name, warrantyData.uid, rejectionReason, productDetails, warrantyData.warranty_type);
                             console.log(`✓ Warranty rejection email sent to vendor: ${vendor.vendor_email}`);
                         }
                     }

@@ -1,6 +1,7 @@
 import express from 'express';
 import { createServer } from 'http';
 import cors from 'cors';
+import cookieParser from 'cookie-parser';
 import compression from 'compression';
 import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
@@ -25,6 +26,7 @@ import settingsRoutes from './routes/settings.routes.js';
 import posmRoutes from './routes/posm.routes.js';
 import { AssignmentSchedulerService } from './services/assignment-scheduler.service.js';
 import { initSocket } from './socket.js';
+import { getISTTimestamp } from './utils/dateUtils.js';
 // Start background services
 AssignmentSchedulerService.start();
 // Get current directory for ES modules
@@ -32,6 +34,11 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 // Load .env from server directory
 dotenv.config({ path: join(__dirname, '../.env') });
+// SBP-004: Validate required secrets at startup — crash fast if missing
+if (!process.env.JWT_SECRET) {
+    console.error('FATAL: JWT_SECRET environment variable is not set. Server cannot start securely.');
+    process.exit(1);
+}
 const app = express();
 const httpServer = createServer(app);
 const PORT = process.env.PORT || 3000;
@@ -44,6 +51,8 @@ app.set('trust proxy', 1);
 // ===========================================
 // Security headers (Helmet.js)
 app.use(securityHeaders);
+// Cookie parser (SBP-006: for HttpOnly cookie auth)
+app.use(cookieParser());
 // Request ID tracking for debugging/tracing
 app.use(requestIdMiddleware);
 // Enhanced request logger (production-safe)
@@ -97,7 +106,7 @@ app.get('/health', (req, res) => {
     res.json({
         status: 'ok',
         message: 'Warranty Portal API is running',
-        timestamp: new Date().toISOString()
+        timestamp: getISTTimestamp()
     });
 });
 // ===========================================

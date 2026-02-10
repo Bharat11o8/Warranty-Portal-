@@ -48,7 +48,7 @@ interface SeatCoverFormProps {
   installers?: any[];
 }
 
-const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic, vendorDirect, storeDetails, installers, products: initialProducts = [] }: SeatCoverFormProps) => {
+const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic, vendorDirect, storeDetails, installers, products: initialProducts }: SeatCoverFormProps) => {
   const { toast } = useToast();
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -149,7 +149,7 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
 
     const fetchProducts = async () => {
       // Use pre-fetched products if available
-      if (initialProducts.length > 0) {
+      if (initialProducts && initialProducts.length > 0) {
         setProducts(initialProducts);
         return;
       }

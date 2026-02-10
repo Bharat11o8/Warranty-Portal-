@@ -10,6 +10,26 @@ dotenv.config();
 const INDIAN_MOBILE_REGEX = /^[6-9]\d{9}$/;
 const EMAIL_REGEX = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
 const PINCODE_REGEX = /^\d{6}$/;
+const getAuthCookieOptions = () => {
+    const isProduction = process.env.NODE_ENV === 'production';
+    const secure = process.env.SESSION_COOKIE_SECURE
+        ? process.env.SESSION_COOKIE_SECURE === 'true'
+        : isProduction;
+    let sameSite = process.env.SESSION_COOKIE_SAMESITE
+        ?? (secure ? 'none' : 'lax');
+    // Browsers reject SameSite=None cookies unless Secure is true.
+    if (!secure && sameSite === 'none') {
+        sameSite = 'lax';
+    }
+    const maxAgeMs = Number(process.env.AUTH_COOKIE_MAX_AGE_MS || 24 * 60 * 60 * 1000);
+    return {
+        httpOnly: true,
+        secure,
+        sameSite,
+        path: '/',
+        maxAge: maxAgeMs
+    };
+};
 export class AuthController {
     static async register(req, res) {
         try {
@@ -17,6 +37,10 @@ export class AuthController {
             // Validate input
             if (!name || !email || !phoneNumber || !role) {
                 return res.status(400).json({ error: 'All fields are required' });
+            }
+            // SBP-001: Block admin self-registration — admins can only be created via admin endpoint
+            if (role === 'admin') {
+                return res.status(403).json({ error: 'Admin accounts cannot be created through public registration' });
             }
             // Validate email format
             if (!EMAIL_REGEX.test(email)) {
@@ -115,14 +139,16 @@ export class AuthController {
                     error: `This email is registered as a ${userRole}. Please use the ${userRole} login.`
                 });
             }
-            // Check vendor verification
+            // Check vendor verification and activation status
             if (userRole === 'vendor') {
-                const [verification] = await db.execute('SELECT is_verified FROM vendor_verification WHERE user_id = ?', [user.id]);
+                const [verification] = await db.execute('SELECT is_verified, is_active FROM vendor_verification WHERE user_id = ?', [user.id]);
                 if (verification.length === 0 || !verification[0].is_verified) {
                     return res.status(403).json({
                         error: 'Vendor account pending verification. Please wait for admin approval.'
                     });
                 }
+                // Note: We allow login for deactivated vendors but return isActive=false
+                // Frontend will handle showing deactivation message
             }
             // Generate OTP
             const otp = await OTPService.createOTP(user.id);
@@ -157,6 +183,12 @@ export class AuthController {
                 // This is a NEW REGISTRATION - move data from pending to actual tables
                 const pending = pendingUsers[0];
                 const newUserId = uuidv4(); // Generate new permanent user ID
+                const allowedRoles = new Set(['customer', 'vendor']);
+                // SBP-001: Reject unexpected roles in pending registrations (defense in depth)
+                if (!allowedRoles.has(pending.role)) {
+                    await db.execute('DELETE FROM pending_registrations WHERE id = ?', [userId]);
+                    return res.status(403).json({ error: 'Invalid registration role' });
+                }
                 // Use transaction for atomic multi-table writes
                 const connection = await db.getConnection();
                 try {
@@ -213,6 +245,7 @@ export class AuthController {
                         name: pending.name,
                         role: pending.role
                     }, process.env.JWT_SECRET, { expiresIn: process.env.JWT_EXPIRES_IN || '24h' });
+                    res.cookie('auth_token', token, getAuthCookieOptions());
                     return res.json({
                         success: true,
                         message: 'Registration successful!',
@@ -245,11 +278,16 @@ export class AuthController {
             // Get user role
             const [roles] = await db.execute('SELECT role FROM user_roles WHERE user_id = ?', [userId]);
             const userRole = roles[0].role;
-            // Get verification status for vendors
+            // Get verification and activation status for vendors
             let isValidated = userRole === 'customer';
+            let isActive = true;
             if (userRole === 'vendor') {
-                const [verification] = await db.execute('SELECT is_verified FROM vendor_verification WHERE user_id = ?', [userId]);
+                const [verification] = await db.execute('SELECT is_verified, is_active FROM vendor_verification WHERE user_id = ?', [userId]);
                 isValidated = verification[0]?.is_verified || false;
+                // Fix: MySQL returns 0 for false, which !== false evaluates to true. 
+                // We must check if it is 1 or true.
+                const activeVal = verification[0]?.is_active;
+                isActive = (activeVal === 1 || activeVal === true);
                 // If vendor not validated, don't provide token
                 if (!isValidated) {
                     return res.json({
@@ -267,6 +305,7 @@ export class AuthController {
                 name: user.name,
                 role: userRole
             }, process.env.JWT_SECRET, { expiresIn: process.env.JWT_EXPIRES_IN || '24h' });
+            res.cookie('auth_token', token, getAuthCookieOptions());
             res.json({
                 success: true,
                 token,
@@ -276,7 +315,8 @@ export class AuthController {
                     name: user.name,
                     role: userRole,
                     phoneNumber: user.phone_number,
-                    isValidated
+                    isValidated,
+                    isActive
                 }
             });
             // Log Admin Login
@@ -337,26 +377,28 @@ export class AuthController {
     }
     static async getCurrentUser(req, res) {
         try {
-            const authHeader = req.headers['authorization'];
-            const token = authHeader && authHeader.split(' ')[1];
-            if (!token) {
-                return res.status(401).json({ error: 'No token provided' });
+            const authenticatedUser = req.user;
+            if (!authenticatedUser?.id) {
+                return res.status(401).json({ error: 'User not authenticated' });
             }
-            const decoded = jwt.verify(token, process.env.JWT_SECRET);
             // Get user data
-            const [users] = await db.execute('SELECT id, email, name, phone_number FROM profiles WHERE id = ?', [decoded.id]);
+            const [users] = await db.execute('SELECT id, email, name, phone_number FROM profiles WHERE id = ?', [authenticatedUser.id]);
             if (users.length === 0) {
                 return res.status(404).json({ error: 'User not found' });
             }
             const user = users[0];
             // Get user role
-            const [roles] = await db.execute('SELECT role FROM user_roles WHERE user_id = ?', [decoded.id]);
+            const [roles] = await db.execute('SELECT role FROM user_roles WHERE user_id = ?', [authenticatedUser.id]);
             const userRole = roles[0].role;
-            // Get verification status for vendors
+            // Get verification and activation status for vendors
             let isValidated = userRole === 'customer';
+            let isActive = true;
             if (userRole === 'vendor') {
-                const [verification] = await db.execute('SELECT is_verified FROM vendor_verification WHERE user_id = ?', [decoded.id]);
+                const [verification] = await db.execute('SELECT is_verified, is_active FROM vendor_verification WHERE user_id = ?', [authenticatedUser.id]);
                 isValidated = verification[0]?.is_verified || false;
+                // Fix: MySQL returns 0 for false.
+                const activeVal = verification[0]?.is_active;
+                isActive = (activeVal === 1 || activeVal === true || activeVal === '1');
             }
             res.json({
                 user: {
@@ -365,7 +407,8 @@ export class AuthController {
                     name: user.name,
                     role: userRole,
                     phoneNumber: user.phone_number,
-                    isValidated
+                    isValidated,
+                    isActive
                 }
             });
         }
