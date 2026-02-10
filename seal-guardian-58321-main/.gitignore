@@ -34,3 +34,6 @@ dist-ssr
 # Backups
 *.backup
 *.bak
+
+#Docs
+security_best_practices_report.md
