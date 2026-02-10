@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 import { io, Socket } from "socket.io-client";
 import { useAuth } from "./AuthContext";
 import { useToast } from "@/hooks/use-toast";
-import api from "@/lib/api";
+import api, { API_URL } from "@/lib/api";
 
 export interface Notification {
     id: number;
@@ -100,12 +100,12 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
             fetchNotifications();
 
             // Initialize Socket
-            const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+            const apiUrl = API_URL;
             // Socket.io expects the root URL, not the /api path. Strip /api if present.
             const baseUrl = apiUrl.endsWith('/api') ? apiUrl.slice(0, -4) : apiUrl;
 
             // Skip socket connection for Vercel/serverless backends (they don't support Socket.io)
-            const isVercelBackend = baseUrl.includes('vercel.app');
+            const isVercelBackend = baseUrl.includes('vercel.app') || apiUrl.startsWith('/');
 
             if (isVercelBackend) {
                 console.log("⚠️ Socket.io disabled for Vercel backend - using HTTP polling for notifications");

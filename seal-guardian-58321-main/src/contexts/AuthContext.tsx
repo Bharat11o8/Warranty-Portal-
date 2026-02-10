@@ -30,6 +30,14 @@ interface RegisterData {
   role: UserRole;
 }
 
+const getErrorMessage = (error: unknown, fallback: string) => {
+  if (typeof error === "string") return error;
+  if (error && typeof error === "object" && "message" in error && typeof (error as any).message === "string") {
+    return (error as any).message;
+  }
+  return fallback;
+};
+
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -37,8 +45,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // SBP-006: Always attempt to fetch user — server validates the HttpOnly cookie
-    fetchCurrentUser();
+    const token = localStorage.getItem("auth_token");
+    if (token) {
+      fetchCurrentUser();
+    } else {
+      setLoading(false);
+    }
   }, []);
 
   const fetchCurrentUser = async () => {
@@ -46,7 +58,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const response = await api.get("/auth/me");
       setUser(response.data.user);
     } catch (error) {
-      // Cookie is invalid or missing — user is not authenticated
+      localStorage.removeItem("auth_token");
       setUser(null);
     } finally {
       setLoading(false);
@@ -56,7 +68,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const register = async (data: RegisterData): Promise<{ userId: string; requiresOTP: boolean }> => {
     const response = await api.post("/auth/register", data);
     if (!response.data.success) {
-      throw new Error(response.data.error || "Registration failed");
+      throw new Error(getErrorMessage(response.data.error, "Registration failed"));
     }
     return {
       userId: response.data.userId,
@@ -67,10 +79,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const verifyOTP = async (userId: string, otp: string): Promise<{ token?: string; user?: User }> => {
     const response = await api.post("/auth/verify-otp", { userId, otp });
     if (!response.data.success) {
-      throw new Error(response.data.error || "OTP verification failed");
+      throw new Error(getErrorMessage(response.data.error, "OTP verification failed"));
     }
 
-    // SBP-006: Token is now set as HttpOnly cookie by the server — just update user state
+    if (response.data.token) {
+      localStorage.setItem("auth_token", response.data.token);
+    }
+
     if (response.data.user) {
       setUser(response.data.user);
     }
@@ -83,11 +98,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const login = async (email: string, role: UserRole): Promise<{ userId: string; requiresOTP: boolean }> => {
     const response = await api.post("/auth/login", { email, role });
-
     if (!response.data.success) {
-      throw new Error(response.data.error || "Login failed");
+      throw new Error(getErrorMessage(response.data.error, "Login failed"));
     }
-
     return {
       userId: response.data.userId,
       requiresOTP: response.data.requiresOTP
@@ -95,12 +108,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const logout = async (): Promise<void> => {
-    // SBP-006: Call server to clear HttpOnly cookie
     try {
       await api.post("/auth/logout");
     } catch (error) {
       console.error("Logout error:", error);
     }
+    localStorage.removeItem("auth_token");
     setUser(null);
   };
 

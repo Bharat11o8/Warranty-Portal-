@@ -51,11 +51,21 @@ const getClientIP = (req: Request): string => {
     return req.ip || req.socket?.remoteAddress || 'unknown';
 };
 
+const shouldSkipAuthLimiter = (req: Request): boolean => {
+    const path = req.path.toLowerCase();
+    // /auth/me is called frequently by session bootstrap and should not consume OTP/login quota.
+    return path === '/me' || path === '/logout';
+};
+
 // Helper to create Redis middleware
 const createRedisLimiter = (limiter: Ratelimit | null, errorCode: string, errorMessage: string) => {
     return async (req: Request, res: Response, next: NextFunction) => {
         // Skip in test environment
         if (process.env.NODE_ENV === 'test') {
+            return next();
+        }
+
+        if (errorCode === 'RATE_LIMIT_EXCEEDED' && shouldSkipAuthLimiter(req)) {
             return next();
         }
 
@@ -113,7 +123,7 @@ export const authRateLimiter = redis
         },
         standardHeaders: true,
         legacyHeaders: false,
-        skip: (req: Request) => process.env.NODE_ENV === 'test'
+        skip: (req: Request) => process.env.NODE_ENV === 'test' || shouldSkipAuthLimiter(req)
     });
 
 /**

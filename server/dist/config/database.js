@@ -22,7 +22,7 @@ if (process.env.NODE_ENV !== 'production') {
  * Configuration can be tuned via environment variables:
  * - DB_POOL_SIZE: Maximum number of connections (default: 10)
  * - DB_MAX_IDLE: Maximum idle connections (default: 5)
- * - DB_CONNECT_TIMEOUT: Connection timeout in ms (default: 60000)
+ * - DB_CONNECT_TIMEOUT: Connection timeout in ms (default: 10000)
  * - DB_IDLE_TIMEOUT: Idle connection timeout in ms (default: 60000)
  */
 const pool = mysql.createPool({
@@ -43,9 +43,61 @@ const pool = mysql.createPool({
     enableKeepAlive: true,
     keepAliveInitialDelay: 10000, // Send keep-alive after 10 seconds idle
     // Timeout Settings
-    connectTimeout: parseInt(process.env.DB_CONNECT_TIMEOUT || '60000'),
+    connectTimeout: parseInt(process.env.DB_CONNECT_TIMEOUT || '10000'),
     idleTimeout: parseInt(process.env.DB_IDLE_TIMEOUT || '60000'),
 });
+const TRANSIENT_DB_ERROR_CODES = new Set([
+    'ETIMEDOUT',
+    'ECONNRESET',
+    'EPIPE',
+    'PROTOCOL_CONNECTION_LOST',
+    'PROTOCOL_ENQUEUE_AFTER_FATAL_ERROR',
+    'PROTOCOL_ENQUEUE_AFTER_QUIT'
+]);
+let transientRetryCount = 0;
+let lastTransientRetryAt = null;
+export function isTransientDbError(error) {
+    const code = error?.code;
+    return typeof code === 'string' && TRANSIENT_DB_ERROR_CODES.has(code);
+}
+function sleep(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+}
+export async function executeWithRetry(sql, params = [], options) {
+    const retries = options?.retries ?? 2;
+    const baseDelayMs = options?.baseDelayMs ?? 150;
+    for (let attempt = 0;; attempt++) {
+        try {
+            return await pool.execute(sql, params);
+        }
+        catch (error) {
+            const shouldRetry = isTransientDbError(error) && attempt < retries;
+            if (!shouldRetry) {
+                throw error;
+            }
+            transientRetryCount += 1;
+            lastTransientRetryAt = new Date().toISOString();
+            const delayMs = baseDelayMs * Math.pow(2, attempt);
+            console.warn(`[DB] transient error "${error.code}" on attempt ${attempt + 1}. Retrying in ${delayMs}ms.`);
+            await sleep(delayMs);
+        }
+    }
+}
+export function getDbRetryStats() {
+    return {
+        transientRetryCount,
+        lastTransientRetryAt
+    };
+}
+export async function pingDatabase() {
+    try {
+        await pool.query('SELECT 1');
+        return true;
+    }
+    catch {
+        return false;
+    }
+}
 // Set IST timezone on connection events (for underlying callback pool)
 pool.pool.on('connection', (connection) => {
     connection.query("SET time_zone = '+05:30'");

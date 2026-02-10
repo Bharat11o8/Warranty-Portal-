@@ -1,6 +1,6 @@
 import jwt from 'jsonwebtoken';
 import { v4 as uuidv4 } from 'uuid';
-import db from '../config/database.js';
+import db, { executeWithRetry, isTransientDbError } from '../config/database.js';
 import { EmailService } from '../services/email.service.js';
 import { OTPService } from '../services/otp.service.js';
 import { ActivityLogService } from '../services/activity-log.service.js';
@@ -122,13 +122,13 @@ export class AuthController {
                 return res.status(400).json({ error: 'Role is required' });
             }
             // Get user profile
-            const [users] = await db.execute('SELECT * FROM profiles WHERE email = ?', [email]);
+            const [users] = await executeWithRetry('SELECT * FROM profiles WHERE email = ?', [email]);
             if (users.length === 0) {
                 return res.status(401).json({ error: 'User not found. Please register first.' });
             }
             const user = users[0];
             // Get user role
-            const [roles] = await db.execute('SELECT role FROM user_roles WHERE user_id = ?', [user.id]);
+            const [roles] = await executeWithRetry('SELECT role FROM user_roles WHERE user_id = ?', [user.id]);
             if (roles.length === 0) {
                 return res.status(500).json({ error: 'User role not found' });
             }
@@ -141,7 +141,7 @@ export class AuthController {
             }
             // Check vendor verification and activation status
             if (userRole === 'vendor') {
-                const [verification] = await db.execute('SELECT is_verified, is_active FROM vendor_verification WHERE user_id = ?', [user.id]);
+                const [verification] = await executeWithRetry('SELECT is_verified, is_active FROM vendor_verification WHERE user_id = ?', [user.id]);
                 if (verification.length === 0 || !verification[0].is_verified) {
                     return res.status(403).json({
                         error: 'Vendor account pending verification. Please wait for admin approval.'
@@ -163,6 +163,9 @@ export class AuthController {
         }
         catch (error) {
             console.error('Login error:', error);
+            if (isTransientDbError(error)) {
+                return res.status(503).json({ error: 'Service temporarily unavailable. Please retry.' });
+            }
             res.status(500).json({ error: 'Login failed' });
         }
     }
@@ -414,7 +417,10 @@ export class AuthController {
         }
         catch (error) {
             console.error('Get current user error:', error);
-            res.status(401).json({ error: 'Invalid token' });
+            if (isTransientDbError(error)) {
+                return res.status(503).json({ error: 'Service temporarily unavailable. Please retry.' });
+            }
+            res.status(500).json({ error: 'Failed to fetch current user' });
         }
     }
     static async updateProfile(req, res) {

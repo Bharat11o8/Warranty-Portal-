@@ -1,4 +1,5 @@
 import { downloadCSV, formatToIST, getISTTodayISO } from "@/lib/utils";
+import { API_URL } from "@/lib/api";
 
 /**
  * Available warranty export fields
@@ -65,7 +66,7 @@ export const formatWarrantyForExport = (w: any, selectedFields?: string[]) => {
 
     // Documentation Links
     if (w.product_type === 'seat-cover' && productDetails.invoiceFileName) {
-        const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+        const baseUrl = API_URL.endsWith('/api') ? API_URL.slice(0, -4) : API_URL;
         fullData.links = productDetails.invoiceFileName.startsWith('http')
             ? productDetails.invoiceFileName
             : `${baseUrl}/uploads/${productDetails.invoiceFileName}`;

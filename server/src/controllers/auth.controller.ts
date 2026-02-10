@@ -2,7 +2,7 @@ import { Request, Response, CookieOptions } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { v4 as uuidv4 } from 'uuid';
-import db from '../config/database.js';
+import db, { executeWithRetry, isTransientDbError } from '../config/database.js';
 import { EmailService } from '../services/email.service.js';
 import { OTPService } from '../services/otp.service.js';
 import { ActivityLogService } from '../services/activity-log.service.js';
@@ -166,7 +166,7 @@ export class AuthController {
       }
 
       // Get user profile
-      const [users]: any = await db.execute(
+      const [users]: any = await executeWithRetry(
         'SELECT * FROM profiles WHERE email = ?',
         [email]
       );
@@ -178,7 +178,7 @@ export class AuthController {
       const user = users[0];
 
       // Get user role
-      const [roles]: any = await db.execute(
+      const [roles]: any = await executeWithRetry(
         'SELECT role FROM user_roles WHERE user_id = ?',
         [user.id]
       );
@@ -198,7 +198,7 @@ export class AuthController {
 
       // Check vendor verification and activation status
       if (userRole === 'vendor') {
-        const [verification]: any = await db.execute(
+        const [verification]: any = await executeWithRetry(
           'SELECT is_verified, is_active FROM vendor_verification WHERE user_id = ?',
           [user.id]
         );
@@ -227,6 +227,9 @@ export class AuthController {
       });
     } catch (error: any) {
       console.error('Login error:', error);
+      if (isTransientDbError(error)) {
+        return res.status(503).json({ error: 'Service temporarily unavailable. Please retry.' });
+      }
       res.status(500).json({ error: 'Login failed' });
     }
   }
@@ -589,7 +592,10 @@ export class AuthController {
       });
     } catch (error: any) {
       console.error('Get current user error:', error);
-      res.status(401).json({ error: 'Invalid token' });
+      if (isTransientDbError(error)) {
+        return res.status(503).json({ error: 'Service temporarily unavailable. Please retry.' });
+      }
+      res.status(500).json({ error: 'Failed to fetch current user' });
     }
   }
 

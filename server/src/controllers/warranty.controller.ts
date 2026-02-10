@@ -144,12 +144,10 @@ export class WarrantyController {
         }
       }
 
-      // Insert warranty registration
-      // For customer submissions, set status to 'pending_vendor'
-      // For vendor direct submissions (vendorDirect=true), bypass vendor confirmation and go directly to admin
-      const initialStatus = warrantyData.vendorDirect
-        ? 'pending'
-        : (req.user.role === 'customer' ? 'pending_vendor' : 'pending');
+      // For customer submissions, set status to 'pending_vendor' (needs franchise verification)
+      // For vendor/admin submissions, go directly to 'pending' (admin review)
+      // Status is determined by the authenticated user's role, NOT by client payload
+      const initialStatus = req.user.role === 'customer' ? 'pending_vendor' : 'pending';
 
       // Use provided UID (for seat covers) or Serial Number (for EV products)
       // or generate a new UUID (fallback)
@@ -364,7 +362,7 @@ export class WarrantyController {
       // Status Mapping (Frontend Tab -> DB Status)
       if (status && status !== 'all') {
         if (status === 'pending') {
-          conditions.push("w.status = 'pending_vendor'");
+          conditions.push("(w.status = 'pending_vendor' OR w.status = 'pending')");
         } else if (status === 'pending_ho') {
           conditions.push("w.status = 'pending'");
         } else {

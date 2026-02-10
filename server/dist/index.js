@@ -27,6 +27,7 @@ import posmRoutes from './routes/posm.routes.js';
 import { AssignmentSchedulerService } from './services/assignment-scheduler.service.js';
 import { initSocket } from './socket.js';
 import { getISTTimestamp } from './utils/dateUtils.js';
+import { getDbRetryStats, pingDatabase } from './config/database.js';
 // Start background services
 AssignmentSchedulerService.start();
 // Get current directory for ES modules
@@ -102,11 +103,15 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 // ===========================================
 // HEALTH CHECK (No rate limiting)
 // ===========================================
-app.get('/health', (req, res) => {
+app.get('/health', async (req, res) => {
+    const includeDb = req.query.db === '1';
+    const dbReachable = includeDb ? await pingDatabase() : undefined;
     res.json({
         status: 'ok',
         message: 'Warranty Portal API is running',
-        timestamp: getISTTimestamp()
+        timestamp: getISTTimestamp(),
+        db: includeDb ? { reachable: dbReachable } : undefined,
+        dbRetryStats: getDbRetryStats()
     });
 });
 // ===========================================

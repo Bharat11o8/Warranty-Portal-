@@ -8,6 +8,7 @@ import { User, Building, Loader2 } from "lucide-react";
 import { getEmailError } from "@/lib/validation";
 import RoleCard from "@/components/ui/RoleCard";
 import OTPInput from "@/components/ui/OTPInput";
+import api from "@/lib/api";
 
 const Login = () => {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -29,6 +30,14 @@ const Login = () => {
   const navigate = useNavigate();
   const { login, verifyOTP, user, loading: authLoading } = useAuth();
   const { toast } = useToast();
+
+  const getApiErrorMessage = (error: any, fallback: string) => {
+    const apiError = error?.response?.data?.error;
+    if (typeof apiError === "string") return apiError;
+    if (typeof apiError?.message === "string") return apiError.message;
+    if (typeof error?.message === "string") return error.message;
+    return fallback;
+  };
 
   // Redirect if already logged in
   useEffect(() => {
@@ -100,14 +109,7 @@ const Login = () => {
         });
       }
     } catch (error: any) {
-      let errorMessage = "Login failed";
-      if (typeof error.response?.data?.error === 'string') {
-        errorMessage = error.response.data.error;
-      } else if (error.response?.data?.error?.message) {
-        errorMessage = error.response.data.error.message;
-      } else if (error.message) {
-        errorMessage = error.message;
-      }
+      const errorMessage = getApiErrorMessage(error, "Login failed");
 
       // Redirect to register if user not found (only for non-admins)
       if (selectedRole !== 'admin' && (
@@ -162,9 +164,10 @@ const Login = () => {
         throw new Error("Invalid server response");
       }
     } catch (error: any) {
+      const errorMessage = getApiErrorMessage(error, "Invalid OTP");
       toast({
         title: "Verification Failed",
-        description: error.response?.data?.error || error.message || "Invalid OTP",
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {
@@ -178,13 +181,8 @@ const Login = () => {
 
     setResendLoading(true);
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/auth/resend-otp`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId })
-      });
-
-      const data = await response.json();
+      const response = await api.post("/auth/resend-otp", { userId });
+      const data = response.data;
 
       if (data.success) {
         setCountdown(30);
@@ -194,7 +192,10 @@ const Login = () => {
           description: "A new code has been sent to your email.",
         });
       } else {
-        throw new Error(data.error || "Failed to resend OTP");
+        const errorMessage = typeof data?.error === "string"
+          ? data.error
+          : (typeof data?.error?.message === "string" ? data.error.message : "Failed to resend OTP");
+        throw new Error(errorMessage);
       }
     } catch (error: any) {
       toast({
