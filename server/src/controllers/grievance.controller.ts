@@ -28,10 +28,22 @@ class GrievanceController {
     getRemarks = async (req: AuthRequest, res: Response) => {
         try {
             const { id } = req.params;
-            const [remarks] = await db.execute(
-                'SELECT * FROM grievance_remarks WHERE grievance_id = ? ORDER BY created_at ASC',
-                [id]
-            );
+            const userRole = req.user?.role;
+
+            let remarks;
+            if (userRole === 'admin') {
+                // Admin sees all remarks including assignee responses
+                [remarks] = await db.execute(
+                    'SELECT * FROM grievance_remarks WHERE grievance_id = ? ORDER BY created_at ASC',
+                    [id]
+                );
+            } else {
+                // Non-admin: exclude assignee remarks (internal between admin and external team)
+                [remarks] = await db.execute(
+                    "SELECT * FROM grievance_remarks WHERE grievance_id = ? AND (added_by = 'admin' OR added_by = 'franchise') ORDER BY created_at ASC",
+                    [id]
+                );
+            }
 
             return res.json({ success: true, data: remarks });
         } catch (error: any) {

@@ -978,7 +978,7 @@ const VendorGrievances = () => {
                                         </div>
                                     ) : (
                                         <div className="space-y-4 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
-                                            {remarksHistory.map((remark) => (
+                                            {remarksHistory.filter((r: any) => r.added_by === 'admin' || r.added_by === 'franchise').map((remark) => (
                                                 <div key={remark.id} className={cn(
                                                     "p-4 rounded-2xl border transition-all",
                                                     remark.added_by === 'admin'
