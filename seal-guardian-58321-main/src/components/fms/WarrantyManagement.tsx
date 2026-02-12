@@ -1,7 +1,6 @@
 import { useState, useMemo } from "react";
 import {
     Search,
-    Plus,
     Download,
     ChevronRight,
     ArrowUpDown,
@@ -11,7 +10,6 @@ import {
     ShieldCheck,
     Calendar as CalendarIcon,
     XCircle,
-    CheckCircle,
     LayoutGrid,
     List,
     Filter,
@@ -19,7 +17,6 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
     Select,
@@ -43,7 +40,7 @@ import {
     DropdownMenuLabel
 } from "@/components/ui/dropdown-menu";
 import { cn, formatToIST, getWarrantyExpiration } from "@/lib/utils";
-import { format, isWithinInterval, startOfDay, endOfDay } from "date-fns";
+import { format } from "date-fns";
 import { DateRange } from "react-day-picker";
 import { Pagination } from "./Pagination";
 

@@ -1,7 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { Category } from '@/types/catalog';
-import { AspectRatio } from '@/components/ui/aspect-ratio';
 import { ChevronRight } from 'lucide-react';
 
 interface CategoryCardProps {

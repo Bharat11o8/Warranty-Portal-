@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useNavigate, useSearchParams, Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,11 +7,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { useAuth, UserRole } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
-import { User, Mail, Phone, ShieldCheck, AlertCircle, KeyRound, Store, MapPin, Plus, Trash2, Users, Loader2 } from "lucide-react";
+import { User, Mail, Phone, AlertCircle, KeyRound, Store, Plus, Trash2, Users, Loader2 } from "lucide-react";
 import {
   validateIndianMobile,
-  validateEmail,
-  validatePincode,
   cleanPhoneNumber,
   getPhoneError,
   getEmailError,

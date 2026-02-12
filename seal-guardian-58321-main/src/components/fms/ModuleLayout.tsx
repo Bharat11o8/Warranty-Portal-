@@ -1,10 +1,8 @@
 import { ReactNode } from "react";
 import { cn } from "@/lib/utils";
-import { NotificationPopover } from "./NotificationPopover";
 import { HelpPopover } from "./HelpPopover";
 import { Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 
 interface ModuleLayoutProps {
     title: string;
@@ -17,7 +15,7 @@ interface ModuleLayoutProps {
     onMenuToggle?: () => void;
 }
 
-export const ModuleLayout = ({ title, description, children, actions, isCollapsed, onNavigate, onLinkClick, onMenuToggle }: ModuleLayoutProps) => {
+export const ModuleLayout = ({ title, description, children, actions, onMenuToggle }: ModuleLayoutProps) => {
     return (
         <div className="flex-1 min-h-0 flex flex-col min-w-0 relative bg-[#fffaf5]">
             <main

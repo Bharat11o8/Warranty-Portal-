@@ -1,5 +1,4 @@
 import { Request, Response, CookieOptions } from 'express';
-import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { v4 as uuidv4 } from 'uuid';
 import db, { executeWithRetry, isTransientDbError } from '../config/database.js';

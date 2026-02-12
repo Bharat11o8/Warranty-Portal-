@@ -8,13 +8,10 @@ import {
     AlertCircle,
     Calendar,
     MessageSquare,
-    User,
     Loader2,
-    Send,
     ArrowRight
 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '../components/ui/card';
-import { Input } from '../components/ui/input';
 import { Textarea } from '../components/ui/textarea';
 import { Badge } from '../components/ui/badge';
 import {
@@ -179,11 +176,6 @@ export default function AssignmentUpdatePanel() {
                         <h1 className="text-3xl font-extrabold tracking-tight dark:text-white">
                             Task Update Portal
                         </h1>
-                    </div>
-                    <div className="text-right">
-                        <Badge variant="outline" className="text-xs py-1 px-3 bg-white dark:bg-slate-900 border-2">
-                            Token: {token?.slice(0, 8)}...
-                        </Badge>
                     </div>
                 </div>
 

@@ -3,12 +3,8 @@ import {
     TrendingUp,
     ShieldCheck,
     Users,
-    AlertCircle,
-    ArrowUpRight,
-    ArrowDownRight,
     Clock,
     CheckCircle2,
-    XCircle,
     Activity
 } from "lucide-react";
 import { Button } from "@/components/ui/button";

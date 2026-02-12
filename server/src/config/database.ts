@@ -51,7 +51,7 @@ const pool = mysql.createPool({
   keepAliveInitialDelay: 10000, // Send keep-alive after 10 seconds idle
 
   // Timeout Settings
-  connectTimeout: parseInt(process.env.DB_CONNECT_TIMEOUT || '10000'),
+  connectTimeout: parseInt(process.env.DB_CONNECT_TIMEOUT || '5000'),
   idleTimeout: parseInt(process.env.DB_IDLE_TIMEOUT || '60000'),
 });
 
@@ -81,7 +81,7 @@ export async function executeWithRetry<T = any>(
   params: any[] = [],
   options?: { retries?: number; baseDelayMs?: number }
 ): Promise<T> {
-  const retries = options?.retries ?? 2;
+  const retries = options?.retries ?? 1;
   const baseDelayMs = options?.baseDelayMs ?? 150;
 
   for (let attempt = 0; ; attempt++) {
@@ -118,31 +118,10 @@ export async function pingDatabase(): Promise<boolean> {
   }
 }
 
-// Set IST timezone on connection events (for underlying callback pool)
+// Set IST timezone on every new connection
 pool.pool.on('connection', (connection: any) => {
   connection.query("SET time_zone = '+05:30'");
 });
-
-// Test connection and log timezone info on startup
-(async () => {
-  try {
-    const conn = await pool.getConnection();
-
-    // Ensure timezone is set for this test connection
-    await conn.query("SET time_zone = '+05:30'");
-
-    if (process.env.NODE_ENV !== 'production') {
-      const [rows]: any = await conn.query("SELECT NOW() as db_now, @@session.time_zone as session_tz, @@global.time_zone as global_tz");
-      console.log('✅ Database connection successful');
-      console.log('⏰ DB Now (IST):', rows[0].db_now);
-      console.log('🌍 Session TZ:', rows[0].session_tz, '| Global TZ:', rows[0].global_tz);
-    }
-
-    conn.release();
-  } catch (err: any) {
-    console.error('❌ Database connection failed:', err.message);
-  }
-})();
 
 /**
  * Get current timestamp in IST (Indian Standard Time) as MySQL datetime string

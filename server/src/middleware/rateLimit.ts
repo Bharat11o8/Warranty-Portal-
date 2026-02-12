@@ -3,10 +3,6 @@ import rateLimit from 'express-rate-limit';
 import { Ratelimit } from '@upstash/ratelimit';
 import { Redis } from '@upstash/redis';
 
-// ============================================
-// REDIS-BACKED RATE LIMITERS (Serverless-safe)
-// ============================================
-
 // Initialize Redis client (only if credentials are available)
 const redis = process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN
     ? new Redis({
@@ -100,15 +96,6 @@ const createRedisLimiter = (limiter: Ratelimit | null, errorCode: string, errorM
         }
     };
 };
-
-// ============================================
-// EXPORTED MIDDLEWARE
-// ============================================
-
-/**
- * Rate limiter for authentication endpoints (login, register, OTP)
- * Uses Redis if available, otherwise falls back to in-memory
- */
 export const authRateLimiter = redis
     ? createRedisLimiter(authLimiter, 'RATE_LIMIT_EXCEEDED', 'Too many requests. Please try again later.')
     : rateLimit({

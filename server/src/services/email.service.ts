@@ -1218,7 +1218,7 @@ export class EmailService {
       </div>
       
       <p style="font-size: 14px; color: #666; margin-top: 25px;">
-        If you have any urgent queries, please contact us at <a href="mailto:marketing@autoformindia.com" style="color: #9333ea;">marketing@autoformindia.com</a>
+        If you have any urgent queries, please contact us at <a href="mailto:marketing@autoformindia.com" style="color: #9333ea;">marketing@  </a>
       </p>
       
       <p style="margin-top: 25px; font-size: 14px;">

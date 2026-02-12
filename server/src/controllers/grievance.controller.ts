@@ -1204,13 +1204,22 @@ class GrievanceController {
 
             const assignment = rows[0];
 
-            // SBP-007: Expiry check (48 hours)
-            const sentAt = new Date(assignment.email_sent_at).getTime();
+            // SBP-007: Expiry check (estimated_completion_date + 48 hours buffer)
             const now = new Date().getTime();
             const fortyEightHours = 48 * 60 * 60 * 1000;
 
-            if (now - sentAt > fortyEightHours) {
-                return res.status(403).json({ success: false, error: 'Assignment link has expired (48-hour limit)' });
+            if (assignment.estimated_completion_date) {
+                const deadline = new Date(assignment.estimated_completion_date).getTime();
+                if (!Number.isNaN(deadline) && now > deadline + fortyEightHours) {
+                    return res.status(403).json({ success: false, error: 'Assignment link has expired (past resolution deadline)' });
+                }
+            } else {
+                // Fallback: if no deadline set, use email_sent_at + 7 days
+                const sentAt = new Date(assignment.email_sent_at).getTime();
+                const sevenDays = 7 * 24 * 60 * 60 * 1000;
+                if (!Number.isNaN(sentAt) && now - sentAt > sevenDays) {
+                    return res.status(403).json({ success: false, error: 'Assignment link has expired' });
+                }
             }
 
             // SBP-007: One-time use check (if already completed)
@@ -1228,6 +1237,7 @@ class GrievanceController {
         }
     }
 
+
     /**
      * Update assignment by token (Public)
      * POST /api/grievance/assignment/update/:token
@@ -1243,7 +1253,7 @@ class GrievanceController {
 
             // 1. Find assignment
             const [gaRows]: any = await db.execute(
-                'SELECT id, grievance_id, assignee_name, status, email_sent_at, created_at FROM grievance_assignments WHERE update_token = ?',
+                'SELECT id, grievance_id, assignee_name, status, email_sent_at, estimated_completion_date FROM grievance_assignments WHERE update_token = ?',
                 [token]
             );
 
@@ -1252,17 +1262,22 @@ class GrievanceController {
             }
 
             const assignment = gaRows[0];
-
-            // SBP-007: Expiry check (48 hours)
-            const sentAt = new Date(assignment.email_sent_at || assignment.created_at).getTime();
-            if (Number.isNaN(sentAt)) {
-                return res.status(403).json({ success: false, error: 'Assignment link is invalid or expired' });
-            }
+            // SBP-007: Expiry check (estimated_completion_date + 48 hours buffer)
             const now = new Date().getTime();
             const fortyEightHours = 48 * 60 * 60 * 1000;
 
-            if (now - sentAt > fortyEightHours) {
-                return res.status(403).json({ success: false, error: 'Assignment link has expired (48-hour limit)' });
+            if (assignment.estimated_completion_date) {
+                const deadline = new Date(assignment.estimated_completion_date).getTime();
+                if (!Number.isNaN(deadline) && now > deadline + fortyEightHours) {
+                    return res.status(403).json({ success: false, error: 'Assignment link has expired (past resolution deadline)' });
+                }
+            } else {
+                // Fallback: if no deadline set, use email_sent_at + 7 days
+                const sentAt = new Date(assignment.email_sent_at).getTime();
+                const sevenDays = 7 * 24 * 60 * 60 * 1000;
+                if (!Number.isNaN(sentAt) && now - sentAt > sevenDays) {
+                    return res.status(403).json({ success: false, error: 'Assignment link has expired' });
+                }
             }
 
             // SBP-007: One-time use check
@@ -1315,6 +1330,7 @@ class GrievanceController {
 
             // 5. Notify Admin
             try {
+                const { NotificationService } = await import('../services/notification.service.js');
                 await NotificationService.broadcast({
                     title: `Assignment Update: ${ticketId}`,
                     message: `${assignment.assignee_name} updated assignment to ${status}.`,

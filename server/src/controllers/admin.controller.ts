@@ -5,7 +5,7 @@ import { ActivityLogService } from '../services/activity-log.service.js';
 import { NotificationService } from '../services/notification.service.js';
 
 export class AdminController {
-    static async getDashboardStats(req: Request, res: Response) {
+    static async getDashboardStats(_req: Request, res: Response) {
         try {
             // 1. Total Warranties
             const [warranties]: any = await db.execute('SELECT COUNT(*) as count FROM warranty_registrations');
@@ -99,7 +99,7 @@ export class AdminController {
         }
     }
 
-    static async getAllVendors(req: Request, res: Response) {
+    static async getAllVendors(_req: Request, res: Response) {
         try {
             const query = `
                 SELECT 
@@ -912,7 +912,7 @@ export class AdminController {
         }
     }
 
-    static async getCustomers(req: Request, res: Response) {
+    static async getCustomers(_req: Request, res: Response) {
         try {
             // Get unique customers with their warranty statistics
             // Group ONLY by customer_email to ensure one entry per unique email
@@ -1034,7 +1034,7 @@ export class AdminController {
     }
 
     // Admin Management Methods
-    static async getAllAdmins(req: Request, res: Response) {
+    static async getAllAdmins(_req: Request, res: Response) {
         try {
             const query = `
                 SELECT 

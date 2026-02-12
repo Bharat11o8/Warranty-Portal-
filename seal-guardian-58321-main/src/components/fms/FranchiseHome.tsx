@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { useNavigate } from "react-router-dom";
+import { Card, CardContent } from "@/components/ui/card";
 import { Product } from '@/lib/catalogService';
 import { Notification } from "@/contexts/NotificationContext";
 import {
@@ -10,7 +9,6 @@ import {
     Users,
     ArrowUpRight,
     Star,
-    Zap,
     Sparkles,
     ChevronRight,
     ChevronLeft,

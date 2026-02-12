@@ -3,14 +3,13 @@ import { Navigate, useOutletContext } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import api from "@/lib/api";
-import { Loader2, Plus, Download, X, ChevronRight, Search } from "lucide-react";
-import { downloadCSV, cn, formatToIST, getISTTodayISO } from "@/lib/utils";
+import { Loader2, X, ChevronRight, Search } from "lucide-react";
+import { cn, formatToIST, getISTTodayISO } from "@/lib/utils";
 import { fetchProducts, Product, fetchCategories, Category } from '@/lib/catalogService';
 import { useNotifications } from "@/contexts/NotificationContext";
 
 import { DashboardSidebar, FmsModule, menuGroups, SidebarItem } from "@/components/fms/DashboardSidebar";
 import { ModuleLayout } from "@/components/fms/ModuleLayout";
-import { StatsOverview } from "@/components/fms/StatsOverview";
 import { FranchiseHome } from "@/components/fms/FranchiseHome";
 import { WarrantyManagement } from "@/components/fms/WarrantyManagement";
 import { StaffManagement } from "@/components/fms/StaffManagement";

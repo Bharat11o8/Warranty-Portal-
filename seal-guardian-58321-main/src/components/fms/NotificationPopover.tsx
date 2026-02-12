@@ -1,6 +1,6 @@
 
 import { useState } from "react";
-import { Bell, Check, Package, AlertTriangle, Info, MoreHorizontal, ShieldCheck, Megaphone, Trash2, Video, Download, ExternalLink, PlayCircle, FileVideo, Image as ImageIcon, ChevronRight } from "lucide-react";
+import { Bell, Check, AlertTriangle, Info, ShieldCheck, Megaphone, Trash2, Video, Download, ExternalLink, PlayCircle, FileVideo, ChevronRight } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import {
     Popover,
@@ -15,15 +15,13 @@ import {
     DialogDescription,
     DialogTrigger,
 } from "@/components/ui/dialog";
-import { DownloadCloud } from "lucide-react";
-import { toast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useNotifications } from "@/contexts/NotificationContext";
 import { cn, optimizeCloudinaryUrl } from "@/lib/utils";
-import { formatDistanceToNow, format } from "date-fns";
+import { format } from "date-fns";
 import { useIsMobile } from "@/hooks/use-mobile";
 
 const formatTimeAgo = (dateStr: string) => {
