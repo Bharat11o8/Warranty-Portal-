@@ -565,7 +565,14 @@ export const NewsAlerts = () => {
                                         <div className="pt-6 border-t border-slate-100 flex justify-end">
                                             <Button
                                                 onClick={() => {
-                                                    const url = item.link.startsWith('http') ? item.link : `https://${item.link}`;
+                                                    let url;
+                                                    if (item.link.startsWith('/')) {
+                                                        // Internal link: Prepend origin to open in new tab
+                                                        url = `${window.location.origin}${item.link}`;
+                                                    } else {
+                                                        // External link: Ensure protocol
+                                                        url = item.link.startsWith('http') ? item.link : `https://${item.link}`;
+                                                    }
                                                     window.open(url, '_blank', 'noopener,noreferrer');
                                                 }}
                                                 className="w-full sm:w-auto h-12 px-8 rounded-xl bg-slate-900 text-white hover:bg-slate-800 font-bold uppercase tracking-wider text-xs shadow-lg shadow-slate-900/20"
