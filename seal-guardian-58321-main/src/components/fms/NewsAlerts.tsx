@@ -5,13 +5,11 @@ import {
     DialogContent,
     DialogHeader,
     DialogTitle,
-    DialogDescription,
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { useNavigate } from "react-router-dom";
-import { Calendar as CalendarIcon, ChevronRight, Info, Megaphone, Search, Filter, ShieldCheck, AlertTriangle, Video, Download, ExternalLink, PlayCircle, FileVideo, FileText, Link, Image as ImageIcon, X, RefreshCw, Trash2, Undo2 } from "lucide-react";
+import { Calendar as CalendarIcon, ChevronRight, Info, Megaphone, Search, AlertTriangle, Video, Download, ExternalLink, PlayCircle, Image as ImageIcon, X, RefreshCw, Trash2, Undo2 } from "lucide-react";
 import { useNotifications } from "@/contexts/NotificationContext";
 import { cn, optimizeCloudinaryUrl } from "@/lib/utils";
 import { format, isSameDay } from "date-fns";
@@ -25,7 +23,6 @@ export const NewsAlerts = () => {
     const [swipingId, setSwipingId] = useState<number | null>(null);
     const [undoNotification, setUndoNotification] = useState<any>(null);
     const [showUndo, setShowUndo] = useState(false);
-    const navigate = useNavigate();
     const [searchQuery, setSearchQuery] = useState("");
     const [activeTab, setActiveTab] = useState<'all' | 'unread' | 'alert' | 'system' | 'product'>('all');
     const [date, setDate] = useState<Date | undefined>();
@@ -138,13 +135,6 @@ export const NewsAlerts = () => {
         setSwipingId(id);
     };
 
-    const onTouchMove = (e: React.TouchEvent) => {
-        if (touchStart === null) return;
-        const currentTouch = e.targetTouches[0].clientX;
-        const diff = currentTouch - touchStart;
-
-        // Visual feedback if needed, but for now we just detect end
-    };
 
     const onTouchEnd = (e: React.TouchEvent, item: any) => {
         if (touchStart === null) return;

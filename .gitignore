@@ -2,5 +2,8 @@ node_modules
 .DS_Store
 npm-debug.log
 yarn-error.log
-security_best_practices_report.md
-safari_login_incident_report.md
+dist/
+.env
+.env.local
+generated-qr-codes/
+*.txt

@@ -3,6 +3,7 @@ import { Link, Outlet, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNotifications } from "@/contexts/NotificationContext";
 import Header from "@/components/Header";
+import { HelpPopover } from "@/components/fms/HelpPopover";
 import { Button } from "@/components/ui/button";
 import {
     FileText,
@@ -391,7 +392,12 @@ const CustomerLayout = () => {
             {/* Mobile normal header - Always shown on mobile now */}
             {!isMobileOpen && (
                 <div className="md:hidden fixed top-0 left-0 right-0 z-40 bg-white/80 backdrop-blur-md border-b border-orange-100">
-                    <Header className="bg-transparent border-none shadow-none h-16" />
+                    <div className="flex items-center">
+                        <Header className="bg-transparent border-none shadow-none h-16 flex-1" />
+                        <div className="pr-3">
+                            <HelpPopover />
+                        </div>
+                    </div>
                 </div>
             )}
         </div>
