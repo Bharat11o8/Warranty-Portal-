@@ -26,6 +26,7 @@ import { AdminOldWarranties } from "../modules/AdminOldWarranties";
 import { AdminWarrantyProducts } from "../modules/AdminWarrantyProducts";
 import { AdminPOSM } from "../modules/AdminPOSM";
 import { AdminCommandPalette } from "../AdminCommandPalette";
+import { AdminUIDManagement } from "../modules/AdminUIDManagement";
 
 export const AdminLayout = () => {
     const { user, loading } = useAuth();
@@ -66,6 +67,8 @@ export const AdminLayout = () => {
                 return <AdminAnnouncements />;
             case 'posm':
                 return <AdminPOSM />;
+            case 'uid-management':
+                return <AdminUIDManagement />;
             case 'profile': return <Profile embedded={true} />;
             default: return <AdminHome />;
         }
@@ -87,6 +90,7 @@ export const AdminLayout = () => {
             'warranty-form': 'Manual Registration',
             'announcements': 'Broadcast & Announcements',
             'posm': 'POSM Requirements',
+            'uid-management': 'Product UID Management',
             'profile': 'My Profile'
         };
         return titles[activeModule];

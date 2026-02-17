@@ -291,7 +291,7 @@ export const WarrantyManagement = ({
                                             <div className="flex-1 min-w-0">
                                                 <div className="flex items-center gap-2 mb-0.5">
                                                     <h4 className="font-bold text-sm md:text-base text-slate-800 truncate pr-2 tracking-tight">
-                                                        {toTitleCase(warranty.car_make)} {toTitleCase(warranty.car_model)}
+                                                        {warranty.registration_number || (typeof warranty.product_details === 'string' ? JSON.parse(warranty.product_details || '{}').carRegistration : warranty.product_details?.carRegistration) || 'N/A'}
                                                     </h4>
                                                     {/* Mobile-only status indicator */}
                                                     <span className={cn(
@@ -317,6 +317,14 @@ export const WarrantyManagement = ({
                                                     </div>
                                                     <div className="flex items-center gap-3 text-[9px] md:text-[10px] font-bold text-slate-400">
                                                         <span className="flex items-center gap-1"><CalendarIcon className="h-3 w-3 text-orange-400" /> {formatToIST(warranty.purchase_date || warranty.created_at).split(',')[0]}</span>
+                                                        {!isSeatCover && (warranty.car_make || warranty.car_model) && (
+                                                            <>
+                                                                <span className="text-slate-200">|</span>
+                                                                <span className="font-bold text-slate-600 uppercase tracking-tight">
+                                                                    {toTitleCase(warranty.car_make || '')} {toTitleCase(warranty.car_model || '')}
+                                                                </span>
+                                                            </>
+                                                        )}
                                                         <span className="text-slate-200">|</span>
                                                         <span className="font-mono">{warranty.uid}</span>
                                                     </div>
@@ -411,14 +419,16 @@ export const WarrantyManagement = ({
                                 <div className="relative flex items-start justify-between mb-6">
                                     <div className="flex-1 min-w-0 pr-4">
                                         <h4 className="font-bold text-lg text-slate-900 truncate leading-tight">
-                                            {toTitleCase(warranty.car_make)} {toTitleCase(warranty.car_model)}
+                                            {warranty.registration_number || (typeof warranty.product_details === 'string' ? JSON.parse(warranty.product_details || '{}').carRegistration : warranty.product_details?.carRegistration) || 'N/A'}
                                         </h4>
+
                                         <div className="flex items-center gap-2 mt-2">
                                             <Badge variant="outline" className={cn(
                                                 "font-bold text-[10px] px-2.5 py-0.5 border-0 shadow-sm",
                                                 isSeatCover ? "bg-red-50 text-red-500" : "bg-blue-50 text-blue-500"
                                             )}>
                                                 {warranty.product_type === 'ev-products' ? 'Paint Protection Film' : toTitleCase(warranty.product_type?.replace('-', ' '))}
+                                                {!isSeatCover && (warranty.car_make || warranty.car_model) && ` • ${toTitleCase(warranty.car_make || '')} ${toTitleCase(warranty.car_model || '')}`}
                                             </Badge>
                                             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{formatToIST(warranty.purchase_date || warranty.created_at).split(',')[0]}</span>
                                         </div>

@@ -234,10 +234,16 @@ const CustomerDashboard = () => {
                                 <div className="relative flex items-start justify-between mb-5">
                                     <div className="flex-1 min-w-0 pr-4">
                                         <h4 className="font-bold text-lg text-slate-900 truncate leading-tight">
-                                            {toTitleCase(warranty.car_make)} {toTitleCase(warranty.car_model)}
+                                            {warranty.registration_number || (typeof warranty.product_details === 'string' ? JSON.parse(warranty.product_details || '{}').carRegistration : warranty.product_details?.carRegistration) || 'N/A'}
                                         </h4>
+                                        {warranty.product_type !== 'seat-cover' && (warranty.car_make || warranty.car_model) && (
+                                            <p className="text-xs font-semibold text-slate-500 mt-1 uppercase tracking-wider">
+                                                {warranty.car_make} {warranty.car_model}
+                                            </p>
+                                        )}
+
                                         <p className={cn(
-                                            "text-xs font-bold mt-1.5 tracking-wider",
+                                            "text-xs font-bold mt-1 tracking-wider",
                                             warranty.product_type === 'seat-cover' ? "text-red-500" : "text-blue-500"
                                         )}>
                                             {productName}
@@ -355,7 +361,7 @@ const CustomerDashboard = () => {
                                 <div className="flex-1 min-w-0">
                                     <div className="flex items-center gap-2 mb-0.5">
                                         <h4 className="font-semibold text-base text-slate-800 truncate pr-2">
-                                            {toTitleCase(warranty.car_make)} {toTitleCase(warranty.car_model)}
+                                            {warranty.registration_number || (typeof warranty.product_details === 'string' ? JSON.parse(warranty.product_details || '{}').carRegistration : warranty.product_details?.carRegistration) || 'N/A'}
                                         </h4>
                                         {warranty.status === 'validated' && (
                                             <Badge variant="outline" className={cn(
@@ -371,6 +377,12 @@ const CustomerDashboard = () => {
                                             "font-bold",
                                             warranty.product_type === 'seat-cover' ? "text-red-500" : "text-blue-500"
                                         )}>{productName}</span>
+                                        {warranty.product_type !== 'seat-cover' && (warranty.car_make || warranty.car_model) && (
+                                            <>
+                                                <span className="mx-2 text-slate-300">•</span>
+                                                <span className="text-xs text-slate-400 font-semibold">{toTitleCase(warranty.car_make || '')} {toTitleCase(warranty.car_model || '')}</span>
+                                            </>
+                                        )}
                                         <span className="mx-2 text-slate-300">•</span>
                                         <span className="text-xs text-slate-400 font-semibold">{formatToIST(warranty.purchase_date || warranty.created_at).split(',')[0]}</span>
                                     </p>

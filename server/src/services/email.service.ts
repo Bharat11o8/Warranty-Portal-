@@ -385,6 +385,7 @@ export class EmailService {
     uid: string,
     productType: string,
     productDetails?: any,
+    registrationNumber?: string,
     carMake?: string,
     carModel?: string
   ): Promise<void> {
@@ -396,12 +397,11 @@ export class EmailService {
       
       <div class="info-box">
         <p><strong>Customer Name:</strong> ${customerName}</p>
-        <p><strong>Make:</strong> ${carMake || 'N/A'}</p>
-        <p><strong>Model:</strong> ${carModel || 'N/A'}</p>
+        <p><strong>Vehicle Registration:</strong> ${registrationNumber || productDetails?.carRegistration || 'N/A'}</p>
+        ${(productType !== 'seat-cover' && ((carMake && String(carMake).toLowerCase() !== 'null') || (carModel && String(carModel).toLowerCase() !== 'null'))) ? `<p><strong>Vehicle:</strong> ${carMake || ''} ${carModel || ''}</p>` : ''}
         ${productType === 'seat-cover' ? `<p><strong>UID:</strong> ${uid}</p>` : ''}
         ${productType === 'ev-products' ? `
           <p><strong>Serial Number:</strong> ${productDetails?.serialNumber || 'N/A'}</p>
-          <p><strong>Vehicle Registration:</strong> ${productDetails?.carRegistration || 'N/A'}</p>
         ` : ''}
         <p><strong>Product:</strong> ${String(productName).replace(/-/g, ' ').toUpperCase()}</p>
         <p><strong>Product Type:</strong> ${productType}</p>
@@ -435,8 +435,9 @@ export class EmailService {
     customerName: string,
     uid: string,
     productType: string,
-    carMake: string,
-    carModel: string,
+    registrationNumber: string,
+    carMake?: string,
+    carModel?: string,
     productDetails?: any,
     warrantyType?: string,
     storeName?: string,
@@ -462,12 +463,12 @@ export class EmailService {
         ${productType === 'seat-cover' ? `<p><strong>UID:</strong> ${uid}</p>` : ''}
         ${productType === 'ev-products' ? `
           <p><strong>Serial Number:</strong> ${productDetails?.serialNumber || 'N/A'}</p>
-          <p><strong>Vehicle Registration:</strong> ${productDetails?.carRegistration || 'N/A'}</p>
         ` : ''}
         <p><strong>Product:</strong> ${String(productName).replace(/-/g, ' ').toUpperCase()}</p>
         <p><strong>Product Type:</strong> ${productType}</p>
         <p><strong>Warranty Type:</strong> ${warrantyType || '1 Year'}</p>
-        <p><strong>Vehicle:</strong> ${carMake} ${carModel}</p>
+        <p><strong>Vehicle Registration:</strong> ${registrationNumber || productDetails?.carRegistration || 'N/A'}</p>
+        ${(productType !== 'seat-cover' && ((carMake && String(carMake).toLowerCase() !== 'null') || (carModel && String(carModel).toLowerCase() !== 'null'))) ? `<p><strong>Vehicle:</strong> ${carMake || ''} ${carModel || ''}</p>` : ''}
         <p><strong>Approval Date:</strong> ${formatDateIST()}</p>
         <p><strong>Status:</strong> <span style="color: #28a745; font-weight: bold;">ACTIVE</span></p>
       </div>
@@ -513,9 +514,10 @@ export class EmailService {
     customerName: string,
     uid: string,
     productType: string,
-    carMake: string,
-    carModel: string,
+    registrationNumber: string,
     rejectionReason: string,
+    carMake?: string,
+    carModel?: string,
     productDetails?: any,
     warrantyType?: string,
     storeName?: string,
@@ -541,11 +543,11 @@ export class EmailService {
         ${productType === 'seat-cover' ? `<p><strong>UID:</strong> ${uid}</p>` : ''}
         ${productType === 'ev-products' ? `
           <p><strong>Serial Number:</strong> ${productDetails?.serialNumber || 'N/A'}</p>
-          <p><strong>Vehicle Registration:</strong> ${productDetails?.carRegistration || 'N/A'}</p>
         ` : ''}
         <p><strong>Product Type:</strong> ${productType}</p>
         <p><strong>Warranty Type:</strong> ${warrantyType || '1 Year'}</p>
-        <p><strong>Vehicle:</strong> ${carMake} ${carModel}</p>
+        <p><strong>Vehicle Registration:</strong> ${registrationNumber || productDetails?.carRegistration || 'N/A'}</p>
+        ${(productType !== 'seat-cover' && ((carMake && String(carMake).toLowerCase() !== 'null') || (carModel && String(carModel).toLowerCase() !== 'null'))) ? `<p><strong>Vehicle:</strong> ${carMake || ''} ${carModel || ''}</p>` : ''}
         <p><strong>Review Date:</strong> ${formatDateIST()}</p>
       </div>
       
@@ -596,10 +598,11 @@ export class EmailService {
     customerName: string,
     customerPhone: string,
     productType: string,
-    carMake: string,
-    carModel: string,
+    registrationNumber: string,
     manpowerName: string,
     uid: string,
+    carMake?: string,
+    carModel?: string,
     productDetails?: any,
     warrantyType?: string
   ): Promise<void> {
@@ -630,7 +633,8 @@ export class EmailService {
         <p><strong>Product Name:</strong> ${productName}</p>
         <p><strong>Product Type:</strong> ${productType}</p>
         <p><strong>Warranty Type:</strong> ${warrantyType || '1 Year'}</p>
-        <p><strong>Vehicle:</strong> ${carMake} ${carModel}</p>
+        <p><strong>Vehicle Registration:</strong> ${registrationNumber || productDetails?.carRegistration || 'N/A'}</p>
+        ${(productType !== 'seat-cover' && ((carMake && String(carMake).toLowerCase() !== 'null') || (carModel && String(carModel).toLowerCase() !== 'null'))) ? `<p><strong>Vehicle:</strong> ${carMake || ''} ${carModel || ''}</p>` : ''}
         <p><strong>${idLabel}:</strong> ${uid}</p>
       </div>
       
@@ -664,11 +668,12 @@ export class EmailService {
     customerName: string,
     customerPhone: string,
     productType: string,
-    carMake: string,
-    carModel: string,
+    registrationNumber: string,
     manpowerName: string,
-    uid: string,
     rejectionReason: string,
+    uid: string,
+    carMake?: string,
+    carModel?: string,
     productDetails?: any,
     warrantyType?: string
   ): Promise<void> {
@@ -697,7 +702,8 @@ export class EmailService {
         <p><strong>Phone:</strong> ${customerPhone}</p>
         <p><strong>Product Name:</strong> ${productName}</p>
         <p><strong>Product Type:</strong> ${productType}</p>
-        <p><strong>Vehicle:</strong> ${carMake} ${carModel}</p>
+        <p><strong>Vehicle Registration:</strong> ${registrationNumber || productDetails?.carRegistration || 'N/A'}</p>
+        ${(productType !== 'seat-cover' && ((carMake && String(carMake).toLowerCase() !== 'null') || (carModel && String(carModel).toLowerCase() !== 'null'))) ? `<p><strong>Vehicle:</strong> ${carMake || ''} ${carModel || ''}</p>` : ''}
         <p><strong>${idLabel}:</strong> ${uid}</p>
         <p><strong>Installer:</strong> ${manpowerName}</p>
       </div>
@@ -835,6 +841,7 @@ export class EmailService {
     token: string,
     productType: string,
     productDetails?: any,
+    registrationNumber?: string,
     carMake?: string,
     carModel?: string
   ): Promise<void> {
@@ -851,13 +858,13 @@ export class EmailService {
       
       <div class="info-box" style="border-left-color: #FFB400;">
         <p><strong>Customer Name:</strong> ${customerName}</p>
-        <p><strong>Make:</strong> ${carMake || 'N/A'}</p>
-        <p><strong>Model:</strong> ${carModel || 'N/A'}</p>
+        <p><strong>Vehicle Registration:</strong> ${registrationNumber || productDetails?.carRegistration || 'N/A'}</p>
+        ${carMake ? `<p><strong>Make:</strong> ${carMake}</p>` : ''}
+        ${carModel ? `<p><strong>Model:</strong> ${carModel}</p>` : ''}
         <p><strong>Product:</strong> ${String(productName).replace(/-/g, ' ').toUpperCase()}</p>
         ${productType === 'seat-cover' ? `<p><strong>UID:</strong> ${productDetails?.uid || 'N/A'}</p>` : ''}
         ${productType === 'ev-products' ? `
           <p><strong>Serial Number:</strong> ${productDetails?.serialNumber || 'N/A'}</p>
-          <p><strong>Vehicle Reg:</strong> ${productDetails?.carRegistration || 'N/A'}</p>
         ` : ''}
         <p><strong>Date:</strong> ${formatDateIST()}</p>
       </div>

@@ -12,6 +12,7 @@ import CustomerDetails from "./steps/CustomerDetails";
 import CarDetails from "./steps/CarDetails";
 import ProductInfo from "./steps/ProductInfo";
 import { CheckCircle2, Car, User, Settings, ShieldCheck, MapPin } from "lucide-react";
+import { getISTTodayISO } from "@/lib/utils";
 
 export interface EVFormData {
   // Installer Details
@@ -101,7 +102,7 @@ const EVProductsForm = ({ initialData, warrantyId, onSuccess, isUniversal, isEdi
     installerCode: "",
 
 
-    installationDate: "",
+    installationDate: getISTTodayISO(),
     carModel: "",
     carReg: "",
     product: "",
@@ -280,12 +281,14 @@ const EVProductsForm = ({ initialData, warrantyId, onSuccess, isUniversal, isEdi
       toast({ title: "Installation Date Required", description: "Please select installation date", variant: "destructive" });
       return;
     }
+
     if (!formData.carMake) {
-      toast({ title: "Car Make Required", description: "Please select a car make", variant: "destructive" });
+      toast({ title: "Vehicle Make Required", description: "Please select vehicle make", variant: "destructive" });
       return;
     }
+
     if (!formData.carModel) {
-      toast({ title: "Car Model Required", description: "Please enter the car model", variant: "destructive" });
+      toast({ title: "Vehicle Model Required", description: "Please enter vehicle model", variant: "destructive" });
       return;
     }
 
@@ -352,8 +355,9 @@ const EVProductsForm = ({ initialData, warrantyId, onSuccess, isUniversal, isEdi
         customerEmail: formData.customerEmail,
         customerPhone: formData.customerMobile,
         customerAddress: "N/A",
-        carMake: carMake,
-        carModel: carModelName,
+        registrationNumber: formData.carReg,
+        carMake: carMake || null,
+        carModel: carModelName || null,
         carYear: formData.carYear || new Date().getFullYear().toString(),
         purchaseDate: formData.installationDate,
         warrantyType: formData.warrantyType || "1 Year", // Use selected warranty type from product
@@ -460,7 +464,7 @@ const EVProductsForm = ({ initialData, warrantyId, onSuccess, isUniversal, isEdi
             installerName: "",
             installerCode: "",
             manpowerId: "",
-            installationDate: "",
+            installationDate: getISTTodayISO(),
             carModel: "",
             carReg: "",
             product: "",

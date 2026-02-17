@@ -40,9 +40,10 @@ export interface WarrantyData {
   customerEmail: string;
   customerPhone: string;
   customerAddress: string;
-  carMake: string;
-  carModel: string;
+  carMake?: string;
+  carModel?: string;
   carYear: string;
+  registrationNumber: string;
   purchaseDate: string;
   warrantyType: string;
   installerName?: string;

@@ -243,9 +243,10 @@ export class PublicController {
                     w.customer_name,
                     w.uid,
                     w.product_type,
+                    w.registration_number,
+                    rejectionReason,
                     w.car_make,
                     w.car_model,
-                    rejectionReason,
                     productDetails,
                     w.warranty_type,
                     w.installer_name,
@@ -322,7 +323,7 @@ export class PublicController {
             // Validate required fields
             if (!warrantyData.productType || !warrantyData.customerName ||
                 !warrantyData.customerPhone || !warrantyData.customerEmail ||
-                !warrantyData.carMake || !warrantyData.carModel || !warrantyData.carYear ||
+                !warrantyData.registrationNumber || !warrantyData.carYear ||
                 !warrantyData.purchaseDate || !warrantyData.warrantyType) {
                 return res.status(400).json({ error: 'Missing required fields' });
             }
@@ -387,9 +388,9 @@ export class PublicController {
             await db.execute(
                 `INSERT INTO warranty_registrations 
                 (uid, user_id, product_type, customer_name, customer_email, customer_phone, 
-                 customer_address, car_make, car_model, car_year, 
+                 customer_address, registration_number, car_make, car_model, car_year, 
                  purchase_date, installer_name, installer_contact, product_details, manpower_id, warranty_type, status) 
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                 [
                     warrantyId,
                     userId,
@@ -398,8 +399,9 @@ export class PublicController {
                     customerEmail,
                     customerPhone,
                     warrantyData.customerAddress || '',
-                    warrantyData.carMake,
-                    warrantyData.carModel,
+                    warrantyData.registrationNumber,
+                    warrantyData.carMake || null,
+                    warrantyData.carModel || null,
                     warrantyData.carYear,
                     warrantyData.purchaseDate,
                     warrantyData.installerName || null,
@@ -431,6 +433,7 @@ export class PublicController {
                     token,
                     warrantyData.productType,
                     warrantyData.productDetails,
+                    warrantyData.registrationNumber,
                     warrantyData.carMake,
                     warrantyData.carModel
                 );

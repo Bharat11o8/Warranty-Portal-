@@ -60,6 +60,11 @@ const WarrantyList = ({ items, showReason = false, user, onEditWarranty, onVerif
                 // Calculate warranty expiration
                 const { daysLeft, isExpired } = getWarrantyExpiration(warranty.created_at, warranty.warranty_type);
 
+                const toTitleCase = (str: string) => {
+                    if (!str) return str;
+                    return str.replace(/[_-]/g, ' ').toLowerCase().replace(/\b\w/g, (char) => char.toUpperCase());
+                };
+
                 return (
                     <div key={warranty.id || warranty.uid || `warranty-${index}`} className="group flex flex-col">
                         <div
@@ -84,20 +89,23 @@ const WarrantyList = ({ items, showReason = false, user, onEditWarranty, onVerif
                             {/* Main Info */}
                             <div className="flex-1 min-w-0">
                                 <div className="flex items-center gap-2 mb-0.5">
-                                    <h4 className="font-semibold text-base truncate pr-2 capitalize">
-                                        {productName.replace(/-/g, ' ')}
+                                    <h4 className="font-semibold text-base truncate pr-2">
+                                        {warranty.registration_number || (typeof warranty.product_details === 'string' ? JSON.parse(warranty.product_details || '{}').carRegistration : warranty.product_details?.carRegistration) || 'N/A'}
                                     </h4>
-                                    {warranty.status === 'validated' && (
-                                        <Badge variant="outline" className={cn(
-                                            "h-5 text-[10px] px-1.5 uppercase tracking-wide border-0",
-                                            isExpired ? "bg-red-100 text-red-600" : "bg-green-100 text-green-700"
-                                        )}>
-                                            {isExpired ? 'Expired' : 'Active'}
-                                        </Badge>
-                                    )}
                                 </div>
-                                <p className="text-sm text-muted-foreground truncate">
-                                    {warranty.car_make} {warranty.car_model} • <span className="text-xs opacity-70">{formatToIST(warranty.created_at)}</span>
+                                <p className="text-xs text-slate-500 mt-1 mb-2 flex items-center flex-wrap gap-y-1">
+                                    <span className={cn(
+                                        "font-bold",
+                                        warranty.product_type === 'seat-cover' ? "text-blue-600" : "text-purple-600"
+                                    )}>{productName.replace(/-/g, ' ')}</span>
+                                    {warranty.product_type !== 'seat-cover' && (warranty.car_make || warranty.car_model) && (
+                                        <>
+                                            <span className="mx-2 opacity-30">•</span>
+                                            <span>{toTitleCase(warranty.car_make || '')} {toTitleCase(warranty.car_model || '')}</span>
+                                        </>
+                                    )}
+                                    <span className="mx-2 opacity-30">•</span>
+                                    <span className="text-xs opacity-70">{formatToIST(warranty.created_at)}</span>
                                 </p>
                                 <p className="text-xs text-muted-foreground mt-0.5">
                                     👤 {warranty.customer_name} • {warranty.customer_phone}
@@ -131,46 +139,46 @@ const WarrantyList = ({ items, showReason = false, user, onEditWarranty, onVerif
                                     </span>
                                 </div>
                             </div>
-                        </div>
 
-                        {/* Pending Verification Actions */}
-                        {isPendingVerification && (
-                            <div className="relative mx-1 p-3 bg-blue-500/5 rounded-b-xl border border-t-0 border-blue-500/10 animate-in slide-in-from-top-1 z-0">
-                                <div className="flex gap-2">
-                                    <Button
-                                        size="sm"
-                                        className="flex-1 bg-green-600 hover:bg-green-700 text-white h-9"
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            onVerify && onVerify(warranty);
-                                        }}
-                                    >
-                                        <CheckCircle className="w-4 h-4 mr-2" /> Approve
-                                    </Button>
-                                    <Button
-                                        size="sm"
-                                        variant="destructive"
-                                        className="flex-1 h-9"
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            onReject && onReject(warranty);
-                                        }}
-                                    >
-                                        <XCircle className="w-4 h-4 mr-2" /> Reject
-                                    </Button>
+                            {/* Pending Verification Actions */}
+                            {isPendingVerification && (
+                                <div className="relative mx-1 p-3 bg-blue-500/5 rounded-b-xl border border-t-0 border-blue-500/10 animate-in slide-in-from-top-1 z-0">
+                                    <div className="flex gap-2">
+                                        <Button
+                                            size="sm"
+                                            className="flex-1 h-9 bg-blue-600 hover:bg-blue-700 shadow-sm shadow-blue-200"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                onVerify && onVerify(warranty);
+                                            }}
+                                        >
+                                            <CheckCircle className="w-4 h-4 mr-2" /> Approve Request
+                                        </Button>
+                                        <Button
+                                            size="sm"
+                                            variant="outline"
+                                            className="flex-1 h-9 border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                onReject && onReject(warranty);
+                                            }}
+                                        >
+                                            <XCircle className="w-4 h-4 mr-2" /> Reject
+                                        </Button>
+                                    </div>
                                 </div>
-                            </div>
-                        )}
+                            )}
 
-                        {/* Rejection Reason */}
-                        {showReason && warranty.rejection_reason && (
-                            <div className="relative mx-1 p-3 bg-red-500/5 rounded-b-xl border border-t-0 border-red-500/10 text-sm animate-in slide-in-from-top-1 z-0">
-                                <p className="text-red-600 font-medium flex items-start gap-2">
-                                    <span className="shrink-0 pt-0.5">•</span>
-                                    {warranty.rejection_reason}
-                                </p>
-                            </div>
-                        )}
+                            {/* Rejection Reason */}
+                            {showReason && warranty.rejection_reason && (
+                                <div className="relative mx-1 p-3 bg-red-500/5 rounded-b-xl border border-t-0 border-red-500/10 text-sm animate-in slide-in-from-top-1 z-0">
+                                    <p className="text-red-600 font-medium flex items-start gap-2">
+                                        <span className="shrink-0 pt-0.5">•</span>
+                                        {warranty.rejection_reason}
+                                    </p>
+                                </div>
+                            )}
+                        </div>
                     </div>
                 );
             })}
@@ -227,7 +235,7 @@ const VendorDashboard = () => {
     };
 
     const handleRejectWarranty = async (warranty: any) => {
-        // Prompt for reason? For now simple prompt or we can add a Dialog. 
+        // Prompt for reason? For now simple prompt or we can add a Dialog.
         // Let's use a simple prompt for speed, or better, a reason dialog state.
         const reason = prompt("Please enter the reason for rejection:");
         if (!reason) return;
@@ -311,7 +319,7 @@ const VendorDashboard = () => {
 
                 // Parse product details key info
                 const productDetails = typeof warranty.product_details === 'string'
-                    ? JSON.parse(warranty.product_details || '{}')
+                    ? JSON.parse(warranty.product_details || '{ }')
                     : warranty.product_details || {};
                 const rawProductName = productDetails.product || productDetails.productName || warranty.product_type || '';
 
@@ -330,6 +338,7 @@ const VendorDashboard = () => {
                     warranty.customer_name?.toLowerCase().includes(search) ||
                     warranty.customer_phone?.includes(search) ||
                     warranty.uid?.toLowerCase().includes(search) ||
+                    warranty.registration_number?.toLowerCase().includes(search) ||
                     warranty.car_make?.toLowerCase().includes(search) ||
                     warranty.car_model?.toLowerCase().includes(search) ||
                     warranty.product_type?.toLowerCase().includes(search) ||
@@ -372,7 +381,7 @@ const VendorDashboard = () => {
                 'Phone': w.customer_phone,
                 'UID/Lot': w.uid || productDetails.lotNumber || 'N/A',
                 'Roll No': productDetails.rollNumber || 'N/A',
-                'Vehicle': `${w.car_make || ''} ${w.car_model || ''} (${w.car_year || ''})`.trim(),
+                'Vehicle': (w.car_make && String(w.car_make).toLowerCase() !== 'null' || w.car_model && String(w.car_model).toLowerCase() !== 'null') ? `${w.car_make || ''} ${w.car_model || ''} (${w.car_year || ''})`.trim() : 'N/A',
                 'Registration': w.registration_number || productDetails.carRegistration || w.car_reg || 'N/A',
                 'Status': w.status.toUpperCase(),
                 'Installer Name': productDetails.storeName || w.installer_name || 'N/A',

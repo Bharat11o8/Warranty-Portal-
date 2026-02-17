@@ -71,10 +71,10 @@ export const WarrantySpecSheet = ({ isOpen, onClose, warranty }: WarrantySpecShe
                             </Badge>
                         </div>
                         <SheetTitle className="text-2xl font-bold tracking-tight text-foreground/90">
-                            {productName.replace(/-/g, ' ')}
+                            {warranty.registration_number || productDetails.carRegistration || 'N/A'}
                         </SheetTitle>
                         <SheetDescription className="text-muted-foreground font-medium">
-                            {warranty.warranty_type} Warranty • {toTitleCase(warranty.car_make)} {toTitleCase(warranty.car_model)}
+                            {productName.replace(/-/g, ' ')} • {warranty.warranty_type} Warranty
                         </SheetDescription>
                     </SheetHeader>
                 </div>
@@ -105,7 +105,10 @@ export const WarrantySpecSheet = ({ isOpen, onClose, warranty }: WarrantySpecShe
                             Vehicle & Product
                         </h4>
                         <div className="bg-white rounded-xl p-2 border border-orange-100 shadow-sm">
-                            <SpecRow label="Make & Model" value={`${toTitleCase(warranty.car_make)} ${toTitleCase(warranty.car_model)}`} />
+                            <SpecRow label="Registration Number" value={warranty.registration_number || productDetails.carRegistration || "N/A"} mono />
+                            {(warranty.car_make && String(warranty.car_make).toLowerCase() !== 'null' || warranty.car_model && String(warranty.car_model).toLowerCase() !== 'null') && (
+                                <SpecRow label="Make & Model" value={`${toTitleCase(warranty.car_make || '')} ${toTitleCase(warranty.car_model || '')}`} />
+                            )}
                             <SpecRow label="Product Name" value={productName} />
                             <SpecRow label="Warranty Type" value={warranty.warranty_type} />
 
@@ -121,7 +124,6 @@ export const WarrantySpecSheet = ({ isOpen, onClose, warranty }: WarrantySpecShe
                                 <>
                                     <SpecRow label="Serial Number" value={productDetails.serialNumber || warranty.uid || "N/A"} mono />
                                     <SpecRow label="Installation Area" value={productDetails.installArea || "N/A"} />
-                                    <SpecRow label="Vehicle Registration" value={productDetails.carRegistration || warranty.registration_number || "N/A"} mono />
                                 </>
                             )}
                         </div>

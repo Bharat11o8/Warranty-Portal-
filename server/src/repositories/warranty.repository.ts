@@ -13,10 +13,10 @@ export interface WarrantyRegistration {
     customer_email: string;
     customer_phone: string;
     customer_address: string;
-    car_make: string;
-    car_model: string;
+    car_make?: string;
+    car_model?: string;
     car_year: string;
-    registration_number?: string;
+    registration_number: string;
     purchase_date: string;
     installer_name?: string;
     installer_contact?: string;
@@ -153,10 +153,10 @@ export class WarrantyRepository extends BaseRepository<WarrantyRegistration> {
         await this.execute(
             `INSERT INTO warranty_registrations 
              (uid, user_id, product_type, customer_name, customer_email, customer_phone, 
-              customer_address, car_make, car_model, car_year, purchase_date, 
-              installer_name, installer_contact, product_details, manpower_id, 
-              warranty_type, status) 
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+              customer_address, car_make, car_model, car_year, registration_number, 
+              purchase_date, installer_name, installer_contact, product_details, 
+              manpower_id, warranty_type, status) 
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [
                 warranty.uid,
                 warranty.user_id,
@@ -165,9 +165,10 @@ export class WarrantyRepository extends BaseRepository<WarrantyRegistration> {
                 warranty.customer_email,
                 warranty.customer_phone,
                 warranty.customer_address,
-                warranty.car_make,
-                warranty.car_model,
+                warranty.car_make || null,
+                warranty.car_model || null,
                 warranty.car_year,
+                warranty.registration_number,
                 warranty.purchase_date,
                 warranty.installer_name || null,
                 warranty.installer_contact || null,

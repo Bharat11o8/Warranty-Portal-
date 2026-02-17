@@ -517,8 +517,9 @@ export class AdminController {
                     wr.customer_address,
                     wr.product_type,
                     wr.warranty_type,
-                    wr.car_make, 
-                    wr.car_model, 
+                    wr.car_make,
+                    wr.car_model,
+                    wr.registration_number,
                     wr.product_details,
                     wr.manpower_id,
                     vd.store_name,
@@ -577,6 +578,7 @@ export class AdminController {
                             warrantyData.customer_name,
                             warrantyData.uid,
                             warrantyData.product_type,
+                            warrantyData.registration_number,
                             warrantyData.car_make,
                             warrantyData.car_model,
                             productDetails,
@@ -594,9 +596,10 @@ export class AdminController {
                             warrantyData.customer_name,
                             warrantyData.uid,
                             warrantyData.product_type,
+                            warrantyData.registration_number,
+                            rejectionReason,
                             warrantyData.car_make,
                             warrantyData.car_model,
-                            rejectionReason,
                             productDetails,
                             warrantyData.warranty_type,
                             warrantyData.store_name,
@@ -641,10 +644,11 @@ export class AdminController {
                                 warrantyData.customer_name,
                                 warrantyData.customer_phone,
                                 warrantyData.product_type,
-                                warrantyData.car_make,
-                                warrantyData.car_model,
+                                warrantyData.registration_number,
                                 vendor.manpower_name,
                                 warrantyData.uid,
+                                warrantyData.car_make,
+                                warrantyData.car_model,
                                 productDetails,
                                 warrantyData.warranty_type
                             );
@@ -657,11 +661,12 @@ export class AdminController {
                                 warrantyData.customer_name,
                                 warrantyData.customer_phone,
                                 warrantyData.product_type,
+                                warrantyData.registration_number,
+                                vendor.manpower_name,
+                                rejectionReason,
+                                warrantyData.uid,
                                 warrantyData.car_make,
                                 warrantyData.car_model,
-                                vendor.manpower_name,
-                                warrantyData.uid,
-                                rejectionReason,
                                 productDetails,
                                 warrantyData.warranty_type
                             );
@@ -792,10 +797,11 @@ export class AdminController {
                     wr.customer_name LIKE ? OR 
                     wr.customer_phone LIKE ? OR 
                     wr.uid LIKE ? OR 
+                    wr.registration_number LIKE ? OR 
                     wr.car_make LIKE ? OR 
                     wr.car_model LIKE ?
                 )`);
-                params.push(searchTerm, searchTerm, searchTerm, searchTerm, searchTerm);
+                params.push(searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm);
             }
 
             // Date Range

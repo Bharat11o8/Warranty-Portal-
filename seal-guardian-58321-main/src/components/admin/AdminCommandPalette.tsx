@@ -20,7 +20,8 @@ import {
     MessageSquare,
     Package,
     PenTool,
-    Megaphone
+    Megaphone,
+    Hash
 } from "lucide-react";
 import { AdminModule } from "./layout/AdminSidebar";
 
@@ -101,6 +102,10 @@ export const AdminCommandPalette = ({ onNavigate }: AdminCommandPaletteProps) =>
                         <CommandItem onSelect={() => runCommand(() => onNavigate('warranty-form'))}>
                             <PenTool className="mr-2 h-4 w-4" />
                             <span>New Registration</span>
+                        </CommandItem>
+                        <CommandItem onSelect={() => runCommand(() => onNavigate('uid-management'))}>
+                            <Hash className="mr-2 h-4 w-4" />
+                            <span>UID Management</span>
                         </CommandItem>
                         <CommandItem onSelect={() => runCommand(() => onNavigate('terms'))}>
                             <FileText className="mr-2 h-4 w-4" />

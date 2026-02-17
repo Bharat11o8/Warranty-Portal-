@@ -3,7 +3,7 @@ import { Navigate, useOutletContext } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import api from "@/lib/api";
-import { Loader2, X, ChevronRight, Search } from "lucide-react";
+import { Loader2, X, ChevronRight, Search, Hash } from "lucide-react";
 import { cn, formatToIST, getISTTodayISO } from "@/lib/utils";
 import { fetchProducts, Product, fetchCategories, Category } from '@/lib/catalogService';
 import { useNotifications } from "@/contexts/NotificationContext";
@@ -413,6 +413,7 @@ const FranchiseDashboard = () => {
                         w.customer_name?.toLowerCase().includes(search) ||
                         w.customer_phone?.includes(search) ||
                         w.uid?.toLowerCase().includes(search) ||
+                        w.registration_number?.toLowerCase().includes(search) ||
                         w.car_make?.toLowerCase().includes(search) ||
                         w.car_model?.toLowerCase().includes(search)
                     );
@@ -499,7 +500,7 @@ const FranchiseDashboard = () => {
                     time: formatToIST(w.created_at),
                     action: w.status === 'validated' ? 'Warranty Approved' :
                         w.status === 'rejected' ? 'Warranty Rejected' : 'New Registration',
-                    sub: `${toTitleCase(w.customer_name)} • ${toTitleCase(w.car_make)}`,
+                    sub: `${w.registration_number || 'N/A'} • ${toTitleCase(w.customer_name)}`,
                     status: w.status === 'validated' ? 'success' :
                         w.status === 'rejected' ? 'warning' : 'primary'
                 };

@@ -50,7 +50,7 @@ export const formatWarrantyForExport = (w: any, selectedFields?: string[]) => {
         customerName: w.customer_name,
         customerPhone: w.customer_phone,
         customerEmail: w.customer_email || 'N/A',
-        vehicle: `${w.car_make || ''} ${w.car_model || ''} (${w.car_year || ''})`.trim(),
+        vehicle: (w.car_make && String(w.car_make).toLowerCase() !== 'null' || w.car_model && String(w.car_model).toLowerCase() !== 'null' || w.car_year && String(w.car_year).toLowerCase() !== 'null') ? `${w.car_make || ''} ${w.car_model || ''} (${w.car_year || ''})`.trim() : 'N/A',
         vehicleMake: w.car_make || 'N/A',
         vehicleModel: w.car_model || 'N/A',
         vehicleYear: w.car_year || 'N/A',

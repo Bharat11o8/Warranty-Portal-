@@ -34,12 +34,14 @@ const CarDetails = ({ formData, updateFormData, onNext, onPrev }: CarDetailsProp
       toast({ title: "Installation Date Required", description: "Please select installation date", variant: "destructive" });
       return;
     }
+
     if (!formData.carMake) {
-      toast({ title: "Car Make Required", description: "Please select a car make", variant: "destructive" });
+      toast({ title: "Vehicle Make Required", description: "Please select vehicle make", variant: "destructive" });
       return;
     }
+
     if (!formData.carModel) {
-      toast({ title: "Car Model Required", description: "Please enter the car model", variant: "destructive" });
+      toast({ title: "Vehicle Model Required", description: "Please enter vehicle model", variant: "destructive" });
       return;
     }
 
@@ -48,8 +50,8 @@ const CarDetails = ({ formData, updateFormData, onNext, onPrev }: CarDetailsProp
       return;
     }
 
-    const regError = getVehicleRegError(formData.carReg);
-    if (regError) {
+    const regError = getVehicleRegError(formData.carReg || "");
+    if (formData.carReg && regError) {
       toast({ title: "Invalid Registration Format", description: regError, variant: "destructive" });
       return;
     }
@@ -66,20 +68,8 @@ const CarDetails = ({ formData, updateFormData, onNext, onPrev }: CarDetailsProp
 
       <div className="grid md:grid-cols-2 gap-4">
         <div className="space-y-2">
-          <Label htmlFor="installationDate">
-            Installation Date <span className="text-destructive">*</span>
-          </Label>
-          <DatePicker
-            value={formData.installationDate || undefined}
-            onChange={(value) => updateFormData({ installationDate: value })}
-            maxDate={new Date()}
-            placeholder="Select installation date"
-          />
-        </div>
-
-        <div className="space-y-2">
           <Label htmlFor="carMake">
-            Car Make <span className="text-destructive">*</span>
+            Vehicle Make <span className="text-destructive">*</span>
           </Label>
           <Combobox
             options={[...CAR_MAKES]}
@@ -93,7 +83,7 @@ const CarDetails = ({ formData, updateFormData, onNext, onPrev }: CarDetailsProp
 
         <div className="space-y-2">
           <Label htmlFor="carModel">
-            Car Model - Variant  <span className="text-destructive">*</span>
+            Vehicle Model - Variant <span className="text-destructive">*</span>
           </Label>
           <Input
             id="carModel"
@@ -107,24 +97,32 @@ const CarDetails = ({ formData, updateFormData, onNext, onPrev }: CarDetailsProp
           />
         </div>
 
-
-
-        <div className="space-y-2 md:col-span-2">
+        <div className="space-y-2">
           <Label htmlFor="carReg">
             Vehicle Registration Number <span className="text-destructive">*</span>
           </Label>
           <Input
             id="carReg"
             type="text"
-            placeholder="e.g., DL-01-AB-1234 or MH-12-A-123"
+            placeholder="e.g., DL-01-AB-1234"
             value={formData.carReg}
             onChange={handleRegChange}
             required
             maxLength={20}
           />
-          <p className="text-xs text-muted-foreground">
-            Supports: 4-wheelers (DL-01-AB-1234), 2-wheelers (MH-12-A-123), BH series (BH-02-AA-1234)
-          </p>
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="installationDate" className="flex items-center gap-1">
+            Installation Date <span className="text-destructive">*</span>
+          </Label>
+          <DatePicker
+            value={formData.installationDate || undefined}
+            onChange={(value) => updateFormData({ installationDate: value })}
+            minDate={new Date()}
+            maxDate={new Date()}
+            placeholder="Select installation date"
+          />
         </div>
       </div>
 
