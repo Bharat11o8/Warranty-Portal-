@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "@/lib/api";
 import {
@@ -19,7 +19,7 @@ import { DatePicker } from "@/components/ui/date-picker";
 import { MobileSelect } from "@/components/ui/mobile-select";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
-import { Upload, Loader2, HelpCircle, CheckCircle2, FileText, Building2, User, Car, Smartphone, Mail, Calendar, Package } from "lucide-react";
+import { Upload, Loader2, HelpCircle, CheckCircle2, FileText, Building2, User, Car, Smartphone, Mail, Calendar, Package, XCircle, AlertCircle } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { submitWarranty, updateWarranty } from "@/lib/warrantyApi";
 import { TermsModal } from "./TermsModal";
@@ -57,6 +57,10 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
   const [products, setProducts] = useState<any[]>([]);
   const [manpowerList, setManpowerList] = useState<any[]>([]);
   const [termsModalOpen, setTermsModalOpen] = useState(false);
+  // UID Validation State
+  const [uidStatus, setUidStatus] = useState<'idle' | 'checking' | 'valid' | 'invalid' | 'used'>('idle');
+  const [uidMessage, setUidMessage] = useState('');
+  const uidTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [formData, setFormData] = useState(initialData ? {
     uid: initialData.product_details?.uid || "",
     customerName: initialData.customer_name || "",
@@ -65,11 +69,10 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
 
     productName: initialData.product_details?.productName || "",
     storeEmail: initialData.installer_contact || "",
-    purchaseDate: initialData.purchase_date ? new Date(initialData.purchase_date).toISOString().split('T')[0] : "",
+    purchaseDate: getISTTodayISO(),
     storeName: initialData.installer_name || "",
     manpowerId: initialData.manpower_id || "",
-    carMake: initialData.car_make || "",
-    carModel: initialData.car_model || "",
+    carReg: initialData.registration_number || "",
     carYear: initialData.car_year || "",
     warrantyType: initialData.warranty_type || "1 Year",
     invoiceFile: null as File | null,
@@ -82,11 +85,10 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
 
     productName: "",
     storeEmail: "",
-    purchaseDate: "",
+    purchaseDate: getISTTodayISO(),
     storeName: "",
     manpowerId: "",
-    carMake: "",
-    carModel: "",
+    carReg: "",
     carYear: "",
     warrantyType: "1 Year",
     invoiceFile: null as File | null,
@@ -286,11 +288,11 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
         return;
       }
 
-      // Validate Car Make
-      if (!formData.carMake) {
+      // Validate Car Registration
+      if (!formData.carReg) {
         toast({
-          title: "Car Make Required",
-          description: "Please select a car make",
+          title: "Registration Number Required",
+          description: "Please enter vehicle registration number",
           variant: "destructive",
         });
         setLoading(false);
@@ -310,8 +312,9 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
         customerEmail: formData.customerEmail,
         customerPhone: formData.customerMobile,
         customerAddress: "N/A",
-        carMake: formData.carMake || "N/A",
-        carModel: formData.carModel || "N/A",
+        registrationNumber: formData.carReg,
+        carMake: null,
+        carModel: null,
         carYear: formData.carYear || new Date().getFullYear().toString(),
         purchaseDate: formData.purchaseDate,
         warrantyType: formData.warrantyType,
@@ -398,8 +401,7 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
           purchaseDate: "",
           storeName: storeDetails?.store_name || "",
           manpowerId: "",
-          carMake: "",
-          carModel: "",
+          carReg: "",
           carYear: "",
           warrantyType: "1 Year",
           invoiceFile: null,
@@ -419,8 +421,7 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
         purchaseDate: "",
         storeName: "",
         manpowerId: "",
-        carMake: "",
-        carModel: "",
+        carReg: "",
         carYear: "",
         warrantyType: "1 Year",
         invoiceFile: null,
@@ -458,6 +459,11 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
     } else if (name === 'uid') {
       // UID should be only digits
       processedValue = value.replace(/\D/g, '').slice(0, 16);
+      // Reset UID validation status when value changes
+      setUidStatus('idle');
+      setUidMessage('');
+    } else if (name === 'carReg') {
+      processedValue = value.toUpperCase().replace(/[^A-Z0-9-]/g, '');
     }
 
     setFormData(prev => ({ ...prev, [name]: processedValue }));
@@ -614,6 +620,7 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
                 <DatePicker
                   value={formData.purchaseDate}
                   onChange={(value) => handleChange("purchaseDate", value)}
+                  minDate={new Date()}
                   maxDate={new Date()}
                   placeholder="Select purchase date"
                   disabled={loading}
@@ -715,43 +722,26 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
             </div>
             <div>
               <h3 className="font-semibold text-gray-900">Vehicle Details</h3>
-              <p className="text-xs text-muted-foreground">Car make and model</p>
+              <p className="text-xs text-muted-foreground">Vehicle registration information</p>
             </div>
           </div>
           <CardContent className="p-6 md:p-8">
-            <div className="grid md:grid-cols-2 gap-6">
+            <div className="grid gap-6">
               <div className="space-y-3">
-                <Label htmlFor="carMake" className="text-sm font-medium text-slate-700">
-                  Car Make <span className="text-destructive">*</span>
-                </Label>
-                <Combobox
-                  options={[...CAR_MAKES]}
-                  value={formData.carMake}
-                  onChange={(value) => handleChange("carMake", value)}
-                  placeholder="Select Brand"
-                  searchPlaceholder="Search brands..."
-                  emptyMessage="No brand found."
-                  disabled={loading}
-                  className="w-full"
-                />
-              </div>
-
-              <div className="space-y-3">
-                <Label htmlFor="carModel" className="text-sm font-medium text-slate-700">
-                  Car Model
+                <Label htmlFor="carReg" className="text-sm font-medium text-slate-700">
+                  Vehicle Registration Number <span className="text-destructive">*</span>
                 </Label>
                 <Input
-                  id="carModel"
+                  id="carReg"
                   type="text"
-                  placeholder="e.g., Camry"
-                  value={formData.carModel}
-                  onChange={(e) => handleChange("carModel", e.target.value)}
+                  placeholder="e.g., DL-01-AB-1234"
+                  value={formData.carReg}
+                  onChange={(e) => handleChange("carReg", e.target.value)}
                   disabled={loading}
-                  className="bg-white border-slate-200"
+                  required
+                  className="bg-white border-slate-200 uppercase"
                 />
               </div>
-
-
             </div>
           </CardContent>
         </Card>
@@ -781,15 +771,72 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
                     placeholder="Enter 13-16 digit number"
                     value={formData.uid}
                     onChange={(e) => handleChange("uid", e.target.value)}
+                    onBlur={() => {
+                      // Validate UID on blur if it has the right length
+                      const uidVal = formData.uid;
+                      if (/^\d{13,16}$/.test(uidVal)) {
+                        setUidStatus('checking');
+                        api.get(`/uid/validate/${uidVal}`)
+                          .then(res => {
+                            const data = res.data;
+                            if (data.valid && data.available) {
+                              setUidStatus('valid');
+                              setUidMessage('UID is valid and available');
+                            } else if (data.valid && !data.available) {
+                              setUidStatus('used');
+                              setUidMessage(data.message || 'UID has already been used');
+                            } else {
+                              setUidStatus('invalid');
+                              setUidMessage(data.message || 'UID not found in the system');
+                            }
+                          })
+                          .catch(() => {
+                            setUidStatus('idle');
+                            setUidMessage('');
+                          });
+                      }
+                    }}
                     required
                     maxLength={16}
                     disabled={loading}
                     pattern="[0-9]{13,16}"
-                    className="pl-12 font-mono tracking-wide bg-white border-slate-200"
+                    className={`pl-12 pr-10 font-mono tracking-wide bg-white ${uidStatus === 'valid'
+                        ? 'border-emerald-400 ring-1 ring-emerald-200 focus-visible:ring-emerald-300'
+                        : uidStatus === 'invalid' || uidStatus === 'used'
+                          ? 'border-red-400 ring-1 ring-red-200 focus-visible:ring-red-300'
+                          : 'border-slate-200'
+                      }`}
                   />
+                  {/* Validation Status Icon */}
+                  <div className="absolute right-3 top-2.5">
+                    {uidStatus === 'checking' && <Loader2 className="h-4 w-4 animate-spin text-orange-500" />}
+                    {uidStatus === 'valid' && <CheckCircle2 className="h-4 w-4 text-emerald-500" />}
+                    {uidStatus === 'invalid' && <XCircle className="h-4 w-4 text-red-500" />}
+                    {uidStatus === 'used' && <AlertCircle className="h-4 w-4 text-red-500" />}
+                  </div>
                 </div>
                 <div className="flex justify-between text-xs px-1 mt-1">
-                  <span className="text-muted-foreground">{formData.uid.length}/16 digits</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-muted-foreground">{formData.uid.length}/16 digits</span>
+                    {uidStatus === 'valid' && (
+                      <span className="text-emerald-600 font-medium flex items-center gap-1">
+                        <CheckCircle2 className="h-3 w-3" /> Available
+                      </span>
+                    )}
+                    {uidStatus === 'invalid' && (
+                      <span className="text-red-500 font-medium flex items-center gap-1">
+                        <XCircle className="h-3 w-3" /> {uidMessage}
+                      </span>
+                    )}
+                    {uidStatus === 'used' && (
+                      <span className="text-red-500 font-medium flex items-center gap-1">
+                        <AlertCircle className="h-3 w-3" /> {uidMessage}
+                      </span>
+                    )}
+                    {uidStatus === 'checking' && (
+                      <span className="text-orange-500 font-medium">Checking...</span>
+                    )}
+                  </div>
                   <button
                     type="button"
                     onClick={() => toast({

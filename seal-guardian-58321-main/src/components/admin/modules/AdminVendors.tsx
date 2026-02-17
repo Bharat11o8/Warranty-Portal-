@@ -26,7 +26,7 @@ import {
     Phone,
     Mail,
     ArrowUpDown,
-    Power
+    Power,
 } from "lucide-react";
 import {
     Dialog,

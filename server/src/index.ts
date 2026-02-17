@@ -26,6 +26,7 @@ import uploadRoutes from './routes/upload.routes.js';
 import oldWarrantiesRoutes from './routes/old-warranties.routes.js';
 import settingsRoutes from './routes/settings.routes.js';
 import posmRoutes from './routes/posm.routes.js';
+import uidRoutes from './routes/uid.routes.js';
 import { AssignmentSchedulerService } from './services/assignment-scheduler.service.js';
 import { initSocket } from './socket.js';
 import { getISTTimestamp } from './utils/dateUtils.js';
@@ -158,6 +159,7 @@ app.use('/api/upload', generalApiLimiter, uploadRoutes);
 app.use('/api/admin/old-warranties', generalApiLimiter, oldWarrantiesRoutes);
 app.use('/api/settings', generalApiLimiter, settingsRoutes);
 app.use('/api/posm', generalApiLimiter, posmRoutes);
+app.use('/api/uid', generalApiLimiter, uidRoutes);
 
 // ===========================================
 // ERROR HANDLING

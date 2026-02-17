@@ -7,3 +7,8 @@ dist/
 .env.local
 generated-qr-codes/
 *.txt
+security_best_practices_report.md
+safari_login_incident_report.md
+$Book1_geocoded.xlsx
+Book1_geocoded.xlsx
+Book1.xlsx

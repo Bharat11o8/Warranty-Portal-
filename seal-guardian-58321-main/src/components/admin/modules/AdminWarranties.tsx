@@ -69,7 +69,7 @@ export const AdminWarranties = () => {
     const { toast } = useToast();
     const [warranties, setWarranties] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
-    const [isRefreshing, setIsRefreshing] = useState(false);
+    const [refreshKey, setRefreshKey] = useState(0);
 
     // Filters
     const [statusFilter, setStatusFilter] = useState("all");
@@ -162,11 +162,13 @@ export const AdminWarranties = () => {
     }, []);
 
     const fetchWarranties = async (isRefresh = false) => {
-        if (isRefresh) setIsRefreshing(true);
-        else setLoading(true);
+        setLoading(true);
+        if (isRefresh) {
+            setRefreshKey(prev => prev + 1);
+        }
 
         try {
-            const response = await api.get("/admin/warranties?limit=1000");
+            const response = await api.get(`/admin/warranties?limit=1000&t=${Date.now()}`);
             if (response.data.success) {
                 setWarranties(response.data.warranties);
                 if (isRefresh) {
@@ -178,7 +180,6 @@ export const AdminWarranties = () => {
             toast({ variant: "destructive", description: "Failed to refresh" });
         } finally {
             setLoading(false);
-            setIsRefreshing(false);
         }
     };
 
@@ -279,114 +280,107 @@ export const AdminWarranties = () => {
 
     return (
         <div className="space-y-6 animate-in fade-in duration-500">
-            <div className="flex flex-col xl:flex-row gap-4 justify-between xl:items-center">
-
-
-                {/* Mobile Status Filter */}
-                <div className="md:hidden w-full">
-                    <Select value={statusFilter} onValueChange={setStatusFilter}>
-                        <SelectTrigger className="w-full h-11 bg-white border-orange-100 rounded-2xl font-bold shadow-sm">
-                            <SelectValue placeholder="Filter by Status" />
-                        </SelectTrigger>
-                        <SelectContent className="rounded-2xl border-orange-100 shadow-xl">
-                            <SelectItem value="all">All Warranties</SelectItem>
-                            <SelectItem value="validated">Approved</SelectItem>
-                            <SelectItem value="pending">Pending Approval</SelectItem>
-                            <SelectItem value="pending_vendor">Pending Vendor</SelectItem>
-                            <SelectItem value="rejected">Rejected</SelectItem>
-                        </SelectContent>
-                    </Select>
-                </div>
-
-                {/* Desktop Status Tabs */}
-                <Tabs value={statusFilter} onValueChange={setStatusFilter} className="hidden md:block w-full xl:w-auto">
-                    <TabsList className="grid w-full grid-cols-5 xl:inline-flex h-auto bg-white border border-orange-100 p-1">
-                        <TabsTrigger value="all" className="data-[state=active]:bg-orange-50 data-[state=active]:text-orange-700 gap-2">
-                            All
-                            <Badge variant="secondary" className="bg-slate-100 text-slate-600 border-none px-1.5 py-0 h-4 text-[10px] font-bold">
-                                {warranties.length}
-                            </Badge>
-                        </TabsTrigger>
-                        <TabsTrigger value="validated" className="data-[state=active]:bg-green-50 data-[state=active]:text-green-700 gap-2">
-                            Approved
-                            <Badge variant="secondary" className="bg-green-100/50 text-green-700 border-none px-1.5 py-0 h-4 text-[10px] font-bold">
-                                {warranties.filter(w => w.status === 'validated').length}
-                            </Badge>
-                        </TabsTrigger>
-                        <TabsTrigger value="pending" className="data-[state=active]:bg-amber-50 data-[state=active]:text-amber-700 gap-2">
-                            Pending
-                            <Badge variant="secondary" className="bg-amber-100/50 text-amber-700 border-none px-1.5 py-0 h-4 text-[10px] font-bold">
-                                {warranties.filter(w => w.status === 'pending').length}
-                            </Badge>
-                        </TabsTrigger>
-                        <TabsTrigger value="pending_vendor" className="data-[state=active]:bg-orange-50 data-[state=active]:text-orange-700 gap-2">
-                            Vendor
-                            <Badge variant="secondary" className="bg-orange-100/50 text-orange-700 border-none px-1.5 py-0 h-4 text-[10px] font-bold">
-                                {warranties.filter(w => w.status === 'pending_vendor').length}
-                            </Badge>
-                        </TabsTrigger>
-                        <TabsTrigger value="rejected" className="data-[state=active]:bg-red-50 data-[state=active]:text-red-700 gap-2">
-                            Rejected
-                            <Badge variant="secondary" className="bg-red-100/50 text-red-700 border-none px-1.5 py-0 h-4 text-[10px] font-bold">
-                                {warranties.filter(w => w.status === 'rejected').length}
-                            </Badge>
-                        </TabsTrigger>
-                    </TabsList>
-                </Tabs>
-
-                <div className="flex w-full md:w-auto gap-2 items-center">
-                    <div className="relative group flex-1 md:w-64">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 group-focus-within:text-orange-500 transition-colors" />
-                        <input
-                            type="text"
-                            placeholder="Search..."
-                            className="w-full pl-9 pr-4 py-2 rounded-full border border-slate-200 bg-white placeholder:text-slate-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500/20 focus-visible:border-orange-500/30 text-sm h-9 transition-all shadow-sm"
+            {/* Header / Search / Actions */}
+            <div className="flex flex-col xl:flex-row gap-4 justify-between xl:items-center bg-white p-4 rounded-3xl border border-orange-50 shadow-sm">
+                <div className="flex flex-col xl:flex-row flex-1 gap-4">
+                    <h2 className="text-2xl font-bold text-slate-900 tracking-tight shrink-0">Warranty Management</h2>
+                    <div className="relative flex-1 max-w-md">
+                        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-slate-400" />
+                        <Input
+                            placeholder="Search warranties..."
+                            className="pl-10 h-11 rounded-xl border-orange-100 bg-white focus:border-orange-300 focus:ring-orange-200"
                             value={search}
                             onChange={(e) => setSearch(e.target.value)}
                         />
                     </div>
+                </div>
 
+                <div className="flex flex-wrap items-center gap-2">
                     <Button
                         variant="outline"
+                        size="icon"
                         onClick={() => setShowFilters(!showFilters)}
                         className={cn(
-                            "h-9 w-9 p-0 rounded-full border-orange-100 transition-all shadow-sm flex items-center justify-center shrink-0",
-                            showFilters ? "bg-orange-500 text-white border-orange-500 shadow-orange-500/20" : "bg-white text-slate-700 hover:bg-orange-50 hover:text-orange-600 hover:border-orange-200"
+                            "h-11 w-11 rounded-xl border-orange-100 transition-all",
+                            showFilters ? "bg-orange-50 text-orange-600 border-orange-200" : "bg-white text-slate-600 hover:bg-orange-50"
                         )}
-                        title="Toggle Filters"
                     >
-                        <div className="relative">
-                            <Filter className={cn("h-4 w-4", showFilters ? "animate-pulse" : "")} />
-                            {(productTypeFilter !== 'all' || selectedMake !== 'all' || selectedModel !== 'all' || dateRange) && (
-                                <span className="absolute -top-1.5 -right-1.5 flex h-3 w-3 items-center justify-center rounded-full bg-red-500 border border-white">
-                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-                                    <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
-                                </span>
-                            )}
-                        </div>
+                        <Filter className="h-4 w-4" />
                     </Button>
 
                     <Button
                         variant="outline"
-                        size="sm"
+                        size="icon"
                         onClick={() => fetchWarranties(true)}
-                        disabled={isRefreshing}
-                        className="gap-2 text-[#f46617] border border-[#f46617]/20 hover:bg-orange-50 h-9 rounded-full px-3 md:px-4 font-bold shrink-0"
+                        disabled={loading}
+                        title="Refresh Data"
+                        className="h-11 w-11 rounded-xl border-orange-100 hover:bg-orange-50 text-orange-600 shrink-0"
                     >
-                        <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
-                        <span className="hidden md:inline">Refresh</span>
+                        <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} />
                     </Button>
 
                     <Button
-                        size="sm"
+                        variant="outline"
                         onClick={() => setExportDialogOpen(true)}
-                        className="hidden md:flex gap-2 bg-[#f46617] hover:bg-[#d95512] text-white h-9 rounded-full px-4 font-bold shadow-lg shadow-orange-500/20"
+                        className="hidden md:flex gap-2 h-11 border-orange-100 hover:bg-orange-50 rounded-xl px-5 font-bold text-slate-600 shadow-sm"
                     >
                         <Download className="h-4 w-4" />
-                        EXPORT DATA
+                        <span>EXPORT</span>
                     </Button>
                 </div>
             </div>
+
+            {/* Mobile Status Filter */}
+            <div className="md:hidden w-full">
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                    <SelectTrigger className="w-full h-11 bg-white border-orange-100 rounded-2xl font-bold shadow-sm">
+                        <SelectValue placeholder="Filter by Status" />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-2xl border-orange-100 shadow-xl">
+                        <SelectItem value="all">All Warranties</SelectItem>
+                        <SelectItem value="validated">Approved</SelectItem>
+                        <SelectItem value="pending">Pending Approval</SelectItem>
+                        <SelectItem value="pending_vendor">Pending Vendor</SelectItem>
+                        <SelectItem value="rejected">Rejected</SelectItem>
+                    </SelectContent>
+                </Select>
+            </div>
+
+            {/* Desktop Status Tabs */}
+            <Tabs value={statusFilter} onValueChange={setStatusFilter} className="hidden md:block w-full xl:w-auto">
+                <TabsList className="grid w-full grid-cols-5 xl:inline-flex h-auto bg-white border border-orange-100 p-1">
+                    <TabsTrigger value="all" className="data-[state=active]:bg-orange-50 data-[state=active]:text-orange-700 gap-2">
+                        All
+                        <Badge variant="secondary" className="bg-slate-100 text-slate-600 border-none px-1.5 py-0 h-4 text-[10px] font-bold">
+                            {warranties.length}
+                        </Badge>
+                    </TabsTrigger>
+                    <TabsTrigger value="validated" className="data-[state=active]:bg-green-50 data-[state=active]:text-green-700 gap-2">
+                        Approved
+                        <Badge variant="secondary" className="bg-green-100/50 text-green-700 border-none px-1.5 py-0 h-4 text-[10px] font-bold">
+                            {warranties.filter(w => w.status === 'validated').length}
+                        </Badge>
+                    </TabsTrigger>
+                    <TabsTrigger value="pending" className="data-[state=active]:bg-amber-50 data-[state=active]:text-amber-700 gap-2">
+                        Pending
+                        <Badge variant="secondary" className="bg-amber-100/50 text-amber-700 border-none px-1.5 py-0 h-4 text-[10px] font-bold">
+                            {warranties.filter(w => w.status === 'pending').length}
+                        </Badge>
+                    </TabsTrigger>
+                    <TabsTrigger value="pending_vendor" className="data-[state=active]:bg-orange-50 data-[state=active]:text-orange-700 gap-2">
+                        Vendor
+                        <Badge variant="secondary" className="bg-orange-100/50 text-orange-700 border-none px-1.5 py-0 h-4 text-[10px] font-bold">
+                            {warranties.filter(w => w.status === 'pending_vendor').length}
+                        </Badge>
+                    </TabsTrigger>
+                    <TabsTrigger value="rejected" className="data-[state=active]:bg-red-50 data-[state=active]:text-red-700 gap-2">
+                        Rejected
+                        <Badge variant="secondary" className="bg-red-100/50 text-red-700 border-none px-1.5 py-0 h-4 text-[10px] font-bold">
+                            {warranties.filter(w => w.status === 'rejected').length}
+                        </Badge>
+                    </TabsTrigger>
+                </TabsList>
+            </Tabs>
 
             {/* Advanced Filters Panel */}
             {showFilters && (
@@ -532,17 +526,19 @@ export const AdminWarranties = () => {
                     {loading ? (
                         <div className="p-8 text-center text-slate-500">Loading warranties...</div>
                     ) : (
-                        <AdminWarrantyList
-                            items={paginatedWarranties}
-                            showActions={statusFilter !== 'all'}
-                            onApprove={(id) => handleUpdateStatus(id, 'validated')}
-                            onReject={(id) => {
-                                setRejectingWarrantyId(id);
-                                setRejectReason("");
-                                setRejectDialogOpen(true);
-                            }}
-                            processingWarranty={processingId}
-                        />
+                        <div key={refreshKey}>
+                            <AdminWarrantyList
+                                items={paginatedWarranties}
+                                showActions={statusFilter !== 'all'}
+                                onApprove={(id) => handleUpdateStatus(id, 'validated')}
+                                onReject={(id) => {
+                                    setRejectingWarrantyId(id);
+                                    setRejectReason("");
+                                    setRejectDialogOpen(true);
+                                }}
+                                processingWarranty={processingId}
+                            />
+                        </div>
                     )}
                 </CardContent>
             </Card>

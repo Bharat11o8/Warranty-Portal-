@@ -38,6 +38,7 @@ export type AdminModule =
     | 'warranty-form'
     | 'announcements'
     | 'posm'
+    | 'uid-management'
     | 'profile';
 
 interface SidebarItemProps {
@@ -138,6 +139,7 @@ export const SidebarContent = ({
                 },
 
                 { id: 'warranty-products' as const, label: "Warranty Products", icon: Store },
+                { id: 'uid-management' as const, label: "UID Management", icon: Package },
                 { id: 'warranty-form' as const, label: "New Registration", icon: PenTool },
             ]
         },

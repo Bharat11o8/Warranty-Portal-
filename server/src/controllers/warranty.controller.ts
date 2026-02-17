@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
-import db from '../config/database.js';
+import db, { getISTTimestamp } from '../config/database.js';
 import { EmailService } from '../services/email.service.js';
 import { AuthRequest } from '../middleware/auth.js';
 import { WarrantyData } from '../types/index.js';
@@ -69,8 +69,8 @@ export class WarrantyController {
       // Customer email is optional for vendors uploading on behalf of customers
       if (!warrantyData.productType || !warrantyData.customerName ||
         !warrantyData.customerPhone ||
-        !warrantyData.customerAddress || !warrantyData.carMake ||
-        !warrantyData.carModel || !warrantyData.carYear ||
+        !warrantyData.customerAddress || !warrantyData.registrationNumber ||
+        !warrantyData.carYear ||
         !warrantyData.purchaseDate || !warrantyData.warrantyType) {
         return res.status(400).json({ error: 'Missing required fields' });
       }
@@ -95,6 +95,27 @@ export class WarrantyController {
       }
 
       const uid = warrantyData.productDetails.uid || null;
+
+      // ===== UID Pre-Validation for Seat Covers =====
+      // Check if the UID exists in the pre_generated_uids table and is available
+      if (warrantyData.productType === 'seat-cover' && uid) {
+        const [uidRows]: any = await db.execute(
+          'SELECT uid, is_used FROM pre_generated_uids WHERE uid = ?',
+          [uid]
+        );
+
+        if (uidRows.length === 0) {
+          return res.status(400).json({
+            error: 'Invalid UID. This UID does not exist in our system. Please check the UID on your product packaging.'
+          });
+        }
+
+        if (uidRows[0].is_used) {
+          return res.status(400).json({
+            error: 'This UID has already been used for another warranty registration.'
+          });
+        }
+      }
 
       // Check if UID or Serial Number already exists
       const checkId = uid || warrantyData.productDetails.serialNumber;
@@ -156,9 +177,9 @@ export class WarrantyController {
       await db.execute(
         `INSERT INTO warranty_registrations 
         (uid, user_id, product_type, customer_name, customer_email, customer_phone, 
-         customer_address, car_make, car_model, car_year, 
+         customer_address, registration_number, car_make, car_model, car_year, 
          purchase_date, installer_name, installer_contact, product_details, manpower_id, warranty_type, status) 
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           warrantyId,
           req.user.id,
@@ -167,8 +188,9 @@ export class WarrantyController {
           warrantyData.customerEmail,
           warrantyData.customerPhone,
           warrantyData.customerAddress,
-          warrantyData.carMake,
-          warrantyData.carModel,
+          warrantyData.registrationNumber,
+          warrantyData.carMake || null,
+          warrantyData.carModel || null,
           warrantyData.carYear,
           warrantyData.purchaseDate,
           warrantyData.installerName || null,
@@ -179,6 +201,15 @@ export class WarrantyController {
           initialStatus
         ]
       );
+
+      // ===== Mark UID as used in the pre_generated_uids table =====
+      if (warrantyData.productType === 'seat-cover' && uid) {
+        const usedTimestamp = getISTTimestamp();
+        await db.execute(
+          'UPDATE pre_generated_uids SET is_used = TRUE, used_at = ? WHERE uid = ?',
+          [usedTimestamp, uid]
+        );
+      }
 
       // Handle Email Notifications
       if (initialStatus === 'pending_vendor' && warrantyData.installerContact) {
@@ -203,6 +234,7 @@ export class WarrantyController {
           token,
           warrantyData.productType,
           warrantyData.productDetails,
+          warrantyData.registrationNumber,
           warrantyData.carMake,
           warrantyData.carModel
         );
@@ -222,9 +254,10 @@ export class WarrantyController {
         await EmailService.sendWarrantyConfirmation(
           warrantyData.customerEmail,
           warrantyData.customerName,
-          uid,
+          warrantyId,
           warrantyData.productType,
           warrantyData.productDetails,
+          warrantyData.registrationNumber,
           warrantyData.carMake,
           warrantyData.carModel
         );
@@ -397,10 +430,11 @@ export class WarrantyController {
           w.customer_name LIKE ? OR 
           w.customer_phone LIKE ? OR 
           w.uid LIKE ? OR 
+          w.registration_number LIKE ? OR 
           w.car_make LIKE ? OR 
           w.car_model LIKE ?
         )`);
-        params.push(searchTerm, searchTerm, searchTerm, searchTerm, searchTerm);
+        params.push(searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm);
       }
 
       // Date Range
@@ -622,8 +656,8 @@ export class WarrantyController {
       // Customer email is optional for vendors uploading on behalf of customers
       if (!warrantyData.productType || !warrantyData.customerName ||
         !warrantyData.customerPhone ||
-        !warrantyData.customerAddress || !warrantyData.carMake ||
-        !warrantyData.carModel || !warrantyData.carYear ||
+        !warrantyData.customerAddress || !warrantyData.registrationNumber ||
+        !warrantyData.carYear ||
         !warrantyData.purchaseDate || !warrantyData.warrantyType) {
         return res.status(400).json({ error: 'Missing required fields' });
       }
@@ -703,7 +737,7 @@ export class WarrantyController {
       await db.execute(
         `UPDATE warranty_registrations SET
          product_type = ?, customer_name = ?, customer_email = ?, customer_phone = ?,
-         customer_address = ?, car_make = ?, car_model = ?, car_year = ?,
+         customer_address = ?, registration_number = ?, car_make = ?, car_model = ?, car_year = ?,
          purchase_date = ?, installer_name = ?,
          installer_contact = ?, product_details = ?, manpower_id = ?, warranty_type = ?,
          status = 'pending', rejection_reason = NULL
@@ -714,8 +748,9 @@ export class WarrantyController {
           warrantyData.customerEmail,
           warrantyData.customerPhone,
           warrantyData.customerAddress,
-          warrantyData.carMake,
-          warrantyData.carModel,
+          warrantyData.registrationNumber,
+          warrantyData.carMake || null,
+          warrantyData.carModel || null,
           warrantyData.carYear,
           warrantyData.purchaseDate,
           warrantyData.installerName || null,
