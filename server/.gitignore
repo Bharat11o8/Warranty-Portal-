@@ -13,7 +13,6 @@ npm-debug.log
 yarn-error.log
 coverage
 .DS_Store
-uploads/
 
 # Backups
 *.backup

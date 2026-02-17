@@ -9,14 +9,10 @@ import {
     FileText,
     MessageSquareWarning,
     LogOut,
-    Home,
     ChevronLeft,
     ChevronRight,
     User,
-    Menu,
-    X,
-    LayoutDashboard,
-    Bell
+    LayoutDashboard
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import api from "@/lib/api";
@@ -27,31 +23,6 @@ const CustomerLayout = () => {
     const location = useLocation();
     const [isCollapsed, setIsCollapsed] = useState(false);
     const [isMobileOpen, setIsMobileOpen] = useState(false);
-    const [grievanceUpdates, setGrievanceUpdates] = useState(0);
-
-    // Fetch grievance updates count (grievances with admin/franchise responses that customer hasn't seen)
-    useEffect(() => {
-        const fetchGrievanceUpdates = async () => {
-            if (user?.role === 'customer') {
-                try {
-                    const response = await api.get("/grievance");
-                    if (response.data.success) {
-                        // Count grievances that have responses but customer hasn't rated (potential updates)
-                        const updatesCount = response.data.data.filter((g: any) =>
-                            (g.admin_remarks || g.franchise_remarks) &&
-                            !g.customer_rating &&
-                            (g.status === 'resolved' || g.status === 'in_progress' || g.status === 'under_review')
-                        ).length;
-                        setGrievanceUpdates(updatesCount);
-                    }
-                } catch (error) {
-                    console.error("Failed to fetch grievance updates", error);
-                }
-            }
-        };
-        fetchGrievanceUpdates();
-    }, [user, location.pathname]);
-
     // Calculate Section Updates from notifications (Hidden for Phase 1)
     const dashboardUpdates = notifications.filter(n => !n.is_read && n.type === 'warranty').length;
     const termsUpdates = notifications.filter(n =>
@@ -83,7 +54,7 @@ const CustomerLayout = () => {
 
     const navItems = [
         { path: "/dashboard/customer", label: "Dashboard", icon: LayoutDashboard, badge: dashboardUpdates },
-        { path: "/grievance", label: "Grievance", icon: MessageSquareWarning, badge: grievanceUpdates },
+        { path: "/grievance", label: "Grievance", icon: MessageSquareWarning, badge: 0 },
         { path: "/terms", label: "Terms", icon: FileText, badge: termsUpdates },
     ];
 

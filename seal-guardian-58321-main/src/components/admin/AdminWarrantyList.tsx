@@ -68,8 +68,8 @@ export const AdminWarrantyList = ({
                 const { expirationDate, daysLeft, isExpired } = getWarrantyExpiration(warranty.created_at, warranty.warranty_type);
 
                 return (
-                    <Card key={warranty.uid || warranty.id} className="hover:shadow-md transition-shadow">
-                        <CardContent className="p-4 md:p-6">
+                    <Card key={warranty.uid || warranty.id} className="hover:shadow-sm transition-shadow border-slate-200">
+                        <CardContent className="p-3 md:p-4">
                             <div className="flex flex-col sm:flex-row justify-between items-start gap-4 mb-4 relative">
                                 {/* Product Icon - Hidden on mobile */}
                                 <div className={cn(
@@ -85,9 +85,14 @@ export const AdminWarrantyList = ({
                                 <div className="flex-1 w-full md:w-auto">
                                     <div className="flex items-start justify-between w-full">
                                         <div className="flex flex-col">
-                                            <h3 className="text-base md:text-lg font-bold uppercase tracking-wide pr-8 md:pr-0">
-                                                {productName.replace(/-/g, ' ')}
-                                            </h3>
+                                            <div className="flex items-center gap-2">
+                                                <h3 className="text-base md:text-lg font-bold uppercase tracking-wide">
+                                                    {productName.replace(/-/g, ' ')}
+                                                </h3>
+                                                <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200 text-[10px] px-2 py-0.5 h-5 whitespace-nowrap">
+                                                    {warranty.warranty_type || '1 Year'}
+                                                </Badge>
+                                            </div>
                                             {/* Mobile: Show Customer Name here */}
                                             <p className="md:hidden text-sm font-medium text-slate-700 mt-1 flex items-center gap-1">
                                                 <User className="h-3 w-3" /> {warranty.customer_name}
@@ -145,11 +150,11 @@ export const AdminWarrantyList = ({
                                 And rely ONLY on the Eye button?
                                 YES. "Show only necessary details and show an eye button".
                             */}
-                            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4 mt-4 pt-4 border-t hidden md:grid">
+                            <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mt-3 pt-3 border-t hidden md:grid">
                                 {/* Desktop Grid Content (Unchanged) */}
 
                                 <div>
-                                    <p className="text-xs text-muted-foreground mb-1">Customer</p>
+                                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">Customer</p>
                                     <TooltipProvider>
                                         <Tooltip>
                                             <TooltipTrigger asChild>
@@ -189,7 +194,7 @@ export const AdminWarrantyList = ({
 
 
                                 <div>
-                                    <p className="text-xs text-muted-foreground mb-1">
+                                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">
                                         {warranty.status === 'pending_vendor' ? 'Installer' : 'Verified By'}
                                     </p>
                                     <TooltipProvider>
@@ -239,42 +244,30 @@ export const AdminWarrantyList = ({
 
                                 {warranty.product_type === 'seat-cover' && (
                                     <div>
-                                        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">Serial Number</p>
+                                        <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-1">Serial Number</p>
                                         <p className="font-mono text-sm font-semibold">{warranty.uid || productDetails.uid || 'N/A'}</p>
                                     </div>
                                 )}
 
                                 {warranty.product_type !== 'seat-cover' && (
                                     <div>
-                                        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">Serial Number</p>
+                                        <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-1">Serial Number</p>
                                         <p className="font-mono text-sm font-semibold">{productDetails.serialNumber || warranty.uid || 'N/A'}</p>
                                     </div>
                                 )}
 
-                                <div>
-                                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">Warranty Type</p>
-                                    <p className="text-sm font-medium">
-                                        <span className="inline-flex items-center rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-semibold text-blue-800">
-                                            {warranty.warranty_type || '1 Year'}
-                                        </span>
-                                    </p>
-                                </div>
+
+
+
+
+
 
                                 <div>
-                                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">Vehicle</p>
-                                    <p className="text-sm font-medium capitalize">{warranty.car_make} {warranty.car_model}</p>
-
-                                    {warranty.car_year && (
-                                        <p className="text-xs text-muted-foreground">{warranty.car_year}</p>
-                                    )}
-                                </div>
-
-                                <div>
-                                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">Invoice</p>
+                                    <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-1">Invoice</p>
                                     <Dialog>
                                         <DialogTrigger asChild>
-                                            <Button variant="outline" size="sm" className="h-8 w-full">
-                                                <FileText className="h-3 w-3 mr-1" />
+                                            <Button variant="outline" size="sm" className="h-7 text-xs w-full border-slate-200">
+                                                <FileText className="h-3 w-3 mr-1.5" />
                                                 View
                                             </Button>
                                         </DialogTrigger>
@@ -357,14 +350,14 @@ export const AdminWarrantyList = ({
                                 </div>
 
                                 <div>
-                                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">Details</p>
+                                    <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-1">Details</p>
                                     <Button
                                         variant="outline"
                                         size="sm"
-                                        className="h-8 w-full"
+                                        className="h-7 text-xs w-full border-slate-200"
                                         onClick={() => setSelectedWarranty(warranty)}
                                     >
-                                        <Eye className="h-3 w-3 mr-1" />
+                                        <Eye className="h-3 w-3 mr-1.5" />
                                         View
                                     </Button>
                                 </div>
