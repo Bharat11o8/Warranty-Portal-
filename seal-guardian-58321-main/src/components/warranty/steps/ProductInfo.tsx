@@ -31,7 +31,13 @@ const ProductInfo = ({ formData, updateFormData, onPrev, onSubmit, loading }: Pr
       try {
         const response = await api.get('/public/products');
         if (response.data.success) {
-          setProducts(response.data.products.filter((p: any) => p.type === 'ev_product'));
+          const evProducts = response.data.products.filter((p: any) => p.type === 'ev_product');
+          setProducts(evProducts);
+
+          // Auto-select if only one product is available and none is selected
+          if (evProducts.length === 1 && !formData.product) {
+            updateFormData({ product: evProducts[0].name });
+          }
         }
       } catch (error) {
         console.error("Failed to fetch products", error);

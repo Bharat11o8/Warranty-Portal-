@@ -541,7 +541,7 @@ const EVProductsForm = ({ initialData, warrantyId, onSuccess, isUniversal, isEdi
           <ShieldCheck className="h-8 w-8 text-blue-600" />
         </div>
         <h1 className="text-3xl font-bold tracking-tight bg-gradient-to-r from-gray-900 to-gray-600 bg-clip-text text-transparent">
-          {warrantyId ? 'Edit Warranty Application' : 'PPF Warranty Registration'}
+          {warrantyId ? 'Edit Warranty Application' : 'Paint Protection Film (PPF) Registration'}
         </h1>
         <p className="text-muted-foreground max-w-2xl mx-auto">
           {warrantyId ? 'Update the details below to resubmit your application' : 'Please fill in all required fields to register your Paint Protection Film (PPF) warranty'}
