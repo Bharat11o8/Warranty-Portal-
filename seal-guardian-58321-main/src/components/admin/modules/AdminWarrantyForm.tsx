@@ -17,7 +17,7 @@ export const AdminWarrantyForm = () => {
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
                 <TabsList className="grid w-full grid-cols-2 max-w-[400px] mb-6">
                     <TabsTrigger value="seat-cover">Seat Cover</TabsTrigger>
-                    <TabsTrigger value="ev-products">EV Products</TabsTrigger>
+                    <TabsTrigger value="ev-products">Paint Protection Film (PPF)</TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="seat-cover" className="mt-0">

@@ -153,18 +153,18 @@ const ConnectStorePage = () => {
             <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "ev" | "seat-cover")} className="space-y-6">
                 <TabsList className="grid w-full grid-cols-2 h-14 bg-slate-100 rounded-2xl p-1">
                     <TabsTrigger
-                        value="ev"
-                        className="rounded-xl h-12 data-[state=active]:bg-white data-[state=active]:shadow-md flex items-center gap-2 font-bold"
-                    >
-                        <img src="/ppf-icon.png" alt="" className="h-5 w-5 object-contain" />
-                        <span>PPF / EV Products</span>
-                    </TabsTrigger>
-                    <TabsTrigger
                         value="seat-cover"
                         className="rounded-xl h-12 data-[state=active]:bg-white data-[state=active]:shadow-md flex items-center gap-2 font-bold"
                     >
                         <img src="/seat-cover-icon.png" alt="" className="h-5 w-5 object-contain" />
-                        <span>Seat Covers</span>
+                        <span>Seat Cover</span>
+                    </TabsTrigger>
+                    <TabsTrigger
+                        value="ev"
+                        className="rounded-xl h-12 data-[state=active]:bg-white data-[state=active]:shadow-md flex items-center gap-2 font-bold"
+                    >
+                        <img src="/ppf-icon.png" alt="" className="h-5 w-5 object-contain" />
+                        <span>Paint Protection Film (PPF)</span>
                     </TabsTrigger>
                 </TabsList>
 

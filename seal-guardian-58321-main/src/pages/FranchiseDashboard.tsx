@@ -534,18 +534,18 @@ const FranchiseDashboard = () => {
                             <Tabs value={registerTab} onValueChange={setRegisterTab} className="w-full">
                                 <TabsList className="grid w-full grid-cols-2 h-14 bg-slate-100 rounded-2xl p-1 mb-6">
                                     <TabsTrigger
-                                        value="ev"
-                                        className="rounded-xl h-12 data-[state=active]:bg-white data-[state=active]:shadow-md font-bold"
-                                    >
-                                        <img src="/ppf-icon.png" alt="PPF" className="w-5 h-5 mr-2" />
-                                        PPF / EV Products
-                                    </TabsTrigger>
-                                    <TabsTrigger
                                         value="seat-cover"
                                         className="rounded-xl h-12 data-[state=active]:bg-white data-[state=active]:shadow-md font-bold"
                                     >
                                         <img src="/seat-cover-icon.png" alt="Seat Cover" className="w-5 h-5 mr-2" />
                                         Seat Cover
+                                    </TabsTrigger>
+                                    <TabsTrigger
+                                        value="ev"
+                                        className="rounded-xl h-12 data-[state=active]:bg-white data-[state=active]:shadow-md font-bold"
+                                    >
+                                        <img src="/ppf-icon.png" alt="PPF" className="w-5 h-5 mr-2" />
+                                        Paint Protection Film (PPF)
                                     </TabsTrigger>
                                 </TabsList>
                                 <TabsContent value="ev" forceMount={undefined}>

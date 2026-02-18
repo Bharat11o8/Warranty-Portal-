@@ -36,7 +36,7 @@ const Warranty = () => {
               Seat Cover
             </TabsTrigger>
             <TabsTrigger value="ev-products" className="text-lg py-3">
-              EV Products
+              Paint Protection Film (PPF)
             </TabsTrigger>
           </TabsList>
 
