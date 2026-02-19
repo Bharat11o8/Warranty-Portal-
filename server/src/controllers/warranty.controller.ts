@@ -46,15 +46,15 @@ export class WarrantyController {
 
           if (file.fieldname === 'invoiceFile') {
             warrantyData.productDetails.invoiceFileName = file.path;
-          } else if (['lhsPhoto', 'rhsPhoto', 'frontRegPhoto', 'backRegPhoto', 'warrantyPhoto'].includes(file.fieldname)) {
+          } else if (['lhsPhoto', 'rhsPhoto', 'frontRegPhoto', 'backRegPhoto', 'warrantyPhoto', 'vehiclePhoto'].includes(file.fieldname)) {
             if (!warrantyData.productDetails.photos) {
               warrantyData.productDetails.photos = {};
             }
             // Map fieldname to photo key
-            const photoKey = file.fieldname.replace('Photo', ''); // lhs, rhs, warranty
+            const photoKey = file.fieldname.replace('Photo', ''); // lhs, rhs, warranty, vehicle
             // Special case for Reg photos if naming differs, but let's assume standard mapping or adjust
             // Actually, EVProductsForm sends: lhsPhoto, rhsPhoto, frontRegPhoto, backRegPhoto, warrantyPhoto
-            // And productDetails.photos expects: lhs, rhs, frontReg, backReg, warranty
+            // And productDetails.photos expects: lhs, rhs, frontReg, backReg, warranty, vehicle
 
             let key = photoKey;
             if (file.fieldname === 'frontRegPhoto') key = 'frontReg';
@@ -163,6 +163,26 @@ export class WarrantyController {
             });
           }
         }
+      }
+
+      // Check if phone or registration number already exists for this product category
+      const [existingCategoryData]: any = await db.execute(
+        `SELECT uid, customer_name FROM warranty_registrations 
+         WHERE (customer_phone = ? OR registration_number = ?) 
+         AND product_type = ? 
+         AND status != 'rejected'
+         AND uid != ?`,
+        [warrantyData.customerPhone, warrantyData.registrationNumber, warrantyData.productType, checkId || '']
+      );
+
+      if (existingCategoryData.length > 0) {
+        const existing = existingCategoryData[0];
+        // Identify which field is duplicate
+        // Note: For simplicity, we just block if either is duplicate for the same type.
+        // But let's be more specific with the message.
+        return res.status(400).json({
+          error: `A registration for this ${warrantyData.productType === 'seat-cover' ? 'Seat Cover' : 'Paint Protection Film (PPF)'} already exists with the same phone or vehicle details.`
+        });
       }
 
       // For customer submissions, set status to 'pending_vendor' (needs franchise verification)

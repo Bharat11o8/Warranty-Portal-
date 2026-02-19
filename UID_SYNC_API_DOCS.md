@@ -11,7 +11,7 @@ Use this API to sync pre-generated UIDs into the Autoform Warranty System.
 ## Authentication
 Add the following header to all requests:
 - `x-api-key`: `sg-uid-sync-a7f3b9e2d4c1089562fe`
-
+  
 ---
 
 ## Request Body

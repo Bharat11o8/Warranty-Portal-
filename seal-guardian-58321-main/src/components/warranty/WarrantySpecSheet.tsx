@@ -206,25 +206,52 @@ export const WarrantySpecSheet = ({ isOpen, onClose, warranty }: WarrantySpecShe
                         </div>
                     )}
 
-                    {/* Documents Section - Seat Cover: Invoice */}
-                    {warranty.product_type === 'seat-cover' && productDetails.invoiceFileName && (
-                        <div className="space-y-1">
-                            <h4 className="text-xs font-bold text-orange-500 uppercase tracking-widest mb-3 pl-1 flex items-center gap-2">
-                                <div className="w-1 h-4 bg-gradient-to-b from-orange-500 to-orange-400 rounded-full" />
-                                Documentation
-                            </h4>
-                            <Button variant="outline" className="w-full justify-between h-12 bg-background/50 hover:bg-blue-50 hover:border-blue-200 border-input/50 transition-colors" onClick={() => {
-                                const url = typeof productDetails.invoiceFileName === 'string' && productDetails.invoiceFileName.startsWith('http')
-                                    ? productDetails.invoiceFileName
-                                    : `http://localhost:3000/uploads/${productDetails.invoiceFileName}`;
-                                window.open(url, '_blank');
-                            }}>
-                                <span className="flex items-center gap-2">
-                                    <FileText className="h-4 w-4 text-blue-600" />
-                                    <span className="text-blue-700">View Invoice / MRP Sticker</span>
-                                </span>
-                                <ExternalLink className="h-4 w-4 text-blue-500" />
-                            </Button>
+                    {/* Documents Section - Seat Cover: Invoice & Photos */}
+                    {warranty.product_type === 'seat-cover' && (
+                        <div className="space-y-4">
+                            {productDetails.invoiceFileName && (
+                                <div className="space-y-1">
+                                    <h4 className="text-xs font-bold text-orange-500 uppercase tracking-widest mb-3 pl-1 flex items-center gap-2">
+                                        <div className="w-1 h-4 bg-gradient-to-b from-orange-500 to-orange-400 rounded-full" />
+                                        Documentation
+                                    </h4>
+                                    <Button variant="outline" className="w-full justify-between h-12 bg-background/50 hover:bg-blue-50 hover:border-blue-200 border-input/50 transition-colors" onClick={() => {
+                                        const url = typeof productDetails.invoiceFileName === 'string' && productDetails.invoiceFileName.startsWith('http')
+                                            ? productDetails.invoiceFileName
+                                            : `http://localhost:3000/uploads/${productDetails.invoiceFileName}`;
+                                        window.open(url, '_blank');
+                                    }}>
+                                        <span className="flex items-center gap-2">
+                                            <FileText className="h-4 w-4 text-blue-600" />
+                                            <span className="text-blue-700">View Invoice / MRP Sticker</span>
+                                        </span>
+                                        <ExternalLink className="h-4 w-4 text-blue-500" />
+                                    </Button>
+                                </div>
+                            )}
+
+                            {productDetails.photos?.vehicle && (
+                                <div className="space-y-1">
+                                    <h4 className="text-xs font-bold text-orange-500 uppercase tracking-widest mb-3 pl-1 flex items-center gap-2">
+                                        <div className="w-1 h-4 bg-gradient-to-b from-orange-500 to-orange-400 rounded-full" />
+                                        Installation Photos
+                                    </h4>
+                                    <Button variant="outline" className="w-full justify-between h-12 bg-background/50 hover:bg-blue-50 hover:border-blue-200 border-input/50 transition-colors" onClick={() => {
+                                        const url = typeof productDetails.photos.vehicle === 'string' && productDetails.photos.vehicle.startsWith('http')
+                                            ? productDetails.photos.vehicle
+                                            : `http://localhost:3000/uploads/${productDetails.photos.vehicle}`;
+                                        window.open(url, '_blank');
+                                    }}>
+                                        <span className="flex items-center gap-2">
+                                            <div className="p-1 bg-orange-100 rounded text-orange-600">
+                                                <ExternalLink className="h-3 w-3" />
+                                            </div>
+                                            <span className="text-orange-700">Vehicle Image (Reg Number)</span>
+                                        </span>
+                                        <ExternalLink className="h-4 w-4 text-orange-500" />
+                                    </Button>
+                                </div>
+                            )}
                         </div>
                     )}
 

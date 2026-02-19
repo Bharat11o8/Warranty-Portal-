@@ -33,6 +33,8 @@ interface UIDRecord {
     is_used: boolean;
     used_at: string | null;
     created_at: string;
+    customer_name?: string;
+    registration_number?: string;
 }
 
 interface UIDStats {
@@ -264,6 +266,7 @@ export const AdminUIDManagement = ({ onBack }: UIDManagementProps) => {
                                     <tr className="border-b border-slate-50 bg-slate-50/50">
                                         <th className="text-left py-3 px-4 text-xs font-bold text-slate-400 uppercase tracking-wider">UID</th>
                                         <th className="text-center py-3 px-4 text-xs font-bold text-slate-400 uppercase tracking-wider">Status</th>
+                                        <th className="text-left py-3 px-4 text-xs font-bold text-slate-400 uppercase tracking-wider">Linked To</th>
                                         <th className="text-left py-3 px-4 text-xs font-bold text-slate-400 uppercase tracking-wider">Used At</th>
                                         <th className="text-left py-3 px-4 text-xs font-bold text-slate-400 uppercase tracking-wider">Created</th>
                                         <th className="text-center py-3 px-4 text-xs font-bold text-slate-400 uppercase tracking-wider">Action</th>
@@ -287,6 +290,16 @@ export const AdminUIDManagement = ({ onBack }: UIDManagementProps) => {
                                                     <Badge className="bg-emerald-50 text-emerald-600 border border-emerald-100 font-bold text-[10px] rounded-full">
                                                         <CheckCircle2 className="h-3 w-3 mr-1" /> Available
                                                     </Badge>
+                                                )}
+                                            </td>
+                                            <td className="py-3 px-4">
+                                                {uid.customer_name ? (
+                                                    <div className="flex flex-col">
+                                                        <span className="font-semibold text-slate-700">{uid.customer_name}</span>
+                                                        <span className="text-[10px] text-slate-400 uppercase">{uid.registration_number}</span>
+                                                    </div>
+                                                ) : (
+                                                    <span className="text-slate-300">—</span>
                                                 )}
                                             </td>
                                             <td className="py-3 px-4 text-slate-500 text-xs">{formatDate(uid.used_at)}</td>
@@ -318,6 +331,12 @@ export const AdminUIDManagement = ({ onBack }: UIDManagementProps) => {
                                             <Hash className="h-3 w-3 text-slate-300 shrink-0" />
                                             <span className="font-mono font-semibold text-slate-700 text-sm tracking-wider truncate">{uid.uid}</span>
                                         </div>
+                                        {uid.customer_name && (
+                                            <div className="flex flex-col mb-1">
+                                                <span className="text-xs font-bold text-slate-600 truncate">{uid.customer_name}</span>
+                                                <span className="text-[9px] text-slate-400 uppercase tracking-tight">{uid.registration_number}</span>
+                                            </div>
+                                        )}
                                         <div className="flex items-center gap-2 text-[10px] text-slate-400">
                                             <span>{formatDate(uid.created_at)}</span>
                                             {uid.used_at && <span>• Used {formatDate(uid.used_at)}</span>}

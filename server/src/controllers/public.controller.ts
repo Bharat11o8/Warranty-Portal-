@@ -113,6 +113,58 @@ export class PublicController {
     }
 
 
+    static async checkUniqueness(req: Request, res: Response) {
+        try {
+            const { phone, reg, type } = req.query;
+
+            if (!type) {
+                return res.status(400).json({ error: 'Product type is required' });
+            }
+
+            // Normalize type (frontend might send underscores or hyphens)
+            const normalizedType = (type as string).replace('_', '-');
+
+            let conditions: string[] = ['product_type = ?', 'status != "rejected"'];
+            let params: any[] = [normalizedType];
+
+            if (phone) {
+                conditions.push('customer_phone = ?');
+                params.push(phone);
+            }
+
+            if (reg) {
+                conditions.push('registration_number = ?');
+                params.push(reg);
+            }
+
+            if (!phone && !reg) {
+                return res.status(400).json({ error: 'Either phone or registration number is required' });
+            }
+
+            const query = `SELECT uid, customer_name FROM warranty_registrations WHERE ${conditions.join(' AND ')} LIMIT 1`;
+            const [existing]: any = await db.execute(query, params);
+
+            if (existing.length > 0) {
+                const typeLabel = normalizedType === 'seat-cover' ? 'Seat Cover' : 'Paint Protection Film (PPF)';
+                return res.json({
+                    success: true,
+                    unique: false,
+                    message: reg
+                        ? `Vehicle ${reg} is already registered for ${typeLabel}.`
+                        : `Phone number ${phone} is already registered for ${typeLabel}.`
+                });
+            }
+
+            res.json({
+                success: true,
+                unique: true
+            });
+        } catch (error: any) {
+            console.error('Uniqueness check error:', error);
+            res.status(500).json({ error: 'Uniqueness check failed' });
+        }
+    }
+
     static async checkVendorSchema(req: Request, res: Response) {
         try {
             const [columns]: any = await db.execute('SHOW COLUMNS FROM vendor_details');
@@ -308,7 +360,7 @@ export class PublicController {
                 files.forEach(file => {
                     if (file.fieldname === 'invoiceFile') {
                         warrantyData.productDetails.invoiceFileName = file.path;
-                    } else if (['lhsPhoto', 'rhsPhoto', 'frontRegPhoto', 'backRegPhoto', 'warrantyPhoto'].includes(file.fieldname)) {
+                    } else if (['lhsPhoto', 'rhsPhoto', 'frontRegPhoto', 'backRegPhoto', 'warrantyPhoto', 'vehiclePhoto'].includes(file.fieldname)) {
                         if (!warrantyData.productDetails.photos) {
                             warrantyData.productDetails.photos = {};
                         }
@@ -366,7 +418,7 @@ export class PublicController {
                 userId = result.insertId || newUserId;
             }
 
-            // Step 2: Check UID/Serial duplication
+            // Step 2: Check UID/Serial duplication AND conditional uniqueness (phone/reg)
             const checkId = warrantyData.productDetails.uid || warrantyData.productDetails.serialNumber;
             if (checkId) {
                 const [existingWarranty]: any = await db.execute(
@@ -378,6 +430,28 @@ export class PublicController {
                         error: `This ${warrantyData.productDetails.uid ? 'UID' : 'Serial Number'} is already registered.`
                     });
                 }
+            }
+
+            // Check if phone is already registered for this product type
+            const [existingPhone]: any = await db.execute(
+                'SELECT uid FROM warranty_registrations WHERE customer_phone = ? AND product_type = ? AND status != "rejected"',
+                [customerPhone, warrantyData.productType]
+            );
+            if (existingPhone.length > 0) {
+                return res.status(400).json({
+                    error: `The phone number ${customerPhone} is already registered for a ${warrantyData.productType === 'seat-cover' ? 'Seat Cover' : 'Paint Protection Film (PPF)'} warranty.`
+                });
+            }
+
+            // Check if vehicle registration is already registered for this product type
+            const [existingReg]: any = await db.execute(
+                'SELECT uid FROM warranty_registrations WHERE registration_number = ? AND product_type = ? AND status != "rejected"',
+                [warrantyData.registrationNumber, warrantyData.productType]
+            );
+            if (existingReg.length > 0) {
+                return res.status(400).json({
+                    error: `The vehicle ${warrantyData.registrationNumber} is already registered for a ${warrantyData.productType === 'seat-cover' ? 'Seat Cover' : 'Paint Protection Film (PPF)'} warranty.`
+                });
             }
 
             // Step 3: Insert warranty

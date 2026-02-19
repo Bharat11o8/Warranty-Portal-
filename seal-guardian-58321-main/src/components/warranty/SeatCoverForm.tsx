@@ -76,6 +76,7 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
     carYear: initialData.car_year || "",
     warrantyType: initialData.warranty_type || "1 Year",
     invoiceFile: null as File | null,
+    vehicleFile: null as File | null,
     termsAccepted: true, // Already accepted if editing
   } : {
     uid: "",
@@ -92,6 +93,7 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
     carYear: "",
     warrantyType: "1 Year",
     invoiceFile: null as File | null,
+    vehicleFile: null as File | null,
     termsAccepted: false,
   });
 
@@ -299,6 +301,28 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
         return;
       }
 
+      // Validate mandatory files for new registration
+      if (!warrantyId) {
+        if (!formData.invoiceFile) {
+          toast({
+            title: "Invoice Required",
+            description: "Please upload proof of purchase (Invoice / MRP Sticker)",
+            variant: "destructive",
+          });
+          setLoading(false);
+          return;
+        }
+        if (!formData.vehicleFile) {
+          toast({
+            title: "Vehicle Photo Required",
+            description: "Please upload a vehicle image showing the registration number",
+            variant: "destructive",
+          });
+          setLoading(false);
+          return;
+        }
+      }
+
 
 
       // Find selected manpower name
@@ -331,6 +355,9 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
           customerAddress: "N/A",
           invoiceFileName: formData.invoiceFile?.name || null,
           invoiceFile: formData.invoiceFile, // Pass file object for API wrapper
+          photos: {
+            vehicle: formData.vehicleFile
+          }
         },
         vendorDirect: vendorDirect || false,
       };
@@ -359,6 +386,11 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
 
             // Append invoice file
             if (invoiceFile instanceof File) formDataPayload.append('invoiceFile', invoiceFile);
+
+            // Append vehicle photo if exists in productDetails.photos
+            if (pd.photos?.vehicle instanceof File) {
+              formDataPayload.append('vehiclePhoto', pd.photos.vehicle);
+            }
           } else if (value !== null && value !== undefined) {
             formDataPayload.append(key, String(value));
           }
@@ -405,6 +437,7 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
           carYear: "",
           warrantyType: "1 Year",
           invoiceFile: null,
+          vehicleFile: null,
           termsAccepted: false,
         });
         return;
@@ -425,6 +458,7 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
         carYear: "",
         warrantyType: "1 Year",
         invoiceFile: null,
+        vehicleFile: null,
         termsAccepted: false,
       });
 
@@ -467,12 +501,46 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
     }
 
     setFormData(prev => ({ ...prev, [name]: processedValue }));
+
+    // Real-time uniqueness check for Mobile number
+    if (name === 'customerMobile' && processedValue.length === 10) {
+      api.get(`/public/warranty/check-uniqueness?phone=${processedValue}&type=seat-cover`)
+        .then(res => {
+          if (!res.data.unique) {
+            toast({
+              title: "Already Registered",
+              description: res.data.message,
+              variant: "destructive",
+            });
+          }
+        })
+        .catch(err => console.error("Uniqueness check failed", err));
+    }
+
+    // Real-time uniqueness check for Vehicle Registration
+    if (name === 'carReg' && processedValue.length >= 6) {
+      // Small delay to let user finish typing
+      if (uidTimerRef.current) clearTimeout(uidTimerRef.current);
+      uidTimerRef.current = setTimeout(() => {
+        api.get(`/public/warranty/check-uniqueness?reg=${processedValue}&type=seat-cover`)
+          .then(res => {
+            if (!res.data.unique) {
+              toast({
+                title: "Vehicle Registered",
+                description: res.data.message,
+                variant: "destructive",
+              });
+            }
+          })
+          .catch(err => console.error("Uniqueness check failed", err));
+      }, 800);
+    }
   };
 
   const ALLOWED_FILE_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/heic', 'image/heif', 'application/pdf'];
   const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>, field: 'invoiceFile' | 'vehicleFile') => {
     const file = e.target.files?.[0];
     if (file) {
       // Check file type
@@ -513,7 +581,7 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
         return;
       }
 
-      setFormData(prev => ({ ...prev, invoiceFile: processedFile || null }));
+      setFormData(prev => ({ ...prev, [field]: processedFile || null }));
     }
   };
 
@@ -801,10 +869,10 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
                     disabled={loading}
                     pattern="[0-9]{13,16}"
                     className={`pl-12 pr-10 font-mono tracking-wide bg-white ${uidStatus === 'valid'
-                        ? 'border-emerald-400 ring-1 ring-emerald-200 focus-visible:ring-emerald-300'
-                        : uidStatus === 'invalid' || uidStatus === 'used'
-                          ? 'border-red-400 ring-1 ring-red-200 focus-visible:ring-red-300'
-                          : 'border-slate-200'
+                      ? 'border-emerald-400 ring-1 ring-emerald-200 focus-visible:ring-emerald-300'
+                      : uidStatus === 'invalid' || uidStatus === 'used'
+                        ? 'border-red-400 ring-1 ring-red-200 focus-visible:ring-red-300'
+                        : 'border-slate-200'
                       }`}
                   />
                   {/* Validation Status Icon */}
@@ -909,13 +977,53 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
                       id="invoiceFile"
                       type="file"
                       accept="image/jpeg,image/png,image/heic,image/heif,application/pdf"
-                      onChange={handleFileChange}
+                      onChange={(e) => handleFileChange(e, 'invoiceFile')}
                       required={!warrantyId}
                       disabled={loading}
                       className="hidden"
                     />
                     {!formData.invoiceFile && (
                       <label htmlFor="invoiceFile" className="absolute inset-0 cursor-pointer"></label>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Vehicle Photo Upload */}
+              <div className="space-y-3 md:col-span-2">
+                <Label htmlFor="vehicleFile" className="text-sm font-medium text-slate-700">
+                  Vehicle Image with Registration Number <span className="text-destructive">*</span>
+                </Label>
+                <div className={`mt-2 border-2 border-dashed rounded-xl p-6 transition-all duration-200 text-center relative ${formData.vehicleFile ? 'border-orange-300 bg-orange-50/30' : 'border-slate-200 hover:border-orange-300 hover:bg-slate-50'}`}>
+                  <div className="flex flex-col items-center gap-2">
+                    <div className={`p-3 rounded-full ${formData.vehicleFile ? 'bg-orange-100 text-orange-600' : 'bg-slate-100 text-slate-500'}`}>
+                      {formData.vehicleFile ? <Car className="h-6 w-6" /> : <Upload className="h-6 w-6" />}
+                    </div>
+                    <div>
+                      {formData.vehicleFile ? (
+                        <div className="space-y-1">
+                          <p className="text-sm font-medium text-orange-700 break-all">{formData.vehicleFile.name}</p>
+                          <p className="text-xs text-orange-600/70">{(formData.vehicleFile.size / 1024 / 1024).toFixed(2)} MB</p>
+                          <label htmlFor="vehicleFile" className="text-xs text-orange-600 underline cursor-pointer hover:text-orange-800">Change File</label>
+                        </div>
+                      ) : (
+                        <div className="space-y-1">
+                          <p className="text-sm font-medium text-slate-700">Click to upload or drag and drop</p>
+                          <p className="text-xs text-muted-foreground">JPG, PNG, HEIC (Max 5MB)</p>
+                        </div>
+                      )}
+                    </div>
+                    <Input
+                      id="vehicleFile"
+                      type="file"
+                      accept="image/jpeg,image/png,image/heic,image/heif"
+                      onChange={(e) => handleFileChange(e, 'vehicleFile')}
+                      required={!warrantyId}
+                      disabled={loading}
+                      className="hidden"
+                    />
+                    {!formData.vehicleFile && (
+                      <label htmlFor="vehicleFile" className="absolute inset-0 cursor-pointer"></label>
                     )}
                   </div>
                 </div>

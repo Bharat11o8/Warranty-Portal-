@@ -58,6 +58,11 @@ export const ModuleLayout = ({ title, description, children, actions, onMenuTogg
                                 </div>
 
                                 <div className="flex items-center gap-2 md:gap-4 shrink-0">
+                                    <img
+                                        src="/autoform-logo.png"
+                                        alt="Autoform Logo"
+                                        className="md:hidden h-4 sm:h-5 w-auto object-contain mr-2 opacity-90"
+                                    />
                                     {actions}
                                     <div className="h-10 md:h-12 border-l border-slate-100 pl-2 md:pl-4 flex items-center gap-1 md:gap-2">
                                         {/* TODO: Re-enable notifications in Phase 2 */}

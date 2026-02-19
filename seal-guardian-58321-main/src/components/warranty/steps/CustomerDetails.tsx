@@ -112,6 +112,23 @@ const CustomerDetails = ({ formData, updateFormData, onNext, onPrev, isCustomer 
             onChange={(e) => {
               const digitsOnly = e.target.value.replace(/\D/g, '').slice(0, 10);
               updateFormData({ customerMobile: digitsOnly });
+
+              // Conditional uniqueness check for mobile
+              if (digitsOnly.length === 10) {
+                import("@/lib/api").then((api) => {
+                  api.default.get(`/public/warranty/check-uniqueness?phone=${digitsOnly}&type=ev-products`)
+                    .then(res => {
+                      if (!res.data.unique) {
+                        toast({
+                          title: "Already Registered",
+                          description: res.data.message,
+                          variant: "destructive",
+                        });
+                      }
+                    })
+                    .catch(err => console.error("Uniqueness check failed", err));
+                });
+              }
             }}
             required
             maxLength={10}

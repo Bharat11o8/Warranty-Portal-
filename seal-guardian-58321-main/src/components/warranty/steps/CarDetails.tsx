@@ -24,6 +24,23 @@ const CarDetails = ({ formData, updateFormData, onNext, onPrev }: CarDetailsProp
   const handleRegChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const formatted = formatVehicleRegLive(e.target.value);
     updateFormData({ carReg: formatted });
+
+    // Conditional uniqueness check for vehicle registration
+    if (formatted.length >= 6) {
+      import("@/lib/api").then((api) => {
+        api.default.get(`/public/warranty/check-uniqueness?reg=${formatted}&type=ev-products`)
+          .then(res => {
+            if (!res.data.unique) {
+              toast({
+                title: "Vehicle Registered",
+                description: res.data.message,
+                variant: "destructive",
+              });
+            }
+          })
+          .catch(err => console.error("Uniqueness check failed", err));
+      });
+    }
   };
 
   const handleSubmit = (e: React.FormEvent) => {

@@ -132,15 +132,18 @@ export class UIDController {
             }
 
             if (search) {
-                conditions.push('uid LIKE ?');
-                params.push(`%${search}%`);
+                conditions.push('(p.uid LIKE ? OR w.customer_name LIKE ? OR w.registration_number LIKE ?)');
+                const searchTerm = `%${search}%`;
+                params.push(searchTerm, searchTerm, searchTerm);
             }
 
             const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
-            // Get total count
+            // Get total count (using same JOIN for consistency)
             const [countResult]: any = await db.execute(
-                `SELECT COUNT(*) as total FROM pre_generated_uids ${whereClause}`,
+                `SELECT COUNT(*) as total FROM pre_generated_uids p 
+                 LEFT JOIN warranty_registrations w ON p.uid = w.uid 
+                 ${whereClause.replace('uid', 'p.uid').replace('is_used', 'p.is_used')}`,
                 params
             );
             const totalCount = countResult[0].total;
@@ -157,7 +160,18 @@ export class UIDController {
 
             // Get paginated results
             const [uids]: any = await db.execute(
-                `SELECT uid, is_used, used_at, created_at FROM pre_generated_uids ${whereClause} ORDER BY created_at DESC LIMIT ? OFFSET ?`,
+                `SELECT 
+                    p.uid, 
+                    p.is_used, 
+                    p.used_at, 
+                    p.created_at,
+                    w.customer_name,
+                    w.registration_number
+                 FROM pre_generated_uids p
+                 LEFT JOIN warranty_registrations w ON p.uid = w.uid
+                 ${whereClause.replace('uid', 'p.uid').replace('is_used', 'p.is_used')} 
+                 ORDER BY p.created_at DESC 
+                 LIMIT ? OFFSET ?`,
                 [...params, limit, offset]
             );
 
