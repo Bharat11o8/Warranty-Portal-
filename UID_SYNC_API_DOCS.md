@@ -1,9 +1,7 @@
 # UID Sync API
 
 **Version:** v1  
-**Base URL:** `https://autoformindia.com/api`
-
-> ⚠️ The above domain is a **staging/test environment**. The production domain will be shared separately before go-live.
+**Base URL:** `https://server-bharat-maheshwaris-projects.vercel.app/api`
 
 ---
 
@@ -12,7 +10,7 @@
 All requests require an API key via header:
 
 ```
-x-api-key: <your-api-key>
+x-api-key: uid_autoform_man_s3cur3_2026_xK9mP7qW
 ```
 
 ---
