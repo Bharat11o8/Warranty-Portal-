@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>WhatsApp Integration + Warranty OTP — Implementation Plan</title>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, Helvetica, sans-serif;
+            color: #111;
+            line-height: 1.5;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 30px;
+            font-size: 13px;
+        }
+        h1 { font-size: 20px; margin-bottom: 4px; }
+        h2 { font-size: 16px; margin-top: 28px; border-bottom: 1px solid #999; padding-bottom: 4px; }
+        h3 { font-size: 14px; margin-top: 20px; }
+        h4 { font-size: 13px; margin-top: 14px; color: #333; }
+        table { width: 100%; border-collapse: collapse; margin: 10px 0; font-size: 12px; }
+        th, td { border: 1px solid #999; padding: 6px 10px; text-align: left; }
+        th { background: #eee; font-weight: bold; }
+        code { font-family: Consolas, monospace; font-size: 12px; background: #f0f0f0; padding: 1px 4px; }
+        pre { background: #f5f5f5; padding: 12px; border: 1px solid #ccc; font-size: 12px; overflow-x: auto; }
+        pre code { background: none; padding: 0; }
+        ul, ol { margin: 6px 0 6px 20px; }
+        li { margin: 3px 0; }
+        hr { border: none; border-top: 1px solid #ccc; margin: 24px 0; }
+        .note { border: 1px solid #999; padding: 10px 14px; margin: 10px 0; font-size: 12px; }
+        .note strong { display: block; margin-bottom: 2px; }
+        .diagram { text-align: center; margin: 16px 0; }
+        .subtitle { color: #555; font-size: 13px; margin-bottom: 20px; }
+        @media print {
+            body { padding: 10px; }
+            .no-print { display: none; }
+            .page-break { page-break-before: always; }
+        }
+    </style>
+</head>
+<body>
+
+<h1>WhatsApp Integration + Warranty OTP Authorization</h1>
+<div class="subtitle">Seal Guardian Warranty Portal — Internal Implementation Plan — Feb 2026</div>
+
+<button class="no-print" onclick="window.print()" style="padding:8px 20px; cursor:pointer; margin-bottom:20px;">Print / Save as PDF</button>
+
+<!-- REVIEW NOTES -->
+<h2>Review Notes</h2>
+
+<div class="note">
+    <strong>⚠ WhatsApp API Provider</strong>
+    We need to choose: Twilio, Meta Cloud API direct, Gupshup, or Interakt.
+</div>
+<div class="note">
+    <strong>⚠ Template Pre-Approval</strong>
+    All outbound WhatsApp message templates must be pre-approved by Meta (24–48 hrs).
+</div>
+<div class="note">
+    <strong>⚠ Phone Number Format</strong>
+    All phone numbers must be in E.164 format (e.g. +919876543210). Verify DB consistency.
+</div>
+
+<hr>
+
+<!-- COMMUNICATION MAP -->
+<h2>Current Communication Map (17 Touchpoints)</h2>
+
+<table>
+    <tr><th>#</th><th>Touchpoint</th><th>Current</th><th>Controller</th></tr>
+    <tr><td>1</td><td>Login OTP</td><td>Email</td><td>auth</td></tr>
+    <tr><td>2</td><td><strong>🆕 Warranty Submission OTP</strong></td><td><strong>NEW</strong></td><td>warranty / public / vendor</td></tr>
+    <tr><td>3</td><td>Public Registration Welcome</td><td>Email</td><td>public</td></tr>
+    <tr><td>4</td><td>Warranty Submission Confirmation</td><td>Email</td><td>warranty</td></tr>
+    <tr><td>5</td><td>Warranty Approved → Customer</td><td>Email</td><td>admin</td></tr>
+    <tr><td>6</td><td>Warranty Rejected → Customer</td><td>Email</td><td>admin</td></tr>
+    <tr><td>7</td><td>Warranty Approved → Vendor</td><td>Email</td><td>admin</td></tr>
+    <tr><td>8</td><td>Warranty Rejected → Vendor</td><td>Email</td><td>admin</td></tr>
+    <tr><td>9</td><td>Vendor Verification Request</td><td>Email</td><td>auth</td></tr>
+    <tr><td>10</td><td>Vendor Approval Confirmation</td><td>Email</td><td>admin</td></tr>
+    <tr><td>11</td><td>Vendor Rejection Notification</td><td>Email</td><td>admin</td></tr>
+    <tr><td>12</td><td>Vendor Registration Confirmation</td><td>Email</td><td>auth</td></tr>
+    <tr><td>13</td><td>Vendor Installation Confirm</td><td>Email</td><td>vendor</td></tr>
+    <tr><td>14</td><td>Grievance Confirm → Customer</td><td>Email</td><td>grievance</td></tr>
+    <tr><td>15</td><td>Grievance Confirm → Franchise</td><td>Email</td><td>grievance</td></tr>
+    <tr><td>16</td><td>Grievance Assignment → Assignee</td><td>Email</td><td>grievance</td></tr>
+    <tr><td>17</td><td>Admin Invitation</td><td>Email</td><td>admin</td></tr>
+</table>
+
+<hr>
+
+<!-- COMPONENT 0 -->
+<h2>Component 0: Warranty Submission OTP Authorization (NEW)</h2>
+
+<p>A new OTP gate before any warranty is finalized. The customer must verify via WhatsApp OTP regardless of who initiates the registration.</p>
+
+<div class="diagram">
+    <div class="mermaid">
+graph TD
+    S1["Customer scans QR"] --> Fill[Fills warranty form]
+    S2["Franchise registers for customer"] --> Fill
+    S3["Admin registers for customer"] --> Fill
+    Fill --> OTP["System sends OTP to Customer WhatsApp"]
+    OTP --> Wait{Customer enters OTP}
+    Wait -- "Correct" --> Submit["Warranty Submitted"]
+    Wait -- "Wrong/Expired" --> Retry[Retry or Cancel]
+    Retry --> OTP
+    </div>
+</div>
+
+<h4>The 3 Scenarios</h4>
+<table>
+    <tr><th>Scenario</th><th>Who fills?</th><th>OTP sent to?</th><th>Purpose</th></tr>
+    <tr><td>Customer via QR</td><td>Customer</td><td>Customer's WhatsApp</td><td>Confirm identity</td></tr>
+    <tr><td>Franchise on behalf</td><td>Franchise staff</td><td>Customer's WhatsApp</td><td>Prove customer is present</td></tr>
+    <tr><td>Admin on behalf</td><td>Admin staff</td><td>Customer's WhatsApp</td><td>Customer consent</td></tr>
+</table>
+
+<h4>Backend</h4>
+<ul>
+    <li><code>POST /api/warranty/request-otp</code> — generates OTP, sends via WhatsApp</li>
+    <li><code>POST /api/warranty/verify-otp</code> — verifies OTP before allowing submission</li>
+    <li>Submission endpoints reject if OTP not verified for that phone+session</li>
+</ul>
+
+<h4>Frontend</h4>
+<ul>
+    <li><strong>SeatCoverForm.tsx</strong> — Add OTP step before final submit</li>
+    <li><strong>EVProductsForm.tsx</strong> — Add OTP step before final submit</li>
+</ul>
+
+<div class="note">
+    <strong>Anti-Fraud Benefit:</strong> If franchise registers for a customer 100km away, the customer receives the OTP and won't cooperate — flagging the proxy fraud.
+</div>
+
+<hr>
+<div class="page-break"></div>
+
+<!-- COMPONENT 1 -->
+<h2>Component 1: WhatsApp Service (Backend)</h2>
+
+<p><strong>NEW FILE:</strong> <code>whatsapp.service.ts</code></p>
+<ul>
+    <li><code>sendOTP(phone, name, otp)</code> — Login OTP</li>
+    <li><code>sendWarrantySubmissionOTP(phone, name, otp)</code> — Warranty auth OTP</li>
+    <li><code>sendWarrantyConfirmation(phone, name, details)</code> — Submission receipt</li>
+    <li><code>sendWarrantyApproval(phone, name, details)</code> — Approval + cert link</li>
+    <li><code>sendWarrantyRejection(phone, name, reason, details)</code> — Rejection + edit link</li>
+    <li><code>sendInstallationConfirmation(phone, vendor, customer)</code> — Install confirm</li>
+    <li><code>sendGrievanceAssignment(phone, assignee, details)</code> — Assignment notification</li>
+    <li><code>sendGrievanceUpdate(phone, name, ticketId, status)</code> — Status alerts</li>
+    <li><code>sendPublicWelcome(phone, name, warrantyId)</code> — Welcome message</li>
+</ul>
+
+<hr>
+
+<!-- COMPONENT 2 -->
+<h2>Component 2: Environment Variables</h2>
+
+<p><strong>MODIFY:</strong> <code>.env</code></p>
+<pre><code># WhatsApp Business API
+WHATSAPP_API_URL=https://graph.facebook.com/v21.0/&lt;PHONE_NUMBER_ID&gt;/messages
+WHATSAPP_ACCESS_TOKEN=&lt;META_ACCESS_TOKEN&gt;
+WHATSAPP_PHONE_NUMBER_ID=&lt;PHONE_NUMBER_ID&gt;
+WHATSAPP_BUSINESS_ACCOUNT_ID=&lt;WABA_ID&gt;</code></pre>
+
+<hr>
+
+<!-- COMPONENT 3 -->
+<h2>Component 3: WhatsApp Message Templates (9 total)</h2>
+
+<table>
+    <tr><th>Template</th><th>Category</th><th>Variables</th><th>Channel</th></tr>
+    <tr><td><code>login_otp</code></td><td>Auth</td><td>otp</td><td>WhatsApp Only</td></tr>
+    <tr><td><code>warranty_auth_otp</code></td><td>Auth</td><td>otp, product_type, registrant</td><td>WhatsApp Only</td></tr>
+    <tr><td><code>warranty_confirmed</code></td><td>Utility</td><td>name, uid, product, car</td><td>Email + WA</td></tr>
+    <tr><td><code>warranty_approved</code></td><td>Utility</td><td>name, uid, product, cert_link</td><td>Email + WA</td></tr>
+    <tr><td><code>warranty_rejected</code></td><td>Utility</td><td>name, uid, reason, edit_link</td><td>Email + WA</td></tr>
+    <tr><td><code>installation_confirm</code></td><td>Utility</td><td>vendor, customer, car, link</td><td>WhatsApp Only</td></tr>
+    <tr><td><code>grievance_assigned</code></td><td>Utility</td><td>assignee, ticket_id, category</td><td>WhatsApp Only</td></tr>
+    <tr><td><code>grievance_status_update</code></td><td>Utility</td><td>name, ticket_id, status</td><td>WhatsApp Only</td></tr>
+    <tr><td><code>welcome_registration</code></td><td>Marketing</td><td>name, warranty_id</td><td>Email + WA</td></tr>
+</table>
+
+<hr>
+<div class="page-break"></div>
+
+<!-- COMPONENT 4 -->
+<h2>Component 4: Controller Changes</h2>
+
+<h4>auth.controller.ts (MODIFY)</h4>
+<ul>
+    <li>Login OTP → WhatsApp instead of Email</li>
+    <li>Vendor registration → WhatsApp alongside email</li>
+</ul>
+
+<h4>warranty.controller.ts (MODIFY)</h4>
+<ul>
+    <li>NEW: <code>requestWarrantyOTP()</code> → generates OTP, sends via WA</li>
+    <li>NEW: <code>verifyWarrantyOTP()</code> → validates OTP before submission</li>
+    <li>Post-OTP submission → both Email + WhatsApp confirmation</li>
+</ul>
+
+<h4>admin.controller.ts (MODIFY)</h4>
+<ul>
+    <li>Admin-assisted warranty → trigger OTP to customer WA</li>
+    <li>Approval/rejection → both Email + WhatsApp</li>
+</ul>
+
+<h4>vendor.controller.ts (MODIFY)</h4>
+<ul>
+    <li>Franchise-assisted warranty → trigger OTP to customer WA</li>
+    <li>Installation confirmation → WhatsApp only</li>
+</ul>
+
+<h4>grievance.controller.ts (MODIFY)</h4>
+<ul>
+    <li>Assignment + status updates → WhatsApp only</li>
+</ul>
+
+<h4>public.controller.ts (MODIFY)</h4>
+<ul>
+    <li>QR-scan registration → trigger OTP to customer WA</li>
+    <li>Welcome → both Email + WhatsApp</li>
+</ul>
+
+<h4>SeatCoverForm.tsx & EVProductsForm.tsx (MODIFY)</h4>
+<ul>
+    <li>Add OTP verification step: Phone entered → "Send OTP" → OTP input → Submit</li>
+</ul>
+
+<hr>
+
+<!-- COMPONENT 5 -->
+<h2>Component 5: Message Logging Table</h2>
+
+<p><strong>NEW:</strong> <code>message_logs</code> table</p>
+<pre><code>CREATE TABLE message_logs (
+  id              VARCHAR(36) PRIMARY KEY,
+  recipient_phone VARCHAR(15),
+  recipient_email VARCHAR(255),
+  channel         ENUM('email','whatsapp','both'),
+  template_name   VARCHAR(100),
+  status          ENUM('sent','delivered','read','failed'),
+  context         VARCHAR(100),
+  reference_id    VARCHAR(36),
+  error_message   TEXT,
+  created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);</code></pre>
+
+<hr>
+
+<!-- COMPONENT 6 -->
+<h2>Component 6: Channel Decision Matrix</h2>
+
+<div class="diagram">
+    <div class="mermaid">
+graph TD
+    E((Event)) --> D{Channel?}
+    D -- "Login OTP" --> W1[WhatsApp Only]
+    D -- "Warranty Auth OTP" --> W2[WhatsApp Only]
+    D -- "Warranty Confirmed" --> B1[Email + WhatsApp]
+    D -- "Warranty Approved/Rejected" --> B2[Email + WhatsApp]
+    D -- "Installation Confirm" --> W3[WhatsApp Only]
+    D -- "Grievance Assignment" --> W4[WhatsApp Only]
+    D -- "Grievance Status" --> W5[WhatsApp Only]
+    D -- "Admin Invitation" --> E1[Email Only]
+    D -- "Vendor Verification" --> E2[Email Only]
+    </div>
+</div>
+
+<hr>
+
+<!-- COMPONENT 7 -->
+<h2>Component 7: Case Studies</h2>
+
+<p><strong>NEW FILE:</strong> <code>CASE_STUDIES.md</code></p>
+<ol>
+    <li>Customer Journey: QR Scan → Registration → Approval → Certificate</li>
+    <li>Franchise Operations: Team Setup → Assisted Registration → POSM</li>
+    <li>Grievance Resolution: Ticket → Assignment → Resolution → Rating</li>
+    <li>Fraud Prevention: Cross-selling detection & visual verification</li>
+    <li>Communication Efficiency: Email vs WhatsApp delivery & read rates</li>
+</ol>
+
+<hr>
+<div class="page-break"></div>
+
+<!-- VERIFICATION -->
+<h2>Verification Plan</h2>
+
+<h4>Automated Tests</h4>
+<ul>
+    <li>Unit tests for WhatsAppService (mocked API)</li>
+    <li>Integration: warranty approval → verify both Email + WA called</li>
+    <li>E.164 phone formatting for Indian numbers</li>
+    <li>Warranty submission blocked without OTP verification</li>
+</ul>
+
+<h4>Manual Tests</h4>
+<ul>
+    <li>Submit templates to Meta for approval</li>
+    <li>Send test OTP via WhatsApp</li>
+    <li><strong>Customer flow:</strong> QR scan → form → OTP on WA → enter OTP → submitted</li>
+    <li><strong>Franchise flow:</strong> Fill form → customer gets OTP → enter OTP → submitted</li>
+    <li><strong>Admin flow:</strong> Fill form → customer gets OTP → enter OTP → submitted</li>
+    <li>Warranty approval → both Email + WA delivered</li>
+    <li>Grievance assignment → WA only</li>
+    <li>Fallback: if WA fails, email still sent</li>
+</ul>
+
+<hr>
+
+<p style="text-align:center; color:#666; font-size:11px; margin-top:30px;">
+    Seal Guardian — Autoform India — Internal Document — Feb 2026
+</p>
+
+<script>
+    mermaid.initialize({ startOnLoad: true, theme: 'neutral' });
+</script>
+</body>
+</html>

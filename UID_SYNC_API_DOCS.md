@@ -1,21 +1,29 @@
-# UID Sync API — Integration Guide (Autoform India Pvt. Ltd.)
+# UID Sync API
 
-Use this API to sync pre-generated UIDs into the Autoform Warranty System.
+**Version:** v1  
+**Base URL:** `https://autoformindia.com/api`
 
-## Endpoint
-**URL:** `https://autoformindia.com/api/uid/sync`  
-**Method:** `POST`
+> ⚠️ The above domain is a **staging/test environment**. The production domain will be shared separately before go-live.
 
 ---
 
 ## Authentication
-Add the following header to all requests:
-- `x-api-key`: `sg-uid-sync-a7f3b9e2d4c1089562fe`
-  
+
+All requests require an API key via header:
+
+```
+x-api-key: <your-api-key>
+```
+
 ---
 
-## Request Body
-**Content-Type:** `application/json`
+## Endpoints
+
+### `POST /uid/sync`
+
+Batch sync pre-generated UIDs.
+
+**Request:**
 
 ```json
 {
@@ -23,13 +31,12 @@ Add the following header to all requests:
 }
 ```
 
-- **uids**: Array of strings. 
-- **Format**: Digits only (0-9), Length: 13 to 16 characters.
+| Field | Type | Description |
+|-------|------|-------------|
+| `uids` | `string[]` | Array of UIDs. Each must be **13–16 digits**, numeric only. |
 
----
+**Response `200`:**
 
-## Response
-**Success (200):**
 ```json
 {
   "success": true,
@@ -42,13 +49,17 @@ Add the following header to all requests:
 ```
 
 **Errors:**
-- `400`: Invalid format or empty list.
-- `401`: Missing or invalid API key.
-- `500`: System failure.
+
+| Code | Reason |
+|------|--------|
+| `400` | Invalid UID format or empty array |
+| `401` | Missing/invalid API key |
+| `500` | Internal server error |
 
 ---
 
-## Key Notes
-1. **Idempotent**: Safe to re-send the same UIDs; duplicates are skipped.
-2. **Batching**: Recommended batch size is up to **5,000 UIDs** per request.
-3. **Daily Sync**: Sending data once per day or batch is recommended.
+## Notes
+
+- **Idempotent** — Duplicate UIDs are skipped, safe to retry.
+- **Batch limit** — Up to **5,000 UIDs** per request.
+- **Format** — Digits only (`0-9`), length 13–16 characters.
