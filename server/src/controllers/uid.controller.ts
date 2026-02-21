@@ -59,13 +59,9 @@ export class UIDController {
             }
 
             // Step 2: Check database for existing UIDs and their usage status
-            // We use a JOIN to get warranty info if it exists
             const placeholders = validUidsInRequest.map(() => '?').join(',');
             const [existingRows]: any = await db.execute(
-                `SELECT p.uid, p.is_used, p.used_at, w.customer_name, w.registration_number 
-                 FROM pre_generated_uids p 
-                 LEFT JOIN warranty_registrations w ON p.uid = w.uid 
-                 WHERE p.uid IN (${placeholders})`,
+                `SELECT uid, is_used, used_at FROM pre_generated_uids WHERE uid IN (${placeholders})`,
                 validUidsInRequest
             );
 
@@ -85,11 +81,7 @@ export class UIDController {
                             uid,
                             status: 'already_exists_used',
                             message: 'UID is already registered to a warranty',
-                            info: {
-                                customer_name: existing.customer_name,
-                                registration_number: existing.registration_number,
-                                used_at: existing.used_at
-                            }
+                            used_at: existing.used_at
                         });
                         stats.already_exists_used++;
                     } else {

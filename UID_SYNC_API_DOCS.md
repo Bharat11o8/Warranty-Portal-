@@ -74,11 +74,7 @@ The system returns a high-level summary and detailed info for **every** UID in t
       "uid": "23101002211187", 
       "status": "already_exists_used", 
       "message": "UID is already registered to a warranty",
-      "info": {
-        "customer_name": "Rahul Sharma",
-        "registration_number": "HR26AB1234",
-        "used_at": "2026-02-15 14:30:00"
-      }
+      "used_at": "2026-02-15 14:30:00"
     },
     { "uid": "ABC123", "status": "invalid_format", "message": "UID must be a 13-16 digit number" }
   ]
