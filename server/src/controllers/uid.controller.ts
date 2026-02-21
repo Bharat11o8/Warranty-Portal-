@@ -7,58 +7,145 @@ export class UIDController {
      * Requires API key in the x-api-key header.
      */
     static async syncUIDs(req: Request, res: Response) {
+        let connection;
         try {
             const { uids } = req.body;
 
+            // Case 6: Batch Size Limit
+            const MAX_BATCH_SIZE = 1000;
             if (!uids || !Array.isArray(uids) || uids.length === 0) {
                 return res.status(400).json({ error: 'uids must be a non-empty array of strings' });
             }
-
-            // Validate each UID format (13-16 digit numbers)
-            const invalidUIDs = uids.filter((uid: string) => !/^\d{13,16}$/.test(uid));
-            if (invalidUIDs.length > 0) {
-                return res.status(400).json({
-                    error: 'Some UIDs have invalid format. UIDs must be 13-16 digit numbers.',
-                    invalidUIDs: invalidUIDs.slice(0, 10) // Show first 10 invalid ones
-                });
+            if (uids.length > MAX_BATCH_SIZE) {
+                return res.status(400).json({ error: `Batch size exceeds limit of ${MAX_BATCH_SIZE} UIDs` });
             }
 
             const timestamp = getISTTimestamp();
-            let inserted = 0;
-            let duplicates = 0;
+            const results: any[] = [];
+            const stats = {
+                total_received: uids.length,
+                inserted: 0,
+                already_exists_available: 0,
+                already_exists_used: 0,
+                invalid_format: 0,
+                duplicate_in_request: 0
+            };
 
-            // Batch insert with INSERT IGNORE to skip duplicates
-            // Process in chunks of 100 to avoid query size limits
-            const chunkSize = 100;
-            for (let i = 0; i < uids.length; i += chunkSize) {
-                const chunk = uids.slice(i, i + chunkSize);
-                const placeholders = chunk.map(() => '(?, FALSE, NULL, ?)').join(', ');
-                const values = chunk.flatMap((uid: string) => [uid, timestamp]);
+            const processedInBatch = new Set<string>();
+            const validUidsInRequest: string[] = [];
 
-                const [result]: any = await db.execute(
-                    `INSERT IGNORE INTO pre_generated_uids (uid, is_used, used_at, created_at) VALUES ${placeholders}`,
-                    values
-                );
+            // Step 1: Basic validation and intra-batch duplicate check
+            for (const uid of uids) {
+                // Case 4: Invalid Format
+                if (typeof uid !== 'string' || !/^\d{13,16}$/.test(uid)) {
+                    results.push({ uid, status: 'invalid_format', message: 'UID must be a 13-16 digit number' });
+                    stats.invalid_format++;
+                    continue;
+                }
 
-                inserted += result.affectedRows;
+                // Case 5: Duplicate in Request
+                if (processedInBatch.has(uid)) {
+                    results.push({ uid, status: 'duplicate_in_request', message: 'UID appears multiple times in this request' });
+                    stats.duplicate_in_request++;
+                    continue;
+                }
+
+                processedInBatch.add(uid);
+                validUidsInRequest.push(uid);
             }
 
-            duplicates = uids.length - inserted;
+            if (validUidsInRequest.length === 0) {
+                return res.json({ success: true, message: 'No valid UIDs to process', stats, details: results });
+            }
 
-            console.log(`✓ UID Sync: ${inserted} inserted, ${duplicates} duplicates skipped`);
+            // Step 2: Check database for existing UIDs and their usage status
+            // We use a JOIN to get warranty info if it exists
+            const placeholders = validUidsInRequest.map(() => '?').join(',');
+            const [existingRows]: any = await db.execute(
+                `SELECT p.uid, p.is_used, p.used_at, w.customer_name, w.registration_number 
+                 FROM pre_generated_uids p 
+                 LEFT JOIN warranty_registrations w ON p.uid = w.uid 
+                 WHERE p.uid IN (${placeholders})`,
+                validUidsInRequest
+            );
+
+            const existingMap = new Map();
+            existingRows.forEach((row: any) => existingMap.set(row.uid, row));
+
+            const uidsToInsert: string[] = [];
+
+            // Step 3: Categorize UIDs
+            for (const uid of validUidsInRequest) {
+                const existing = existingMap.get(uid);
+
+                if (existing) {
+                    if (existing.is_used) {
+                        // Case 3: Already Exists (Used)
+                        results.push({
+                            uid,
+                            status: 'already_exists_used',
+                            message: 'UID is already registered to a warranty',
+                            info: {
+                                customer_name: existing.customer_name,
+                                registration_number: existing.registration_number,
+                                used_at: existing.used_at
+                            }
+                        });
+                        stats.already_exists_used++;
+                    } else {
+                        // Case 2: Already Exists (Available)
+                        results.push({
+                            uid,
+                            status: 'already_exists_available',
+                            message: 'UID already exists in the system and is available'
+                        });
+                        stats.already_exists_available++;
+                    }
+                } else {
+                    uidsToInsert.push(uid);
+                }
+            }
+
+            // Step 4: Batch insert new UIDs
+            if (uidsToInsert.length > 0) {
+                connection = await db.getConnection();
+                await connection.beginTransaction();
+
+                const insertPlaceholders = uidsToInsert.map(() => '(?, FALSE, NULL, ?)').join(', ');
+                const insertValues = uidsToInsert.flatMap(uid => [uid, timestamp]);
+
+                await connection.execute(
+                    `INSERT INTO pre_generated_uids (uid, is_used, used_at, created_at) VALUES ${insertPlaceholders}`,
+                    insertValues
+                );
+
+                await connection.commit();
+
+                // Case 1: New (Inserted)
+                uidsToInsert.forEach(uid => {
+                    results.push({
+                        uid,
+                        status: 'inserted',
+                        message: 'UID successfully synced'
+                    });
+                });
+                stats.inserted += uidsToInsert.length;
+            }
+
+            console.log(`✓ UID Sync Complete: ${stats.inserted} new, ${stats.already_exists_available} existing, ${stats.already_exists_used} used`);
 
             res.json({
                 success: true,
-                message: `${inserted} UIDs synced successfully`,
-                stats: {
-                    total_received: uids.length,
-                    inserted,
-                    duplicates_skipped: duplicates
-                }
+                message: `Processed ${uids.length} UIDs`,
+                stats,
+                details: results
             });
         } catch (error: any) {
+            if (connection) await connection.rollback();
             console.error('Sync UIDs error:', error);
             res.status(500).json({ error: 'Failed to sync UIDs' });
+        } finally {
+            if (connection) connection.release();
         }
     }
 
