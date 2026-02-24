@@ -21,6 +21,12 @@ import {
 import { useAuth } from "@/contexts/AuthContext";
 import { useNotifications } from "@/contexts/NotificationContext";
 import { Button } from "@/components/ui/button";
+import {
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 export type AdminModule =
     | 'overview'
@@ -50,54 +56,62 @@ interface SidebarItemProps {
     isCollapsed?: boolean;
 }
 
-const SidebarItem = ({ icon: Icon, label, active, onClick, badge, isCollapsed }: SidebarItemProps) => (
-    <button
-        onClick={onClick}
-        className={cn(
-            "w-full flex items-center transition-all duration-300 group relative",
-            isCollapsed ? "h-12 px-0 justify-center rounded-2xl" : "h-11 px-3 gap-3 rounded-[32px] hover:translate-x-1",
-            active
-                ? "text-orange-600 bg-orange-50 border border-orange-100"
-                : "text-slate-500 hover:bg-slate-50 border border-transparent"
-        )}
-    >
-        <div className={cn(
-            "flex items-center justify-center shrink-0 transition-all duration-300",
-            isCollapsed ? "h-10 w-10 rounded-xl" : "h-9 w-9 rounded-xl",
-            active
-                ? "bg-orange-100 border border-orange-200 text-orange-600"
-                : "bg-slate-100 text-slate-400 group-hover:text-orange-500 group-hover:bg-orange-50"
-        )}>
-            <Icon className={cn("transition-transform duration-300", isCollapsed ? "h-5 w-5" : "h-4 w-4", "group-hover:scale-110")} />
-        </div>
-
-        {!isCollapsed && (
-            <div className="flex-1 flex items-center justify-between min-w-0">
-                <span className="font-bold text-xs tracking-tight truncate">{label}</span>
-                {badge && (
-                    <div className="flex h-5 min-w-[20px] items-center justify-center rounded-full bg-orange-500 px-1 text-[10px] font-black text-white shadow-sm ring-2 ring-white">
-                        {badge}
-                    </div>
-                )}
+const SidebarItem = ({ icon: Icon, label, active, onClick, badge, isCollapsed }: SidebarItemProps) => {
+    const item = (
+        <button
+            onClick={onClick}
+            className={cn(
+                "w-full flex items-center transition-all duration-300 group relative",
+                isCollapsed ? "h-12 px-0 justify-center rounded-2xl" : "h-11 px-3 gap-3 rounded-[32px] hover:translate-x-1",
+                active
+                    ? "text-orange-600 bg-orange-50 border border-orange-100"
+                    : "text-slate-500 hover:bg-slate-50 border border-transparent"
+            )}
+        >
+            <div className={cn(
+                "flex items-center justify-center shrink-0 transition-all duration-300",
+                isCollapsed ? "h-10 w-10 rounded-xl" : "h-9 w-9 rounded-xl",
+                active
+                    ? "bg-orange-100 border border-orange-200 text-orange-600"
+                    : "bg-slate-100 text-slate-400 group-hover:text-orange-500 group-hover:bg-orange-50"
+            )}>
+                <Icon className={cn("transition-transform duration-300", isCollapsed ? "h-5 w-5" : "h-4 w-4", "group-hover:scale-110")} />
             </div>
-        )}
 
-        {isCollapsed && (
-            <>
-                {badge && (
-                    <div className="absolute top-1 right-1 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-orange-500 text-[8px] font-black text-white shadow-sm ring-1 ring-white">
-                        {badge}
-                    </div>
-                )}
-                {/* Floating Tooltip/Label on Hover */}
-                <div className="absolute left-[calc(100%+16px)] px-4 py-2 bg-white text-slate-700 text-[10px] font-bold uppercase tracking-widest rounded-xl opacity-0 pointer-events-none group-hover:opacity-100 transition-all duration-300 whitespace-nowrap z-[100] shadow-[0_10px_40px_rgba(0,0,0,0.08)] border border-orange-100 translate-x-1 group-hover:translate-x-0">
-                    {label}
-                    <div className="absolute right-full top-1/2 -translate-y-1/2 border-[6px] border-transparent border-r-white filter drop-shadow-[-1px_0_0_rgb(255,237,213)]" />
+            {!isCollapsed && (
+                <div className="flex-1 flex items-center justify-between min-w-0">
+                    <span className="font-bold text-xs tracking-tight truncate">{label}</span>
+                    {badge && (
+                        <div className="flex h-5 min-w-[20px] items-center justify-center rounded-full bg-orange-500 px-1 text-[10px] font-black text-white shadow-sm ring-2 ring-white">
+                            {badge}
+                        </div>
+                    )}
                 </div>
-            </>
-        )}
-    </button>
-);
+            )}
+
+            {isCollapsed && badge && (
+                <div className="absolute top-1 right-1 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-orange-500 text-[8px] font-black text-white shadow-sm ring-1 ring-white">
+                    {badge}
+                </div>
+            )}
+        </button>
+    );
+
+    if (isCollapsed) {
+        return (
+            <Tooltip delayDuration={0}>
+                <TooltipTrigger asChild>
+                    {item}
+                </TooltipTrigger>
+                <TooltipContent side="right" className="bg-white text-slate-700 text-[10px] font-bold uppercase tracking-widest rounded-xl px-4 py-2 border border-orange-100 shadow-[0_10px_40px_rgba(0,0,0,0.08)]">
+                    {label}
+                </TooltipContent>
+            </Tooltip>
+        );
+    }
+
+    return item;
+};
 
 interface AdminSidebarProps {
     activeModule: AdminModule;
@@ -176,107 +190,117 @@ export const SidebarContent = ({
     ];
 
     return (
-        <div className="flex flex-col h-full bg-white">
-            {/* Brand Logo & Collapse Toggle */}
-            <div className="flex h-24 items-center px-6 border-b border-orange-50 justify-between shrink-0">
-                {!isCollapsed && (
-                    <div className="flex items-center gap-3 animate-in-fade">
-                        <img
-                            src="/autoform-logo.png"
-                            alt="Autoform"
-                            className="h-12 w-auto object-contain"
-                        />
-                        <div className="min-w-0 hidden">
-                            <h1 className="font-black text-lg leading-tight tracking-tight text-slate-800 truncate">Autoform</h1>
-                            <p className="text-[10px] uppercase font-bold text-orange-500 tracking-widest leading-none">Admin</p>
-                        </div>
-                    </div>
-                )}
-
-                {onToggleCollapse && (
-                    <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={onToggleCollapse}
-                        className={cn(
-                            "h-10 w-10 bg-slate-50 text-slate-400 hover:text-orange-500 transition-all rounded-xl",
-                            isCollapsed && "mx-auto"
-                        )}
-                    >
-                        {isCollapsed ? <ChevronRight className="h-5 w-5" /> : <ChevronLeft className="h-5 w-5" />}
-                    </Button>
-                )}
-            </div>
-
-            {/* Nav Items */}
-            <nav className={cn(
-                "flex-1 px-4 py-8 space-y-10",
-                isCollapsed ? "overflow-visible" : "overflow-y-auto custom-scrollbar"
-            )}>
-                {menuGroups.map((group) => (
-                    <div key={group.label} className="space-y-4">
-                        {!isCollapsed && (
-                            <h2 className="px-4 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 animate-in-fade">
-                                {group.label}
-                            </h2>
-                        )}
-                        <div className="space-y-2">
-                            {group.items.map((item: any) => (
-                                <SidebarItem
-                                    key={item.id}
-                                    icon={item.icon}
-                                    label={item.label}
-                                    active={activeModule === item.id}
-                                    onClick={() => onModuleChange(item.id)}
-                                    isCollapsed={isCollapsed}
-                                    badge={item.badge}
-                                />
-                            ))}
-                        </div>
-                    </div>
-                ))}
-            </nav>
-
-            {/* Profile Section */}
-            <div className="p-3 border-t border-orange-50 space-y-2 shrink-0 overflow-visible">
-                <div
-                    onClick={() => onModuleChange('profile')}
-                    className={cn(
-                        "flex items-center rounded-2xl bg-slate-50 border border-slate-100 transition-all duration-300 hover:border-orange-200 hover:bg-orange-50 cursor-pointer group relative",
-                        isCollapsed ? "p-2 justify-center" : "p-3 gap-3"
-                    )}
-                >
-                    <div className="w-10 h-10 shrink-0 rounded-xl bg-slate-900 flex items-center justify-center text-white border border-slate-700">
-                        <User className="h-5 w-5" />
-                    </div>
+        <TooltipProvider>
+            <div className="flex flex-col h-full bg-white">
+                {/* Brand Logo & Collapse Toggle */}
+                <div className="flex h-24 items-center px-6 border-b border-orange-50 justify-between shrink-0">
                     {!isCollapsed && (
-                        <div className="flex-1 min-w-0 animate-in-fade">
-                            <p className="text-xs font-black text-slate-800 truncate uppercase mt-0.5">{user?.name || "Administrator"}</p>
-                            <p className="text-[10px] font-bold text-orange-500 tracking-tighter truncate uppercase leading-none">Super Admin</p>
+                        <div className="flex items-center gap-3 animate-in-fade">
+                            <img
+                                src="/autoform-logo.png"
+                                alt="Autoform"
+                                className="h-12 w-auto object-contain"
+                            />
+                            <div className="min-w-0 hidden">
+                                <h1 className="font-black text-lg leading-tight tracking-tight text-slate-800 truncate">Autoform</h1>
+                                <p className="text-[10px] uppercase font-bold text-orange-500 tracking-widest leading-none">Admin</p>
+                            </div>
                         </div>
+                    )}
+
+                    {onToggleCollapse && (
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={onToggleCollapse}
+                            className={cn(
+                                "h-10 w-10 bg-slate-50 text-slate-400 hover:text-orange-500 transition-all rounded-xl",
+                                isCollapsed && "mx-auto"
+                            )}
+                        >
+                            {isCollapsed ? <ChevronRight className="h-5 w-5" /> : <ChevronLeft className="h-5 w-5" />}
+                        </Button>
                     )}
                 </div>
 
-                <Button
-                    variant="ghost"
-                    className={cn(
-                        "w-full h-10 transition-all text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-2xl group relative",
-                        isCollapsed ? "justify-center px-0" : "justify-start gap-3 px-4"
-                    )}
-                    onClick={logout}
-                >
-                    <LogOut className="h-5 w-5" />
-                    {!isCollapsed && <span className="font-bold text-xs">Sign Out</span>}
-
-                    {isCollapsed && (
-                        <div className="absolute left-[calc(100%+16px)] px-4 py-2 bg-white text-red-600 text-[10px] font-bold uppercase tracking-widest rounded-xl opacity-0 pointer-events-none group-hover:opacity-100 transition-all duration-300 whitespace-nowrap z-[100] shadow-[0_10px_40px_rgba(220,38,38,0.08)] border border-red-100 translate-x-1 group-hover:translate-x-0">
-                            Sign Out
-                            <div className="absolute right-full top-1/2 -translate-y-1/2 border-[6px] border-transparent border-r-white filter drop-shadow-[-1px_0_0_rgb(fee2e2)]" />
+                {/* Nav Items - Always scrollable now */}
+                <nav className="flex-1 px-4 py-8 space-y-10 overflow-y-auto custom-scrollbar">
+                    {menuGroups.map((group) => (
+                        <div key={group.label} className="space-y-4">
+                            {!isCollapsed && (
+                                <h2 className="px-4 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 animate-in-fade">
+                                    {group.label}
+                                </h2>
+                            )}
+                            <div className="space-y-2">
+                                {group.items.map((item: any) => (
+                                    <SidebarItem
+                                        key={item.id}
+                                        icon={item.icon}
+                                        label={item.label}
+                                        active={activeModule === item.id}
+                                        onClick={() => onModuleChange(item.id)}
+                                        isCollapsed={isCollapsed}
+                                        badge={item.badge}
+                                    />
+                                ))}
+                            </div>
                         </div>
-                    )}
-                </Button>
+                    ))}
+                </nav>
+
+                {/* Profile Section */}
+                <div className="p-3 border-t border-orange-50 space-y-2 shrink-0 overflow-visible">
+                    <Tooltip delayDuration={0}>
+                        <TooltipTrigger asChild>
+                            <div
+                                onClick={() => onModuleChange('profile')}
+                                className={cn(
+                                    "flex items-center rounded-2xl bg-slate-50 border border-slate-100 transition-all duration-300 hover:border-orange-200 hover:bg-orange-50 cursor-pointer group relative",
+                                    isCollapsed ? "p-2 justify-center" : "p-3 gap-3"
+                                )}
+                            >
+                                <div className="w-10 h-10 shrink-0 rounded-xl bg-slate-900 flex items-center justify-center text-white border border-slate-700">
+                                    <User className="h-5 w-5" />
+                                </div>
+                                {!isCollapsed && (
+                                    <div className="flex-1 min-w-0 animate-in-fade">
+                                        <p className="text-xs font-black text-slate-800 truncate uppercase mt-0.5">{user?.name || "Administrator"}</p>
+                                        <p className="text-[10px] font-bold text-orange-500 tracking-tighter truncate uppercase leading-none">Super Admin</p>
+                                    </div>
+                                )}
+                            </div>
+                        </TooltipTrigger>
+                        {isCollapsed && (
+                            <TooltipContent side="right" className="bg-white text-slate-700 text-[10px] font-bold uppercase tracking-widest rounded-xl px-4 py-2 border border-orange-100 shadow-[0_10px_40px_rgba(0,0,0,0.08)]">
+                                View Profile
+                            </TooltipContent>
+                        )}
+                    </Tooltip>
+
+                    <Tooltip delayDuration={0}>
+                        <TooltipTrigger asChild>
+                            <Button
+                                variant="ghost"
+                                className={cn(
+                                    "w-full h-10 transition-all text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-2xl group relative",
+                                    isCollapsed ? "justify-center px-0" : "justify-start gap-3 px-4"
+                                )}
+                                onClick={logout}
+                            >
+                                <LogOut className="h-5 w-5" />
+                                {!isCollapsed && <span className="font-bold text-xs">Sign Out</span>}
+                            </Button>
+                        </TooltipTrigger>
+                        {isCollapsed && (
+                            <TooltipContent side="right" className="bg-white text-red-600 text-[10px] font-bold uppercase tracking-widest rounded-xl px-4 py-2 border border-red-100 shadow-[0_10px_40px_rgba(220,38,38,0.08)]">
+                                Sign Out
+                            </TooltipContent>
+                        )}
+                    </Tooltip>
+                </div>
             </div>
-        </div>
+        </TooltipProvider>
     );
 };
 
