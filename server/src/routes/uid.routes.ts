@@ -39,5 +39,7 @@ router.get('/', authenticateToken, requireRole('admin'), UIDController.getAllUID
 router.post('/add', authenticateToken, requireRole('admin'), UIDController.addUID);
 // DELETE /api/uid/:uid — Delete an unused UID
 router.delete('/:uid', authenticateToken, requireRole('admin'), UIDController.deleteUID);
+// GET /api/uid/:uid/details — Get full UID details with warranty spec sheet
+router.get('/:uid/details', authenticateToken, requireRole('admin'), UIDController.getUIDDetails);
 
 export default router;

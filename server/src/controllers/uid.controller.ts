@@ -36,9 +36,9 @@ export class UIDController {
 
             // Step 1: Basic validation and intra-batch duplicate check
             for (const uid of uids) {
-                // Case 4: Invalid Format
-                if (typeof uid !== 'string' || !/^\d{13,22}$/.test(uid)) {
-                    results.push({ uid, status: 'invalid_format', message: 'UID must be a 13-22 digit number' });
+                // Case 4: Invalid Format (API Sync allows alphanumeric for legacy support)
+                if (typeof uid !== 'string' || !/^[a-zA-Z0-9]{13,22}$/.test(uid)) {
+                    results.push({ uid, status: 'invalid_format', message: 'UID must be a 13-22 character alphanumeric string' });
                     stats.invalid_format++;
                     continue;
                 }
@@ -103,11 +103,11 @@ export class UIDController {
                 connection = await db.getConnection();
                 await connection.beginTransaction();
 
-                const insertPlaceholders = uidsToInsert.map(() => '(?, FALSE, NULL, ?)').join(', ');
+                const insertPlaceholders = uidsToInsert.map(() => '(?, FALSE, NULL, ?, \'api_sync\')').join(', ');
                 const insertValues = uidsToInsert.flatMap(uid => [uid, timestamp]);
 
                 await connection.execute(
-                    `INSERT INTO pre_generated_uids (uid, is_used, used_at, created_at) VALUES ${insertPlaceholders}`,
+                    `INSERT INTO pre_generated_uids (uid, is_used, used_at, created_at, source) VALUES ${insertPlaceholders}`,
                     insertValues
                 );
 
@@ -191,7 +191,7 @@ export class UIDController {
     }
 
     /**
-     * Admin API: Get all UIDs with pagination, filtering, and search.
+     * Admin API: Get all UIDs with pagination, filtering, search, and sorting.
      */
     static async getAllUIDs(req: Request, res: Response) {
         try {
@@ -199,15 +199,23 @@ export class UIDController {
             const limit = parseInt(req.query.limit as string) || 30;
             const offset = (page - 1) * limit;
             const status = req.query.status as string; // 'available', 'used', 'all'
+            const source = req.query.source as string; // 'api_sync', 'manual', 'legacy_migration', 'unknown', 'all'
             const search = req.query.search as string;
+            const sort = req.query.sort as string || 'created_at'; // 'created_at', 'used_at', 'source'
+            const order = req.query.order as string || 'desc'; // 'asc', 'desc'
 
             let conditions: string[] = [];
             let params: any[] = [];
 
             if (status === 'available') {
-                conditions.push('is_used = FALSE');
+                conditions.push('p.is_used = FALSE');
             } else if (status === 'used') {
-                conditions.push('is_used = TRUE');
+                conditions.push('p.is_used = TRUE');
+            }
+
+            if (source && source !== 'all') {
+                conditions.push('p.source = ?');
+                params.push(source);
             }
 
             if (search) {
@@ -218,38 +226,61 @@ export class UIDController {
 
             const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
-            // Get total count (using same JOIN for consistency)
+            // Validate sort column to prevent SQL injection
+            const allowedSorts: Record<string, string> = {
+                'created_at': 'p.created_at',
+                'used_at': 'p.used_at',
+                'source': 'p.source'
+            };
+            const sortColumn = allowedSorts[sort] || 'p.created_at';
+            const sortOrder = order === 'asc' ? 'ASC' : 'DESC';
+
+            // Get total count
             const [countResult]: any = await db.execute(
                 `SELECT COUNT(*) as total FROM pre_generated_uids p 
                  LEFT JOIN warranty_registrations w ON p.uid = w.uid 
-                 ${whereClause.replace('uid', 'p.uid').replace('is_used', 'p.is_used')}`,
+                 ${whereClause}`,
                 params
             );
             const totalCount = countResult[0].total;
             const totalPages = Math.ceil(totalCount / limit);
 
-            // Get stats
+            // Get stats (includes source breakdown)
             const [statsResult]: any = await db.execute(
                 `SELECT 
-          COUNT(*) as total,
-          SUM(CASE WHEN is_used = FALSE THEN 1 ELSE 0 END) as available,
-          SUM(CASE WHEN is_used = TRUE THEN 1 ELSE 0 END) as used
-        FROM pre_generated_uids`
+                    COUNT(*) as total,
+                    SUM(CASE WHEN is_used = FALSE THEN 1 ELSE 0 END) as available,
+                    SUM(CASE WHEN is_used = TRUE THEN 1 ELSE 0 END) as used,
+                    SUM(CASE WHEN source = 'api_sync' THEN 1 ELSE 0 END) as synced,
+                    SUM(CASE WHEN source = 'manual' THEN 1 ELSE 0 END) as manual_count,
+                    SUM(CASE WHEN source = 'legacy_migration' THEN 1 ELSE 0 END) as legacy_count
+                FROM pre_generated_uids`
             );
 
-            // Get paginated results
+            // Get paginated results with expanded warranty data
             const [uids]: any = await db.execute(
                 `SELECT 
                     p.uid, 
                     p.is_used, 
                     p.used_at, 
                     p.created_at,
+                    p.source,
                     w.customer_name,
-                    w.registration_number
+                    w.customer_email,
+                    w.customer_phone,
+                    w.registration_number,
+                    w.product_type,
+                    w.warranty_type,
+                    w.status as warranty_status,
+                    w.purchase_date,
+                    w.product_details,
+                    w.installer_name,
+                    w.installer_contact,
+                    w.car_year
                  FROM pre_generated_uids p
                  LEFT JOIN warranty_registrations w ON p.uid = w.uid
-                 ${whereClause.replace('uid', 'p.uid').replace('is_used', 'p.is_used')} 
-                 ORDER BY p.created_at DESC 
+                 ${whereClause} 
+                 ORDER BY ${sortColumn} ${sortOrder} 
                  LIMIT ? OFFSET ?`,
                 [...params, limit, offset]
             );
@@ -260,7 +291,10 @@ export class UIDController {
                 stats: {
                     total: Number(statsResult[0].total),
                     available: Number(statsResult[0].available),
-                    used: Number(statsResult[0].used)
+                    used: Number(statsResult[0].used),
+                    synced: Number(statsResult[0].synced),
+                    manual_count: Number(statsResult[0].manual_count),
+                    legacy_count: Number(statsResult[0].legacy_count)
                 },
                 pagination: {
                     currentPage: page,
@@ -300,7 +334,7 @@ export class UIDController {
 
             const timestamp = getISTTimestamp();
             await db.execute(
-                'INSERT INTO pre_generated_uids (uid, is_used, used_at, created_at) VALUES (?, FALSE, NULL, ?)',
+                'INSERT INTO pre_generated_uids (uid, is_used, used_at, created_at, source) VALUES (?, FALSE, NULL, ?, \'manual\')',
                 [uid, timestamp]
             );
 
@@ -351,6 +385,39 @@ export class UIDController {
         } catch (error: any) {
             console.error('Delete UID error:', error);
             res.status(500).json({ error: 'Failed to delete UID' });
+        }
+    }
+
+    /**
+     * Admin API: Get detailed UID info with full warranty spec sheet.
+     */
+    static async getUIDDetails(req: Request, res: Response) {
+        try {
+            const { uid } = req.params;
+
+            const [rows]: any = await db.execute(
+                `SELECT 
+                    p.uid, p.is_used, p.used_at, p.created_at, p.source,
+                    w.customer_name, w.customer_email, w.customer_phone,
+                    w.registration_number, w.product_type, w.warranty_type,
+                    w.status as warranty_status, w.purchase_date,
+                    w.product_details, w.installer_name, w.installer_contact,
+                    w.car_year, w.car_make, w.car_model, w.created_at as warranty_created_at,
+                    w.rejection_reason
+                 FROM pre_generated_uids p
+                 LEFT JOIN warranty_registrations w ON p.uid = w.uid
+                 WHERE p.uid = ?`,
+                [uid]
+            );
+
+            if (rows.length === 0) {
+                return res.status(404).json({ error: 'UID not found' });
+            }
+
+            res.json({ success: true, data: rows[0] });
+        } catch (error: any) {
+            console.error('Get UID details error:', error);
+            res.status(500).json({ error: 'Failed to fetch UID details' });
         }
     }
 }

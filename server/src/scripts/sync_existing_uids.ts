@@ -29,7 +29,7 @@ async function syncExistingUIDs() {
             if (existing.length === 0) {
                 // Insert as used
                 await db.execute(
-                    'INSERT INTO pre_generated_uids (uid, is_used, used_at, created_at) VALUES (?, TRUE, ?, ?)',
+                    `INSERT INTO pre_generated_uids (uid, is_used, used_at, created_at, source) VALUES (?, TRUE, ?, ?, 'legacy_migration')`,
                     [reg.uid, reg.created_at, reg.created_at]
                 );
                 console.log(`  + Synced legacy UID: ${reg.uid} (${reg.customer_name})`);
