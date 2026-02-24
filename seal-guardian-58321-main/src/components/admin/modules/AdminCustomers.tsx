@@ -198,9 +198,9 @@ export const AdminCustomers = () => {
         let bVal = b[sortField];
 
         // Map sort field to data field if necessary
-        if (sortField === 'created_at' || sortField === 'first_warranty_date') {
-            aVal = new Date(a.first_warranty_date || a.created_at || 0).getTime();
-            bVal = new Date(b.first_warranty_date || b.created_at || 0).getTime();
+        if (sortField === 'created_at' || sortField === 'first_warranty_date' || sortField === 'registered_at') {
+            aVal = new Date(a.registered_at || a.first_warranty_date || 0).getTime();
+            bVal = new Date(b.registered_at || b.first_warranty_date || 0).getTime();
         } else if (sortField === 'total_warranties' || sortField === 'warranty_count') {
             aVal = Number(a.total_warranties) || 0;
             bVal = Number(b.total_warranties) || 0;
@@ -350,7 +350,7 @@ export const AdminCustomers = () => {
                                 </div>
                                 <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
                                     <div className="text-[10px] uppercase font-bold text-slate-400 mb-1">Registered</div>
-                                    <div className="font-bold text-slate-600 truncate">{formatToIST(customer.first_warranty_date)}</div>
+                                    <div className="font-bold text-slate-600 truncate">{formatToIST(customer.registered_at)}</div>
                                 </div>
                             </div>
                         </div>
@@ -387,7 +387,7 @@ export const AdminCustomers = () => {
                                         <div className="font-semibold text-slate-700 pl-4">{customer.total_warranties || 0}</div>
                                     </td>
                                     <td className="px-6 py-4 text-slate-600">
-                                        {formatToIST(customer.first_warranty_date)}
+                                        {formatToIST(customer.registered_at)}
                                     </td>
                                     <td className="px-6 py-4 text-right">
                                         <div className="flex justify-end gap-2">
