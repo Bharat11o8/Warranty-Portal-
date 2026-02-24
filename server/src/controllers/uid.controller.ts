@@ -37,8 +37,8 @@ export class UIDController {
             // Step 1: Basic validation and intra-batch duplicate check
             for (const uid of uids) {
                 // Case 4: Invalid Format
-                if (typeof uid !== 'string' || !/^\d{13,16}$/.test(uid)) {
-                    results.push({ uid, status: 'invalid_format', message: 'UID must be a 13-16 digit number' });
+                if (typeof uid !== 'string' || !/^\d{13,22}$/.test(uid)) {
+                    results.push({ uid, status: 'invalid_format', message: 'UID must be a 13-22 digit number' });
                     stats.invalid_format++;
                     continue;
                 }
@@ -149,7 +149,7 @@ export class UIDController {
         try {
             const { uid } = req.params;
 
-            if (!uid || !/^\d{13,16}$/.test(uid)) {
+            if (!uid || !/^\d{13,22}$/.test(uid)) {
                 return res.json({
                     valid: false,
                     available: false,
@@ -284,8 +284,8 @@ export class UIDController {
         try {
             const { uid } = req.body;
 
-            if (!uid || !/^\d{13,16}$/.test(uid)) {
-                return res.status(400).json({ error: 'UID must be a 13-16 digit number' });
+            if (!uid || !/^\d{13,22}$/.test(uid)) {
+                return res.status(400).json({ error: 'UID must be a 13-22 digit number' });
             }
 
             // Check if already exists
