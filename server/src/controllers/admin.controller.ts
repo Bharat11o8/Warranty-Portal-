@@ -920,23 +920,26 @@ export class AdminController {
 
     static async getCustomers(_req: Request, res: Response) {
         try {
-            // Get unique customers with their warranty statistics
-            // Group ONLY by customer_email to ensure one entry per unique email
+            // Get all registered customers (from profiles) with their warranty statistics
             const [customers]: any = await db.execute(`
                 SELECT 
-                    MAX(customer_name) as customer_name,
-                    customer_email,
-                    MAX(customer_phone) as customer_phone,
-                    MAX(COALESCE(customer_address, JSON_UNQUOTE(JSON_EXTRACT(product_details, '$.customerAddress')))) as customer_address,
-                    COUNT(*) as total_warranties,
-                    SUM(CASE WHEN status = 'validated' THEN 1 ELSE 0 END) as validated_warranties,
-                    SUM(CASE WHEN status IN ('pending', 'pending_vendor') THEN 1 ELSE 0 END) as pending_warranties,
-                    SUM(CASE WHEN status = 'rejected' THEN 1 ELSE 0 END) as rejected_warranties,
-                    MIN(created_at) as first_warranty_date,
-                    MAX(created_at) as last_warranty_date
-                FROM warranty_registrations
-                GROUP BY customer_email
-                ORDER BY last_warranty_date DESC
+                    p.name as customer_name,
+                    p.email as customer_email,
+                    p.phone_number as customer_phone,
+                    NULL as customer_address, -- Profile doesn't have address, usually in product_details
+                    COUNT(wr.uid) as total_warranties,
+                    SUM(CASE WHEN wr.status = 'validated' THEN 1 ELSE 0 END) as validated_warranties,
+                    SUM(CASE WHEN wr.status IN ('pending', 'pending_vendor') THEN 1 ELSE 0 END) as pending_warranties,
+                    SUM(CASE WHEN wr.status = 'rejected' THEN 1 ELSE 0 END) as rejected_warranties,
+                    MIN(wr.created_at) as first_warranty_date,
+                    MAX(wr.created_at) as last_warranty_date,
+                    p.created_at as registered_at
+                FROM profiles p
+                JOIN user_roles ur ON p.id = ur.user_id
+                LEFT JOIN warranty_registrations wr ON p.email = wr.customer_email
+                WHERE ur.role = 'customer'
+                GROUP BY p.id
+                ORDER BY p.created_at DESC
             `);
 
             res.json({
@@ -953,15 +956,16 @@ export class AdminController {
         try {
             const { email } = req.params;
 
-            // Get customer basic info from first warranty
+            // Get customer basic info from profiles
             const [customerInfo]: any = await db.execute(`
                 SELECT 
-                    customer_name,
-                    customer_email,
-                    customer_phone,
-                    customer_address
-                FROM warranty_registrations
-                WHERE customer_email = ?
+                    p.name as customer_name,
+                    p.email as customer_email,
+                    p.phone_number as customer_phone,
+                    NULL as customer_address -- Profile doesn't store address directly
+                FROM profiles p
+                JOIN user_roles ur ON p.id = ur.user_id
+                WHERE p.email = ? AND ur.role = 'customer'
                 LIMIT 1
             `, [email]);
 
@@ -1000,9 +1004,12 @@ export class AdminController {
         try {
             const { email } = req.params;
 
-            // Check if customer exists
+            // Check if customer exists in profiles
             const [customer]: any = await db.execute(
-                'SELECT customer_email FROM warranty_registrations WHERE customer_email = ? LIMIT 1',
+                `SELECT p.id, p.email FROM profiles p 
+                 JOIN user_roles ur ON p.id = ur.user_id 
+                 WHERE p.email = ? AND ur.role = 'customer' 
+                 LIMIT 1`,
                 [email]
             );
 
@@ -1010,11 +1017,11 @@ export class AdminController {
                 return res.status(404).json({ error: 'Customer not found' });
             }
 
-            // Delete all warranties for this customer
-            await db.execute(
-                'DELETE FROM warranty_registrations WHERE customer_email = ?',
-                [email]
-            );
+            // Get user ID to delete
+            const user_id = customer[0].id;
+
+            // Delete from profiles - cascading should handle warranty_registrations
+            await db.execute('DELETE FROM profiles WHERE id = ?', [user_id]);
 
             // Log the activity
             const admin = (req as any).user;
