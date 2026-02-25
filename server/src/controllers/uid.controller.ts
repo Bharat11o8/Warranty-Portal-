@@ -319,6 +319,115 @@ export class UIDController {
     }
 
     /**
+     * Admin API: Export all filtered UIDs to CSV.
+     */
+    static async exportUIDs(req: Request, res: Response) {
+        try {
+            const status = req.query.status as string;
+            const source = req.query.source as string;
+            const search = req.query.search as string;
+            const sort = req.query.sort as string || 'created_at';
+            const order = req.query.order as string || 'desc';
+
+            let conditions: string[] = [];
+            let params: any[] = [];
+
+            if (status === 'available') {
+                conditions.push('p.is_used = FALSE');
+            } else if (status === 'used') {
+                conditions.push('p.is_used = TRUE');
+            }
+
+            if (source && source !== 'all') {
+                conditions.push('p.source = ?');
+                params.push(source);
+            }
+
+            if (search) {
+                conditions.push('(p.uid LIKE ? OR w.customer_name LIKE ? OR w.registration_number LIKE ?)');
+                const searchTerm = `%${search}%`;
+                params.push(searchTerm, searchTerm, searchTerm);
+            }
+
+            const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+
+            const allowedSorts: Record<string, string> = {
+                'created_at': 'p.created_at',
+                'used_at': 'p.used_at',
+                'source': 'p.source'
+            };
+            const sortColumn = allowedSorts[sort] || 'p.created_at';
+            const sortOrder = order === 'asc' ? 'ASC' : 'DESC';
+
+            const [uids]: any = await db.execute(
+                `SELECT 
+                    p.uid, 
+                    CASE WHEN p.is_used THEN 'Used' ELSE 'Available' END as status, 
+                    p.source,
+                    p.created_at,
+                    p.used_at,
+                    w.customer_name,
+                    w.customer_email,
+                    w.customer_phone,
+                    w.registration_number,
+                    w.product_type,
+                    w.warranty_type,
+                    w.status as warranty_status,
+                    w.purchase_date,
+                    w.installer_name,
+                    w.installer_contact,
+                    w.car_year
+                 FROM pre_generated_uids p
+                 LEFT JOIN warranty_registrations w ON p.uid = w.uid
+                 ${whereClause} 
+                 ORDER BY ${sortColumn} ${sortOrder}`,
+                params
+            );
+
+            // Generate CSV
+            const headers = [
+                'UID', 'Status', 'Source', 'Created At', 'Used At',
+                'Customer Name', 'Customer Email', 'Customer Phone',
+                'Reg Number', 'Product Type', 'Warranty Type',
+                'Warranty Status', 'Purchase Date', 'Installer Name', 'Installer Contact', 'Car Year'
+            ];
+
+            let csvContent = headers.join(',') + '\n';
+
+            uids.forEach((row: any) => {
+                const values = [
+                    row.uid,
+                    row.status,
+                    row.source,
+                    row.created_at ? new Date(row.created_at).toISOString() : '',
+                    row.used_at ? new Date(row.used_at).toISOString() : '',
+                    row.customer_name || '',
+                    row.customer_email || '',
+                    row.customer_phone || '',
+                    row.registration_number || '',
+                    row.product_type || '',
+                    row.warranty_type || '',
+                    row.warranty_status || '',
+                    row.purchase_date ? new Date(row.purchase_date).toISOString() : '',
+                    row.installer_name || '',
+                    row.installer_contact || '',
+                    row.car_year || ''
+                ].map(val => `"${String(val || '').replace(/"/g, '""')}"`);
+
+                csvContent += values.join(',') + '\n';
+            });
+
+            res.setHeader('Content-Type', 'text/csv');
+            res.setHeader('Content-Disposition', `attachment; filename=uids_export_${new Date().toISOString().split('T')[0]}.csv`);
+            res.send(csvContent);
+
+        } catch (error: any) {
+            console.error('Export UID error:', error);
+            res.status(500).json({ error: 'Failed to export UIDs' });
+        }
+    }
+
+    /**
      * Admin API: Manually add a single UID.
      */
     static async addUID(req: Request, res: Response) {

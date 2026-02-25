@@ -35,6 +35,8 @@ router.get('/validate/:uid', authenticateToken, UIDController.validateUID);
 // ===== Admin API (JWT + admin role) =====
 // GET /api/uid/ — List all UIDs (paginated)
 router.get('/', authenticateToken, requireRole('admin'), UIDController.getAllUIDs);
+// GET /api/uid/export — Export filtered UIDs to CSV
+router.get('/export', authenticateToken, requireRole('admin'), UIDController.exportUIDs);
 // POST /api/uid/add — Manually add a UID
 router.post('/add', authenticateToken, requireRole('admin'), UIDController.addUID);
 // DELETE /api/uid/:uid — Delete an unused UID

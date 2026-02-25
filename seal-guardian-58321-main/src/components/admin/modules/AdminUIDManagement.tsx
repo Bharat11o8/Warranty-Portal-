@@ -17,6 +17,7 @@ import {
     ArrowUpDown,
     History,
     Globe,
+    Download,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -96,6 +97,9 @@ export const AdminUIDManagement = ({ onBack }: UIDManagementProps) => {
     // Delete confirmation
     const [deleteUID, setDeleteUID] = useState<string | null>(null);
     const [deleteLoading, setDeleteLoading] = useState(false);
+
+    // Export loading
+    const [exportLoading, setExportLoading] = useState(false);
 
     const fetchUIDs = useCallback(async () => {
         setLoading(true);
@@ -191,6 +195,39 @@ export const AdminUIDManagement = ({ onBack }: UIDManagementProps) => {
         }
     };
 
+    const handleExport = async () => {
+        setExportLoading(true);
+        try {
+            const params = new URLSearchParams({
+                status: statusFilter,
+                source: sourceFilter,
+                sort,
+                order,
+            });
+            if (search) params.set("search", search);
+
+            const response = await api.get(`/uid/export?${params.toString()}`, {
+                responseType: 'blob'
+            });
+
+            // Create a link to download the file
+            const url = window.URL.createObjectURL(new Blob([response.data]));
+            const link = document.createElement('a');
+            link.href = url;
+            link.setAttribute('download', `uids_export_${new Date().toISOString().split('T')[0]}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+
+            toast({ title: "Success", description: "UID export started" });
+        } catch (error) {
+            console.error("Failed to export UIDs:", error);
+            toast({ title: "Error", description: "Failed to export UIDs", variant: "destructive" });
+        } finally {
+            setExportLoading(false);
+        }
+    };
+
     const formatDate = (dateStr: string | null) => {
         if (!dateStr) return "—";
         return new Date(dateStr).toLocaleDateString("en-IN", {
@@ -227,6 +264,20 @@ export const AdminUIDManagement = ({ onBack }: UIDManagementProps) => {
                     >
                         <RefreshCw className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`} />
                         Refresh
+                    </Button>
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleExport}
+                        disabled={exportLoading || loading}
+                        className="h-9 px-4 rounded-xl border-blue-100 text-blue-600 hover:bg-blue-50"
+                    >
+                        {exportLoading ? (
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        ) : (
+                            <Download className="h-4 w-4 mr-2" />
+                        )}
+                        Export
                     </Button>
                     <Button
                         size="sm"
