@@ -98,18 +98,25 @@ export class UIDController {
                 }
             }
 
-            // Step 4: Batch insert new UIDs
+            // Step 4: Batch insert new UIDs (using INSERT IGNORE to handle any edge-case duplicates)
             if (uidsToInsert.length > 0) {
                 connection = await db.getConnection();
                 await connection.beginTransaction();
 
-                const insertPlaceholders = uidsToInsert.map(() => '(?, FALSE, NULL, ?, \'api_sync\')').join(', ');
-                const insertValues = uidsToInsert.flatMap(uid => [uid, timestamp]);
+                // Insert in batches of 100 to avoid query size limits
+                const batchSize = 100;
+                let totalInserted = 0;
+                for (let i = 0; i < uidsToInsert.length; i += batchSize) {
+                    const batch = uidsToInsert.slice(i, i + batchSize);
+                    const insertPlaceholders = batch.map(() => '(?, FALSE, NULL, ?, \'api_sync\')').join(', ');
+                    const insertValues = batch.flatMap(uid => [uid, timestamp]);
 
-                await connection.execute(
-                    `INSERT INTO pre_generated_uids (uid, is_used, used_at, created_at, source) VALUES ${insertPlaceholders}`,
-                    insertValues
-                );
+                    const [result]: any = await connection.execute(
+                        `INSERT IGNORE INTO pre_generated_uids (uid, is_used, used_at, created_at, source) VALUES ${insertPlaceholders}`,
+                        insertValues
+                    );
+                    totalInserted += result.affectedRows;
+                }
 
                 await connection.commit();
 
@@ -121,7 +128,7 @@ export class UIDController {
                         message: 'UID successfully synced'
                     });
                 });
-                stats.inserted += uidsToInsert.length;
+                stats.inserted = totalInserted;
             }
 
             console.log(`✓ UID Sync Complete: ${stats.inserted} new, ${stats.already_exists_available} existing, ${stats.already_exists_used} used`);
