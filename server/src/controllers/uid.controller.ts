@@ -36,9 +36,9 @@ export class UIDController {
 
             // Step 1: Basic validation and intra-batch duplicate check
             for (const uid of uids) {
-                // Case 4: Invalid Format (API Sync allows alphanumeric for legacy support)
-                if (typeof uid !== 'string' || !/^[a-zA-Z0-9]{13,22}$/.test(uid)) {
-                    results.push({ uid, status: 'invalid_format', message: 'UID must be a 13-22 character alphanumeric string' });
+                // Case 4: Invalid Format (API Sync allows alphanumeric up to 30 chars for legacy support)
+                if (typeof uid !== 'string' || !/^[a-zA-Z0-9]{13,30}$/.test(uid)) {
+                    results.push({ uid, status: 'invalid_format', message: 'UID must be a 13-30 character alphanumeric string' });
                     stats.invalid_format++;
                     continue;
                 }
@@ -149,11 +149,11 @@ export class UIDController {
         try {
             const { uid } = req.params;
 
-            if (!uid || !/^\d{13,22}$/.test(uid)) {
+            if (!uid || !/^\d{13,16}$/.test(uid)) {
                 return res.json({
                     valid: false,
                     available: false,
-                    message: 'Invalid UID format'
+                    message: 'Invalid UID'
                 });
             }
 
@@ -166,7 +166,7 @@ export class UIDController {
                 return res.json({
                     valid: false,
                     available: false,
-                    message: 'UID not found in the system'
+                    message: 'Invalid UID'
                 });
             }
 
@@ -175,14 +175,14 @@ export class UIDController {
                 return res.json({
                     valid: true,
                     available: false,
-                    message: 'UID has already been used'
+                    message: 'UID already used'
                 });
             }
 
             return res.json({
                 valid: true,
                 available: true,
-                message: 'UID is valid and available'
+                message: 'Valid UID'
             });
         } catch (error: any) {
             console.error('Validate UID error:', error);
@@ -318,8 +318,8 @@ export class UIDController {
         try {
             const { uid } = req.body;
 
-            if (!uid || !/^\d{13,22}$/.test(uid)) {
-                return res.status(400).json({ error: 'UID must be a 13-22 digit number' });
+            if (!uid || !/^\d{13,16}$/.test(uid)) {
+                return res.status(400).json({ error: 'UID must be a 13-16 digit number' });
             }
 
             // Check if already exists
