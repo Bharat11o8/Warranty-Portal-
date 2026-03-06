@@ -58,20 +58,27 @@ const ECatalogue = () => {
             </div>
 
             {/* Flipbook Iframe Container */}
-            <div className="relative rounded-2xl overflow-hidden border border-orange-100 bg-white shadow-xl shadow-orange-50">
-                {/* Desktop / Tablet View */}
-                <div className="flex-1 min-h-[500px] md:min-h-[750px] bg-slate-100 rounded-3xl overflow-hidden border-2 border-orange-100/50 shadow-inner relative group">
+            <div className="relative rounded-[32px] overflow-hidden border-2 border-orange-100 bg-white shadow-2xl shadow-orange-100/50 group">
+                <div className="flex-1 w-full bg-slate-50 relative group transition-all duration-500" style={{ height: "75vh", minHeight: "600px" }}>
                     {loading ? (
-                        <div className="absolute inset-0 flex items-center justify-center bg-white/80 backdrop-blur-sm z-10">
-                            <div className="flex flex-col items-center gap-4">
-                                <div className="h-10 w-10 animate-spin rounded-full border-4 border-orange-500 border-t-transparent" />
-                                <p className="text-sm font-bold text-orange-600 uppercase tracking-widest animate-pulse">Loading Catalogue...</p>
+                        <div className="absolute inset-0 flex items-center justify-center bg-white/90 backdrop-blur-md z-10">
+                            <div className="flex flex-col items-center gap-6">
+                                <div className="relative">
+                                    <div className="h-16 w-16 animate-spin rounded-full border-4 border-orange-100 border-t-orange-500" />
+                                    <div className="absolute inset-0 flex items-center justify-center">
+                                        <BookOpen className="h-6 w-6 text-orange-500 animate-pulse" />
+                                    </div>
+                                </div>
+                                <div className="flex flex-col items-center gap-1">
+                                    <p className="text-sm font-black text-slate-800 uppercase tracking-widest">Synchronizing Catalogue</p>
+                                    <p className="text-[10px] font-bold text-orange-500 uppercase tracking-tighter">Please wait a moment...</p>
+                                </div>
                             </div>
                         </div>
                     ) : (
                         <iframe
                             src={flipbookUrl}
-                            className="w-full h-full border-none"
+                            className="w-full h-full border-none shadow-inner"
                             allow="fullscreen"
                             title="Autoform E-Catalogue"
                         />

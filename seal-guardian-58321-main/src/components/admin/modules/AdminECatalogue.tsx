@@ -163,30 +163,64 @@ export const AdminECatalogue = () => {
             </div>
 
             {/* Preview Section */}
-            <Card className="border-slate-200 shadow-sm overflow-hidden">
-                <CardHeader className="bg-slate-900 border-b border-slate-800">
+            <Card className="border-slate-200 shadow-xl overflow-hidden rounded-[32px]">
+                <CardHeader className="bg-slate-900 border-b border-slate-800 p-6">
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
-                            <div className="p-2 bg-slate-800 rounded-lg text-orange-500">
+                            <div className="p-2 bg-slate-800 rounded-xl text-orange-500">
                                 <ExternalLink className="h-5 w-5" />
                             </div>
-                            <CardTitle className="text-xl font-bold text-white">Live URL Preview</CardTitle>
+                            <div>
+                                <CardTitle className="text-xl font-bold text-white">Live Visual Preview</CardTitle>
+                                <p className="text-slate-400 text-xs font-medium uppercase tracking-widest">Real-time Frontend Simulation</p>
+                            </div>
                         </div>
                         <div className="hidden sm:flex items-center gap-2">
                             <span className="flex h-2 w-2 rounded-full bg-green-500 animate-pulse" />
-                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Global CDN</span>
+                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Live Sync Enabled</span>
                         </div>
                     </div>
                 </CardHeader>
                 <CardContent className="p-0">
-                    <div className="grid md:grid-cols-2 divide-x divide-slate-100 bg-slate-50 font-mono text-xs">
-                        <div className="p-6">
-                            <p className="text-slate-400 mb-2 uppercase font-black tracking-widest">Flipbook Target</p>
-                            <p className="text-slate-800 break-all bg-white p-3 rounded-lg border border-slate-200">{flipbookUrl || "Not configured"}</p>
+                    <div className="grid md:grid-cols-1 bg-slate-50 font-mono text-xs">
+                        <div className="p-6 md:p-10">
+                            <div className="flex items-center justify-between mb-6">
+                                <div>
+                                    <p className="text-slate-400 mb-1 uppercase font-black tracking-widest">Flipbook Viewport</p>
+                                    <p className="text-[10px] text-slate-500 font-bold break-all opacity-60">{flipbookUrl || "Enter a URL above to see preview"}</p>
+                                </div>
+                                <div className="flex gap-2">
+                                    <div className="h-3 w-3 rounded-full bg-red-400" />
+                                    <div className="h-3 w-3 rounded-full bg-amber-400" />
+                                    <div className="h-3 w-3 rounded-full bg-emerald-400" />
+                                </div>
+                            </div>
+
+                            <div className="relative rounded-2xl overflow-hidden border border-slate-200 bg-white shadow-lg" style={{ height: "600px" }}>
+                                {flipbookUrl ? (
+                                    <iframe
+                                        src={flipbookUrl}
+                                        className="w-full h-full border-none"
+                                        allow="fullscreen"
+                                        title="CMS Preview"
+                                    />
+                                ) : (
+                                    <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-400 gap-4">
+                                        <BookOpen className="h-12 w-12 opacity-20" />
+                                        <p className="font-bold uppercase tracking-widest text-[10px]">Waiting for valid Flipbook URL...</p>
+                                    </div>
+                                )}
+                            </div>
                         </div>
-                        <div className="p-6">
-                            <p className="text-slate-400 mb-2 uppercase font-black tracking-widest">Download Target</p>
-                            <p className="text-slate-800 break-all bg-white p-3 rounded-lg border border-slate-200">{downloadUrl || "Not configured"}</p>
+
+                        <div className="p-6 md:p-10 border-t border-slate-200 bg-white">
+                            <p className="text-slate-400 mb-4 uppercase font-black tracking-widest">Download Target</p>
+                            <div className="flex items-center gap-4 bg-slate-50 p-4 rounded-xl border border-slate-100">
+                                <div className="h-10 w-10 shrink-0 bg-blue-100 text-blue-600 rounded-lg flex items-center justify-center">
+                                    <Download className="h-5 w-5" />
+                                </div>
+                                <p className="text-slate-800 break-all font-bold text-xs">{downloadUrl || "Not configured"}</p>
+                            </div>
                         </div>
                     </div>
                 </CardContent>
