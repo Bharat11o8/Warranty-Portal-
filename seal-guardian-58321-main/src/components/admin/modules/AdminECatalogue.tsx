@@ -1,0 +1,196 @@
+import { useState, useEffect } from "react";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { useToast } from "@/hooks/use-toast";
+import { Save, BookOpen, Download, Link as LinkIcon, ExternalLink, Globe } from "lucide-react";
+import api from "@/lib/api";
+
+export const AdminECatalogue = () => {
+    const { toast } = useToast();
+    const [flipbookUrl, setFlipbookUrl] = useState("");
+    const [downloadUrl, setDownloadUrl] = useState("");
+    const [loading, setLoading] = useState(false);
+    const [fetching, setFetching] = useState(true);
+
+    useEffect(() => {
+        const fetchSettings = async () => {
+            try {
+                const [flipbookRes, downloadRes] = await Promise.all([
+                    api.get('/settings/public/ecatalogue_flipbook_url'),
+                    api.get('/settings/public/ecatalogue_download_url')
+                ]);
+
+                if (flipbookRes.data.success) {
+                    setFlipbookUrl(flipbookRes.data.value);
+                }
+                if (downloadRes.data.success) {
+                    setDownloadUrl(downloadRes.data.value);
+                }
+            } catch (error) {
+                console.error("Failed to fetch e-catalogue settings", error);
+            } finally {
+                setFetching(false);
+            }
+        };
+        fetchSettings();
+    }, []);
+
+    const handleSave = async () => {
+        if (!flipbookUrl || !downloadUrl) {
+            toast({
+                title: "Validation Error",
+                description: "Both Flipbook URL and Download URL are required.",
+                variant: "destructive",
+            });
+            return;
+        }
+
+        setLoading(true);
+        try {
+            await Promise.all([
+                api.put('/settings/admin/ecatalogue_flipbook_url', { value: flipbookUrl }),
+                api.put('/settings/admin/ecatalogue_download_url', { value: downloadUrl })
+            ]);
+
+            toast({
+                title: "Settings Updated",
+                description: "E-Catalogue links have been successfully updated.",
+                className: "bg-green-50 border-green-200 text-green-900",
+            });
+        } catch (error) {
+            console.error("Failed to save e-catalogue settings", error);
+            toast({
+                title: "Update Failed",
+                description: "Failed to save changes. Please try again.",
+                variant: "destructive",
+            });
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    if (fetching) {
+        return (
+            <div className="flex items-center justify-center p-12">
+                <div className="flex flex-col items-center gap-4">
+                    <div className="h-8 w-8 animate-spin rounded-full border-4 border-orange-500 border-t-transparent" />
+                    <p className="text-slate-500 font-medium">Loading e-catalogue settings...</p>
+                </div>
+            </div>
+        );
+    }
+
+    return (
+        <div className="space-y-8 max-w-5xl mx-auto p-4 md:p-0">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                <div>
+                    <h2 className="text-3xl font-black tracking-tight text-slate-900 uppercase">E-Catalogue CMS</h2>
+                    <p className="text-slate-500 font-medium">Manage the flipbook and download links for franchises.</p>
+                </div>
+                <Button onClick={handleSave} disabled={loading} className="bg-orange-600 hover:bg-orange-700 h-12 px-8 rounded-xl shadow-lg shadow-orange-200 transition-all active:scale-95">
+                    {loading ? <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent mr-2" /> : <Save className="h-4 w-4 mr-2" />}
+                    Save Configuration
+                </Button>
+            </div>
+
+            <div className="grid gap-6 md:grid-cols-2">
+                {/* Flipbook Configuration */}
+                <Card className="border-slate-200 shadow-sm overflow-hidden hover:shadow-md transition-shadow">
+                    <CardHeader className="bg-slate-50/50 border-b border-slate-100">
+                        <div className="flex items-center gap-3 mb-1">
+                            <div className="p-2 bg-orange-100 rounded-lg text-orange-600">
+                                <BookOpen className="h-5 w-5" />
+                            </div>
+                            <CardTitle className="text-xl font-bold">Flipbook Viewer</CardTitle>
+                        </div>
+                        <CardDescription className="font-medium">
+                            Set the Heyzine flipbook iframe URL to display to franchises.
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent className="pt-6 space-y-4">
+                        <div className="space-y-2">
+                            <label className="text-sm font-bold text-slate-700 uppercase tracking-tighter flex items-center gap-2">
+                                <LinkIcon className="h-3 w-3" /> Heyzine Embed URL
+                            </label>
+                            <Input
+                                value={flipbookUrl}
+                                onChange={(e) => setFlipbookUrl(e.target.value)}
+                                placeholder="https://heyzine.com/flip-book/..."
+                                className="h-12 border-slate-200 focus:border-orange-500 rounded-xl"
+                            />
+                        </div>
+                        <div className="p-4 bg-blue-50 border-l-4 border-blue-400 rounded-r-xl">
+                            <p className="text-xs text-blue-700 font-medium leading-relaxed">
+                                <strong>Tip:</strong> Copy the "Direct link" or the "src" attribute from the Heyzine embed code.
+                            </p>
+                        </div>
+                    </CardContent>
+                </Card>
+
+                {/* Download Configuration */}
+                <Card className="border-slate-200 shadow-sm overflow-hidden hover:shadow-md transition-shadow">
+                    <CardHeader className="bg-slate-50/50 border-b border-slate-100">
+                        <div className="flex items-center gap-3 mb-1">
+                            <div className="p-2 bg-blue-100 rounded-lg text-blue-600">
+                                <Download className="h-5 w-5" />
+                            </div>
+                            <CardTitle className="text-xl font-bold">Download Link</CardTitle>
+                        </div>
+                        <CardDescription className="font-medium">
+                            Set the Google Drive or direct download URL for the PDF.
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent className="pt-6 space-y-4">
+                        <div className="space-y-2">
+                            <label className="text-sm font-bold text-slate-700 uppercase tracking-tighter flex items-center gap-2">
+                                <Globe className="h-3 w-3" /> Download URL
+                            </label>
+                            <Input
+                                value={downloadUrl}
+                                onChange={(e) => setDownloadUrl(e.target.value)}
+                                placeholder="https://drive.google.com/..."
+                                className="h-12 border-slate-200 focus:border-blue-500 rounded-xl"
+                            />
+                        </div>
+                        <div className="p-4 bg-orange-50 border-l-4 border-orange-400 rounded-r-xl">
+                            <p className="text-xs text-orange-700 font-medium leading-relaxed">
+                                <strong>Note:</strong> Ensure the link has public access enabled for franchises to download.
+                            </p>
+                        </div>
+                    </CardContent>
+                </Card>
+            </div>
+
+            {/* Preview Section */}
+            <Card className="border-slate-200 shadow-sm overflow-hidden">
+                <CardHeader className="bg-slate-900 border-b border-slate-800">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                            <div className="p-2 bg-slate-800 rounded-lg text-orange-500">
+                                <ExternalLink className="h-5 w-5" />
+                            </div>
+                            <CardTitle className="text-xl font-bold text-white">Live URL Preview</CardTitle>
+                        </div>
+                        <div className="hidden sm:flex items-center gap-2">
+                            <span className="flex h-2 w-2 rounded-full bg-green-500 animate-pulse" />
+                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Global CDN</span>
+                        </div>
+                    </div>
+                </CardHeader>
+                <CardContent className="p-0">
+                    <div className="grid md:grid-cols-2 divide-x divide-slate-100 bg-slate-50 font-mono text-xs">
+                        <div className="p-6">
+                            <p className="text-slate-400 mb-2 uppercase font-black tracking-widest">Flipbook Target</p>
+                            <p className="text-slate-800 break-all bg-white p-3 rounded-lg border border-slate-200">{flipbookUrl || "Not configured"}</p>
+                        </div>
+                        <div className="p-6">
+                            <p className="text-slate-400 mb-2 uppercase font-black tracking-widest">Download Target</p>
+                            <p className="text-slate-800 break-all bg-white p-3 rounded-lg border border-slate-200">{downloadUrl || "Not configured"}</p>
+                        </div>
+                    </div>
+                </CardContent>
+            </Card>
+        </div>
+    );
+};

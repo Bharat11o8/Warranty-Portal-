@@ -25,6 +25,7 @@ import { AdminAnnouncements } from "../modules/AdminAnnouncements";
 import { AdminOldWarranties } from "../modules/AdminOldWarranties";
 import { AdminWarrantyProducts } from "../modules/AdminWarrantyProducts";
 import { AdminPOSM } from "../modules/AdminPOSM";
+import { AdminECatalogue } from "../modules/AdminECatalogue";
 import { AdminCommandPalette } from "../AdminCommandPalette";
 import { AdminUIDManagement } from "../modules/AdminUIDManagement";
 
@@ -69,6 +70,8 @@ export const AdminLayout = () => {
                 return <AdminPOSM />;
             case 'uid-management':
                 return <AdminUIDManagement />;
+            case 'ecatalogue':
+                return <AdminECatalogue />;
             case 'profile': return <Profile embedded={true} />;
             default: return <AdminHome />;
         }
@@ -91,6 +94,7 @@ export const AdminLayout = () => {
             'announcements': 'Broadcast & Announcements',
             'posm': 'POSM Requirements',
             'uid-management': 'Product UID Management',
+            'ecatalogue': 'E-Catalogue CMS',
             'profile': 'My Profile'
         };
         return titles[activeModule];

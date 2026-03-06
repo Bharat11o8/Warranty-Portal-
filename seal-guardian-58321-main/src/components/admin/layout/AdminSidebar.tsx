@@ -16,7 +16,8 @@ import {
     Package,
     PenTool,
     FileText,
-    Megaphone
+    Megaphone,
+    BookOpen
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNotifications } from "@/contexts/NotificationContext";
@@ -45,6 +46,7 @@ export type AdminModule =
     | 'announcements'
     | 'posm'
     | 'uid-management'
+    | 'ecatalogue'
     | 'profile';
 
 interface SidebarItemProps {
@@ -176,6 +178,7 @@ export const SidebarContent = ({
                     badge: unreadGrievances > 0 ? unreadGrievances.toString() : undefined
                 },
                 { id: 'posm' as const, label: "POSM Requirements", icon: Package },
+                { id: 'ecatalogue' as const, label: "E-Catalogue CMS", icon: BookOpen },
                 { id: 'terms' as const, label: "Terms & Conditions", icon: FileText },
             ]
         },

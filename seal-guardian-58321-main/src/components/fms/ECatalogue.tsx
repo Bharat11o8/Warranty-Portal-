@@ -1,13 +1,38 @@
 import { Download, BookOpen } from "lucide-react";
 import { Button } from "@/components/ui/button";
-
-const FLIPBOOK_URL = "https://heyzine.com/flip-book/28b562c673.html";
-const PDF_DOWNLOAD_URL = "https://drive.google.com/uc?export=download&id=1wBnJ1pVpjYAXir7VW8mbKc6V2-vzqGRs";
+import { useState, useEffect } from "react";
+import api from "@/lib/api";
 
 const ECatalogue = () => {
+    const [flipbookUrl, setFlipbookUrl] = useState("https://heyzine.com/flip-book/7343bc407b4662d5.html"); // Default fallback
+    const [downloadUrl, setDownloadUrl] = useState("https://drive.google.com/uc?export=download&id=1wBnJ1pVpjYAXir7VW8mbKc6V2-vzqGRs"); // Default fallback
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        const fetchSettings = async () => {
+            try {
+                const [flipbookRes, downloadRes] = await Promise.all([
+                    api.get('/settings/public/ecatalogue_flipbook_url'),
+                    api.get('/settings/public/ecatalogue_download_url')
+                ]);
+
+                if (flipbookRes.data.success && flipbookRes.data.value) {
+                    setFlipbookUrl(flipbookRes.data.value);
+                }
+                if (downloadRes.data.success && downloadRes.data.value) {
+                    setDownloadUrl(downloadRes.data.value);
+                }
+            } catch (error) {
+                console.error("Failed to fetch e-catalogue links", error);
+            } finally {
+                setLoading(false);
+            }
+        };
+        fetchSettings();
+    }, []);
+
     const handleDownload = () => {
-        // Open the flipbook page in a new tab (download link)
-        window.open(PDF_DOWNLOAD_URL, "_blank");
+        window.open(downloadUrl, '_blank');
     };
 
     return (
@@ -35,26 +60,22 @@ const ECatalogue = () => {
             {/* Flipbook Iframe Container */}
             <div className="relative rounded-2xl overflow-hidden border border-orange-100 bg-white shadow-xl shadow-orange-50">
                 {/* Desktop / Tablet View */}
-                <div className="hidden sm:block">
-                    <iframe
-                        className="w-full border-0"
-                        style={{ height: "75vh", minHeight: "500px", maxHeight: "800px" }}
-                        src={FLIPBOOK_URL}
-                        scrolling="no"
-                        allowFullScreen
-                        title="Autoform E-Catalogue"
-                    />
-                </div>
-                {/* Mobile View - Slightly shorter */}
-                <div className="block sm:hidden">
-                    <iframe
-                        className="w-full border-0"
-                        style={{ height: "60vh", minHeight: "350px" }}
-                        src={FLIPBOOK_URL}
-                        scrolling="no"
-                        allowFullScreen
-                        title="Autoform E-Catalogue"
-                    />
+                <div className="flex-1 min-h-[500px] md:min-h-[750px] bg-slate-100 rounded-3xl overflow-hidden border-2 border-orange-100/50 shadow-inner relative group">
+                    {loading ? (
+                        <div className="absolute inset-0 flex items-center justify-center bg-white/80 backdrop-blur-sm z-10">
+                            <div className="flex flex-col items-center gap-4">
+                                <div className="h-10 w-10 animate-spin rounded-full border-4 border-orange-500 border-t-transparent" />
+                                <p className="text-sm font-bold text-orange-600 uppercase tracking-widest animate-pulse">Loading Catalogue...</p>
+                            </div>
+                        </div>
+                    ) : (
+                        <iframe
+                            src={flipbookUrl}
+                            className="w-full h-full border-none"
+                            allow="fullscreen"
+                            title="Autoform E-Catalogue"
+                        />
+                    )}
                 </div>
             </div>
 
