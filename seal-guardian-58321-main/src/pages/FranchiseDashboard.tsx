@@ -19,6 +19,7 @@ import { NewsAlerts } from "@/components/fms/NewsAlerts";
 import { ComingSoon } from "@/components/fms/ComingSoon";
 import VendorGrievances from "@/components/fms/VendorGrievances";
 import POSMModule from "@/components/fms/POSMModule";
+import ECatalogue from "@/components/fms/ECatalogue";
 import Profile from "./Profile";
 import CategoryPage from "./eshop/CategoryPage";
 import ProductPage from "./eshop/ProductPage";
@@ -699,6 +700,12 @@ const FranchiseDashboard = () => {
                         <POSMModule />
                     </div>
                 );
+            case 'ecatalogue':
+                return (
+                    <div className="-mt-8 md:-mt-14">
+                        <ECatalogue />
+                    </div>
+                );
             default:
                 return (
                     <div className="-mt-8 md:-mt-14">
@@ -720,6 +727,7 @@ const FranchiseDashboard = () => {
             warranty: "Warranty Management",
             manpower: "Manpower Control",
             catalogue: "Product Catalogue",
+            ecatalogue: "E-Catalogue",
             news: "News & Alerts",
             orders: "Order Management",
             grievances: "Grievance Redressal",

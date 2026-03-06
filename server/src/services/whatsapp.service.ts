@@ -6,91 +6,106 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 /**
- * Service to handle all WhatsApp Business API communications
+ * Service to handle all WhatsApp Business API communications via Interakt
+ * API Docs: https://www.interakt.shop/resource-center/how-to-send-whatsapp-templates-using-apis-webhooks/
  */
 export class WhatsAppService {
-    private static readonly API_URL = process.env.WHATSAPP_API_URL;
-    private static readonly ACCESS_TOKEN = process.env.WHATSAPP_ACCESS_TOKEN;
-    private static readonly PHONE_NUMBER_ID = process.env.WHATSAPP_PHONE_NUMBER_ID;
+    private static readonly API_URL = 'https://api.interakt.ai/v1/public/message/';
+    private static readonly API_KEY = process.env.INTERAKT_API_KEY;
 
     /**
-     * Formats a phone number to E.164 format (specifically Indian numbers for now)
+     * Splits a phone number into countryCode and phoneNumber for Interakt's format.
+     * Interakt requires: countryCode: "+91", phoneNumber: "9876543210" (no country code, no leading 0)
      */
-    private static formatPhoneNumber(phone: string): string {
-        // Remove all non-numeric characters
-        let cleaned = phone.replace(/\D/g, '');
+    private static formatPhoneNumber(phone: string): { countryCode: string; phoneNumber: string } {
+        // Remove all non-numeric characters except leading +
+        let cleaned = phone.replace(/[^\d+]/g, '');
 
-        // If it's 10 digits, add +91 prefix
+        // If starts with +91
+        if (cleaned.startsWith('+91')) {
+            return { countryCode: '+91', phoneNumber: cleaned.substring(3) };
+        }
+
+        // If starts with 91 and is 12 digits
+        if (cleaned.startsWith('91') && cleaned.length === 12) {
+            return { countryCode: '+91', phoneNumber: cleaned.substring(2) };
+        }
+
+        // If starts with 0 and is 11 digits (Indian format with leading 0)
+        if (cleaned.startsWith('0') && cleaned.length === 11) {
+            return { countryCode: '+91', phoneNumber: cleaned.substring(1) };
+        }
+
+        // If it's exactly 10 digits, assume Indian number
         if (cleaned.length === 10) {
-            return `91${cleaned}`;
+            return { countryCode: '+91', phoneNumber: cleaned };
         }
 
-        // If it starts with 0 and then 10 digits
-        if (cleaned.length === 11 && cleaned.startsWith('0')) {
-            return `91${cleaned.substring(1)}`;
-        }
-
-        // Return as is if it's already properly formatted or other format
-        return cleaned;
+        // Fallback: return as-is with +91 default
+        return { countryCode: '+91', phoneNumber: cleaned };
     }
 
     /**
-     * Generic function to send a WhatsApp template message
+     * Generic function to send a WhatsApp template message via Interakt
      */
     private static async sendTemplateMessage(
         phone: string,
         templateName: string,
-        parameters: any[],
+        bodyValues: string[],
         context: string,
         referenceId?: string
     ): Promise<boolean> {
         const logId = uuidv4();
-        const formattedPhone = this.formatPhoneNumber(phone);
+        const { countryCode, phoneNumber } = this.formatPhoneNumber(phone);
 
-        if (!this.API_URL || !this.ACCESS_TOKEN) {
-            console.error('[WhatsApp] Configuration missing. Set WHATSAPP_API_URL and WHATSAPP_ACCESS_TOKEN');
+        if (!this.API_KEY) {
+            console.error('[WhatsApp] Configuration missing. Set INTERAKT_API_KEY in .env');
             await this.logMessage({
                 id: logId,
-                recipient_phone: formattedPhone,
+                recipient_phone: `${countryCode}${phoneNumber}`,
                 channel: 'whatsapp',
                 template_name: templateName,
                 status: 'failed',
                 context,
                 reference_id: referenceId,
-                error_message: 'Configuration missing'
+                error_message: 'INTERAKT_API_KEY not configured'
             });
             return false;
         }
 
         try {
+            const payload: any = {
+                countryCode,
+                phoneNumber,
+                type: 'Template',
+                callbackData: referenceId ? `${context}_${referenceId}` : context,
+                template: {
+                    name: templateName,
+                    languageCode: 'en',
+                }
+            };
+
+            // Only include bodyValues if there are variables in the template
+            if (bodyValues.length > 0) {
+                payload.template.bodyValues = bodyValues.map(val => String(val));
+            }
+
             const response = await axios.post(
                 this.API_URL,
-                {
-                    messaging_product: 'whatsapp',
-                    to: formattedPhone,
-                    type: 'template',
-                    template: {
-                        name: templateName,
-                        language: { code: 'en_US' },
-                        components: [
-                            {
-                                type: 'body',
-                                parameters: parameters.map(val => ({ type: 'text', text: String(val) }))
-                            }
-                        ]
-                    }
-                },
+                payload,
                 {
                     headers: {
-                        'Authorization': `Bearer ${this.ACCESS_TOKEN}`,
+                        'Authorization': `Basic ${this.API_KEY}`,
                         'Content-Type': 'application/json'
                     }
                 }
             );
 
+            console.log(`[WhatsApp] Sent "${templateName}" to ${countryCode}${phoneNumber} — ID: ${response.data?.id}`);
+
             await this.logMessage({
                 id: logId,
-                recipient_phone: formattedPhone,
+                recipient_phone: `${countryCode}${phoneNumber}`,
                 channel: 'whatsapp',
                 template_name: templateName,
                 status: 'sent',
@@ -100,18 +115,18 @@ export class WhatsAppService {
 
             return true;
         } catch (error: any) {
-            const errMsg = error.response?.data?.error?.message || error.message;
-            console.error(`[WhatsApp] Failed to send "${templateName}":`, errMsg);
+            const errMsg = error.response?.data?.message || error.response?.data?.error || error.message;
+            console.error(`[WhatsApp] Failed to send "${templateName}" to ${countryCode}${phoneNumber}:`, errMsg);
 
             await this.logMessage({
                 id: logId,
-                recipient_phone: formattedPhone,
+                recipient_phone: `${countryCode}${phoneNumber}`,
                 channel: 'whatsapp',
                 template_name: templateName,
                 status: 'failed',
                 context,
                 reference_id: referenceId,
-                error_message: errMsg
+                error_message: typeof errMsg === 'string' ? errMsg : JSON.stringify(errMsg)
             });
 
             return false;
@@ -144,20 +159,24 @@ export class WhatsAppService {
         }
     }
 
+    // ─── PUBLIC METHODS (signatures unchanged) ───────────────────────
+
     /**
-     * API: Send Login OTP
+     * Send Login OTP
+     * Template: login_otp — Variables: {{1}} = OTP
      */
     static async sendLoginOTP(phone: string, name: string, otp: string): Promise<boolean> {
         return this.sendTemplateMessage(
             phone,
             'login_otp',
-            [otp], // Variables: {{1}}
+            [otp],
             'login_auth'
         );
     }
 
     /**
-     * API: Send Warranty Submission Authorization OTP
+     * Send Warranty Submission Authorization OTP
+     * Template: warranty_auth_otp — Variables: {{1}} = registrant, {{2}} = product, {{3}} = OTP
      */
     static async sendWarrantyAuthOTP(
         phone: string,
@@ -165,7 +184,6 @@ export class WhatsAppService {
         productType: string,
         otp: string
     ): Promise<boolean> {
-        // Template: {{1}} is asking for OTP to register {{2}} warranty. Code: {{3}}
         return this.sendTemplateMessage(
             phone,
             'warranty_auth_otp',
@@ -175,7 +193,8 @@ export class WhatsAppService {
     }
 
     /**
-     * API: Send Warranty Submission Confirmation
+     * Send Warranty Submission Confirmation
+     * Template: warranty_confirmed — Variables: {{1}} = name, {{2}} = UID, {{3}} = product, {{4}} = car
      */
     static async sendWarrantyConfirmation(
         phone: string,
@@ -194,7 +213,8 @@ export class WhatsAppService {
     }
 
     /**
-     * API: Send Warranty Approval
+     * Send Warranty Approval
+     * Template: warranty_approved — Variables: {{1}} = name, {{2}} = UID, {{3}} = product, {{4}} = link
      */
     static async sendWarrantyApproval(
         phone: string,
@@ -213,7 +233,8 @@ export class WhatsAppService {
     }
 
     /**
-     * API: Send Warranty Rejection
+     * Send Warranty Rejection
+     * Template: warranty_rejected — Variables: {{1}} = name, {{2}} = UID, {{3}} = reason, {{4}} = link
      */
     static async sendWarrantyRejection(
         phone: string,
@@ -232,7 +253,8 @@ export class WhatsAppService {
     }
 
     /**
-     * API: Send Installation Confirmation Request to Franchise
+     * Send Installation Confirmation Request to Franchise
+     * Template: installation_confirm — Variables: {{1}} = vendor, {{2}} = customer, {{3}} = car, {{4}} = link
      */
     static async sendInstallationConfirmation(
         phone: string,
@@ -250,7 +272,8 @@ export class WhatsAppService {
     }
 
     /**
-     * API: Send Grievance Assignment to Assignee
+     * Send Grievance Assignment to Assignee
+     * Template: grievance_assigned — Variables: {{1}} = assignee, {{2}} = ticketId, {{3}} = category
      */
     static async sendGrievanceAssignment(
         phone: string,
@@ -268,7 +291,8 @@ export class WhatsAppService {
     }
 
     /**
-     * API: Send Grievance Status Update to Customer/Franchise
+     * Send Grievance Status Update to Customer/Franchise
+     * Template: grievance_status_update — Variables: {{1}} = name, {{2}} = ticketId, {{3}} = status
      */
     static async sendGrievanceUpdate(
         phone: string,
@@ -286,7 +310,8 @@ export class WhatsAppService {
     }
 
     /**
-     * API: New Registration Welcome
+     * New Registration Welcome
+     * Template: welcome_registration — Variables: {{1}} = name, {{2}} = warrantyId
      */
     static async sendPublicWelcome(
         phone: string,

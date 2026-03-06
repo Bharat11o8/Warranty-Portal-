@@ -12,6 +12,7 @@ import {
     ClipboardCheck,
     Target,
     Image as ImageIcon,
+    BookOpen,
     ChevronRight,
     ChevronLeft,
     LogOut,
@@ -37,6 +38,7 @@ export type FmsModule =
     | 'manpower'
     | 'offers'
     | 'catalogue'
+    | 'ecatalogue'
     | 'news'
     | 'audit'
     | 'targets'
@@ -152,6 +154,11 @@ export const menuGroups = [
                 id: 'catalogue' as const,
                 label: "Product Catalogue",
                 icon: Box,
+            },
+            {
+                id: 'ecatalogue' as const,
+                label: "E-Catalogue",
+                icon: BookOpen,
             },
             {
                 id: 'posm' as const,
