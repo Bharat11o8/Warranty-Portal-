@@ -17,7 +17,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar";
 import { Pagination } from "./Pagination";
 
-export const NewsAlerts = () => {
+export const NewsAlerts = ({ onNavigate, onLinkClick }: { onNavigate?: (module: any) => void; onLinkClick?: (link: string) => boolean }) => {
     const { fullHistory, markAsRead, markAllAsRead, refreshNotifications, loading, dismissNotification, undoDismissNotification } = useNotifications();
     const [touchStart, setTouchStart] = useState<number | null>(null);
     const [swipingId, setSwipingId] = useState<number | null>(null);
@@ -555,9 +555,18 @@ export const NewsAlerts = () => {
                                         <div className="pt-6 border-t border-slate-100 flex justify-end">
                                             <Button
                                                 onClick={() => {
+                                                    // Handle internal dashboard links if handler provided
+                                                    if (item.link.startsWith('/') && onLinkClick) {
+                                                        const handled = onLinkClick(item.link);
+                                                        if (handled) {
+                                                            setSelectedNotification(null);
+                                                            return;
+                                                        }
+                                                    }
+
                                                     let url;
                                                     if (item.link.startsWith('/')) {
-                                                        // Internal link: Prepend origin to open in new tab
+                                                        // Internal link fallback: Prepend origin to open in new tab
                                                         url = `${window.location.origin}${item.link}`;
                                                     } else {
                                                         // External link: Ensure protocol

@@ -125,6 +125,9 @@ const FranchiseDashboard = () => {
             setViewingProductId(null);
             setViewingCategoryId(null);
             return true;
+        } else if (href === '/ecatalogue') {
+            if (activeModule !== 'ecatalogue') setActiveModule('ecatalogue');
+            return true;
         }
         return false;
     };
@@ -671,7 +674,7 @@ const FranchiseDashboard = () => {
             case 'news':
                 return (
                     <div className="-mt-8 md:-mt-14">
-                        <NewsAlerts />
+                        <NewsAlerts onNavigate={setActiveModule} onLinkClick={handleInternalLink} />
                     </div>
                 );
             case 'grievances':
