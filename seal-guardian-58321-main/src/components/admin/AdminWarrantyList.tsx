@@ -17,7 +17,13 @@ import {
     Phone,
     Store,
     User,
-    X
+    X,
+    ShieldAlert,
+    MapPin,
+    Wifi,
+    Clock,
+    ChevronDown,
+    ChevronUp
 } from "lucide-react";
 
 
@@ -40,6 +46,22 @@ export const AdminWarrantyList = ({
     onReject
 }: AdminWarrantyListProps) => {
     const [selectedWarranty, setSelectedWarranty] = useState<any>(null);
+    const [expandedFraud, setExpandedFraud] = useState<Set<string>>(new Set());
+
+    const toggleFraudDetails = (id: string) => {
+        setExpandedFraud(prev => {
+            const next = new Set(prev);
+            if (next.has(id)) next.delete(id);
+            else next.add(id);
+            return next;
+        });
+    };
+
+    const getFraudBadgeColor = (score: number) => {
+        if (score <= 1) return 'bg-green-100 text-green-700 border-green-200';
+        if (score <= 3) return 'bg-yellow-100 text-yellow-700 border-yellow-200';
+        return 'bg-red-100 text-red-700 border-red-200';
+    };
 
     if (items.length === 0) {
         return (
@@ -142,6 +164,29 @@ export const AdminWarrantyList = ({
                                             warranty.status === 'rejected' ? 'Disapproved' :
                                                 warranty.status === 'pending_vendor' ? 'Waiting Vendor' : 'Pending'}
                                     </Badge>
+                                    {/* Fraud Score Badge */}
+                                    {warranty.fraud_score !== undefined && warranty.fraud_score !== null && (
+                                        <TooltipProvider>
+                                            <Tooltip>
+                                                <TooltipTrigger asChild>
+                                                    <Badge
+                                                        variant="outline"
+                                                        className={cn(
+                                                            "text-[10px] px-1.5 py-0.5 h-5 cursor-pointer gap-1 hidden md:inline-flex",
+                                                            getFraudBadgeColor(warranty.fraud_score)
+                                                        )}
+                                                        onClick={() => toggleFraudDetails(warranty.uid || warranty.id)}
+                                                    >
+                                                        <ShieldAlert className="h-3 w-3" />
+                                                        {warranty.fraud_score}/5
+                                                    </Badge>
+                                                </TooltipTrigger>
+                                                <TooltipContent side="bottom">
+                                                    <p className="text-xs">Fraud Risk Score — Click to expand details</p>
+                                                </TooltipContent>
+                                            </Tooltip>
+                                        </TooltipProvider>
+                                    )}
                                 </div>
                             </div>
 
@@ -369,6 +414,92 @@ export const AdminWarrantyList = ({
                                     <p className="text-sm text-red-600">{warranty.rejection_reason || 'N/A'}</p>
                                 </div>
                             )}
+
+                            {/* Fraud Details Panel (Toggle with badge click) */}
+                            {expandedFraud.has(warranty.uid || warranty.id) && warranty.fraud_score !== undefined && (() => {
+                                const flags = typeof warranty.fraud_flags === 'string' ? JSON.parse(warranty.fraud_flags || '{}') : (warranty.fraud_flags || {});
+                                return (
+                                    <div className="mt-3 pt-3 border-t border-dashed border-red-200 bg-red-50/30 rounded-lg p-3">
+                                        <div className="flex items-center justify-between mb-3">
+                                            <h4 className="text-xs font-semibold uppercase tracking-wider text-red-700 flex items-center gap-1.5">
+                                                <ShieldAlert className="h-3.5 w-3.5" />
+                                                Fraud Analysis — Score: {warranty.fraud_score}/5
+                                            </h4>
+                                            <Button
+                                                size="sm"
+                                                variant="ghost"
+                                                className="h-6 w-6 p-0 text-slate-400"
+                                                onClick={() => toggleFraudDetails(warranty.uid || warranty.id)}
+                                            >
+                                                <ChevronUp className="h-4 w-4" />
+                                            </Button>
+                                        </div>
+                                        <div className="grid grid-cols-2 md:grid-cols-5 gap-3 text-xs">
+                                            <div className={cn("p-2 rounded border", flags.exif_location_mismatch ? "bg-red-100 border-red-200" : "bg-green-50 border-green-200")}>
+                                                <div className="flex items-center gap-1 mb-1">
+                                                    <MapPin className="h-3 w-3" />
+                                                    <span className="font-medium">EXIF Location</span>
+                                                </div>
+                                                <p className={cn("text-[10px]", flags.exif_location_mismatch ? "text-red-600" : "text-green-600")}>
+                                                    {flags.exif_location_mismatch ? '⚠ Mismatch' : '✓ Match'}
+                                                </p>
+                                                {warranty.exif_lat && (
+                                                    <p className="text-[10px] text-muted-foreground mt-1">
+                                                        {warranty.exif_lat?.toFixed(4)}, {warranty.exif_lng?.toFixed(4)}
+                                                    </p>
+                                                )}
+                                            </div>
+                                            <div className={cn("p-2 rounded border", flags.ip_location_mismatch ? "bg-red-100 border-red-200" : "bg-green-50 border-green-200")}>
+                                                <div className="flex items-center gap-1 mb-1">
+                                                    <Wifi className="h-3 w-3" />
+                                                    <span className="font-medium">IP Location</span>
+                                                </div>
+                                                <p className={cn("text-[10px]", flags.ip_location_mismatch ? "text-red-600" : "text-green-600")}>
+                                                    {flags.ip_location_mismatch ? '⚠ Mismatch' : '✓ Match'}
+                                                </p>
+                                                {warranty.ip_city && (
+                                                    <p className="text-[10px] text-muted-foreground mt-1">
+                                                        {warranty.ip_city}, {warranty.ip_region}
+                                                    </p>
+                                                )}
+                                            </div>
+                                            <div className={cn("p-2 rounded border", flags.exif_timestamp_suspicious ? "bg-red-100 border-red-200" : "bg-green-50 border-green-200")}>
+                                                <div className="flex items-center gap-1 mb-1">
+                                                    <Clock className="h-3 w-3" />
+                                                    <span className="font-medium">Timestamp</span>
+                                                </div>
+                                                <p className={cn("text-[10px]", flags.exif_timestamp_suspicious ? "text-red-600" : "text-green-600")}>
+                                                    {flags.exif_timestamp_suspicious ? '⚠ Suspicious' : '✓ Normal'}
+                                                </p>
+                                            </div>
+                                            <div className={cn("p-2 rounded border", flags.exif_data_missing ? "bg-yellow-100 border-yellow-200" : "bg-green-50 border-green-200")}>
+                                                <div className="flex items-center gap-1 mb-1">
+                                                    <MapPin className="h-3 w-3" />
+                                                    <span className="font-medium">EXIF Data</span>
+                                                </div>
+                                                <p className={cn("text-[10px]", flags.exif_data_missing ? "text-yellow-700" : "text-green-600")}>
+                                                    {flags.exif_data_missing ? '⚠ Missing' : '✓ Present'}
+                                                </p>
+                                            </div>
+                                            <div className={cn("p-2 rounded border", flags.ip_data_missing ? "bg-yellow-100 border-yellow-200" : "bg-green-50 border-green-200")}>
+                                                <div className="flex items-center gap-1 mb-1">
+                                                    <Wifi className="h-3 w-3" />
+                                                    <span className="font-medium">IP Data</span>
+                                                </div>
+                                                <p className={cn("text-[10px]", flags.ip_data_missing ? "text-yellow-700" : "text-green-600")}>
+                                                    {flags.ip_data_missing ? '⚠ Missing' : '✓ Present'}
+                                                </p>
+                                            </div>
+                                        </div>
+                                        {/* Additional metadata */}
+                                        <div className="mt-2 pt-2 border-t text-[10px] text-muted-foreground flex flex-wrap gap-x-4 gap-y-1">
+                                            {warranty.submission_ip && <span>IP: {warranty.submission_ip}</span>}
+                                            {warranty.exif_device && <span>Device: {warranty.exif_device}</span>}
+                                            {warranty.exif_timestamp && <span>Photo Time: {new Date(warranty.exif_timestamp).toLocaleString()}</span>}
+                                        </div>
+                                    </div>
+                                );
+                            })()}
                             {showActions && (
                                 <div>
                                     <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">Actions</p>

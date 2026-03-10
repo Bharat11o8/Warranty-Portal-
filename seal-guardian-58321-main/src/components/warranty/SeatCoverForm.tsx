@@ -2,29 +2,25 @@ import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "@/lib/api";
 import {
-  validateIndianMobile,
   validateEmail,
-  getPhoneError,
-  getEmailError
+  getPhoneError
 } from "@/lib/validation";
-import { getISTTodayISO, getISTYear } from "@/lib/utils";
+import { getISTTodayISO } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Card, CardContent } from "@/components/ui/card";
 import { Combobox } from "@/components/ui/combobox";
 import { DatePicker } from "@/components/ui/date-picker";
 import { MobileSelect } from "@/components/ui/mobile-select";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
-import { Upload, Loader2, HelpCircle, CheckCircle2, FileText, Building2, User, Car, Smartphone, Mail, Calendar, Package, XCircle, AlertCircle } from "lucide-react";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Upload, Loader2, HelpCircle, CheckCircle2, FileText, Building2, User, Car, Smartphone, Mail, Package, XCircle, AlertCircle, Armchair, ImageIcon } from "lucide-react";
+import CameraCapture from "@/components/ui/CameraCapture";
 import { submitWarranty, updateWarranty } from "@/lib/warrantyApi";
 import { TermsModal } from "./TermsModal";
-import { CAR_MAKES } from "@/lib/carMakes";
 import { compressImage, isCompressibleImage } from "@/lib/imageCompression";
+import exifr from 'exifr';
 
 interface SeatCoverFormProps {
   initialData?: any;
@@ -77,7 +73,10 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
     warrantyType: initialData.warranty_type || "1 Year",
     invoiceFile: null as File | null,
     vehicleFile: null as File | null,
+    seatCoverPhoto: null as File | null,
+    carOuterPhoto: null as File | null,
     termsAccepted: true, // Already accepted if editing
+    exifData: null as any,
   } : {
     uid: "",
     customerName: "",
@@ -94,7 +93,10 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
     warrantyType: "1 Year",
     invoiceFile: null as File | null,
     vehicleFile: null as File | null,
+    seatCoverPhoto: null as File | null,
+    carOuterPhoto: null as File | null,
     termsAccepted: false,
+    exifData: null as any,
   });
 
   // Auto-fill customer details for logged-in customers
@@ -314,8 +316,26 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
         }
         if (!formData.vehicleFile) {
           toast({
-            title: "Vehicle Photo Required",
-            description: "Please upload a vehicle image showing the registration number",
+            title: "Number Plate Photo Required",
+            description: "Please capture a photo of the vehicle number plate",
+            variant: "destructive",
+          });
+          setLoading(false);
+          return;
+        }
+        if (!formData.seatCoverPhoto) {
+          toast({
+            title: "Seat Cover Photo Required",
+            description: "Please capture a photo of the fitted seat cover",
+            variant: "destructive",
+          });
+          setLoading(false);
+          return;
+        }
+        if (!formData.carOuterPhoto) {
+          toast({
+            title: "Car Outer Photo Required",
+            description: "Please capture a photo of the car exterior",
             variant: "destructive",
           });
           setLoading(false);
@@ -352,11 +372,14 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
           storeEmail: formData.storeEmail,
           manpowerId: formData.manpowerId,
           manpowerName: manpowerName,
+          exifData: formData.exifData || null,
           customerAddress: "N/A",
           invoiceFileName: formData.invoiceFile?.name || null,
           invoiceFile: formData.invoiceFile, // Pass file object for API wrapper
           photos: {
-            vehicle: formData.vehicleFile
+            vehicle: formData.vehicleFile,
+            seatCover: formData.seatCoverPhoto,
+            carOuter: formData.carOuterPhoto
           }
         },
         vendorDirect: vendorDirect || false,
@@ -382,14 +405,21 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
             const invoiceFile = pd.invoiceFile;
             const pdWithoutFile = { ...pd };
             delete pdWithoutFile.invoiceFile;
+            console.log('[FraudDetection] productDetails being sent:', { exifData: pdWithoutFile.exifData });
             formDataPayload.append('productDetails', JSON.stringify(pdWithoutFile));
 
             // Append invoice file
             if (invoiceFile instanceof File) formDataPayload.append('invoiceFile', invoiceFile);
 
-            // Append vehicle photo if exists in productDetails.photos
+            // Append photo files
             if (pd.photos?.vehicle instanceof File) {
               formDataPayload.append('vehiclePhoto', pd.photos.vehicle);
+            }
+            if (pd.photos?.seatCover instanceof File) {
+              formDataPayload.append('seatCoverPhoto', pd.photos.seatCover);
+            }
+            if (pd.photos?.carOuter instanceof File) {
+              formDataPayload.append('carOuterPhoto', pd.photos.carOuter);
             }
           } else if (value !== null && value !== undefined) {
             formDataPayload.append(key, String(value));
@@ -438,7 +468,10 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
           warrantyType: "1 Year",
           invoiceFile: null,
           vehicleFile: null,
+          seatCoverPhoto: null,
+          carOuterPhoto: null,
           termsAccepted: false,
+          exifData: null,
         });
         return;
       }
@@ -459,7 +492,10 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
         warrantyType: "1 Year",
         invoiceFile: null,
         vehicleFile: null,
+        seatCoverPhoto: null,
+        carOuterPhoto: null,
         termsAccepted: false,
+        exifData: null,
       });
 
       // Redirect to appropriate dashboard based on role
@@ -540,7 +576,7 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
   const ALLOWED_FILE_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/heic', 'image/heif', 'application/pdf'];
   const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>, field: 'invoiceFile' | 'vehicleFile') => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>, field: 'invoiceFile' | 'vehicleFile' | 'seatCoverPhoto' | 'carOuterPhoto') => {
     const file = e.target.files?.[0];
     if (file) {
       // Check file type
@@ -552,6 +588,40 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
         });
         e.target.value = ''; // Reset input
         return;
+      }
+
+      // --- FRAUD DETECTION: Extract EXIF BEFORE compression ---
+      if (['vehicleFile', 'seatCoverPhoto', 'carOuterPhoto'].includes(field)) {
+        try {
+          // Parse EXIF, GPS, and TIFF data (for make/model)
+          const exif = await exifr.parse(file, {
+            tiff: true, xmp: true, icc: true, gps: true, exif: true
+          });
+          if (exif) {
+            console.log(`[FraudDetection] Extracted EXIF for ${field}:`, {
+              lat: exif.latitude, lng: exif.longitude, time: exif.DateTimeOriginal
+            });
+            // Keep the first valid EXIF data we find, prefer one with GPS
+            setFormData(prev => {
+              const currentExif = prev.exifData || {};
+              // If we already have GPS and this one doesn't, keep the old one
+              if (currentExif.latitude && !exif.latitude) return prev;
+
+              return {
+                ...prev,
+                exifData: {
+                  lat: exif.latitude || currentExif.lat,
+                  lng: exif.longitude || currentExif.lng,
+                  timestamp: exif.DateTimeOriginal || currentExif.timestamp,
+                  deviceMake: exif.Make || currentExif.deviceMake,
+                  deviceModel: exif.Model || currentExif.deviceModel
+                }
+              };
+            });
+          }
+        } catch (err) {
+          console.warn(`[FraudDetection] EXIF extraction failed for ${field}:`, err);
+        }
       }
 
       let processedFile = file;
@@ -583,6 +653,80 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
 
       setFormData(prev => ({ ...prev, [field]: processedFile || null }));
     }
+  };
+
+  // Handle camera captures: extract EXIF then compress before storing
+  const handleCameraCapture = async (file: File | null, field: 'vehicleFile' | 'seatCoverPhoto' | 'carOuterPhoto') => {
+    if (!file) {
+      setFormData(prev => ({ ...prev, [field]: null }));
+      return;
+    }
+
+    console.log(`[FraudDetection] Camera file received for ${field}:`, {
+      name: file.name, type: file.type, size: file.size
+    });
+
+    // Extract EXIF before compression strips it
+    // Read as ArrayBuffer first — more reliable than passing File directly on iOS Safari
+    try {
+      const arrayBuffer = await file.arrayBuffer();
+      console.log(`[FraudDetection] ArrayBuffer read, size: ${arrayBuffer.byteLength}`);
+
+      const exif = await exifr.parse(arrayBuffer, {
+        gps: true,
+        exif: true,
+        tiff: true,
+        mergeOutput: true,
+      });
+
+      console.log(`[FraudDetection] EXIF result for ${field}:`, exif ? {
+        latitude: exif.latitude,
+        longitude: exif.longitude,
+        DateTimeOriginal: exif.DateTimeOriginal,
+        Make: exif.Make,
+        Model: exif.Model,
+        GPSLatitude: exif.GPSLatitude,
+        GPSLongitude: exif.GPSLongitude,
+        allKeys: Object.keys(exif).join(', ')
+      } : 'NULL - no EXIF found');
+
+      if (exif) {
+        // GPS might be in different formats depending on the device
+        const lat = exif.latitude ?? (exif.GPSLatitude ? exif.GPSLatitude : null);
+        const lng = exif.longitude ?? (exif.GPSLongitude ? exif.GPSLongitude : null);
+
+        setFormData(prev => {
+          const currentExif = prev.exifData || {};
+          // If we already have GPS and this one doesn't, keep the old one
+          if (currentExif.lat && !lat) return prev;
+
+          const newExif = {
+            lat: lat || currentExif.lat || null,
+            lng: lng || currentExif.lng || null,
+            timestamp: exif.DateTimeOriginal || exif.CreateDate || currentExif.timestamp || null,
+            deviceMake: exif.Make || currentExif.deviceMake || null,
+            deviceModel: exif.Model || currentExif.deviceModel || null
+          };
+          console.log(`[FraudDetection] Storing EXIF data:`, newExif);
+          return { ...prev, exifData: newExif };
+        });
+      }
+    } catch (err) {
+      console.warn(`[FraudDetection] EXIF extraction failed for ${field}:`, err);
+    }
+
+    // Compress the image
+    let processedFile = file;
+    if (isCompressibleImage(file)) {
+      try {
+        processedFile = await compressImage(file, { maxSizeKB: 800, quality: 0.7 });
+        console.log(`[FraudDetection] Compressed ${field}: ${file.size} -> ${processedFile.size}`);
+      } catch (err) {
+        console.warn("Camera image compression failed, using original:", err);
+      }
+    }
+
+    setFormData(prev => ({ ...prev, [field]: processedFile }));
   };
 
   return (
@@ -843,6 +987,12 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
                       // Validate UID on blur if it has the right length
                       const uidVal = formData.uid;
                       if (/^\d{13,16}$/.test(uidVal)) {
+                        // Skip real-time UID validation in public QR flow (no auth token)
+                        // Server validates during submission anyway
+                        if (isPublic) {
+                          setUidStatus('idle');
+                          return;
+                        }
                         setUidStatus('checking');
                         api.get(`/uid/validate/${uidVal}`)
                           .then(res => {
@@ -989,45 +1139,47 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
                 </div>
               </div>
 
-              {/* Vehicle Photo Upload */}
-              <div className="space-y-3 md:col-span-2">
-                <Label htmlFor="vehicleFile" className="text-sm font-medium text-slate-700">
-                  Vehicle Image with Registration Number <span className="text-destructive">*</span>
-                </Label>
-                <div className={`mt-2 border-2 border-dashed rounded-xl p-6 transition-all duration-200 text-center relative ${formData.vehicleFile ? 'border-orange-300 bg-orange-50/30' : 'border-slate-200 hover:border-orange-300 hover:bg-slate-50'}`}>
-                  <div className="flex flex-col items-center gap-2">
-                    <div className={`p-3 rounded-full ${formData.vehicleFile ? 'bg-orange-100 text-orange-600' : 'bg-slate-100 text-slate-500'}`}>
-                      {formData.vehicleFile ? <Car className="h-6 w-6" /> : <Upload className="h-6 w-6" />}
-                    </div>
-                    <div>
-                      {formData.vehicleFile ? (
-                        <div className="space-y-1">
-                          <p className="text-sm font-medium text-orange-700 break-all">{formData.vehicleFile.name}</p>
-                          <p className="text-xs text-orange-600/70">{(formData.vehicleFile.size / 1024 / 1024).toFixed(2)} MB</p>
-                          <label htmlFor="vehicleFile" className="text-xs text-orange-600 underline cursor-pointer hover:text-orange-800">Change File</label>
-                        </div>
-                      ) : (
-                        <div className="space-y-1">
-                          <p className="text-sm font-medium text-slate-700">Click to upload or drag and drop</p>
-                          <p className="text-xs text-muted-foreground">JPG, PNG, HEIC (Max 5MB)</p>
-                        </div>
-                      )}
-                    </div>
-                    <Input
-                      id="vehicleFile"
-                      type="file"
-                      accept="image/jpeg,image/png,image/heic,image/heif"
-                      onChange={(e) => handleFileChange(e, 'vehicleFile')}
-                      required={!warrantyId}
-                      disabled={loading}
-                      className="hidden"
-                    />
-                    {!formData.vehicleFile && (
-                      <label htmlFor="vehicleFile" className="absolute inset-0 cursor-pointer"></label>
-                    )}
-                  </div>
-                </div>
-              </div>
+              {/* Number Plate Photo — Camera Only */}
+              <CameraCapture
+                id="vehicleFile"
+                label="Number Plate Photo"
+                description="Capture a clear photo of the vehicle number plate"
+                required={!warrantyId}
+                disabled={loading}
+                cameraOnly={true}
+                value={formData.vehicleFile}
+                onChange={(file) => handleCameraCapture(file, 'vehicleFile')}
+                accept="image/jpeg,image/png,image/heic,image/heif"
+                selectedIcon={<Car className="h-6 w-6" />}
+              />
+
+              {/* Fitted Seat Cover Photo — Camera Only */}
+              <CameraCapture
+                id="seatCoverPhoto"
+                label="Fitted Seat Cover Photo"
+                description="Capture a photo of the seat cover after installation"
+                required={!warrantyId}
+                disabled={loading}
+                cameraOnly={true}
+                value={formData.seatCoverPhoto}
+                onChange={(file) => handleCameraCapture(file, 'seatCoverPhoto')}
+                accept="image/jpeg,image/png,image/heic,image/heif"
+                selectedIcon={<Armchair className="h-6 w-6" />}
+              />
+
+              {/* Car Outer Image — Camera Only */}
+              <CameraCapture
+                id="carOuterPhoto"
+                label="Car Outer Image"
+                description="Capture a photo of the car exterior"
+                required={!warrantyId}
+                disabled={loading}
+                cameraOnly={true}
+                value={formData.carOuterPhoto}
+                onChange={(file) => handleCameraCapture(file, 'carOuterPhoto')}
+                accept="image/jpeg,image/png,image/heic,image/heif"
+                selectedIcon={<ImageIcon className="h-6 w-6" />}
+              />
             </div>
           </CardContent>
         </Card>

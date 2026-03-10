@@ -6,6 +6,8 @@ import { AuthRequest } from '../middleware/auth.js';
 import { WarrantyData } from '../types/index.js';
 import jwt from 'jsonwebtoken';
 import { NotificationService } from '../services/notification.service.js';
+import { geolocateIP, getClientIP } from '../utils/ipGeolocation.js';
+import { calculateFraudScore } from '../utils/fraudScoring.js';
 
 
 // Extending WarrantyData interface locally if not updated in types file yet
@@ -40,29 +42,44 @@ export class WarrantyController {
       if (files && files.length > 0) {
         // Map files to their respective fields in productDetails
         files.forEach(file => {
-          // Field name in form data should match the key in productDetails we want to set
-          // e.g., "invoiceFile" -> productDetails.invoiceFileName
-          // e.g., "lhsPhoto" -> productDetails.photos.lhs
-
           if (file.fieldname === 'invoiceFile') {
             warrantyData.productDetails.invoiceFileName = file.path;
-          } else if (['lhsPhoto', 'rhsPhoto', 'frontRegPhoto', 'backRegPhoto', 'warrantyPhoto', 'vehiclePhoto'].includes(file.fieldname)) {
+          } else if (['lhsPhoto', 'rhsPhoto', 'frontRegPhoto', 'backRegPhoto', 'warrantyPhoto', 'vehiclePhoto', 'seatCoverPhoto', 'carOuterPhoto'].includes(file.fieldname)) {
             if (!warrantyData.productDetails.photos) {
               warrantyData.productDetails.photos = {};
             }
-            // Map fieldname to photo key
-            const photoKey = file.fieldname.replace('Photo', ''); // lhs, rhs, warranty, vehicle
-            // Special case for Reg photos if naming differs, but let's assume standard mapping or adjust
-            // Actually, EVProductsForm sends: lhsPhoto, rhsPhoto, frontRegPhoto, backRegPhoto, warrantyPhoto
-            // And productDetails.photos expects: lhs, rhs, frontReg, backReg, warranty, vehicle
-
-            let key = photoKey;
+            let key = file.fieldname.replace('Photo', '');
             if (file.fieldname === 'frontRegPhoto') key = 'frontReg';
             if (file.fieldname === 'backRegPhoto') key = 'backReg';
+            if (file.fieldname === 'seatCoverPhoto') key = 'seatCover';
+            if (file.fieldname === 'carOuterPhoto') key = 'carOuter';
 
             (warrantyData.productDetails.photos as any)[key] = file.path;
           }
         });
+      }
+
+      // --- FRAUD DETECTION: EXIF data from frontend ---
+      let exifData = { lat: null as number | null, lng: null as number | null, timestamp: null as Date | null, deviceMake: null as string | null, deviceModel: null as string | null };
+      if ((warrantyData.productDetails as any).exifData) {
+        const feExif = (warrantyData.productDetails as any).exifData;
+        exifData = {
+          lat: feExif.lat || null,
+          lng: feExif.lng || null,
+          timestamp: feExif.timestamp ? new Date(feExif.timestamp) : null,
+          deviceMake: feExif.deviceMake || null,
+          deviceModel: feExif.deviceModel || null
+        };
+      }
+
+      // --- FRAUD DETECTION: IP Geolocation ---
+      const clientIP = getClientIP(req);
+      let ipGeo = { city: null as string | null, region: null as string | null, country: null as string | null, lat: null as number | null, lng: null as number | null };
+      try {
+        const ipResult = await geolocateIP(clientIP);
+        ipGeo = { city: ipResult.city, region: ipResult.region, country: ipResult.country, lat: ipResult.lat, lng: ipResult.lng };
+      } catch (err) {
+        console.warn('[FraudDetection] IP geolocation failed:', err);
       }
 
       // Validate required fields
@@ -194,12 +211,47 @@ export class WarrantyController {
       // or generate a new UUID (fallback)
       const warrantyId = warrantyData.productDetails.uid || warrantyData.productDetails.serialNumber || uuidv4();
 
+      // --- FRAUD DETECTION: Calculate fraud score ---
+      let fraudScore = 0;
+      let fraudFlags = {};
+      let storeLocation = { lat: null as number | null, lng: null as number | null, city: null as string | null, state: null as string | null };
+      if (warrantyData.installerName) {
+        try {
+          const [storeRows]: any = await db.execute(
+            'SELECT latitude, longitude, city, state FROM vendor_details WHERE store_name = ? LIMIT 1',
+            [warrantyData.installerName]
+          );
+          if (storeRows.length > 0) {
+            storeLocation = {
+              lat: storeRows[0].latitude ? parseFloat(storeRows[0].latitude) : null,
+              lng: storeRows[0].longitude ? parseFloat(storeRows[0].longitude) : null,
+              city: storeRows[0].city || null,
+              state: storeRows[0].state || null,
+            };
+          }
+        } catch (err) {
+          console.warn('[FraudDetection] Store location lookup failed:', err);
+        }
+      }
+      try {
+        const result = calculateFraudScore(
+          { exif_lat: exifData.lat, exif_lng: exifData.lng, exif_timestamp: exifData.timestamp, ip_city: ipGeo.city, ip_region: ipGeo.region, ip_lat: ipGeo.lat, ip_lng: ipGeo.lng, submission_time: new Date() },
+          storeLocation
+        );
+        fraudScore = result.score;
+        fraudFlags = result.flags;
+      } catch (err) {
+        console.warn('[FraudDetection] Fraud scoring failed:', err);
+      }
+
       await db.execute(
         `INSERT INTO warranty_registrations 
         (uid, user_id, product_type, customer_name, customer_email, customer_phone, 
          customer_address, registration_number, car_make, car_model, car_year, 
-         purchase_date, installer_name, installer_contact, product_details, manpower_id, warranty_type, status) 
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         purchase_date, installer_name, installer_contact, product_details, manpower_id, warranty_type, status,
+         exif_lat, exif_lng, exif_timestamp, exif_device, submission_ip, ip_city, ip_region, ip_lat, ip_lng, fraud_score, fraud_flags,
+         seat_cover_photo_url, car_outer_photo_url) 
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           warrantyId,
           req.user.id,
@@ -218,7 +270,20 @@ export class WarrantyController {
           JSON.stringify(warrantyData.productDetails),
           warrantyData.manpowerId || null,
           warrantyData.warrantyType,
-          initialStatus
+          initialStatus,
+          exifData.lat,
+          exifData.lng,
+          exifData.timestamp,
+          exifData.deviceMake ? `${exifData.deviceMake} ${exifData.deviceModel || ''}`.trim() : null,
+          clientIP,
+          ipGeo.city,
+          ipGeo.region,
+          ipGeo.lat,
+          ipGeo.lng,
+          fraudScore,
+          JSON.stringify(fraudFlags),
+          (warrantyData.productDetails as any)?.photos?.seatCover || null,
+          (warrantyData.productDetails as any)?.photos?.carOuter || null
         ]
       );
 
