@@ -452,7 +452,7 @@ export const AdminWarrantyList = ({
                                             <div className={cn("p-2 rounded border", flags.ip_location_mismatch ? "bg-red-100 border-red-200" : "bg-green-50 border-green-200")}>
                                                 <div className="flex items-center gap-1 mb-1">
                                                     <Wifi className="h-3 w-3" />
-                                                    <span className="font-medium">IP Location</span>
+                                                    <span className="font-mium">IP Location</span>
                                                 </div>
                                                 <p className={cn("text-[10px]", flags.ip_location_mismatch ? "text-red-600" : "text-green-600")}>
                                                     {flags.ip_location_mismatch ? '⚠ Mismatch' : '✓ Match'}
