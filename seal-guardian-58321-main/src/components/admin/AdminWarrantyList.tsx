@@ -445,7 +445,7 @@ export const AdminWarrantyList = ({
                                                 </p>
                                                 {warranty.exif_lat && (
                                                     <p className="text-[10px] text-muted-foreground mt-1">
-                                                        {warranty.exif_lat?.toFixed(4)}, {warranty.exif_lng?.toFixed(4)}
+                                                        {Number(warranty.exif_lat).toFixed(4)}, {Number(warranty.exif_lng).toFixed(4)}
                                                     </p>
                                                 )}
                                             </div>
