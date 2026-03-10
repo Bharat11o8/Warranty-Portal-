@@ -666,56 +666,58 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
       name: file.name, type: file.type, size: file.size
     });
 
-    // Extract EXIF before compression strips it
-    // Read as ArrayBuffer first — more reliable than passing File directly on iOS Safari
+    // 1. Get GPS via Geolocation API (iOS strips GPS from camera captures for privacy)
+    try {
+      const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(resolve, reject, {
+          enableHighAccuracy: true,
+          timeout: 5000,
+          maximumAge: 60000
+        });
+      });
+      console.log(`[FraudDetection] Geolocation GPS:`, position.coords.latitude, position.coords.longitude);
+      setFormData(prev => ({
+        ...prev,
+        exifData: {
+          ...(prev.exifData || {}),
+          lat: position.coords.latitude,
+          lng: position.coords.longitude,
+        }
+      }));
+    } catch (err) {
+      console.warn(`[FraudDetection] Geolocation failed (user denied or unavailable):`, err);
+    }
+
+    // 2. Extract EXIF for device make/model/timestamp (GPS will be null on iOS, that's OK)
     try {
       const arrayBuffer = await file.arrayBuffer();
-      console.log(`[FraudDetection] ArrayBuffer read, size: ${arrayBuffer.byteLength}`);
-
       const exif = await exifr.parse(arrayBuffer, {
-        gps: true,
-        exif: true,
-        tiff: true,
-        mergeOutput: true,
+        gps: true, exif: true, tiff: true, mergeOutput: true,
       });
-
-      console.log(`[FraudDetection] EXIF result for ${field}:`, exif ? {
-        latitude: exif.latitude,
-        longitude: exif.longitude,
-        DateTimeOriginal: exif.DateTimeOriginal,
-        Make: exif.Make,
-        Model: exif.Model,
-        GPSLatitude: exif.GPSLatitude,
-        GPSLongitude: exif.GPSLongitude,
-        allKeys: Object.keys(exif).join(', ')
-      } : 'NULL - no EXIF found');
+      console.log(`[FraudDetection] EXIF for ${field}:`, exif ? {
+        Make: exif.Make, Model: exif.Model, DateTimeOriginal: exif.DateTimeOriginal
+      } : 'NULL');
 
       if (exif) {
-        // GPS might be in different formats depending on the device
-        const lat = exif.latitude ?? (exif.GPSLatitude ? exif.GPSLatitude : null);
-        const lng = exif.longitude ?? (exif.GPSLongitude ? exif.GPSLongitude : null);
-
         setFormData(prev => {
           const currentExif = prev.exifData || {};
-          // If we already have GPS and this one doesn't, keep the old one
-          if (currentExif.lat && !lat) return prev;
-
-          const newExif = {
-            lat: lat || currentExif.lat || null,
-            lng: lng || currentExif.lng || null,
-            timestamp: exif.DateTimeOriginal || exif.CreateDate || currentExif.timestamp || null,
-            deviceMake: exif.Make || currentExif.deviceMake || null,
-            deviceModel: exif.Model || currentExif.deviceModel || null
+          return {
+            ...prev,
+            exifData: {
+              lat: currentExif.lat || exif.latitude || null,
+              lng: currentExif.lng || exif.longitude || null,
+              timestamp: exif.DateTimeOriginal || exif.CreateDate || currentExif.timestamp || null,
+              deviceMake: exif.Make || currentExif.deviceMake || null,
+              deviceModel: exif.Model || currentExif.deviceModel || null
+            }
           };
-          console.log(`[FraudDetection] Storing EXIF data:`, newExif);
-          return { ...prev, exifData: newExif };
         });
       }
     } catch (err) {
       console.warn(`[FraudDetection] EXIF extraction failed for ${field}:`, err);
     }
 
-    // Compress the image
+    // 3. Compress the image
     let processedFile = file;
     if (isCompressibleImage(file)) {
       try {
