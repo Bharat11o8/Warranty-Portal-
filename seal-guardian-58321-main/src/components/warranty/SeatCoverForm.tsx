@@ -689,8 +689,11 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
     }
 
     // 2. Extract EXIF for device make/model/timestamp (GPS will be null on iOS, that's OK)
+    // CRITICAL FIX: Only read the first 128KB of the file! Reading the full 5-10MB 4K photo 
+    // into an ArrayBuffer causes iOS Safari to crash (OOM) and forcibly refresh the page.
     try {
-      const arrayBuffer = await file.arrayBuffer();
+      const exifChunk = file.slice(0, 128 * 1024); // 128KB is plenty for EXIF metadata headers
+      const arrayBuffer = await exifChunk.arrayBuffer();
       const exif = await exifr.parse(arrayBuffer, {
         gps: true, exif: true, tiff: true, mergeOutput: true,
       });
