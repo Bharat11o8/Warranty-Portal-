@@ -77,16 +77,15 @@ export function calculateFraudScore(
         device_category: deviceCategory
     };
 
-    // 1. DISTANCE PENALTY (Max 60 pts)
+    // 1. DISTANCE PENALTY (Max 100 pts)
     if (submission.exif_lat === null || submission.exif_lng === null) {
         flags.is_missing_data = true;
-        // iOS users get a smaller penalty for missing GPS due to Safari's strict privacy
         if (deviceCategory === 'ios') {
             flags.distance_penalty = 20;
         } else if (deviceCategory === 'desktop') {
-            flags.distance_penalty = 60; // Desktops shouldn't be verified at a store
+            flags.distance_penalty = 100;
         } else {
-            flags.distance_penalty = 40; // Android/Other
+            flags.distance_penalty = 40;
         }
     } else if (store.lat !== null && store.lng !== null) {
         const distance = haversineDistance(
@@ -94,14 +93,15 @@ export function calculateFraudScore(
             store.lat, store.lng
         );
         
-        if (distance > 1) {
-            // Logarithmic growth: 20 * ln(D) capped at 60
-            flags.distance_penalty = Math.min(60, Math.round(20 * Math.log(distance)));
-        }
+        if (distance > 50) flags.distance_penalty = 100;
+        else if (distance > 15) flags.distance_penalty = 85;
+        else if (distance > 5) flags.distance_penalty = 50;
+        else if (distance > 2) flags.distance_penalty = 20;
+        else flags.distance_penalty = 0;
     }
     deductions += flags.distance_penalty;
 
-    // 2. TIME PENALTY (Max 25 pts)
+    // 2. TIME PENALTY (Max 95 pts)
     if (submission.exif_timestamp === null) {
         flags.is_missing_data = true;
         flags.time_penalty = 10;
@@ -110,10 +110,11 @@ export function calculateFraudScore(
         const submitTime = submission.submission_time.getTime();
         const minutesDiff = Math.max(0, (submitTime - photoTime) / (1000 * 60));
 
-        if (minutesDiff > 15) {
-            // Linear growth: 0.25 pts per minute after 15 mins, capped at 25 (reaches cap at 115 mins delay)
-            flags.time_penalty = Math.min(25, Math.round((minutesDiff - 15) * 0.25));
-        }
+        if (minutesDiff > 30) flags.time_penalty = 95;
+        else if (minutesDiff > 15) flags.time_penalty = 70;
+        else if (minutesDiff > 5) flags.time_penalty = 40;
+        else if (minutesDiff > 2) flags.time_penalty = 10;
+        else flags.time_penalty = 0;
     }
     deductions += flags.time_penalty;
 

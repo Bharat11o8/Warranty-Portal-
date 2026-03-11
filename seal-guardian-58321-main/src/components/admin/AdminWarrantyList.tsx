@@ -435,29 +435,29 @@ export const AdminWarrantyList = ({
                                             </Button>
                                         </div>
                                         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
-                                            <div className={cn("p-2 rounded border", flags.distance_penalty > 30 ? "bg-red-100 border-red-200" : flags.distance_penalty > 0 ? "bg-yellow-100 border-yellow-200" : "bg-green-50 border-green-200")}>
+                                            <div className={cn("p-2 rounded border", flags.distance_penalty >= 50 ? "bg-red-100 border-red-200" : flags.distance_penalty > 0 ? "bg-yellow-100 border-yellow-200" : "bg-green-50 border-green-200")}>
                                                 <div className="flex items-center gap-1 mb-1">
                                                     <MapPin className="h-3 w-3" />
                                                     <span className="font-medium">Distance Penalty</span>
                                                 </div>
-                                                <p className={cn("text-sm font-bold", flags.distance_penalty > 30 ? "text-red-600" : flags.distance_penalty > 0 ? "text-yellow-700" : "text-green-600")}>
+                                                <p className={cn("text-sm font-bold", flags.distance_penalty >= 50 ? "text-red-600" : flags.distance_penalty > 0 ? "text-yellow-700" : "text-green-600")}>
                                                     -{flags.distance_penalty} pts
                                                 </p>
                                                 <p className="text-[10px] text-muted-foreground mt-1">
-                                                    {flags.distance_penalty === 0 ? '✓ Within Store' : flags.distance_penalty >= 40 ? '❌ Outside Area' : '⚠ Warning'}
+                                                    {flags.distance_penalty === 0 ? '✓ Within Store' : flags.distance_penalty >= 50 ? '❌ Outside Area' : '⚠ Warning'}
                                                 </p>
                                             </div>
 
-                                            <div className={cn("p-2 rounded border", flags.time_penalty > 15 ? "bg-red-100 border-red-200" : flags.time_penalty > 0 ? "bg-yellow-100 border-yellow-200" : "bg-green-50 border-green-200")}>
+                                            <div className={cn("p-2 rounded border", flags.time_penalty >= 40 ? "bg-red-100 border-red-200" : flags.time_penalty > 0 ? "bg-yellow-100 border-yellow-200" : "bg-green-50 border-green-200")}>
                                                 <div className="flex items-center gap-1 mb-1">
                                                     <Clock className="h-3 w-3" />
                                                     <span className="font-medium">Time Penalty</span>
                                                 </div>
-                                                <p className={cn("text-sm font-bold", flags.time_penalty > 15 ? "text-red-600" : flags.time_penalty > 0 ? "text-yellow-700" : "text-green-600")}>
+                                                <p className={cn("text-sm font-bold", flags.time_penalty >= 40 ? "text-red-600" : flags.time_penalty > 0 ? "text-yellow-700" : "text-green-600")}>
                                                     -{flags.time_penalty} pts
                                                 </p>
                                                 <p className="text-[10px] text-muted-foreground mt-1">
-                                                    {flags.time_penalty === 0 ? '✓ Immediate' : flags.time_penalty >= 20 ? '❌ Delayed' : '⚠ Review Delay'}
+                                                    {flags.time_penalty === 0 ? '✓ Immediate' : flags.time_penalty >= 40 ? '❌ Delayed' : '⚠ Review Delay'}
                                                 </p>
                                             </div>
 
