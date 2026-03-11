@@ -29,14 +29,14 @@ async function testSync() {
         console.table(response.data.stats);
 
         console.log('\n📝 Details:');
-        console.table(response.data.details.map(d => ({
+        console.table(response.data.details.map((d: any) => ({
             uid: d.uid,
             status: d.status,
             message: d.message,
             has_info: !!d.info
         })));
 
-    } catch (error) {
+    } catch (error: any) {
         if (error.response) {
             console.error('❌ Error response:', error.response.status, error.response.data);
         } else {
