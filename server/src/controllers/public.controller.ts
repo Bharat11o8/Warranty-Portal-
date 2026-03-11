@@ -524,12 +524,13 @@ export class PublicController {
                         ip_lat: ipGeo.lat,
                         ip_lng: ipGeo.lng,
                         submission_time: new Date(),
+                        userAgent: req.headers['user-agent'] || '',
                     },
                     storeLocation
                 );
-                fraudScore = result.score;
+                fraudScore = result.trust_percentage;
                 fraudFlags = result.flags;
-                console.log('[FraudDetection] Fraud score:', fraudScore, 'Flags:', fraudFlags);
+                console.log('[FraudDetection] Fraud trust score:', fraudScore, '% Flags:', fraudFlags);
             } catch (err) {
                 console.warn('[FraudDetection] Fraud scoring failed:', err);
             }

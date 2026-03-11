@@ -235,10 +235,20 @@ export class WarrantyController {
       }
       try {
         const result = calculateFraudScore(
-          { exif_lat: exifData.lat, exif_lng: exifData.lng, exif_timestamp: exifData.timestamp, ip_city: ipGeo.city, ip_region: ipGeo.region, ip_lat: ipGeo.lat, ip_lng: ipGeo.lng, submission_time: new Date() },
+          { 
+            exif_lat: exifData.lat, 
+            exif_lng: exifData.lng, 
+            exif_timestamp: exifData.timestamp, 
+            ip_city: ipGeo.city, 
+            ip_region: ipGeo.region, 
+            ip_lat: ipGeo.lat, 
+            ip_lng: ipGeo.lng, 
+            submission_time: new Date(),
+            userAgent: req.headers['user-agent'] || ''
+          },
           storeLocation
         );
-        fraudScore = result.score;
+        fraudScore = result.trust_percentage;
         fraudFlags = result.flags;
       } catch (err) {
         console.warn('[FraudDetection] Fraud scoring failed:', err);

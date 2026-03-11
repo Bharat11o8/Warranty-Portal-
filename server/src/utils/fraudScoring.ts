@@ -1,13 +1,14 @@
 interface FraudFlags {
-    exif_location_mismatch: 0 | 1 | 2;
-    ip_location_mismatch: 0 | 1;
-    exif_timestamp_suspicious: 0 | 1 | 2;
-    exif_data_missing: 0 | 1;
-    ip_data_missing: 0 | 1;
+    distance_penalty: number;
+    time_penalty: number;
+    ip_penalty: number;
+    is_missing_data: boolean;
+    device_category: 'ios' | 'android' | 'desktop' | 'unknown';
 }
 
 interface FraudScoreResult {
-    score: number; // 0-5
+    score: number; // 0.0 to 1.0 (1.0 = Trust, 0.0 = Fraud)
+    trust_percentage: number; // 0-100
     flags: FraudFlags;
 }
 
@@ -27,6 +28,7 @@ interface SubmissionData {
     ip_lat: number | null;
     ip_lng: number | null;
     submission_time: Date;
+    userAgent: string;
 }
 
 /**
@@ -52,44 +54,70 @@ function toRad(deg: number): number {
 }
 
 /**
- * Calculate fraud score for a warranty submission using weighted marking.
- * 
- * Score meaning: 0 (Match), 1 (Missing Data / Minor Warning), 2 (Hard Mismatch)
- * 
- * 1. exif_location_mismatch: 0 (Match), 1 (Missing), 2 (> 10km mismatch)
- * 2. ip_location_mismatch: 0 (Match), 1 (Mismatch/Missing)
- * 3. exif_timestamp_suspicious: 0 (Normal), 1 (Missing), 2 (> 4hrs old)
- * 4. exif_data_missing: 0 (Present), 1 (Missing)
- * 5. ip_data_missing: 0 (Present), 1 (Missing)
- * 
- * Total score is capped at 5.
+ * Calculate fraud trust score (0.0 - 1.0) using 100-point weighted deduction.
  */
 export function calculateFraudScore(
     submission: SubmissionData,
     store: StoreLocation
 ): FraudScoreResult {
+    let deductions = 0;
+    
+    // Determine Device Category
+    const ua = submission.userAgent || '';
+    let deviceCategory: 'ios' | 'android' | 'desktop' | 'unknown' = 'unknown';
+    if (/iPhone|iPad|iPod/i.test(ua)) deviceCategory = 'ios';
+    else if (/Android/i.test(ua)) deviceCategory = 'android';
+    else if (/Windows|Macintosh|Linux/i.test(ua)) deviceCategory = 'desktop';
+
     const flags: FraudFlags = {
-        exif_location_mismatch: 0,
-        ip_location_mismatch: 0,
-        exif_timestamp_suspicious: 0,
-        exif_data_missing: 0,
-        ip_data_missing: 0,
+        distance_penalty: 0,
+        time_penalty: 0,
+        ip_penalty: 0,
+        is_missing_data: false,
+        device_category: deviceCategory
     };
 
-    // Flag 1: EXIF GPS vs Store Location
+    // 1. DISTANCE PENALTY (Max 60 pts)
     if (submission.exif_lat === null || submission.exif_lng === null) {
-        flags.exif_location_mismatch = 1; // 1 = Data Missing
+        flags.is_missing_data = true;
+        // iOS users get a smaller penalty for missing GPS due to Safari's strict privacy
+        if (deviceCategory === 'ios') {
+            flags.distance_penalty = 20;
+        } else if (deviceCategory === 'desktop') {
+            flags.distance_penalty = 60; // Desktops shouldn't be verified at a store
+        } else {
+            flags.distance_penalty = 40; // Android/Other
+        }
     } else if (store.lat !== null && store.lng !== null) {
         const distance = haversineDistance(
             submission.exif_lat, submission.exif_lng,
             store.lat, store.lng
         );
-        if (distance > 10) { // Tightened from 50km to 10km for hard failure
-            flags.exif_location_mismatch = 2; // 2 = Hard Mismatch
+        
+        if (distance > 1) {
+            // Logarithmic growth: 20 * ln(D) capped at 60
+            flags.distance_penalty = Math.min(60, Math.round(20 * Math.log(distance)));
         }
     }
+    deductions += flags.distance_penalty;
 
-    // Flag 2: IP Location vs Store Location
+    // 2. TIME PENALTY (Max 25 pts)
+    if (submission.exif_timestamp === null) {
+        flags.is_missing_data = true;
+        flags.time_penalty = 10;
+    } else {
+        const photoTime = new Date(submission.exif_timestamp).getTime();
+        const submitTime = submission.submission_time.getTime();
+        const minutesDiff = Math.max(0, (submitTime - photoTime) / (1000 * 60));
+
+        if (minutesDiff > 15) {
+            // Linear growth: 0.25 pts per minute after 15 mins, capped at 25 (reaches cap at 115 mins delay)
+            flags.time_penalty = Math.min(25, Math.round((minutesDiff - 15) * 0.25));
+        }
+    }
+    deductions += flags.time_penalty;
+
+    // 3. IP PENALTY (Max 15 pts)
     if (submission.ip_city !== null && store.city !== null) {
         const ipCity = submission.ip_city.toLowerCase().trim();
         const storeCity = store.city.toLowerCase().trim();
@@ -100,38 +128,17 @@ export function calculateFraudScore(
         const stateMatch = storeState && (ipRegion.includes(storeState) || storeState.includes(ipRegion));
 
         if (!cityMatch && !stateMatch) {
-            flags.ip_location_mismatch = 1; // IP mismatch only +1 due to routing jumps
+            flags.ip_penalty = 15;
         }
     } else {
-        flags.ip_location_mismatch = 1; // 1 = Data Missing
+        flags.ip_penalty = 10; // VPN/Missing IP data
     }
+    deductions += flags.ip_penalty;
 
-    // Flag 3: EXIF Timestamp Suspicious
-    if (submission.exif_timestamp === null) {
-        flags.exif_timestamp_suspicious = 1; // 1 = Data Missing
-    } else {
-        const photoTime = new Date(submission.exif_timestamp).getTime();
-        const submitTime = submission.submission_time.getTime();
-        const hoursDiff = (submitTime - photoTime) / (1000 * 60 * 60);
+    // Calculate Final Scores
+    const trust_percentage = Math.max(0, 100 - deductions);
+    const score = trust_percentage / 100;
 
-        if (hoursDiff > 4) { // Tightened from 24h to 4hrs
-            flags.exif_timestamp_suspicious = 2; // 2 = Hard Failure
-        }
-    }
-
-    // Flag 4: EXIF Data Missing
-    if (submission.exif_lat === null || submission.exif_lng === null) {
-        flags.exif_data_missing = 1;
-    }
-
-    // Flag 5: IP Data Missing
-    if (submission.ip_city === null && submission.ip_lat === null) {
-        flags.ip_data_missing = 1;
-    }
-
-    // Calculate total score (capped at 5)
-    const rawScore = Object.values(flags).reduce((sum, v) => sum + v, 0);
-    const score = Math.min(rawScore, 5);
-
-    return { score, flags };
+    return { score, trust_percentage, flags };
 }
+
