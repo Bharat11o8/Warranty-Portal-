@@ -1,7 +1,7 @@
 interface FraudFlags {
-    exif_location_mismatch: 0 | 1;
+    exif_location_mismatch: 0 | 1 | 2;
     ip_location_mismatch: 0 | 1;
-    exif_timestamp_suspicious: 0 | 1;
+    exif_timestamp_suspicious: 0 | 1 | 2;
     exif_data_missing: 0 | 1;
     ip_data_missing: 0 | 1;
 }
@@ -52,16 +52,17 @@ function toRad(deg: number): number {
 }
 
 /**
- * Calculate fraud score for a warranty submission.
+ * Calculate fraud score for a warranty submission using weighted marking.
  * 
- * 5 binary flags (0/1):
- * 1. exif_location_mismatch — EXIF GPS > 50km from store location
- * 2. ip_location_mismatch — IP geolocation doesn't match store city/state
- * 3. exif_timestamp_suspicious — Photo taken > 24 hours before submission
- * 4. exif_data_missing — No EXIF/GPS data in uploaded photos
- * 5. ip_data_missing — IP geolocation failed or returned no data
+ * Score meaning: 0 (Match), 1 (Missing Data / Minor Warning), 2 (Hard Mismatch)
  * 
- * Score range: 0 (clean) to 5 (highly suspicious)
+ * 1. exif_location_mismatch: 0 (Match), 1 (Missing), 2 (> 10km mismatch)
+ * 2. ip_location_mismatch: 0 (Match), 1 (Mismatch/Missing)
+ * 3. exif_timestamp_suspicious: 0 (Normal), 1 (Missing), 2 (> 4hrs old)
+ * 4. exif_data_missing: 0 (Present), 1 (Missing)
+ * 5. ip_data_missing: 0 (Present), 1 (Missing)
+ * 
+ * Total score is capped at 5.
  */
 export function calculateFraudScore(
     submission: SubmissionData,
@@ -76,14 +77,15 @@ export function calculateFraudScore(
     };
 
     // Flag 1: EXIF GPS vs Store Location
-    if (submission.exif_lat !== null && submission.exif_lng !== null &&
-        store.lat !== null && store.lng !== null) {
+    if (submission.exif_lat === null || submission.exif_lng === null) {
+        flags.exif_location_mismatch = 1; // 1 = Data Missing
+    } else if (store.lat !== null && store.lng !== null) {
         const distance = haversineDistance(
             submission.exif_lat, submission.exif_lng,
             store.lat, store.lng
         );
-        if (distance > 50) { // > 50km mismatch
-            flags.exif_location_mismatch = 1;
+        if (distance > 10) { // Tightened from 50km to 10km for hard failure
+            flags.exif_location_mismatch = 2; // 2 = Hard Mismatch
         }
     }
 
@@ -94,23 +96,26 @@ export function calculateFraudScore(
         const ipRegion = (submission.ip_region || '').toLowerCase().trim();
         const storeState = (store.state || '').toLowerCase().trim();
 
-        // Check if city OR state match (flexible matching)
         const cityMatch = ipCity.includes(storeCity) || storeCity.includes(ipCity);
         const stateMatch = storeState && (ipRegion.includes(storeState) || storeState.includes(ipRegion));
 
         if (!cityMatch && !stateMatch) {
-            flags.ip_location_mismatch = 1;
+            flags.ip_location_mismatch = 1; // IP mismatch only +1 due to routing jumps
         }
+    } else {
+        flags.ip_location_mismatch = 1; // 1 = Data Missing
     }
 
-    // Flag 3: EXIF Timestamp Suspicious (photo > 24hrs old)
-    if (submission.exif_timestamp !== null) {
+    // Flag 3: EXIF Timestamp Suspicious
+    if (submission.exif_timestamp === null) {
+        flags.exif_timestamp_suspicious = 1; // 1 = Data Missing
+    } else {
         const photoTime = new Date(submission.exif_timestamp).getTime();
         const submitTime = submission.submission_time.getTime();
         const hoursDiff = (submitTime - photoTime) / (1000 * 60 * 60);
 
-        if (hoursDiff > 24) {
-            flags.exif_timestamp_suspicious = 1;
+        if (hoursDiff > 4) { // Tightened from 24h to 4hrs
+            flags.exif_timestamp_suspicious = 2; // 2 = Hard Failure
         }
     }
 
@@ -124,7 +129,9 @@ export function calculateFraudScore(
         flags.ip_data_missing = 1;
     }
 
-    const score = Object.values(flags).reduce((sum, v) => sum + v, 0);
+    // Calculate total score (capped at 5)
+    const rawScore = Object.values(flags).reduce((sum, v) => sum + v, 0);
+    const score = Math.min(rawScore, 5);
 
     return { score, flags };
 }

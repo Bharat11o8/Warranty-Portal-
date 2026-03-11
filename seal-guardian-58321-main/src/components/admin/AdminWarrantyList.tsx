@@ -435,13 +435,13 @@ export const AdminWarrantyList = ({
                                             </Button>
                                         </div>
                                         <div className="grid grid-cols-2 md:grid-cols-5 gap-3 text-xs">
-                                            <div className={cn("p-2 rounded border", flags.exif_location_mismatch ? "bg-red-100 border-red-200" : "bg-green-50 border-green-200")}>
+                                            <div className={cn("p-2 rounded border", flags.exif_location_mismatch === 2 ? "bg-red-100 border-red-200" : flags.exif_location_mismatch === 1 ? "bg-yellow-100 border-yellow-200" : "bg-green-50 border-green-200")}>
                                                 <div className="flex items-center gap-1 mb-1">
                                                     <MapPin className="h-3 w-3" />
                                                     <span className="font-medium">EXIF Location</span>
                                                 </div>
-                                                <p className={cn("text-[10px]", flags.exif_location_mismatch ? "text-red-600" : "text-green-600")}>
-                                                    {flags.exif_location_mismatch ? '⚠ Mismatch' : '✓ Match'}
+                                                <p className={cn("text-[10px]", flags.exif_location_mismatch === 2 ? "text-red-600" : flags.exif_location_mismatch === 1 ? "text-yellow-700" : "text-green-600")}>
+                                                    {flags.exif_location_mismatch === 2 ? '❌ Mismatch' : flags.exif_location_mismatch === 1 ? '⚠ Missing Data' : '✓ Match'}
                                                 </p>
                                                 {warranty.exif_lat && (
                                                     <p className="text-[10px] text-muted-foreground mt-1">
@@ -452,7 +452,7 @@ export const AdminWarrantyList = ({
                                             <div className={cn("p-2 rounded border", flags.ip_location_mismatch ? "bg-red-100 border-red-200" : "bg-green-50 border-green-200")}>
                                                 <div className="flex items-center gap-1 mb-1">
                                                     <Wifi className="h-3 w-3" />
-                                                    <span className="font-mium">IP Location</span>
+                                                    <span className="font-medium">IP Location</span>
                                                 </div>
                                                 <p className={cn("text-[10px]", flags.ip_location_mismatch ? "text-red-600" : "text-green-600")}>
                                                     {flags.ip_location_mismatch ? '⚠ Mismatch' : '✓ Match'}
@@ -463,13 +463,13 @@ export const AdminWarrantyList = ({
                                                     </p>
                                                 )}
                                             </div>
-                                            <div className={cn("p-2 rounded border", flags.exif_timestamp_suspicious ? "bg-red-100 border-red-200" : "bg-green-50 border-green-200")}>
+                                            <div className={cn("p-2 rounded border", flags.exif_timestamp_suspicious === 2 ? "bg-red-100 border-red-200" : flags.exif_timestamp_suspicious === 1 ? "bg-yellow-100 border-yellow-200" : "bg-green-50 border-green-200")}>
                                                 <div className="flex items-center gap-1 mb-1">
                                                     <Clock className="h-3 w-3" />
                                                     <span className="font-medium">Timestamp</span>
                                                 </div>
-                                                <p className={cn("text-[10px]", flags.exif_timestamp_suspicious ? "text-red-600" : "text-green-600")}>
-                                                    {flags.exif_timestamp_suspicious ? '⚠ Suspicious' : '✓ Normal'}
+                                                <p className={cn("text-[10px]", flags.exif_timestamp_suspicious === 2 ? "text-red-600" : flags.exif_timestamp_suspicious === 1 ? "text-yellow-700" : "text-green-600")}>
+                                                    {flags.exif_timestamp_suspicious === 2 ? '❌ Suspicious' : flags.exif_timestamp_suspicious === 1 ? '⚠ Missing Data' : '✓ Normal'}
                                                 </p>
                                             </div>
                                             <div className={cn("p-2 rounded border", flags.exif_data_missing ? "bg-yellow-100 border-yellow-200" : "bg-green-50 border-green-200")}>

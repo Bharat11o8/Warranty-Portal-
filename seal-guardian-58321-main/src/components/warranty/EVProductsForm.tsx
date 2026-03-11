@@ -1,17 +1,15 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import api from "@/lib/api";
-import { Progress } from "@/components/ui/progress";
 import { submitWarranty, updateWarranty } from "@/lib/warrantyApi";
 import InstallerDetails from "./steps/InstallerDetails";
 import CustomerDetails from "./steps/CustomerDetails";
 import CarDetails from "./steps/CarDetails";
 import ProductInfo from "./steps/ProductInfo";
-import { CheckCircle2, Car, User, Settings, ShieldCheck, MapPin } from "lucide-react";
+import { CheckCircle2, Car, User, Settings, ShieldCheck } from "lucide-react";
 import { getISTTodayISO } from "@/lib/utils";
 
 export interface EVFormData {
