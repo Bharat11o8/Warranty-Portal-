@@ -474,6 +474,21 @@ export const AdminWarrantyList = ({
                                                 </p>
                                             </div>
 
+                                            <div className={cn("p-2 rounded border", flags.consistency_penalty >= 40 ? "bg-red-100 border-red-200" : flags.consistency_penalty > 0 ? "bg-yellow-100 border-yellow-200" : "bg-green-50 border-green-200")}>
+                                                <div className="flex items-center gap-1 mb-1">
+                                                    <ShieldAlert className="h-3 w-3" />
+                                                    <span className="font-medium">Consistency</span>
+                                                </div>
+                                                <p className={cn("text-sm font-bold", flags.consistency_penalty >= 40 ? "text-red-600" : flags.consistency_penalty > 0 ? "text-yellow-700" : "text-green-600")}>
+                                                    -{flags.consistency_penalty} pts
+                                                </p>
+                                                <div className="text-[10px] text-muted-foreground mt-1 space-y-0.5">
+                                                    {flags.multi_device_detected && <p className="text-red-600 font-medium">❌ Multiple Devices</p>}
+                                                    {flags.location_mismatch && <p className="text-red-600 font-medium">❌ Location Mismatch</p>}
+                                                    {!flags.multi_device_detected && !flags.location_mismatch && <p>✓ All images match</p>}
+                                                </div>
+                                            </div>
+
                                             <div className={cn("p-2 rounded border border-slate-200 bg-slate-50")}>
                                                 <div className="flex items-center gap-1 mb-1">
                                                     <ShieldAlert className="h-3 w-3" />
@@ -494,6 +509,7 @@ export const AdminWarrantyList = ({
                                             {warranty.submission_ip && <span>IP: {warranty.submission_ip} ({warranty.ip_city || 'N/A'})</span>}
                                             {warranty.exif_lat && <span>Photo GPS: {Number(warranty.exif_lat).toFixed(4)}, {Number(warranty.exif_lng).toFixed(4)}</span>}
                                             {warranty.exif_timestamp && <span>Photo Time: {new Date(warranty.exif_timestamp).toLocaleString()}</span>}
+                                            {warranty.device_fingerprint && <span className="font-mono">Fingerprint: {warranty.device_fingerprint}</span>}
                                         </div>
                                     </div>
                                 );

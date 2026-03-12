@@ -177,7 +177,7 @@ export const FranchiseHome = ({ stats, recentActivity = [], onNavigate, newProdu
                             </p>
 
                             <div className={cn(
-                                "flex flex-col items-stretch md:flex-row md:items-center justify-center md:justify-start gap-3 pt-4 transition-all duration-700 delay-[900ms] w-full max-w-[300px] mx-auto md:mx-0 md:max-w-none",
+                                "flex flex-col items-stretch md:flex-row md:items-center justify-center md:justify-start gap-3 pt-4 transition-all duration-700 [transition-delay:900ms] w-full max-w-[300px] mx-auto md:mx-0 md:max-w-none",
                                 index === currentBanner ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"
                             )}>
                                 <Button
@@ -207,7 +207,7 @@ export const FranchiseHome = ({ stats, recentActivity = [], onNavigate, newProdu
                                 <img
                                     src={banner.image}
                                     alt={banner.title}
-                                    className="w-full h-full object-cover transition-transform duration-[2s] group-hover/img:scale-110"
+                                    className="w-full h-full object-cover transition-transform [transition-duration:2s] group-hover/img:scale-110"
                                 />
                                 <div className="absolute inset-0 bg-gradient-to-t from-white/80 via-transparent to-transparent" />
 

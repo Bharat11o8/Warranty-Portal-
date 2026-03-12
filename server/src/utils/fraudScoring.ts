@@ -2,8 +2,11 @@ interface FraudFlags {
     distance_penalty: number;
     time_penalty: number;
     ip_penalty: number;
+    consistency_penalty: number;
     is_missing_data: boolean;
     device_category: 'ios' | 'android' | 'desktop' | 'unknown';
+    multi_device_detected?: boolean;
+    location_mismatch?: boolean;
 }
 
 interface FraudScoreResult {
@@ -29,6 +32,7 @@ interface SubmissionData {
     ip_lng: number | null;
     submission_time: Date;
     userAgent: string;
+    all_exif_data?: Record<string, any>;
 }
 
 /**
@@ -73,11 +77,41 @@ export function calculateFraudScore(
         distance_penalty: 0,
         time_penalty: 0,
         ip_penalty: 0,
+        consistency_penalty: 0,
         is_missing_data: false,
         device_category: deviceCategory
     };
 
-    // 1. DISTANCE PENALTY (Max 100 pts)
+    // 1. MULTI-IMAGE CONSISTENCY CHECK (New)
+    if (submission.all_exif_data && Object.keys(submission.all_exif_data).length > 1) {
+        const exifEntries = Object.values(submission.all_exif_data);
+        
+        // A. Device Consistency
+        const devices = new Set(exifEntries.map(e => `${e.deviceMake || ''}-${e.deviceModel || ''}`.toLowerCase()));
+        if (devices.size > 1) {
+            flags.multi_device_detected = true;
+            flags.consistency_penalty += 40; // Significant penalty for multi-device
+        }
+
+        // B. Location Consistency (Between photos)
+        const coords = exifEntries.filter(e => e.lat && e.lng);
+        if (coords.length > 1) {
+            let maxDist = 0;
+            for (let i = 0; i < coords.length; i++) {
+                for (let j = i + 1; j < coords.length; j++) {
+                    const d = haversineDistance(coords[i].lat, coords[i].lng, coords[j].lat, coords[j].lng);
+                    maxDist = Math.max(maxDist, d);
+                }
+            }
+            if (maxDist > 0.5) { // More than 500m apart
+                flags.location_mismatch = true;
+                flags.consistency_penalty += 50;
+            }
+        }
+    }
+    deductions += flags.consistency_penalty;
+
+    // 2. STORE DISTANCE PENALTY (Max 100 pts)
     if (submission.exif_lat === null || submission.exif_lng === null) {
         flags.is_missing_data = true;
         if (deviceCategory === 'ios') {
@@ -101,7 +135,7 @@ export function calculateFraudScore(
     }
     deductions += flags.distance_penalty;
 
-    // 2. TIME PENALTY (Max 95 pts)
+    // 3. TIME PENALTY (Max 95 pts)
     if (submission.exif_timestamp === null) {
         flags.is_missing_data = true;
         flags.time_penalty = 10;
@@ -110,15 +144,15 @@ export function calculateFraudScore(
         const submitTime = submission.submission_time.getTime();
         const minutesDiff = Math.max(0, (submitTime - photoTime) / (1000 * 60));
 
-        if (minutesDiff > 30) flags.time_penalty = 95;
-        else if (minutesDiff > 15) flags.time_penalty = 70;
-        else if (minutesDiff > 5) flags.time_penalty = 40;
-        else if (minutesDiff > 2) flags.time_penalty = 10;
+        if (minutesDiff > 60 * 24 * 7) flags.time_penalty = 95; // > 1 week
+        else if (minutesDiff > 60 * 24) flags.time_penalty = 70; // > 1 day
+        else if (minutesDiff > 60) flags.time_penalty = 30; // > 1 hour
+        else if (minutesDiff > 10) flags.time_penalty = 10;
         else flags.time_penalty = 0;
     }
     deductions += flags.time_penalty;
 
-    // 3. IP PENALTY (Max 15 pts)
+    // 4. IP PENALTY (Max 15 pts)
     if (submission.ip_city !== null && store.city !== null) {
         const ipCity = submission.ip_city.toLowerCase().trim();
         const storeCity = store.city.toLowerCase().trim();
@@ -137,6 +171,7 @@ export function calculateFraudScore(
     deductions += flags.ip_penalty;
 
     // Calculate Final Scores
+    // Use weighted total but cap at 100
     const trust_percentage = Math.max(0, 100 - deductions);
     const score = trust_percentage / 100;
 

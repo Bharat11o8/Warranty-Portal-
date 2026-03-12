@@ -377,7 +377,7 @@ export class PublicController {
             }
 
             // --- FRAUD DETECTION: EXIF data from frontend ---
-            let exifData = { lat: null as number | null, lng: null as number | null, timestamp: null as Date | null, deviceMake: null as string | null, deviceModel: null as string | null };
+            let exifData = { lat: null as number | null, lng: null as number | null, timestamp: null as Date | null, deviceMake: null as string | null, deviceModel: null as string | null, deviceFingerprint: null as string | null };
             if (warrantyData.productDetails.exifData) {
                 const feExif = warrantyData.productDetails.exifData;
                 exifData = {
@@ -385,9 +385,12 @@ export class PublicController {
                     lng: feExif.lng || null,
                     timestamp: feExif.timestamp ? new Date(feExif.timestamp) : null,
                     deviceMake: feExif.deviceMake || null,
-                    deviceModel: feExif.deviceModel || null
+                    deviceModel: feExif.deviceModel || null,
+                    deviceFingerprint: feExif.deviceFingerprint || null
                 };
-            }
+             } else if (warrantyData.productDetails.deviceFingerprint) {
+                exifData.deviceFingerprint = (warrantyData.productDetails as any).deviceFingerprint;
+             }
             console.log('[FraudDetection] Received exifData from frontend:', warrantyData.productDetails.exifData || 'NONE', '-> parsed:', exifData);
 
             // --- FRAUD DETECTION: IP Geolocation ---
@@ -525,6 +528,7 @@ export class PublicController {
                         ip_lng: ipGeo.lng,
                         submission_time: new Date(),
                         userAgent: req.headers['user-agent'] || '',
+                        all_exif_data: warrantyData.productDetails.allExifData
                     },
                     storeLocation
                 );
@@ -540,9 +544,9 @@ export class PublicController {
                 (uid, user_id, product_type, customer_name, customer_email, customer_phone, 
                  customer_address, registration_number, car_make, car_model, car_year, 
                  purchase_date, installer_name, installer_contact, product_details, manpower_id, warranty_type, status,
-                 exif_lat, exif_lng, exif_timestamp, exif_device, submission_ip, ip_city, ip_region, ip_lat, ip_lng, fraud_score, fraud_flags,
+                 exif_lat, exif_lng, exif_timestamp, exif_device, device_fingerprint, submission_ip, ip_city, ip_region, ip_lat, ip_lng, fraud_score, fraud_flags,
                  seat_cover_photo_url, car_outer_photo_url) 
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                 [
                     warrantyId,
                     userId,
@@ -566,6 +570,7 @@ export class PublicController {
                     exifData.lng,
                     exifData.timestamp,
                     exifData.deviceMake ? `${exifData.deviceMake} ${exifData.deviceModel || ''}`.trim() : null,
+                    exifData.deviceFingerprint,
                     clientIP,
                     ipGeo.city,
                     ipGeo.region,

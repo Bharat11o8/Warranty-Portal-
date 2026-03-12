@@ -109,6 +109,9 @@ export const WarrantySpecSheet = ({ isOpen, onClose, warranty }: WarrantySpecShe
                             {(warranty.car_make && String(warranty.car_make).toLowerCase() !== 'null' || warranty.car_model && String(warranty.car_model).toLowerCase() !== 'null') && (
                                 <SpecRow label="Make & Model" value={`${toTitleCase(warranty.car_make || '')} ${toTitleCase(warranty.car_model || '')}`} />
                             )}
+                            {(warranty.car_year || productDetails.carYear) && (
+                                <SpecRow label="Vehicle Year" value={warranty.car_year || productDetails.carYear} />
+                            )}
                             <SpecRow label="Product Name" value={productName} />
                             <SpecRow label="Warranty Type" value={warranty.warranty_type} />
 
@@ -186,8 +189,16 @@ export const WarrantySpecSheet = ({ isOpen, onClose, warranty }: WarrantySpecShe
                             <div className="hidden md:block">
                                 <SpecRow
                                     label="Store Phone"
-                                    value={productDetails.storePhone || warranty.vendor_phone_number || 'N/A'}
+                                    value={productDetails.storePhone || warranty.vendor_phone_number || productDetails.dealerMobile || 'N/A'}
                                 />
+                            </div>
+                            <div className="md:hidden">
+                                { (productDetails.storePhone || warranty.vendor_phone_number || productDetails.dealerMobile) && (
+                                     <SpecRow
+                                        label="Store Phone"
+                                        value={productDetails.storePhone || warranty.vendor_phone_number || productDetails.dealerMobile}
+                                    />
+                                )}
                             </div>
                             <SpecRow label="Applicator" value={productDetails.manpowerName || warranty.manpower_name_from_db || "Standard"} />
                         </div>
@@ -206,19 +217,21 @@ export const WarrantySpecSheet = ({ isOpen, onClose, warranty }: WarrantySpecShe
                         </div>
                     )}
 
-                    {/* Documents Section - Seat Cover: Invoice & Photos */}
+                    {/* Documents & Photos Section - Seat Cover */}
                     {warranty.product_type === 'seat-cover' && (
                         <div className="space-y-4">
-                            {productDetails.invoiceFileName && (
+                            {/* Documentation */}
+                            {(productDetails.invoiceFileName || productDetails.photos?.warranty) && (
                                 <div className="space-y-1">
                                     <h4 className="text-xs font-bold text-orange-500 uppercase tracking-widest mb-3 pl-1 flex items-center gap-2">
                                         <div className="w-1 h-4 bg-gradient-to-b from-orange-500 to-orange-400 rounded-full" />
                                         Documentation
                                     </h4>
                                     <Button variant="outline" className="w-full justify-between h-12 bg-background/50 hover:bg-blue-50 hover:border-blue-200 border-input/50 transition-colors" onClick={() => {
-                                        const url = typeof productDetails.invoiceFileName === 'string' && productDetails.invoiceFileName.startsWith('http')
-                                            ? productDetails.invoiceFileName
-                                            : `http://localhost:3000/uploads/${productDetails.invoiceFileName}`;
+                                        const file = productDetails.invoiceFileName || productDetails.photos?.warranty;
+                                        const url = typeof file === 'string' && file.startsWith('http')
+                                            ? file
+                                            : `http://localhost:3000/uploads/${file}`;
                                         window.open(url, '_blank');
                                     }}>
                                         <span className="flex items-center gap-2">
@@ -230,90 +243,135 @@ export const WarrantySpecSheet = ({ isOpen, onClose, warranty }: WarrantySpecShe
                                 </div>
                             )}
 
-                            {productDetails.photos?.vehicle && (
+                            {/* Installation Photos */}
+                            {productDetails.photos && (
                                 <div className="space-y-1">
                                     <h4 className="text-xs font-bold text-orange-500 uppercase tracking-widest mb-3 pl-1 flex items-center gap-2">
                                         <div className="w-1 h-4 bg-gradient-to-b from-orange-500 to-orange-400 rounded-full" />
                                         Installation Photos
                                     </h4>
-                                    <Button variant="outline" className="w-full justify-between h-12 bg-background/50 hover:bg-blue-50 hover:border-blue-200 border-input/50 transition-colors" onClick={() => {
-                                        const url = typeof productDetails.photos.vehicle === 'string' && productDetails.photos.vehicle.startsWith('http')
-                                            ? productDetails.photos.vehicle
-                                            : `http://localhost:3000/uploads/${productDetails.photos.vehicle}`;
-                                        window.open(url, '_blank');
-                                    }}>
-                                        <span className="flex items-center gap-2">
-                                            <div className="p-1 bg-orange-100 rounded text-orange-600">
-                                                <ExternalLink className="h-3 w-3" />
-                                            </div>
-                                            <span className="text-orange-700">Vehicle Image (Reg Number)</span>
-                                        </span>
-                                        <ExternalLink className="h-4 w-4 text-orange-500" />
-                                    </Button>
+                                    <div className="grid grid-cols-2 gap-2">
+                                        {productDetails.photos.vehicle && (
+                                            <Button variant="outline" size="sm" className="justify-between h-10 bg-background/50 hover:bg-orange-50 hover:border-orange-200 border-input/50 transition-colors" onClick={() => {
+                                                const url = typeof productDetails.photos.vehicle === 'string' && productDetails.photos.vehicle.startsWith('http') ? productDetails.photos.vehicle : `http://localhost:3000/uploads/${productDetails.photos.vehicle}`;
+                                                window.open(url, '_blank');
+                                            }}>
+                                                <span className="flex items-center gap-2">
+                                                    <ExternalLink className="h-3 w-3 text-orange-600" />
+                                                    <span className="text-orange-700 text-xs">Number Plate</span>
+                                                </span>
+                                                <ExternalLink className="h-3 w-3 text-orange-500" />
+                                            </Button>
+                                        )}
+                                        {productDetails.photos.seatCover && (
+                                            <Button variant="outline" size="sm" className="justify-between h-10 bg-background/50 hover:bg-orange-50 hover:border-orange-200 border-input/50 transition-colors" onClick={() => {
+                                                const url = typeof productDetails.photos.seatCover === 'string' && productDetails.photos.seatCover.startsWith('http') ? productDetails.photos.seatCover : `http://localhost:3000/uploads/${productDetails.photos.seatCover}`;
+                                                window.open(url, '_blank');
+                                            }}>
+                                                <span className="flex items-center gap-2">
+                                                    <ExternalLink className="h-3 w-3 text-orange-600" />
+                                                    <span className="text-orange-700 text-xs">Seat Cover</span>
+                                                </span>
+                                                <ExternalLink className="h-3 w-3 text-orange-500" />
+                                            </Button>
+                                        )}
+                                        {productDetails.photos.carOuter && (
+                                            <Button variant="outline" size="sm" className="justify-between h-10 bg-background/50 hover:bg-orange-50 hover:border-orange-200 border-input/50 transition-colors" onClick={() => {
+                                                const url = typeof productDetails.photos.carOuter === 'string' && productDetails.photos.carOuter.startsWith('http') ? productDetails.photos.carOuter : `http://localhost:3000/uploads/${productDetails.photos.carOuter}`;
+                                                window.open(url, '_blank');
+                                            }}>
+                                                <span className="flex items-center gap-2">
+                                                    <ExternalLink className="h-3 w-3 text-orange-600" />
+                                                    <span className="text-orange-700 text-xs">Car Exterior</span>
+                                                </span>
+                                                <ExternalLink className="h-3 w-3 text-orange-500" />
+                                            </Button>
+                                        )}
+                                    </div>
                                 </div>
                             )}
                         </div>
                     )}
 
-                    {/* Documents Section - EV/PPF: Photo Links */}
+                    {/* Documents & Photos Section - EV/PPF */}
                     {warranty.product_type === 'ev-products' && productDetails.photos && (
-                        <div className="space-y-1">
-                            <h4 className="text-xs font-bold text-orange-500 uppercase tracking-widest mb-3 pl-1 flex items-center gap-2">
-                                <div className="w-1 h-4 bg-gradient-to-b from-orange-500 to-orange-400 rounded-full" />
-                                Installation Photos
-                            </h4>
-                            <div className="grid grid-cols-2 gap-2">
-                                {productDetails.photos.lhs && (
-                                    <Button variant="outline" size="sm" className="justify-between h-10 bg-background/50 hover:bg-blue-50 hover:border-blue-200 border-input/50 transition-colors" onClick={() => window.open(productDetails.photos.lhs, '_blank')}>
-                                        <span className="flex items-center gap-2">
-                                            <FileText className="h-3 w-3 text-blue-600" />
-                                            <span className="text-blue-700 text-xs">LHS View</span>
-                                        </span>
-                                        <ExternalLink className="h-3 w-3 text-blue-500" />
-                                    </Button>
-                                )}
-                                {productDetails.photos.rhs && (
-                                    <Button variant="outline" size="sm" className="justify-between h-10 bg-background/50 hover:bg-blue-50 hover:border-blue-200 border-input/50 transition-colors" onClick={() => window.open(productDetails.photos.rhs, '_blank')}>
-                                        <span className="flex items-center gap-2">
-                                            <FileText className="h-3 w-3 text-blue-600" />
-                                            <span className="text-blue-700 text-xs">RHS View</span>
-                                        </span>
-                                        <ExternalLink className="h-3 w-3 text-blue-500" />
-                                    </Button>
-                                )}
-                                {productDetails.photos.frontReg && (
-                                    <Button variant="outline" size="sm" className="justify-between h-10 bg-background/50 hover:bg-blue-50 hover:border-blue-200 border-input/50 transition-colors" onClick={() => window.open(productDetails.photos.frontReg, '_blank')}>
-                                        <span className="flex items-center gap-2">
-                                            <FileText className="h-3 w-3 text-blue-600" />
-                                            <span className="text-blue-700 text-xs">Front Reg</span>
-                                        </span>
-                                        <ExternalLink className="h-3 w-3 text-blue-500" />
-                                    </Button>
-                                )}
-                                {productDetails.photos.backReg && (
-                                    <Button variant="outline" size="sm" className="justify-between h-10 bg-background/50 hover:bg-blue-50 hover:border-blue-200 border-input/50 transition-colors" onClick={() => window.open(productDetails.photos.backReg, '_blank')}>
-                                        <span className="flex items-center gap-2">
-                                            <FileText className="h-3 w-3 text-blue-600" />
-                                            <span className="text-blue-700 text-xs">Back Reg</span>
-                                        </span>
-                                        <ExternalLink className="h-3 w-3 text-blue-500" />
-                                    </Button>
-                                )}
+                        <div className="space-y-4">
+                            <div className="space-y-1">
+                                <h4 className="text-xs font-bold text-orange-500 uppercase tracking-widest mb-3 pl-1 flex items-center gap-2">
+                                    <div className="w-1 h-4 bg-gradient-to-b from-orange-500 to-orange-400 rounded-full" />
+                                    Installation Photos
+                                </h4>
+                                <div className="grid grid-cols-2 gap-2">
+                                    {productDetails.photos.lhs && (
+                                        <Button variant="outline" size="sm" className="justify-between h-10 bg-background/50 hover:bg-blue-50 hover:border-blue-200 border-input/50 transition-colors" onClick={() => {
+                                            const url = typeof productDetails.photos.lhs === 'string' && productDetails.photos.lhs.startsWith('http') ? productDetails.photos.lhs : `http://localhost:3000/uploads/${productDetails.photos.lhs}`;
+                                            window.open(url, '_blank');
+                                        }}>
+                                            <span className="flex items-center gap-2">
+                                                <FileText className="h-3 w-3 text-blue-600" />
+                                                <span className="text-blue-700 text-xs">LHS View</span>
+                                            </span>
+                                            <ExternalLink className="h-3 w-3 text-blue-500" />
+                                        </Button>
+                                    )}
+                                    {productDetails.photos.rhs && (
+                                        <Button variant="outline" size="sm" className="justify-between h-10 bg-background/50 hover:bg-blue-50 hover:border-blue-200 border-input/50 transition-colors" onClick={() => {
+                                            const url = typeof productDetails.photos.rhs === 'string' && productDetails.photos.rhs.startsWith('http') ? productDetails.photos.rhs : `http://localhost:3000/uploads/${productDetails.photos.rhs}`;
+                                            window.open(url, '_blank');
+                                        }}>
+                                            <span className="flex items-center gap-2">
+                                                <FileText className="h-3 w-3 text-blue-600" />
+                                                <span className="text-blue-700 text-xs">RHS View</span>
+                                            </span>
+                                            <ExternalLink className="h-3 w-3 text-blue-500" />
+                                        </Button>
+                                    )}
+                                    {productDetails.photos.frontReg && (
+                                        <Button variant="outline" size="sm" className="justify-between h-10 bg-background/50 hover:bg-blue-50 hover:border-blue-200 border-input/50 transition-colors" onClick={() => {
+                                            const url = typeof productDetails.photos.frontReg === 'string' && productDetails.photos.frontReg.startsWith('http') ? productDetails.photos.frontReg : `http://localhost:3000/uploads/${productDetails.photos.frontReg}`;
+                                            window.open(url, '_blank');
+                                        }}>
+                                            <span className="flex items-center gap-2">
+                                                <FileText className="h-3 w-3 text-blue-600" />
+                                                <span className="text-blue-700 text-xs">Front Reg</span>
+                                            </span>
+                                            <ExternalLink className="h-3 w-3 text-blue-500" />
+                                        </Button>
+                                    )}
+                                    {productDetails.photos.backReg && (
+                                        <Button variant="outline" size="sm" className="justify-between h-10 bg-background/50 hover:bg-blue-50 hover:border-blue-200 border-input/50 transition-colors" onClick={() => {
+                                            const url = typeof productDetails.photos.backReg === 'string' && productDetails.photos.backReg.startsWith('http') ? productDetails.photos.backReg : `http://localhost:3000/uploads/${productDetails.photos.backReg}`;
+                                            window.open(url, '_blank');
+                                        }}>
+                                            <span className="flex items-center gap-2">
+                                                <FileText className="h-3 w-3 text-blue-600" />
+                                                <span className="text-blue-700 text-xs">Back Reg</span>
+                                            </span>
+                                            <ExternalLink className="h-3 w-3 text-blue-500" />
+                                        </Button>
+                                    )}
+                                </div>
                             </div>
-                        </div>
-                    )}
 
-                    {/* Documentation Section - EV/PPF: Invoice */}
-                    {warranty.product_type === 'ev-products' && productDetails.photos?.warranty && (
-                        <div className="space-y-1">
-                            <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-3 pl-1">Documentation</h4>
-                            <Button variant="outline" className="w-full justify-between h-12 bg-background/50 hover:bg-blue-50 hover:border-blue-200 border-input/50 transition-colors" onClick={() => window.open(productDetails.photos.warranty, '_blank')}>
-                                <span className="flex items-center gap-2">
-                                    <FileText className="h-4 w-4 text-blue-600" />
-                                    <span className="text-blue-700">View Invoice</span>
-                                </span>
-                                <ExternalLink className="h-4 w-4 text-blue-500" />
-                            </Button>
+                            {/* Documentation */}
+                            {productDetails.photos?.warranty && (
+                                <div className="space-y-1">
+                                    <h4 className="text-xs font-bold text-orange-500 uppercase tracking-widest mb-3 pl-1 flex items-center gap-2">
+                                        <div className="w-1 h-4 bg-gradient-to-b from-orange-500 to-orange-400 rounded-full" />
+                                        Documentation
+                                    </h4>
+                                    <Button variant="outline" className="w-full justify-between h-12 bg-background/50 hover:bg-blue-50 hover:border-blue-200 border-input/50 transition-colors" onClick={() => {
+                                        const url = typeof productDetails.photos.warranty === 'string' && productDetails.photos.warranty.startsWith('http') ? productDetails.photos.warranty : `http://localhost:3000/uploads/${productDetails.photos.warranty}`;
+                                        window.open(url, '_blank');
+                                    }}>
+                                        <span className="flex items-center gap-2">
+                                            <FileText className="h-4 w-4 text-blue-600" />
+                                            <span className="text-blue-700">View Invoice</span>
+                                        </span>
+                                        <ExternalLink className="h-4 w-4 text-blue-500" />
+                                    </Button>
+                                </div>
+                            )}
                         </div>
                     )}
 

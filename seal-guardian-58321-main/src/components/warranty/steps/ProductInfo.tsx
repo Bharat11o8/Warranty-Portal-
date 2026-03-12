@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import exifr from "exifr";
 import api from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Loader2, CheckCircle2, FileText } from "lucide-react";
@@ -72,16 +73,48 @@ const ProductInfo = ({ formData, updateFormData, onPrev, onSubmit, loading }: Pr
         return;
       }
 
+      // --- FRAUD DETECTION: Extract EXIF BEFORE compression ---
+      try {
+        // Read first 128KB to avoid iOS Safari OOM crash
+        const exifChunk = file.slice(0, 128 * 1024);
+        const arrayBuffer = await exifChunk.arrayBuffer();
+        const exif = await exifr.parse(arrayBuffer, {
+          gps: true, exif: true, tiff: true, mergeOutput: true
+        });
+
+        if (exif) {
+          console.log(`[FraudDetection] EXIF for ${name}:`, {
+            lat: exif.latitude, lng: exif.longitude, time: exif.DateTimeOriginal,
+            make: exif.Make, model: exif.Model
+          });
+          
+          const fieldExif = {
+            lat: exif.latitude || null,
+            lng: exif.longitude || null,
+            timestamp: exif.DateTimeOriginal || exif.CreateDate || null,
+            deviceMake: exif.Make || null,
+            deviceModel: exif.Model || null
+          };
+
+          updateFormData({
+            allExifData: {
+              ...(formData.allExifData || {}),
+              [name]: fieldExif
+            }
+          });
+        }
+      } catch (err) {
+        console.warn(`[FraudDetection] EXIF extraction failed for ${name}:`, err);
+      }
+
       // Compress image if it's a compressible type (not PDF)
       let processedFile = file;
       if (isCompressibleImage(file) && file.size > 1024 * 1024) { // Compress if > 1MB
         setCompressing(true);
         try {
           processedFile = await compressImage(file, { maxSizeKB: 1024, quality: 0.8 });
-          // Silent compression - no need to inform customer
         } catch (err) {
           console.error('Compression failed:', err);
-          // Continue with original file if compression fails
         } finally {
           setCompressing(false);
         }
@@ -99,6 +132,10 @@ const ProductInfo = ({ formData, updateFormData, onPrev, onSubmit, loading }: Pr
       updateFormData({ [name]: processedFile });
     } else {
       updateFormData({ [name]: null });
+      // Remove EXIF data if file is removed
+      const newAllExif = { ...(formData.allExifData || {}) };
+      delete newAllExif[name as string];
+      updateFormData({ allExifData: newAllExif });
     }
   };
 

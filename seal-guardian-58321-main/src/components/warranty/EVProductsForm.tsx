@@ -11,6 +11,7 @@ import CarDetails from "./steps/CarDetails";
 import ProductInfo from "./steps/ProductInfo";
 import { CheckCircle2, Car, User, Settings, ShieldCheck } from "lucide-react";
 import { getISTTodayISO } from "@/lib/utils";
+import fpPromise from '@fingerprintjs/fingerprintjs';
 
 export interface EVFormData {
   // Installer Details
@@ -52,6 +53,7 @@ export interface EVFormData {
   backRegPhoto: File | null;
   warrantyPhoto: File | null;
   termsAccepted: boolean;
+  allExifData?: Record<string, any>;
 }
 
 interface EVProductsFormProps {
@@ -82,6 +84,7 @@ const EVProductsForm = ({ initialData, warrantyId, onSuccess, isUniversal, isEdi
   const navigate = useNavigate();
   const [currentStep, setCurrentStep] = useState(1);
   const [loading, setLoading] = useState(false);
+  const [deviceFingerprint, setDeviceFingerprint] = useState<string | null>(null);
 
   const [formData, setFormData] = useState<EVFormData>({
     storeName: "",
@@ -115,6 +118,7 @@ const EVProductsForm = ({ initialData, warrantyId, onSuccess, isUniversal, isEdi
     backRegPhoto: null,
     warrantyPhoto: null,
     termsAccepted: false,
+    allExifData: {},
   });
 
   // Auto-fill customer details for logged-in customers
@@ -208,6 +212,20 @@ const EVProductsForm = ({ initialData, warrantyId, onSuccess, isUniversal, isEdi
       fetchVendorDetails();
     }
   }, [user, initialData]);
+
+  // Initialize FingerprintJS
+  useEffect(() => {
+    const loadFingerprint = async () => {
+      try {
+        const fp = await fpPromise.load();
+        const result = await fp.get();
+        setDeviceFingerprint(result.visitorId);
+      } catch (err) {
+        console.warn("FingerprintJS failed to load:", err);
+      }
+    };
+    loadFingerprint();
+  }, []);
 
   // Auto-fill store details for public QR flow
   useEffect(() => {
@@ -383,6 +401,8 @@ const EVProductsForm = ({ initialData, warrantyId, onSuccess, isUniversal, isEdi
           },
           termsAccepted: formData.termsAccepted,
           installationDate: formData.installationDate,
+          deviceFingerprint,
+          allExifData: formData.allExifData,
         },
         vendorDirect: vendorDirect || false,
       };

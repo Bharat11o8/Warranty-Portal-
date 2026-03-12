@@ -21,6 +21,7 @@ import { submitWarranty, updateWarranty } from "@/lib/warrantyApi";
 import { TermsModal } from "./TermsModal";
 import { compressImage, isCompressibleImage } from "@/lib/imageCompression";
 import exifr from 'exifr';
+import fpPromise from '@fingerprintjs/fingerprintjs';
 
 interface SeatCoverFormProps {
   initialData?: any;
@@ -57,6 +58,7 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
   const [uidStatus, setUidStatus] = useState<'idle' | 'checking' | 'valid' | 'invalid' | 'used'>('idle');
   const [uidMessage, setUidMessage] = useState('');
   const uidTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [deviceFingerprint, setDeviceFingerprint] = useState<string | null>(null);
   const [formData, setFormData] = useState(initialData ? {
     uid: initialData.product_details?.uid || "",
     customerName: initialData.customer_name || "",
@@ -97,6 +99,7 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
     carOuterPhoto: null as File | null,
     termsAccepted: false,
     exifData: null as any,
+    allExifData: {} as Record<string, any>,
   });
 
   // Auto-fill customer details for logged-in customers
@@ -175,6 +178,20 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
     }
     fetchProducts();
   }, [initialProducts, isPublic]);
+
+  // Initialize FingerprintJS
+  useEffect(() => {
+    const loadFingerprint = async () => {
+      try {
+        const fp = await fpPromise.load();
+        const result = await fp.get();
+        setDeviceFingerprint(result.visitorId);
+      } catch (err) {
+        console.warn("FingerprintJS failed to load:", err);
+      }
+    };
+    loadFingerprint();
+  }, []);
 
   // Auto-fill store details for public QR flow
   useEffect(() => {
@@ -372,7 +389,8 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
           storeEmail: formData.storeEmail,
           manpowerId: formData.manpowerId,
           manpowerName: manpowerName,
-          exifData: formData.exifData || null,
+          exifData: formData.exifData ? { ...formData.exifData, deviceFingerprint } : { deviceFingerprint },
+          allExifData: formData.allExifData,
           customerAddress: "N/A",
           invoiceFileName: formData.invoiceFile?.name || null,
           invoiceFile: formData.invoiceFile, // Pass file object for API wrapper
@@ -601,20 +619,32 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
             console.log(`[FraudDetection] Extracted EXIF for ${field}:`, {
               lat: exif.latitude, lng: exif.longitude, time: exif.DateTimeOriginal
             });
-            // Keep the first valid EXIF data we find, prefer one with GPS
+            // Keep the first valid EXIF data we find for the legacy 'exifData' field
             setFormData(prev => {
               const currentExif = prev.exifData || {};
-              // If we already have GPS and this one doesn't, keep the old one
-              if (currentExif.latitude && !exif.latitude) return prev;
+              const fieldExif = {
+                lat: exif.latitude,
+                lng: exif.longitude,
+                timestamp: exif.DateTimeOriginal,
+                deviceMake: exif.Make,
+                deviceModel: exif.Model
+              };
+
+              // If we already have GPS and this one doesn't, keep the old one for the summary field
+              const updatedExif = (currentExif.lat && !exif.latitude) ? currentExif : {
+                lat: exif.latitude || currentExif.lat,
+                lng: exif.longitude || currentExif.lng,
+                timestamp: exif.DateTimeOriginal || currentExif.timestamp,
+                deviceMake: exif.Make || currentExif.deviceMake,
+                deviceModel: exif.Model || currentExif.deviceModel
+              };
 
               return {
                 ...prev,
-                exifData: {
-                  lat: exif.latitude || currentExif.lat,
-                  lng: exif.longitude || currentExif.lng,
-                  timestamp: exif.DateTimeOriginal || currentExif.timestamp,
-                  deviceMake: exif.Make || currentExif.deviceMake,
-                  deviceModel: exif.Model || currentExif.deviceModel
+                exifData: updatedExif,
+                allExifData: {
+                  ...prev.allExifData,
+                  [field]: fieldExif
                 }
               };
             });
@@ -704,14 +734,22 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
       if (exif) {
         setFormData(prev => {
           const currentExif = prev.exifData || {};
+          const fieldExif = {
+            lat: currentExif.lat || exif.latitude || null,
+            lng: currentExif.lng || exif.longitude || null,
+            timestamp: exif.DateTimeOriginal || exif.CreateDate || currentExif.timestamp || null,
+            deviceMake: exif.Make || currentExif.deviceMake || null,
+            deviceModel: exif.Model || currentExif.deviceModel || null
+          };
+
           return {
             ...prev,
             exifData: {
-              lat: currentExif.lat || exif.latitude || null,
-              lng: currentExif.lng || exif.longitude || null,
-              timestamp: exif.DateTimeOriginal || exif.CreateDate || currentExif.timestamp || null,
-              deviceMake: exif.Make || currentExif.deviceMake || null,
-              deviceModel: exif.Model || currentExif.deviceModel || null
+              ...fieldExif
+            },
+            allExifData: {
+              ...prev.allExifData,
+              [field]: fieldExif
             }
           };
         });
