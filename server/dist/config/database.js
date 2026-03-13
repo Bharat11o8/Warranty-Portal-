@@ -43,7 +43,7 @@ const pool = mysql.createPool({
     enableKeepAlive: true,
     keepAliveInitialDelay: 10000, // Send keep-alive after 10 seconds idle
     // Timeout Settings
-    connectTimeout: parseInt(process.env.DB_CONNECT_TIMEOUT || '10000'),
+    connectTimeout: parseInt(process.env.DB_CONNECT_TIMEOUT || '5000'),
     idleTimeout: parseInt(process.env.DB_IDLE_TIMEOUT || '60000'),
 });
 const TRANSIENT_DB_ERROR_CODES = new Set([
@@ -64,7 +64,7 @@ function sleep(ms) {
     return new Promise((resolve) => setTimeout(resolve, ms));
 }
 export async function executeWithRetry(sql, params = [], options) {
-    const retries = options?.retries ?? 2;
+    const retries = options?.retries ?? 1;
     const baseDelayMs = options?.baseDelayMs ?? 150;
     for (let attempt = 0;; attempt++) {
         try {
@@ -98,28 +98,10 @@ export async function pingDatabase() {
         return false;
     }
 }
-// Set IST timezone on connection events (for underlying callback pool)
+// Set IST timezone on every new connection
 pool.pool.on('connection', (connection) => {
     connection.query("SET time_zone = '+05:30'");
 });
-// Test connection and log timezone info on startup
-(async () => {
-    try {
-        const conn = await pool.getConnection();
-        // Ensure timezone is set for this test connection
-        await conn.query("SET time_zone = '+05:30'");
-        if (process.env.NODE_ENV !== 'production') {
-            const [rows] = await conn.query("SELECT NOW() as db_now, @@session.time_zone as session_tz, @@global.time_zone as global_tz");
-            console.log('✅ Database connection successful');
-            console.log('⏰ DB Now (IST):', rows[0].db_now);
-            console.log('🌍 Session TZ:', rows[0].session_tz, '| Global TZ:', rows[0].global_tz);
-        }
-        conn.release();
-    }
-    catch (err) {
-        console.error('❌ Database connection failed:', err.message);
-    }
-})();
 /**
  * Get current timestamp in IST (Indian Standard Time) as MySQL datetime string
  * Use this instead of NOW() in SQL queries to ensure correct timezone

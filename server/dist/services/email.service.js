@@ -338,7 +338,7 @@ export class EmailService {
             })
         });
     }
-    static async sendWarrantyConfirmation(customerEmail, customerName, uid, productType, productDetails, carMake, carModel) {
+    static async sendWarrantyConfirmation(customerEmail, customerName, uid, productType, productDetails, registrationNumber, carMake, carModel) {
         const productName = productDetails?.product || productDetails?.productName || productType;
         const htmlContent = `
       <h2 style="color: #333; margin-top: 0;">Hello ${customerName},</h2>
@@ -346,12 +346,11 @@ export class EmailService {
       
       <div class="info-box">
         <p><strong>Customer Name:</strong> ${customerName}</p>
-        <p><strong>Make:</strong> ${carMake || 'N/A'}</p>
-        <p><strong>Model:</strong> ${carModel || 'N/A'}</p>
+        <p><strong>Vehicle Registration:</strong> ${registrationNumber || productDetails?.carRegistration || 'N/A'}</p>
+        ${(productType !== 'seat-cover' && ((carMake && String(carMake).toLowerCase() !== 'null') || (carModel && String(carModel).toLowerCase() !== 'null'))) ? `<p><strong>Vehicle:</strong> ${carMake || ''} ${carModel || ''}</p>` : ''}
         ${productType === 'seat-cover' ? `<p><strong>UID:</strong> ${uid}</p>` : ''}
         ${productType === 'ev-products' ? `
           <p><strong>Serial Number:</strong> ${productDetails?.serialNumber || 'N/A'}</p>
-          <p><strong>Vehicle Registration:</strong> ${productDetails?.carRegistration || 'N/A'}</p>
         ` : ''}
         <p><strong>Product:</strong> ${String(productName).replace(/-/g, ' ').toUpperCase()}</p>
         <p><strong>Product Type:</strong> ${productType}</p>
@@ -378,7 +377,7 @@ export class EmailService {
             })
         });
     }
-    static async sendWarrantyApprovalToCustomer(customerEmail, customerName, uid, productType, carMake, carModel, productDetails, warrantyType, storeName, storeAddress, storePhone, applicatorName) {
+    static async sendWarrantyApprovalToCustomer(customerEmail, customerName, uid, productType, registrationNumber, carMake, carModel, productDetails, warrantyType, storeName, storeAddress, storePhone, applicatorName) {
         const productName = productDetails?.product || productDetails?.productName || productType;
         const htmlContent = `
       <h2 style="color: #333; margin-top: 0;">Hello ${customerName},</h2>
@@ -396,12 +395,12 @@ export class EmailService {
         ${productType === 'seat-cover' ? `<p><strong>UID:</strong> ${uid}</p>` : ''}
         ${productType === 'ev-products' ? `
           <p><strong>Serial Number:</strong> ${productDetails?.serialNumber || 'N/A'}</p>
-          <p><strong>Vehicle Registration:</strong> ${productDetails?.carRegistration || 'N/A'}</p>
         ` : ''}
         <p><strong>Product:</strong> ${String(productName).replace(/-/g, ' ').toUpperCase()}</p>
         <p><strong>Product Type:</strong> ${productType}</p>
         <p><strong>Warranty Type:</strong> ${warrantyType || '1 Year'}</p>
-        <p><strong>Vehicle:</strong> ${carMake} ${carModel}</p>
+        <p><strong>Vehicle Registration:</strong> ${registrationNumber || productDetails?.carRegistration || 'N/A'}</p>
+        ${(productType !== 'seat-cover' && ((carMake && String(carMake).toLowerCase() !== 'null') || (carModel && String(carModel).toLowerCase() !== 'null'))) ? `<p><strong>Vehicle:</strong> ${carMake || ''} ${carModel || ''}</p>` : ''}
         <p><strong>Approval Date:</strong> ${formatDateIST()}</p>
         <p><strong>Status:</strong> <span style="color: #28a745; font-weight: bold;">ACTIVE</span></p>
       </div>
@@ -440,7 +439,7 @@ export class EmailService {
             })
         });
     }
-    static async sendWarrantyRejectionToCustomer(customerEmail, customerName, uid, productType, carMake, carModel, rejectionReason, productDetails, warrantyType, storeName, storeAddress, storePhone, applicatorName) {
+    static async sendWarrantyRejectionToCustomer(customerEmail, customerName, uid, productType, registrationNumber, rejectionReason, carMake, carModel, productDetails, warrantyType, storeName, storeAddress, storePhone, applicatorName) {
         const productName = productDetails?.product || productDetails?.productName || productType;
         const htmlContent = `
       <h2 style="color: #333; margin-top: 0;">Hello ${customerName},</h2>
@@ -458,11 +457,11 @@ export class EmailService {
         ${productType === 'seat-cover' ? `<p><strong>UID:</strong> ${uid}</p>` : ''}
         ${productType === 'ev-products' ? `
           <p><strong>Serial Number:</strong> ${productDetails?.serialNumber || 'N/A'}</p>
-          <p><strong>Vehicle Registration:</strong> ${productDetails?.carRegistration || 'N/A'}</p>
         ` : ''}
         <p><strong>Product Type:</strong> ${productType}</p>
         <p><strong>Warranty Type:</strong> ${warrantyType || '1 Year'}</p>
-        <p><strong>Vehicle:</strong> ${carMake} ${carModel}</p>
+        <p><strong>Vehicle Registration:</strong> ${registrationNumber || productDetails?.carRegistration || 'N/A'}</p>
+        ${(productType !== 'seat-cover' && ((carMake && String(carMake).toLowerCase() !== 'null') || (carModel && String(carModel).toLowerCase() !== 'null'))) ? `<p><strong>Vehicle:</strong> ${carMake || ''} ${carModel || ''}</p>` : ''}
         <p><strong>Review Date:</strong> ${formatDateIST()}</p>
       </div>
       
@@ -505,7 +504,7 @@ export class EmailService {
             })
         });
     }
-    static async sendWarrantyApprovalToVendor(vendorEmail, vendorName, customerName, customerPhone, productType, carMake, carModel, manpowerName, uid, productDetails, warrantyType) {
+    static async sendWarrantyApprovalToVendor(vendorEmail, vendorName, customerName, customerPhone, productType, registrationNumber, manpowerName, uid, carMake, carModel, productDetails, warrantyType) {
         const productNameMapping = {
             'paint-protection': 'Paint Protection Films',
             'sun-protection': 'Sun Protection Films',
@@ -531,7 +530,8 @@ export class EmailService {
         <p><strong>Product Name:</strong> ${productName}</p>
         <p><strong>Product Type:</strong> ${productType}</p>
         <p><strong>Warranty Type:</strong> ${warrantyType || '1 Year'}</p>
-        <p><strong>Vehicle:</strong> ${carMake} ${carModel}</p>
+        <p><strong>Vehicle Registration:</strong> ${registrationNumber || productDetails?.carRegistration || 'N/A'}</p>
+        ${(productType !== 'seat-cover' && ((carMake && String(carMake).toLowerCase() !== 'null') || (carModel && String(carModel).toLowerCase() !== 'null'))) ? `<p><strong>Vehicle:</strong> ${carMake || ''} ${carModel || ''}</p>` : ''}
         <p><strong>${idLabel}:</strong> ${uid}</p>
       </div>
       
@@ -557,7 +557,7 @@ export class EmailService {
             })
         });
     }
-    static async sendWarrantyRejectionToVendor(vendorEmail, vendorName, customerName, customerPhone, productType, carMake, carModel, manpowerName, uid, rejectionReason, productDetails, warrantyType) {
+    static async sendWarrantyRejectionToVendor(vendorEmail, vendorName, customerName, customerPhone, productType, registrationNumber, manpowerName, rejectionReason, uid, carMake, carModel, productDetails, warrantyType) {
         const productNameMapping = {
             'paint-protection': 'Paint Protection Films',
             'sun-protection': 'Sun Protection Films',
@@ -581,7 +581,8 @@ export class EmailService {
         <p><strong>Phone:</strong> ${customerPhone}</p>
         <p><strong>Product Name:</strong> ${productName}</p>
         <p><strong>Product Type:</strong> ${productType}</p>
-        <p><strong>Vehicle:</strong> ${carMake} ${carModel}</p>
+        <p><strong>Vehicle Registration:</strong> ${registrationNumber || productDetails?.carRegistration || 'N/A'}</p>
+        ${(productType !== 'seat-cover' && ((carMake && String(carMake).toLowerCase() !== 'null') || (carModel && String(carModel).toLowerCase() !== 'null'))) ? `<p><strong>Vehicle:</strong> ${carMake || ''} ${carModel || ''}</p>` : ''}
         <p><strong>${idLabel}:</strong> ${uid}</p>
         <p><strong>Installer:</strong> ${manpowerName}</p>
       </div>
@@ -701,7 +702,7 @@ export class EmailService {
             })
         });
     }
-    static async sendVendorConfirmationEmail(vendorEmail, vendorName, customerName, token, productType, productDetails, carMake, carModel) {
+    static async sendVendorConfirmationEmail(vendorEmail, vendorName, customerName, token, productType, productDetails, registrationNumber, carMake, carModel) {
         const baseUrl = this.getApiUrl();
         // Links for actions - these go to backend API endpoints
         const verificationLink = `${baseUrl}/api/public/verify-warranty?token=${token}`;
@@ -713,13 +714,13 @@ export class EmailService {
       
       <div class="info-box" style="border-left-color: #FFB400;">
         <p><strong>Customer Name:</strong> ${customerName}</p>
-        <p><strong>Make:</strong> ${carMake || 'N/A'}</p>
-        <p><strong>Model:</strong> ${carModel || 'N/A'}</p>
+        <p><strong>Vehicle Registration:</strong> ${registrationNumber || productDetails?.carRegistration || 'N/A'}</p>
+        ${carMake ? `<p><strong>Make:</strong> ${carMake}</p>` : ''}
+        ${carModel ? `<p><strong>Model:</strong> ${carModel}</p>` : ''}
         <p><strong>Product:</strong> ${String(productName).replace(/-/g, ' ').toUpperCase()}</p>
         ${productType === 'seat-cover' ? `<p><strong>UID:</strong> ${productDetails?.uid || 'N/A'}</p>` : ''}
         ${productType === 'ev-products' ? `
           <p><strong>Serial Number:</strong> ${productDetails?.serialNumber || 'N/A'}</p>
-          <p><strong>Vehicle Reg:</strong> ${productDetails?.carRegistration || 'N/A'}</p>
         ` : ''}
         <p><strong>Date:</strong> ${formatDateIST()}</p>
       </div>
@@ -1017,7 +1018,7 @@ export class EmailService {
       </div>
       
       <p style="font-size: 14px; color: #666; margin-top: 25px;">
-        If you have any urgent queries, please contact us at <a href="mailto:marketing@autoformindia.com" style="color: #9333ea;">marketing@autoformindia.com</a>
+        If you have any urgent queries, please contact us at <a href="mailto:marketing@autoformindia.com" style="color: #9333ea;">marketing@  </a>
       </p>
       
       <p style="margin-top: 25px; font-size: 14px;">

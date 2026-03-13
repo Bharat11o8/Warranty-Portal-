@@ -114,11 +114,10 @@ export function calculateFraudScore(
     // 2. STORE DISTANCE PENALTY (Max 100 pts)
     if (submission.exif_lat === null || submission.exif_lng === null) {
         flags.is_missing_data = true;
-        if (deviceCategory === 'ios') {
-            flags.distance_penalty = 20;
-        } else if (deviceCategory === 'desktop') {
+        if (deviceCategory === 'desktop') {
             flags.distance_penalty = 100;
         } else {
+            // Standardize -40 penalty for both Android and iOS missing data
             flags.distance_penalty = 40;
         }
     } else if (store.lat !== null && store.lng !== null) {
@@ -144,10 +143,11 @@ export function calculateFraudScore(
         const submitTime = submission.submission_time.getTime();
         const minutesDiff = Math.max(0, (submitTime - photoTime) / (1000 * 60));
 
-        if (minutesDiff > 60 * 24 * 7) flags.time_penalty = 95; // > 1 week
-        else if (minutesDiff > 60 * 24) flags.time_penalty = 70; // > 1 day
-        else if (minutesDiff > 60) flags.time_penalty = 30; // > 1 hour
-        else if (minutesDiff > 10) flags.time_penalty = 10;
+        // Restored strict minute-based buckets
+        if (minutesDiff > 30) flags.time_penalty = 95;
+        else if (minutesDiff > 15) flags.time_penalty = 70;
+        else if (minutesDiff > 5) flags.time_penalty = 40;
+        else if (minutesDiff > 2) flags.time_penalty = 10;
         else flags.time_penalty = 0;
     }
     deductions += flags.time_penalty;
@@ -162,7 +162,14 @@ export function calculateFraudScore(
         const cityMatch = ipCity.includes(storeCity) || storeCity.includes(ipCity);
         const stateMatch = storeState && (ipRegion.includes(storeState) || storeState.includes(ipRegion));
 
-        if (!cityMatch && !stateMatch) {
+        // NCR (National Capital Region) Handling
+        // Noida, Delhi, Gurugram, Gurgaon, Faridabad, Ghaziabad IPs often resolve interchangeably
+        const ncrCities = ['noida', 'delhi', 'new delhi', 'gurugram', 'gurgaon', 'faridabad', 'ghaziabad', 'greater noida'];
+        const isStoreInNCR = ncrCities.some(c => storeCity.includes(c) || storeState.includes(c));
+        const isIpInNCR = ncrCities.some(c => ipCity.includes(c) || ipRegion.includes(c));
+        const ncrMatch = isStoreInNCR && isIpInNCR;
+
+        if (!cityMatch && !stateMatch && !ncrMatch) {
             flags.ip_penalty = 15;
         }
     } else {

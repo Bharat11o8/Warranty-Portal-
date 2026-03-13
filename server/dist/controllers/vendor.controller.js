@@ -779,7 +779,7 @@ export class VendorController {
                 const w = warranty[0];
                 const productDetails = JSON.parse(w.product_details || '{}');
                 // 1. Email Notification
-                await EmailService.sendWarrantyRejectionToCustomer(w.customer_email, w.customer_name, w.uid, w.product_type, w.car_make, w.car_model, reason, productDetails, w.warranty_type, w.installer_name, w.installer_address, w.installer_contact);
+                await EmailService.sendWarrantyRejectionToCustomer(w.customer_email, w.customer_name, w.uid, w.product_type, w.registration_number, reason, w.car_make, w.car_model, productDetails, w.warranty_type, w.installer_name, w.installer_address, w.installer_contact);
                 // 2. Site Notification
                 if (w.user_id) {
                     await NotificationService.notify(w.user_id, {

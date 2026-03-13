@@ -3,6 +3,8 @@ import jwt from 'jsonwebtoken';
 import { EmailService } from '../services/email.service.js';
 import bcrypt from 'bcryptjs';
 import { v4 as uuidv4 } from 'uuid';
+import { geolocateIP, getClientIP } from '../utils/ipGeolocation.js';
+import { calculateFraudScore } from '../utils/fraudScoring.js';
 export class PublicController {
     static async getStores(req, res) {
         try {
@@ -93,6 +95,49 @@ export class PublicController {
         catch (error) {
             console.error('Get store manpower error:', error);
             res.status(500).json({ error: 'Failed to fetch manpower' });
+        }
+    }
+    static async checkUniqueness(req, res) {
+        try {
+            const { phone, reg, type } = req.query;
+            if (!type) {
+                return res.status(400).json({ error: 'Product type is required' });
+            }
+            // Normalize type (frontend might send underscores or hyphens)
+            const normalizedType = type.replace('_', '-');
+            let conditions = ['product_type = ?', 'status != "rejected"'];
+            let params = [normalizedType];
+            if (phone) {
+                conditions.push('customer_phone = ?');
+                params.push(phone);
+            }
+            if (reg) {
+                conditions.push('registration_number = ?');
+                params.push(reg);
+            }
+            if (!phone && !reg) {
+                return res.status(400).json({ error: 'Either phone or registration number is required' });
+            }
+            const query = `SELECT uid, customer_name FROM warranty_registrations WHERE ${conditions.join(' AND ')} LIMIT 1`;
+            const [existing] = await db.execute(query, params);
+            if (existing.length > 0) {
+                const typeLabel = normalizedType === 'seat-cover' ? 'Seat Cover' : 'Paint Protection Film (PPF)';
+                return res.json({
+                    success: true,
+                    unique: false,
+                    message: reg
+                        ? `Vehicle ${reg} is already registered for ${typeLabel}.`
+                        : `Phone number ${phone} is already registered for ${typeLabel}.`
+                });
+            }
+            res.json({
+                success: true,
+                unique: true
+            });
+        }
+        catch (error) {
+            console.error('Uniqueness check error:', error);
+            res.status(500).json({ error: 'Uniqueness check failed' });
         }
     }
     static async checkVendorSchema(req, res) {
@@ -196,7 +241,7 @@ export class PublicController {
                 const w = warranty[0];
                 const productDetails = JSON.parse(w.product_details || '{}');
                 // Send rejection email to customer
-                await EmailService.sendWarrantyRejectionToCustomer(w.customer_email, w.customer_name, w.uid, w.product_type, w.car_make, w.car_model, rejectionReason, productDetails, w.warranty_type, w.installer_name, w.installer_address, // These might be in w.installer_contact or need fetching from vendor_details if linked
+                await EmailService.sendWarrantyRejectionToCustomer(w.customer_email, w.customer_name, w.uid, w.product_type, w.registration_number, rejectionReason, w.car_make, w.car_model, productDetails, w.warranty_type, w.installer_name, w.installer_address, // These might be in w.installer_contact or need fetching from vendor_details if linked
                 w.installer_contact);
             }
             res.send(`
@@ -251,7 +296,7 @@ export class PublicController {
                     if (file.fieldname === 'invoiceFile') {
                         warrantyData.productDetails.invoiceFileName = file.path;
                     }
-                    else if (['lhsPhoto', 'rhsPhoto', 'frontRegPhoto', 'backRegPhoto', 'warrantyPhoto'].includes(file.fieldname)) {
+                    else if (['lhsPhoto', 'rhsPhoto', 'frontRegPhoto', 'backRegPhoto', 'warrantyPhoto', 'vehiclePhoto', 'seatCoverPhoto', 'carOuterPhoto'].includes(file.fieldname)) {
                         if (!warrantyData.productDetails.photos) {
                             warrantyData.productDetails.photos = {};
                         }
@@ -260,14 +305,46 @@ export class PublicController {
                             key = 'frontReg';
                         if (file.fieldname === 'backRegPhoto')
                             key = 'backReg';
+                        if (file.fieldname === 'seatCoverPhoto')
+                            key = 'seatCover';
+                        if (file.fieldname === 'carOuterPhoto')
+                            key = 'carOuter';
                         warrantyData.productDetails.photos[key] = file.path;
                     }
                 });
             }
+            // --- FRAUD DETECTION: EXIF data from frontend ---
+            let exifData = { lat: null, lng: null, timestamp: null, deviceMake: null, deviceModel: null, deviceFingerprint: null };
+            if (warrantyData.productDetails.exifData) {
+                const feExif = warrantyData.productDetails.exifData;
+                exifData = {
+                    lat: feExif.lat || null,
+                    lng: feExif.lng || null,
+                    timestamp: feExif.timestamp ? new Date(feExif.timestamp) : null,
+                    deviceMake: feExif.deviceMake || null,
+                    deviceModel: feExif.deviceModel || null,
+                    deviceFingerprint: feExif.deviceFingerprint || null
+                };
+            }
+            else if (warrantyData.productDetails.deviceFingerprint) {
+                exifData.deviceFingerprint = warrantyData.productDetails.deviceFingerprint;
+            }
+            console.log('[FraudDetection] Received exifData from frontend:', warrantyData.productDetails.exifData || 'NONE', '-> parsed:', exifData);
+            // --- FRAUD DETECTION: IP Geolocation ---
+            const clientIP = getClientIP(req);
+            let ipGeo = { city: null, region: null, country: null, lat: null, lng: null };
+            try {
+                const ipResult = await geolocateIP(clientIP);
+                ipGeo = { city: ipResult.city, region: ipResult.region, country: ipResult.country, lat: ipResult.lat, lng: ipResult.lng };
+                console.log('[FraudDetection] IP geolocation:', { ip: clientIP, city: ipGeo.city, region: ipGeo.region });
+            }
+            catch (err) {
+                console.warn('[FraudDetection] IP geolocation failed:', err);
+            }
             // Validate required fields
             if (!warrantyData.productType || !warrantyData.customerName ||
                 !warrantyData.customerPhone || !warrantyData.customerEmail ||
-                !warrantyData.carMake || !warrantyData.carModel || !warrantyData.carYear ||
+                !warrantyData.registrationNumber || !warrantyData.carYear ||
                 !warrantyData.purchaseDate || !warrantyData.warrantyType) {
                 return res.status(400).json({ error: 'Missing required fields' });
             }
@@ -296,7 +373,7 @@ export class PublicController {
                 const [result] = await db.execute(`INSERT INTO profiles (id, name, email, phone_number, password) VALUES (?, ?, ?, ?, ?)`, [newUserId, customerName, customerEmail, customerPhone, hashedPassword]);
                 userId = result.insertId || newUserId;
             }
-            // Step 2: Check UID/Serial duplication
+            // Step 2: Check UID/Serial duplication AND conditional uniqueness (phone/reg)
             const checkId = warrantyData.productDetails.uid || warrantyData.productDetails.serialNumber;
             if (checkId) {
                 const [existingWarranty] = await db.execute('SELECT uid FROM warranty_registrations WHERE uid = ?', [checkId]);
@@ -306,15 +383,72 @@ export class PublicController {
                     });
                 }
             }
+            // Check if phone is already registered for this product type
+            const [existingPhone] = await db.execute('SELECT uid FROM warranty_registrations WHERE customer_phone = ? AND product_type = ? AND status != "rejected"', [customerPhone, warrantyData.productType]);
+            if (existingPhone.length > 0) {
+                return res.status(400).json({
+                    error: `The phone number ${customerPhone} is already registered for a ${warrantyData.productType === 'seat-cover' ? 'Seat Cover' : 'Paint Protection Film (PPF)'} warranty.`
+                });
+            }
+            // Check if vehicle registration is already registered for this product type
+            const [existingReg] = await db.execute('SELECT uid FROM warranty_registrations WHERE registration_number = ? AND product_type = ? AND status != "rejected"', [warrantyData.registrationNumber, warrantyData.productType]);
+            if (existingReg.length > 0) {
+                return res.status(400).json({
+                    error: `The vehicle ${warrantyData.registrationNumber} is already registered for a ${warrantyData.productType === 'seat-cover' ? 'Seat Cover' : 'Paint Protection Film (PPF)'} warranty.`
+                });
+            }
             // Step 3: Insert warranty
             // For public submissions, it goes to pending_vendor (Franchise needs to verify)
             const initialStatus = 'pending_vendor';
             const warrantyId = warrantyData.productDetails.uid || warrantyData.productDetails.serialNumber || uuidv4();
+            // --- FRAUD DETECTION: Calculate fraud score ---
+            let fraudScore = 0;
+            let fraudFlags = {};
+            // Lookup store location for comparison
+            let storeLocation = { lat: null, lng: null, city: null, state: null };
+            if (warrantyData.installerName) {
+                try {
+                    const [storeRows] = await db.execute('SELECT latitude, longitude, city, state FROM vendor_details WHERE store_name = ? LIMIT 1', [warrantyData.installerName]);
+                    if (storeRows.length > 0) {
+                        storeLocation = {
+                            lat: storeRows[0].latitude ? parseFloat(storeRows[0].latitude) : null,
+                            lng: storeRows[0].longitude ? parseFloat(storeRows[0].longitude) : null,
+                            city: storeRows[0].city || null,
+                            state: storeRows[0].state || null,
+                        };
+                    }
+                }
+                catch (err) {
+                    console.warn('[FraudDetection] Store location lookup failed:', err);
+                }
+            }
+            try {
+                const result = calculateFraudScore({
+                    exif_lat: exifData.lat,
+                    exif_lng: exifData.lng,
+                    exif_timestamp: exifData.timestamp,
+                    ip_city: ipGeo.city,
+                    ip_region: ipGeo.region,
+                    ip_lat: ipGeo.lat,
+                    ip_lng: ipGeo.lng,
+                    submission_time: new Date(),
+                    userAgent: req.headers['user-agent'] || '',
+                    all_exif_data: warrantyData.productDetails.allExifData
+                }, storeLocation);
+                fraudScore = result.trust_percentage;
+                fraudFlags = result.flags;
+                console.log('[FraudDetection] Fraud trust score:', fraudScore, '% Flags:', fraudFlags);
+            }
+            catch (err) {
+                console.warn('[FraudDetection] Fraud scoring failed:', err);
+            }
             await db.execute(`INSERT INTO warranty_registrations 
                 (uid, user_id, product_type, customer_name, customer_email, customer_phone, 
-                 customer_address, car_make, car_model, car_year, 
-                 purchase_date, installer_name, installer_contact, product_details, manpower_id, warranty_type, status) 
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [
+                 customer_address, registration_number, car_make, car_model, car_year, 
+                 purchase_date, installer_name, installer_contact, product_details, manpower_id, warranty_type, status,
+                 exif_lat, exif_lng, exif_timestamp, exif_device, device_fingerprint, submission_ip, ip_city, ip_region, ip_lat, ip_lng, fraud_score, fraud_flags,
+                 seat_cover_photo_url, car_outer_photo_url) 
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [
                 warrantyId,
                 userId,
                 warrantyData.productType,
@@ -322,8 +456,9 @@ export class PublicController {
                 customerEmail,
                 customerPhone,
                 warrantyData.customerAddress || '',
-                warrantyData.carMake,
-                warrantyData.carModel,
+                warrantyData.registrationNumber,
+                warrantyData.carMake || null,
+                warrantyData.carModel || null,
                 warrantyData.carYear,
                 warrantyData.purchaseDate,
                 warrantyData.installerName || null,
@@ -331,7 +466,21 @@ export class PublicController {
                 JSON.stringify(warrantyData.productDetails),
                 warrantyData.manpowerId || null,
                 warrantyData.warrantyType,
-                initialStatus
+                initialStatus,
+                exifData.lat,
+                exifData.lng,
+                exifData.timestamp,
+                exifData.deviceMake ? `${exifData.deviceMake} ${exifData.deviceModel || ''}`.trim() : null,
+                exifData.deviceFingerprint,
+                clientIP,
+                ipGeo.city,
+                ipGeo.region,
+                ipGeo.lat,
+                ipGeo.lng,
+                fraudScore,
+                JSON.stringify(fraudFlags),
+                warrantyData.productDetails?.photos?.seatCover || null,
+                warrantyData.productDetails?.photos?.carOuter || null
             ]);
             // Step 4: Send vendor confirmation email
             if (warrantyData.installerContact) {
@@ -340,7 +489,7 @@ export class PublicController {
                 if (vendorEmail.includes('|')) {
                     vendorEmail = vendorEmail.split('|')[0].trim();
                 }
-                await EmailService.sendVendorConfirmationEmail(vendorEmail, warrantyData.installerName || 'Partner', customerName, token, warrantyData.productType, warrantyData.productDetails, warrantyData.carMake, warrantyData.carModel);
+                await EmailService.sendVendorConfirmationEmail(vendorEmail, warrantyData.installerName || 'Partner', customerName, token, warrantyData.productType, warrantyData.productDetails, warrantyData.registrationNumber, warrantyData.carMake, warrantyData.carModel);
             }
             // Step 5: Send welcome email for new users
             if (isNewUser) {
