@@ -6,7 +6,23 @@
             "use": "@vercel/node"
         }
     ],
+    "headers": [
+        {
+            "source": "/(.*)",
+            "headers": [
+                { "key": "Access-Control-Allow-Credentials", "value": "true" },
+                { "key": "Access-Control-Allow-Origin", "value": "https://warranty.emporiobyautoform.in" },
+                { "key": "Access-Control-Allow-Methods", "value": "GET,HEAD,OPTIONS,POST,PUT,PATCH,DELETE" },
+                { "key": "Access-Control-Allow-Headers", "value": "Origin, X-Requested-With, Content-Type, Accept, Authorization, X-Request-Id, X-Api-Key" }
+            ]
+        }
+    ],
     "routes": [
+        {
+            "src": "/(.*)",
+            "methods": ["OPTIONS"],
+            "dest": "/api/index.ts"
+        },
         {
             "src": "/(.*)",
             "dest": "/api/index.ts"
