@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { MapPin, User, Mail, Phone, Download, Search, Loader2, QrCode } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -71,21 +72,19 @@ export const AdminVendorDetails = ({ vendor: initialVendor, onBack }: AdminVendo
     const itemsPerPage = 20;
 
     // Derived states
-    const warranties = vendor.warranties || [];
-    const manpowerList = vendor.manpower || [];
 
     // Warranties State
     const [warrantyFilter, setWarrantyFilter] = useState<'all' | 'validated' | 'rejected' | 'pending'>('all');
     const [warrantySearch, setWarrantySearch] = useState('');
-    const [warrantySortField, setWarrantySortField] = useState<'created_at' | 'customer_name' | 'status' | 'product_type'>('created_at');
+    const [warrantySortField] = useState<'created_at' | 'customer_name' | 'status' | 'product_type'>('created_at');
     const [warrantySortOrder, setWarrantySortOrder] = useState<'asc' | 'desc'>('desc');
     const [warrantyDateFrom, setWarrantyDateFrom] = useState('');
     const [warrantyDateTo, setWarrantyDateTo] = useState('');
 
     // Manpower State
     const [manpowerSearch, setManpowerSearch] = useState('');
-    const [manpowerSortField, setManpowerSortField] = useState<'name' | 'points' | 'total_applications'>('name');
-    const [manpowerSortOrder, setManpowerSortOrder] = useState<'asc' | 'desc'>('asc');
+    const [manpowerSortField] = useState<'name' | 'points' | 'total_applications'>('name');
+    const [manpowerSortOrder] = useState<'asc' | 'desc'>('asc');
 
     // Processing State
     const [processingWarranty, setProcessingWarranty] = useState<string | null>(null);
@@ -125,6 +124,43 @@ export const AdminVendorDetails = ({ vendor: initialVendor, onBack }: AdminVendo
             });
         } finally {
             setSavingStoreCode(false);
+        }
+    };
+
+    // Location Coordinates State
+    const [isEditingCoordinates, setIsEditingCoordinates] = useState(false);
+    const [coordinatesInput, setCoordinatesInput] = useState({ latitude: '', longitude: '' });
+    const [savingCoordinates, setSavingCoordinates] = useState(false);
+
+    useEffect(() => {
+        if (vendor) {
+            setCoordinatesInput({
+                latitude: vendor.latitude ? String(vendor.latitude) : '',
+                longitude: vendor.longitude ? String(vendor.longitude) : ''
+            });
+        }
+    }, [vendor?.latitude, vendor?.longitude]);
+
+    const handleSaveCoordinates = async () => {
+        setSavingCoordinates(true);
+        try {
+            const response = await api.put(`/admin/vendors/${vendor.user_id}/coordinates`, {
+                latitude: coordinatesInput.latitude || null,
+                longitude: coordinatesInput.longitude || null
+            });
+            if (response.data.success) {
+                toast({ title: "Success", description: "Coordinates updated successfully" });
+                setVendor((prev: any) => ({ ...prev, latitude: coordinatesInput.latitude, longitude: coordinatesInput.longitude }));
+                setIsEditingCoordinates(false);
+            }
+        } catch (error: any) {
+            toast({
+                title: "Error",
+                description: error.response?.data?.error || "Failed to update coordinates",
+                variant: "destructive"
+            });
+        } finally {
+            setSavingCoordinates(false);
         }
     };
 
@@ -285,6 +321,11 @@ export const AdminVendorDetails = ({ vendor: initialVendor, onBack }: AdminVendo
                                 <MapPin className="h-4 w-4 text-orange-400" />
                                 <span>{vendor.address}, {vendor.city}, {vendor.state}</span>
                             </div>
+                            {(vendor.latitude || vendor.longitude) && (
+                                <div className="flex items-center gap-2 mt-1 text-slate-400 text-sm">
+                                    <span>Lat: {vendor.latitude || 'N/A'}, Lng: {vendor.longitude || 'N/A'}</span>
+                                </div>
+                            )}
                         </div>
                         <Badge
                             className={cn(
@@ -328,6 +369,68 @@ export const AdminVendorDetails = ({ vendor: initialVendor, onBack }: AdminVendo
                             </div>
                         </div>
                     </div>
+                </CardContent>
+            </Card>
+
+            {/* Location Coordinates Section */}
+            <Card className="mb-6 border-orange-100 shadow-sm">
+                <CardHeader className="pb-3 flex flex-row items-center justify-between">
+                    <div className="flex items-center gap-2">
+                        <MapPin className="h-5 w-5 text-orange-500" />
+                        <CardTitle className="text-lg">Location Coordinates</CardTitle>
+                    </div>
+                    <Button 
+                        variant={isEditingCoordinates ? "outline" : "default"} 
+                        size="sm" 
+                        onClick={() => setIsEditingCoordinates(!isEditingCoordinates)}
+                    >
+                        {isEditingCoordinates ? "Cancel" : "Edit Coordinates"}
+                    </Button>
+                </CardHeader>
+                <CardContent>
+                    {isEditingCoordinates ? (
+                        <div className="flex flex-col sm:flex-row gap-4">
+                            <div className="flex-1 space-y-2">
+                                <Label htmlFor="latitude">Latitude</Label>
+                                <Input 
+                                    id="latitude"
+                                    placeholder="e.g. 28.6139" 
+                                    value={coordinatesInput.latitude}
+                                    onChange={(e) => setCoordinatesInput(prev => ({ ...prev, latitude: e.target.value }))}
+                                />
+                            </div>
+                            <div className="flex-1 space-y-2">
+                                <Label htmlFor="longitude">Longitude</Label>
+                                <Input 
+                                    id="longitude"
+                                    placeholder="e.g. 77.2090" 
+                                    value={coordinatesInput.longitude}
+                                    onChange={(e) => setCoordinatesInput(prev => ({ ...prev, longitude: e.target.value }))}
+                                />
+                            </div>
+                            <div className="flex items-end">
+                                <Button 
+                                    onClick={handleSaveCoordinates} 
+                                    disabled={savingCoordinates}
+                                    className="w-full sm:w-auto"
+                                >
+                                    {savingCoordinates ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                                    Save Coordinates
+                                </Button>
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="bg-slate-50 p-4 rounded-lg border border-slate-100 flex flex-col">
+                                <span className="text-xs uppercase font-semibold tracking-wider text-slate-500 mb-1">Latitude</span>
+                                <span className="font-medium text-slate-800 text-lg">{vendor.latitude || 'Not set'}</span>
+                            </div>
+                            <div className="bg-slate-50 p-4 rounded-lg border border-slate-100 flex flex-col">
+                                <span className="text-xs uppercase font-semibold tracking-wider text-slate-500 mb-1">Longitude</span>
+                                <span className="font-medium text-slate-800 text-lg">{vendor.longitude || 'Not set'}</span>
+                            </div>
+                        </div>
+                    )}
                 </CardContent>
             </Card>
 

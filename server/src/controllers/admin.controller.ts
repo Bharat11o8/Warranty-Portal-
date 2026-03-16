@@ -113,6 +113,8 @@ export class AdminController {
                     vd.state,
                     vd.address as full_address,
                     vd.pincode,
+                    vd.latitude,
+                    vd.longitude,
                     COALESCE(vv.is_verified, false) as is_verified,
                     COALESCE(vv.is_active, true) as is_active,
                     vv.verified_at,
@@ -178,6 +180,8 @@ export class AdminController {
                     vd.city,
                     vd.state,
                     vd.pincode,
+                    vd.latitude,
+                    vd.longitude,
                     vv.is_verified,
                     vv.verified_at
                 FROM profiles p
@@ -454,6 +458,43 @@ export class AdminController {
         } catch (error: any) {
             console.error('Update store code error:', error);
             res.status(500).json({ error: 'Failed to update store code' });
+        }
+    }
+
+    /**
+     * Update vendor location coordinates
+     */
+    static async updateVendorCoordinates(req: Request, res: Response) {
+        try {
+            const { id } = req.params;
+            const { latitude, longitude } = req.body;
+
+            await db.execute(
+                'UPDATE vendor_details SET latitude = ?, longitude = ? WHERE user_id = ?',
+                [latitude || null, longitude || null, id]
+            );
+
+            const admin = (req as any).user;
+            await ActivityLogService.log({
+                adminId: admin.id,
+                adminName: admin.name,
+                adminEmail: admin.email,
+                actionType: 'VENDOR_COORDINATES_UPDATED',
+                targetType: 'VENDOR',
+                targetId: id,
+                targetName: undefined,
+                details: { latitude, longitude },
+                ipAddress: req.ip || req.socket?.remoteAddress
+            });
+
+            res.json({
+                success: true,
+                message: 'Coordinates updated successfully',
+                coordinates: { latitude, longitude }
+            });
+        } catch (error: any) {
+            console.error('Update coordinates error:', error);
+            res.status(500).json({ error: 'Failed to update coordinates' });
         }
     }
 

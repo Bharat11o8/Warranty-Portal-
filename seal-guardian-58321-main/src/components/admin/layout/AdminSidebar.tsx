@@ -1,4 +1,3 @@
-import { useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import {
     LayoutDashboard,
@@ -11,7 +10,6 @@ import {
     ChevronRight,
     ChevronLeft,
     User,
-    Settings,
     MessageSquare,
     Package,
     PenTool,

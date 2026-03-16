@@ -210,6 +210,8 @@ export const AdminVendors = () => {
                 "Email": v.email,
                 "City": v.city,
                 "State": v.state,
+                "Latitude": v.latitude || 'N/A',
+                "Longitude": v.longitude || 'N/A',
                 "Address": v.full_address,
                 "Pincode": v.pincode,
                 "Status": v.is_verified ? "Active" : v.verified_at ? "Rejected" : "Pending",
@@ -494,6 +496,9 @@ export const AdminVendors = () => {
                                                 <div className="text-[10px] uppercase tracking-wider text-slate-400 font-bold">Location</div>
                                                 <div className="text-sm font-medium text-slate-700">{vendor.city}</div>
                                                 <div className="text-[11px] text-slate-500 truncate">{vendor.state}</div>
+                                                {(vendor.latitude || vendor.longitude) && (
+                                                    <div className="text-[9px] text-slate-400">Lat: {vendor.latitude || 'N/A'}, Lng: {vendor.longitude || 'N/A'}</div>
+                                                )}
                                             </div>
                                         </div>
 
@@ -556,6 +561,9 @@ export const AdminVendors = () => {
                                                     {vendor.city}
                                                 </div>
                                                 <div className="text-xs text-slate-400 ml-4.5">{vendor.state}</div>
+                                                {(vendor.latitude || vendor.longitude) && (
+                                                    <div className="text-[10px] text-slate-400 ml-4.5 mt-0.5">Lat: {vendor.latitude || 'N/A'}, Lng: {vendor.longitude || 'N/A'}</div>
+                                                )}
                                             </td>
                                             <td className="px-6 py-4 text-center">
                                                 {vendor.is_verified ? (

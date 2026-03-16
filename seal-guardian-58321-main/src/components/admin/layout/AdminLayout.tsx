@@ -1,12 +1,10 @@
 import { useState } from "react";
 import { AdminSidebar, SidebarContent, AdminModule } from "./AdminSidebar";
 import { AdminModuleLayout } from "./AdminModuleLayout";
-import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { Navigate } from "react-router-dom";
-import { Loader2, Menu, User } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import { Loader2 } from "lucide-react";
+import { Sheet, SheetContent } from "@/components/ui/sheet";
 
 import Profile from "@/pages/Profile";
 

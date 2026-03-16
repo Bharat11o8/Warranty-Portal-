@@ -853,7 +853,7 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
               {/* Manpower Selection */}
               <div className="space-y-3">
                 <Label htmlFor="manpowerId" className="text-sm font-medium text-slate-700">
-                  Manpower (Installer)
+                  Manpower (Installer) <span className="text-destructive">*</span>
                 </Label>
                 <MobileSelect
                   options={manpowerList.map((mp) => ({
@@ -900,7 +900,7 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
             <div className="grid md:grid-cols-2 gap-6 md:gap-8">
               <div className="space-y-3">
                 <Label htmlFor="customerName" className="text-sm font-medium text-slate-700">
-                  Customer Name <span className="text-destructive">*</span>
+                  Name <span className="text-destructive">*</span>
                 </Label>
                 <div className="relative">
                   <User className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
@@ -925,7 +925,7 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
 
               <div className="space-y-3">
                 <Label htmlFor="customerEmail" className="text-sm font-medium text-slate-700">
-                  Customer Email {user?.role !== 'vendor' && <span className="text-destructive">*</span>}
+                  Email {user?.role !== 'vendor' && <span className="text-destructive">*</span>}
                 </Label>
                 <div className="relative">
                   <Mail className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
@@ -989,12 +989,12 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
                 <Input
                   id="carReg"
                   type="text"
-                  placeholder="e.g., DL-01-AB-1234"
+                  placeholder="Format: DL-01-AB-1234 / DL01AB1234"
                   value={formData.carReg}
                   onChange={(e) => handleChange("carReg", e.target.value)}
                   disabled={loading}
                   required
-                  className="bg-white border-slate-200 uppercase"
+                  className="bg-white border-slate-200"
                 />
               </div>
             </div>
@@ -1143,45 +1143,6 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
                 </div>
               </div>
 
-              <div className="space-y-3 md:col-span-2">
-                <Label htmlFor="invoiceFile" className="text-sm font-medium text-slate-700">
-                  Proof of Purchase (Invoice / MRP Sticker) <span className="text-destructive">*</span>
-                </Label>
-                <div className={`mt-2 border-2 border-dashed rounded-xl p-6 transition-all duration-200 text-center relative ${formData.invoiceFile ? 'border-orange-300 bg-orange-50/30' : 'border-slate-200 hover:border-orange-300 hover:bg-slate-50'}`}>
-                  <div className="flex flex-col items-center gap-2">
-                    <div className={`p-3 rounded-full ${formData.invoiceFile ? 'bg-orange-100 text-orange-600' : 'bg-slate-100 text-slate-500'}`}>
-                      {formData.invoiceFile ? <FileText className="h-6 w-6" /> : <Upload className="h-6 w-6" />}
-                    </div>
-                    <div>
-                      {formData.invoiceFile ? (
-                        <div className="space-y-1">
-                          <p className="text-sm font-medium text-orange-700 break-all">{formData.invoiceFile.name}</p>
-                          <p className="text-xs text-orange-600/70">{(formData.invoiceFile.size / 1024 / 1024).toFixed(2)} MB</p>
-                          <label htmlFor="invoiceFile" className="text-xs text-orange-600 underline cursor-pointer hover:text-orange-800">Change File</label>
-                        </div>
-                      ) : (
-                        <div className="space-y-1">
-                          <p className="text-sm font-medium text-slate-700">Click to upload or drag and drop</p>
-                          <p className="text-xs text-muted-foreground">JPG, PNG, PDF (Max 5MB)</p>
-                        </div>
-                      )}
-                    </div>
-                    <Input
-                      id="invoiceFile"
-                      type="file"
-                      accept="image/jpeg,image/png,image/heic,image/heif,application/pdf"
-                      onChange={(e) => handleFileChange(e, 'invoiceFile')}
-                      required={!warrantyId}
-                      disabled={loading}
-                      className="hidden"
-                    />
-                    {!formData.invoiceFile && (
-                      <label htmlFor="invoiceFile" className="absolute inset-0 cursor-pointer"></label>
-                    )}
-                  </div>
-                </div>
-              </div>
-
               {/* Number Plate Photo — Camera Only */}
               <CameraCapture
                 id="vehicleFile"
@@ -1223,6 +1184,44 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
                 accept="image/jpeg,image/png,image/heic,image/heif"
                 selectedIcon={<ImageIcon className="h-6 w-6" />}
               />
+            </div>
+            <div className="space-y-3 mt-5 md:col-span-2">
+              <Label htmlFor="invoiceFile" className="text-sm font-medium text-slate-700">
+                Proof of Purchase (Invoice / MRP Sticker) <span className="text-destructive">*</span>
+              </Label>
+              <div className={`mt-2 border-2 border-dashed rounded-xl p-6 transition-all duration-200 text-center relative ${formData.invoiceFile ? 'border-orange-300 bg-orange-50/30' : 'border-slate-200 hover:border-orange-300 hover:bg-slate-50'}`}>
+                <div className="flex flex-col items-center gap-2">
+                  <div className={`p-3 rounded-full ${formData.invoiceFile ? 'bg-orange-100 text-orange-600' : 'bg-slate-100 text-slate-500'}`}>
+                    {formData.invoiceFile ? <FileText className="h-6 w-6" /> : <Upload className="h-6 w-6" />}
+                  </div>
+                  <div>
+                    {formData.invoiceFile ? (
+                      <div className="space-y-1">
+                        <p className="text-sm font-medium text-orange-700 break-all">{formData.invoiceFile.name}</p>
+                        <p className="text-xs text-orange-600/70">{(formData.invoiceFile.size / 1024 / 1024).toFixed(2)} MB</p>
+                        <label htmlFor="invoiceFile" className="text-xs text-orange-600 underline cursor-pointer hover:text-orange-800">Change File</label>
+                      </div>
+                    ) : (
+                      <div className="space-y-1">
+                        <p className="text-sm font-medium text-slate-700">Click to upload or drag and drop</p>
+                        <p className="text-xs text-muted-foreground">JPG, PNG, PDF (Max 5MB)</p>
+                      </div>
+                    )}
+                  </div>
+                  <Input
+                    id="invoiceFile"
+                    type="file"
+                    accept="image/jpeg,image/png,image/heic,image/heif,application/pdf"
+                    onChange={(e) => handleFileChange(e, 'invoiceFile')}
+                    required={!warrantyId}
+                    disabled={loading}
+                    className="hidden"
+                  />
+                  {!formData.invoiceFile && (
+                    <label htmlFor="invoiceFile" className="absolute inset-0 cursor-pointer"></label>
+                  )}
+                </div>
+              </div>
             </div>
           </CardContent>
         </Card>

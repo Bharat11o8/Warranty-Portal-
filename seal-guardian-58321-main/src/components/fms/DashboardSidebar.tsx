@@ -237,7 +237,7 @@ export const DashboardSidebar = ({ activeModule, onModuleChange, isCollapsed, on
             {/* Brand Logo & Collapse Toggle */}
             <div className={cn(
                 "relative flex border-b border-orange-50 shrink-0",
-                isCollapsed ? "h-32 flex-col items-center justify-center py-4" : "h-24 px-6 items-center justify-center"
+                isCollapsed ? "h-32 flex-col items-center justify-center py-4" : "h-24 pr-10 items-center justify-center"
             )}>
                 <div className={cn(
                     "flex items-center transition-all duration-500",
