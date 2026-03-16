@@ -221,13 +221,15 @@ export class AdminController {
                 SELECT wr.*, 
                        p.name as submitted_by_name, 
                        p.email as submitted_by_email,
-                       m.name as manpower_name_from_db
+                       m.name as manpower_name_from_db,
+                       (SELECT latitude FROM vendor_details WHERE id = ?) as store_lat,
+                       (SELECT longitude FROM vendor_details WHERE id = ?) as store_lng
                 FROM warranty_registrations wr
                 LEFT JOIN profiles p ON wr.user_id = p.id
                 LEFT JOIN manpower m ON wr.manpower_id = m.id
                 WHERE wr.manpower_id IN (SELECT id FROM manpower WHERE vendor_id = ?)
                 ORDER BY wr.created_at DESC
-            `, [vendorData.vendor_details_id]);
+            `, [vendorData.vendor_details_id, vendorData.vendor_details_id, vendorData.vendor_details_id]);
 
             res.json({
                 success: true,
@@ -870,6 +872,8 @@ export class AdminController {
                     m.name as manpower_name_from_db,
                     vd.store_name as vendor_store_name,
                     vd.store_email as vendor_store_email,
+                    vd.latitude as store_lat,
+                    vd.longitude as store_lng,
                     vp.phone_number as vendor_phone_number
                 FROM warranty_registrations wr
                 LEFT JOIN profiles p ON wr.user_id = p.id

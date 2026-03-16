@@ -22,9 +22,19 @@ import {
     MapPin,
     Wifi,
     Clock,
-    ChevronDown,
     ChevronUp
 } from "lucide-react";
+
+function haversineDistance(lat1: number, lng1: number, lat2: number, lng2: number): number {
+    const R = 6371; // Earth's radius in km
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLng = (lng2 - lng1) * Math.PI / 180;
+    const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+        Math.sin(dLng / 2) * Math.sin(dLng / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+}
 
 
 
@@ -440,9 +450,21 @@ export const AdminWarrantyList = ({
                                                     <MapPin className="h-3 w-3" />
                                                     <span className="font-medium">Distance Penalty</span>
                                                 </div>
-                                                <p className={cn("text-sm font-bold", flags.distance_penalty >= 50 ? "text-red-600" : flags.distance_penalty > 0 ? "text-yellow-700" : "text-green-600")}>
-                                                    -{flags.distance_penalty} pts
-                                                </p>
+                                                {(() => {
+                                                    let distanceText = "";
+                                                    if (warranty.store_lat && warranty.store_lng && warranty.exif_lat && warranty.exif_lng) {
+                                                        const dist = haversineDistance(
+                                                            Number(warranty.exif_lat), Number(warranty.exif_lng),
+                                                            Number(warranty.store_lat), Number(warranty.store_lng)
+                                                        );
+                                                        distanceText = ` (${dist < 1 ? (dist * 1000).toFixed(0) + ' m' : dist.toFixed(1) + ' km'})`;
+                                                    }
+                                                    return (
+                                                        <p className={cn("text-sm font-bold", flags.distance_penalty >= 50 ? "text-red-600" : flags.distance_penalty > 0 ? "text-yellow-700" : "text-green-600")}>
+                                                            -{flags.distance_penalty} pts <span className="text-xs font-normal opacity-80">{distanceText}</span>
+                                                        </p>
+                                                    );
+                                                })()}
                                                 <p className="text-[10px] text-muted-foreground mt-1">
                                                     {flags.distance_penalty === 0 ? '✓ Within Store' : flags.distance_penalty >= 50 ? '❌ Outside Area' : '⚠ Warning'}
                                                 </p>

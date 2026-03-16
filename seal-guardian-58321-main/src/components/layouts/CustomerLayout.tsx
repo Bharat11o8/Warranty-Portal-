@@ -197,7 +197,7 @@ const CustomerLayout = () => {
                     </div>
 
                     {/* Navigation Items */}
-                    <nav className="flex-1 px-4 py-4 space-y-10 overflow-y-auto custom-scrollbar">
+                    <nav className="flex-1 px-4 py-4 space-y-10 overflow-y-auto custom-scrollbar overflow-x-hidden">
                         {navItems.map((item) => (
                             <Link key={item.path} to={item.path}>
                                 <div

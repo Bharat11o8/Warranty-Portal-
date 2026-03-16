@@ -101,6 +101,8 @@ export class AdminController {
                     vd.state,
                     vd.address as full_address,
                     vd.pincode,
+                    vd.latitude,
+                    vd.longitude,
                     COALESCE(vv.is_verified, false) as is_verified,
                     COALESCE(vv.is_active, true) as is_active,
                     vv.verified_at,
@@ -161,6 +163,8 @@ export class AdminController {
                     vd.city,
                     vd.state,
                     vd.pincode,
+                    vd.latitude,
+                    vd.longitude,
                     vv.is_verified,
                     vv.verified_at
                 FROM profiles p
@@ -196,13 +200,15 @@ export class AdminController {
                 SELECT wr.*, 
                        p.name as submitted_by_name, 
                        p.email as submitted_by_email,
-                       m.name as manpower_name_from_db
+                       m.name as manpower_name_from_db,
+                       (SELECT latitude FROM vendor_details WHERE id = ?) as store_lat,
+                       (SELECT longitude FROM vendor_details WHERE id = ?) as store_lng
                 FROM warranty_registrations wr
                 LEFT JOIN profiles p ON wr.user_id = p.id
                 LEFT JOIN manpower m ON wr.manpower_id = m.id
                 WHERE wr.manpower_id IN (SELECT id FROM manpower WHERE vendor_id = ?)
                 ORDER BY wr.created_at DESC
-            `, [vendorData.vendor_details_id]);
+            `, [vendorData.vendor_details_id, vendorData.vendor_details_id, vendorData.vendor_details_id]);
             res.json({
                 success: true,
                 vendor: vendorData,
@@ -384,6 +390,37 @@ export class AdminController {
         catch (error) {
             console.error('Update store code error:', error);
             res.status(500).json({ error: 'Failed to update store code' });
+        }
+    }
+    /**
+     * Update vendor location coordinates
+     */
+    static async updateVendorCoordinates(req, res) {
+        try {
+            const { id } = req.params;
+            const { latitude, longitude } = req.body;
+            await db.execute('UPDATE vendor_details SET latitude = ?, longitude = ? WHERE user_id = ?', [latitude || null, longitude || null, id]);
+            const admin = req.user;
+            await ActivityLogService.log({
+                adminId: admin.id,
+                adminName: admin.name,
+                adminEmail: admin.email,
+                actionType: 'VENDOR_COORDINATES_UPDATED',
+                targetType: 'VENDOR',
+                targetId: id,
+                targetName: undefined,
+                details: { latitude, longitude },
+                ipAddress: req.ip || req.socket?.remoteAddress
+            });
+            res.json({
+                success: true,
+                message: 'Coordinates updated successfully',
+                coordinates: { latitude, longitude }
+            });
+        }
+        catch (error) {
+            console.error('Update coordinates error:', error);
+            res.status(500).json({ error: 'Failed to update coordinates' });
         }
     }
     static async deleteVendor(req, res) {
@@ -664,6 +701,8 @@ export class AdminController {
                     m.name as manpower_name_from_db,
                     vd.store_name as vendor_store_name,
                     vd.store_email as vendor_store_email,
+                    vd.latitude as store_lat,
+                    vd.longitude as store_lng,
                     vp.phone_number as vendor_phone_number
                 FROM warranty_registrations wr
                 LEFT JOIN profiles p ON wr.user_id = p.id
