@@ -500,6 +500,67 @@ export class AdminController {
         }
     }
 
+    static async updateVendorProfile(req: Request, res: Response) {
+        try {
+            const { id } = req.params;
+            const { store_name, contact_name, email, phone_number } = req.body;
+
+            if (!store_name || !contact_name || !email || !phone_number) {
+                return res.status(400).json({ error: 'All fields are required' });
+            }
+
+            const connection = await db.getConnection();
+            try {
+                await connection.beginTransaction();
+
+                const [existingEmail]: any = await connection.execute(
+                    'SELECT id FROM profiles WHERE email = ? AND id != ?',
+                    [email, id]
+                );
+                if (existingEmail.length > 0) {
+                    return res.status(400).json({ error: 'Email already in use by another account' });
+                }
+
+                await connection.execute(
+                    'UPDATE profiles SET name = ?, email = ?, phone_number = ? WHERE id = ?',
+                    [contact_name, email, phone_number, id]
+                );
+
+                await connection.execute(
+                    'UPDATE vendor_details SET store_name = ?, store_email = ? WHERE user_id = ?',
+                    [store_name, email, id]
+                );
+
+                await connection.commit();
+
+                const admin = (req as any).user;
+                await ActivityLogService.log({
+                    adminId: admin.id,
+                    adminName: admin.name,
+                    adminEmail: admin.email,
+                    actionType: 'VENDOR_PROFILE_UPDATED',
+                    targetType: 'VENDOR',
+                    targetId: id,
+                    targetName: store_name,
+                    ipAddress: req.ip || req.socket?.remoteAddress
+                });
+
+                res.json({
+                    success: true,
+                    message: 'Vendor profile updated successfully'
+                });
+            } catch (transactionError: any) {
+                await connection.rollback();
+                throw transactionError;
+            } finally {
+                connection.release();
+            }
+        } catch (error: any) {
+            console.error('Update vendor profile error:', error);
+            res.status(500).json({ error: 'Failed to update vendor profile' });
+        }
+    }
+
     static async deleteVendor(req: Request, res: Response) {
         try {
             const { id } = req.params;

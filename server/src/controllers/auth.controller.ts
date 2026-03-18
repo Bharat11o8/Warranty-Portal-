@@ -607,6 +607,16 @@ export class AuthController {
         return res.status(401).json({ error: 'User not authenticated' });
       }
 
+      const [roleRecords]: any = await db.execute(
+        'SELECT role FROM user_roles WHERE user_id = ?',
+        [userId]
+      );
+      const currentRole = roleRecords[0]?.role;
+
+      if (currentRole === 'vendor') {
+        return res.status(403).json({ error: 'Franchise profiles can only be updated by administrators.' });
+      }
+
       if (!name || !email || !phoneNumber) {
         return res.status(400).json({ error: 'All fields are required' });
       }
@@ -646,13 +656,7 @@ export class AuthController {
 
       const updatedUser = updatedUsers[0];
 
-      // Get user role
-      const [roles]: any = await db.execute(
-        'SELECT role FROM user_roles WHERE user_id = ?',
-        [userId]
-      );
-
-      const userRole = roles[0]?.role;
+      const userRole = currentRole;
 
       // Get verification status for vendors
       let isValidated = userRole === 'customer';

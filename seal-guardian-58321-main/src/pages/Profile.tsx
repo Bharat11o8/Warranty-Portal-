@@ -235,7 +235,8 @@ const Profile = ({ embedded }: { embedded?: boolean }) => {
                                         value={name}
                                         onChange={(e) => setName(e.target.value)}
                                         required
-                                        className="pl-11 h-12 rounded-xl"
+                                        disabled={user.role === 'vendor'}
+                                        className={cn("pl-11 h-12 rounded-xl", user.role === 'vendor' && "bg-muted cursor-not-allowed")}
                                     />
                                 </div>
                             </div>
@@ -251,7 +252,8 @@ const Profile = ({ embedded }: { embedded?: boolean }) => {
                                         value={email}
                                         onChange={(e) => setEmail(e.target.value)}
                                         required
-                                        className="pl-11 h-12 rounded-xl"
+                                        disabled={user.role === 'vendor'}
+                                        className={cn("pl-11 h-12 rounded-xl", user.role === 'vendor' && "bg-muted cursor-not-allowed")}
                                     />
                                 </div>
                             </div>
@@ -267,34 +269,39 @@ const Profile = ({ embedded }: { embedded?: boolean }) => {
                                         value={phoneNumber}
                                         onChange={(e) => setPhoneNumber(e.target.value)}
                                         required
-                                        className="pl-11 h-12 rounded-xl"
+                                        disabled={user.role === 'vendor'}
+                                        className={cn("pl-11 h-12 rounded-xl", user.role === 'vendor' && "bg-muted cursor-not-allowed")}
                                     />
                                 </div>
                             </div>
 
-                            {/* Role (Read-only for Admin) */}
-                            {user.role === 'admin' && (
-                                <div className="space-y-2">
-                                    <Label htmlFor="role">Account Role</Label>
-                                    <div className="relative">
-                                        <RoleIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-                                        <Input
-                                            id="role"
-                                            type="text"
-                                            value={roleConfig.label}
-                                            disabled
-                                            className="pl-11 h-12 bg-muted cursor-not-allowed rounded-xl"
-                                        />
-                                    </div>
-                                    <p className="text-xs text-muted-foreground">
-                                        Role is managed by administrators and cannot be changed
-                                    </p>
+                            {/* Role */}
+                            <div className="space-y-2">
+                                <Label htmlFor="role">Account Role</Label>
+                                <div className="relative">
+                                    <RoleIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+                                    <Input
+                                        id="role"
+                                        type="text"
+                                        value={roleConfig.label}
+                                        disabled
+                                        className="pl-11 h-12 bg-muted cursor-not-allowed rounded-xl"
+                                    />
                                 </div>
-                            )}
+                                <p className="text-xs text-muted-foreground">
+                                    Role is managed by administrators and cannot be changed
+                                </p>
+                            </div>
 
-                            <Button type="submit" className="w-full h-12 rounded-xl bg-orange-600 hover:bg-orange-700 font-bold" disabled={saving}>
-                                {saving ? "Saving..." : "Save Changes"}
-                            </Button>
+                            {user.role === 'vendor' ? (
+                                <div className="p-4 mt-6 bg-orange-50/50 border border-orange-200 rounded-xl text-orange-800 text-sm text-center font-medium">
+                                    Franchise profile details can only be updated by administrators. If you need to make changes, please contact support.
+                                </div>
+                            ) : (
+                                <Button type="submit" className="w-full h-12 rounded-xl bg-orange-600 hover:bg-orange-700 font-bold" disabled={saving}>
+                                    {saving ? "Saving..." : "Save Changes"}
+                                </Button>
+                            )}
                         </form>
                     </CardContent>
                 </Card>

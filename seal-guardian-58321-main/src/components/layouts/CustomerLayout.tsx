@@ -15,7 +15,6 @@ import {
     LayoutDashboard
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import api from "@/lib/api";
 
 const CustomerLayout = () => {
     const { user, logout, loading } = useAuth();

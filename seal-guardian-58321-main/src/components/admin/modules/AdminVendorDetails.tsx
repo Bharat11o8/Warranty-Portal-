@@ -164,6 +164,51 @@ export const AdminVendorDetails = ({ vendor: initialVendor, onBack }: AdminVendo
         }
     };
 
+    // Edit Profile State
+    const [isEditProfileOpen, setIsEditProfileOpen] = useState(false);
+    const [editProfileForm, setEditProfileForm] = useState({
+        store_name: '',
+        contact_name: '',
+        email: '',
+        phone_number: ''
+    });
+    const [savingProfile, setSavingProfile] = useState(false);
+
+    const openEditProfile = () => {
+        setEditProfileForm({
+            store_name: vendor.store_name || '',
+            contact_name: vendor.contact_name || '',
+            email: vendor.email || '',
+            phone_number: vendor.phone_number || ''
+        });
+        setIsEditProfileOpen(true);
+    };
+
+    const handleSaveProfile = async () => {
+        if (!editProfileForm.store_name || !editProfileForm.contact_name || !editProfileForm.email || !editProfileForm.phone_number) {
+            toast({ title: 'Error', description: 'All fields are required', variant: 'destructive' });
+            return;
+        }
+
+        setSavingProfile(true);
+        try {
+            const response = await api.put(`/admin/vendors/${vendor.user_id}/profile`, editProfileForm);
+            if (response.data.success) {
+                toast({ title: 'Success', description: 'Profile updated successfully' });
+                setVendor((prev: any) => ({ ...prev, ...editProfileForm }));
+                setIsEditProfileOpen(false);
+            }
+        } catch (error: any) {
+            toast({
+                title: 'Error',
+                description: error.response?.data?.error || 'Failed to update profile',
+                variant: 'destructive'
+            });
+        } finally {
+            setSavingProfile(false);
+        }
+    };
+
     const handleDownloadQR = () => {
         const svg = document.getElementById('vendor-qr-code');
         if (!svg) return;
@@ -327,16 +372,21 @@ export const AdminVendorDetails = ({ vendor: initialVendor, onBack }: AdminVendo
                                 </div>
                             )}
                         </div>
-                        <Badge
-                            className={cn(
-                                "text-sm px-4 py-1.5 h-auto",
-                                vendor.is_verified
-                                    ? "bg-emerald-500 hover:bg-emerald-600 border-0"
-                                    : "bg-amber-500 hover:bg-amber-600 text-black border-0"
-                            )}
-                        >
-                            {vendor.is_verified ? 'Verified Franchise' : 'Pending Verification'}
-                        </Badge>
+                        <div className="flex flex-col gap-3 items-end">
+                            <Badge
+                                className={cn(
+                                    "text-sm px-4 py-1.5 h-auto w-fit",
+                                    vendor.is_verified
+                                        ? "bg-emerald-500 hover:bg-emerald-600 border-0"
+                                        : "bg-amber-500 hover:bg-amber-600 text-black border-0"
+                                )}
+                            >
+                                {vendor.is_verified ? 'Verified Franchise' : 'Pending Verification'}
+                            </Badge>
+                            <Button variant="outline" size="sm" onClick={openEditProfile} className="text-slate-700 bg-white hover:bg-slate-100">
+                                Edit Profile
+                            </Button>
+                        </div>
                     </div>
                 </div>
                 <CardContent className="p-6 bg-white">
@@ -371,6 +421,60 @@ export const AdminVendorDetails = ({ vendor: initialVendor, onBack }: AdminVendo
                     </div>
                 </CardContent>
             </Card>
+
+            {/* Edit Profile Dialog */}
+            <Dialog open={isEditProfileOpen} onOpenChange={setIsEditProfileOpen}>
+                <DialogContent className="sm:max-w-[425px]">
+                    <DialogHeader>
+                        <DialogTitle>Edit Franchise Profile</DialogTitle>
+                        <DialogDescription>
+                            Make changes to the franchise's basic details here.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="grid gap-4 py-4">
+                        <div className="space-y-2">
+                            <Label htmlFor="store_name">Store Name</Label>
+                            <Input
+                                id="store_name"
+                                value={editProfileForm.store_name}
+                                onChange={(e) => setEditProfileForm({ ...editProfileForm, store_name: e.target.value })}
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="contact_name">Contact Name</Label>
+                            <Input
+                                id="contact_name"
+                                value={editProfileForm.contact_name}
+                                onChange={(e) => setEditProfileForm({ ...editProfileForm, contact_name: e.target.value })}
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="email">Email</Label>
+                            <Input
+                                id="email"
+                                type="email"
+                                value={editProfileForm.email}
+                                onChange={(e) => setEditProfileForm({ ...editProfileForm, email: e.target.value })}
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="phone_number">Phone Number</Label>
+                            <Input
+                                id="phone_number"
+                                value={editProfileForm.phone_number}
+                                onChange={(e) => setEditProfileForm({ ...editProfileForm, phone_number: e.target.value })}
+                            />
+                        </div>
+                    </div>
+                    <div className="flex justify-end gap-3">
+                        <Button variant="outline" onClick={() => setIsEditProfileOpen(false)}>Cancel</Button>
+                        <Button onClick={handleSaveProfile} disabled={savingProfile}>
+                            {savingProfile ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                            Save Changes
+                        </Button>
+                    </div>
+                </DialogContent>
+            </Dialog>
 
             {/* Location Coordinates Section */}
             <Card className="mb-6 border-orange-100 shadow-sm">
