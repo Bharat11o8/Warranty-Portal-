@@ -3,7 +3,9 @@ import { useNavigate } from "react-router-dom";
 import api from "@/lib/api";
 import {
   validateEmail,
-  getPhoneError
+  getPhoneError,
+  getVehicleRegError,
+  formatVehicleRegLive
 } from "@/lib/validation";
 import { getISTTodayISO } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -153,6 +155,11 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
         }
       } catch (error) {
         console.error("Failed to fetch stores", error);
+        toast({
+          title: "Failed to Load Stores",
+          description: "Could not load store list. Please refresh the page.",
+          variant: "destructive",
+        });
       }
     };
 
@@ -170,6 +177,11 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
         }
       } catch (error) {
         console.error("Failed to fetch products", error);
+        toast({
+          title: "Failed to Load Products",
+          description: "Could not load product list. Please refresh the page.",
+          variant: "destructive",
+        });
       }
     };
 
@@ -276,6 +288,40 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
         return;
       }
 
+      // ===== UID Validation against backend =====
+      try {
+        setUidStatus('checking');
+        const uidCheckRes = await api.get(`/public/warranty/check-uid?uid=${formData.uid}`);
+        if (uidCheckRes.data.success && !uidCheckRes.data.valid) {
+          setUidStatus('invalid');
+          setUidMessage(uidCheckRes.data.reason);
+          toast({
+            title: "Invalid UID",
+            description: uidCheckRes.data.reason,
+            variant: "destructive",
+          });
+          setLoading(false);
+          return;
+        }
+        setUidStatus('valid');
+        setUidMessage('');
+      } catch (uidErr: any) {
+        console.error('UID check failed:', uidErr);
+        // If the check endpoint itself fails, let the backend submission catch it
+        // Don't block submission on network errors for the check
+      }
+
+      // Validate Customer Name
+      if (!formData.customerName || formData.customerName.trim().length < 2) {
+        toast({
+          title: "Customer Name Required",
+          description: "Please enter the customer's full name",
+          variant: "destructive",
+        });
+        setLoading(false);
+        return;
+      }
+
       // Validate Customer Mobile
       const phoneError = getPhoneError(formData.customerMobile);
       if (phoneError) {
@@ -309,11 +355,66 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
         return;
       }
 
+      // Validate Product Name (Seat Cover selection)
+      if (!formData.productName) {
+        toast({
+          title: "Product Required",
+          description: "Please select a seat cover product",
+          variant: "destructive",
+        });
+        setLoading(false);
+        return;
+      }
+
+      // Validate Store Name (required for non-public flow; public flow auto-fills it)
+      if (!formData.storeName) {
+        toast({
+          title: "Store Required",
+          description: "Please select a store / franchise",
+          variant: "destructive",
+        });
+        setLoading(false);
+        return;
+      }
+
+      // Validate Applicator / Installer
+      if (!formData.manpowerId) {
+        toast({
+          title: "Applicator Required",
+          description: "Please select an applicator / installer",
+          variant: "destructive",
+        });
+        setLoading(false);
+        return;
+      }
+
+      // Validate Purchase / Installation Date
+      if (!formData.purchaseDate) {
+        toast({
+          title: "Date Required",
+          description: "Please select the installation / purchase date",
+          variant: "destructive",
+        });
+        setLoading(false);
+        return;
+      }
+
       // Validate Car Registration
       if (!formData.carReg) {
         toast({
           title: "Registration Number Required",
           description: "Please enter vehicle registration number",
+          variant: "destructive",
+        });
+        setLoading(false);
+        return;
+      }
+
+      const regError = getVehicleRegError(formData.carReg);
+      if (regError) {
+        toast({
+          title: "Invalid Registration Number",
+          description: regError,
           variant: "destructive",
         });
         setLoading(false);
@@ -490,6 +591,7 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
           carOuterPhoto: null,
           termsAccepted: false,
           exifData: null,
+          allExifData: {},
         });
         return;
       }
@@ -514,6 +616,7 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
         carOuterPhoto: null,
         termsAccepted: false,
         exifData: null,
+        allExifData: {},
       });
 
       // Redirect to appropriate dashboard based on role
@@ -551,7 +654,7 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
       setUidStatus('idle');
       setUidMessage('');
     } else if (name === 'carReg') {
-      processedValue = value.toUpperCase().replace(/[^A-Z0-9-]/g, '');
+      processedValue = formatVehicleRegLive(value);
     }
 
     setFormData(prev => ({ ...prev, [name]: processedValue }));

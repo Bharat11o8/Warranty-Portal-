@@ -29,6 +29,7 @@ router.get('/stores/code/:code', PublicController.getStoreByCode);  // QR store 
 router.get('/stores/:vendorDetailsId/manpower', PublicController.getStoreManpower);
 router.get('/products', ProductController.getAllProducts);
 router.get('/warranty/check-uniqueness', PublicController.checkUniqueness);
+router.get('/warranty/check-uid', PublicController.checkUID);
 router.get('/verify-warranty', PublicController.verifyVendorWarranty);
 router.get('/reject-warranty', PublicController.rejectVendorWarranty);
 

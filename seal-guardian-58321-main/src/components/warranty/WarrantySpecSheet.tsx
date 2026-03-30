@@ -109,7 +109,7 @@ export const WarrantySpecSheet = ({ isOpen, onClose, warranty }: WarrantySpecShe
                             {(warranty.car_make && String(warranty.car_make).toLowerCase() !== 'null' || warranty.car_model && String(warranty.car_model).toLowerCase() !== 'null') && (
                                 <SpecRow label="Make & Model" value={`${toTitleCase(warranty.car_make || '')} ${toTitleCase(warranty.car_model || '')}`} />
                             )}
-                            {(warranty.car_year || productDetails.carYear) && (
+                            {warranty.product_type !== 'seat-cover' && (warranty.car_year || productDetails.carYear) && (
                                 <SpecRow label="Vehicle Year" value={warranty.car_year || productDetails.carYear} />
                             )}
                             <SpecRow label="Product Name" value={productName} />

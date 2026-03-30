@@ -466,7 +466,7 @@ export const AdminWarrantyList = ({
                                                     );
                                                 })()}
                                                 <p className="text-[10px] text-muted-foreground mt-1">
-                                                    {flags.distance_penalty === 0 ? '✓ Within Store' : flags.distance_penalty >= 50 ? '❌ Outside Area' : '⚠ Warning'}
+                                                    {flags.distance_penalty === 0 ? '✓ Within Store Range' : flags.distance_penalty >= 50 ? '❌ Outside Area' : '⚠ Warning'}
                                                 </p>
                                             </div>
 

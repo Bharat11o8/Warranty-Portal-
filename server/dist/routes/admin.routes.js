@@ -9,6 +9,7 @@ router.get('/vendors', authenticateToken, requireRole('admin'), AdminController.
 router.get('/vendors/:id', authenticateToken, requireRole('admin'), AdminController.getVendorDetails);
 router.put('/vendors/:id/verification', authenticateToken, requireRole('admin'), AdminController.updateVendorVerification);
 router.put('/vendors/:id/activation', authenticateToken, requireRole('admin'), AdminController.toggleVendorActivation);
+router.put('/vendors/:id/profile', authenticateToken, requireRole('admin'), AdminController.updateVendorProfile);
 router.put('/vendors/:id/coordinates', authenticateToken, requireRole('admin'), AdminController.updateVendorCoordinates);
 router.put('/vendors/:id/store-code', authenticateToken, requireRole('admin'), AdminController.updateStoreCode);
 router.delete('/vendors/:id', authenticateToken, requireRole('admin'), AdminController.deleteVendor);
