@@ -10,8 +10,8 @@ const envUrl = (import.meta.env.VITE_API_URL as string | undefined)?.trim() || '
 const BACKEND_URL = 'https://server-bharat-maheshwaris-projects.vercel.app/api';
 
 const resolveBase = () => {
-  if (isProd) return BACKEND_URL;
   if (envUrl) return envUrl.endsWith('/api') ? envUrl : `${envUrl}/api`;
+  if (isProd) return BACKEND_URL;
   return 'http://localhost:3000/api';
 };
 

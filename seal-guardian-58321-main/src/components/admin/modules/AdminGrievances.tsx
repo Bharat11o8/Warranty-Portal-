@@ -75,6 +75,13 @@ const CATEGORIES: Record<string, string> = {
     other: "Other",
 };
 
+const DEPARTMENTS = [
+    { department: "Sales (Seatcover)", name: "Anuka", email: "afacsales@autoformindia.com" },
+    { department: "Accessories", name: "Ashish Dwivedi", email: "aashishdwivedi@autoformindia.com" },
+    { department: "Mats", name: "Anurag Gupta", email: "anuraggupta@autoformindia.com" },
+    { department: "Tech-Software", name: "DevTeam", email: "Dev@autoformindia.com" }
+];
+
 const STATUS_COLORS: Record<string, string> = {
     submitted: "bg-gray-500",
     under_review: "bg-blue-500",
@@ -667,18 +674,10 @@ export const AdminGrievances = () => {
                                                     <p className="text-slate-500 text-xs mb-1">Email</p>
                                                     <p className="font-medium">{selectedGrievance.customer_email}</p>
                                                 </div>
-                                                {selectedGrievance.franchise_name && (
+                                                {selectedGrievance.department && (
                                                     <div>
-                                                        <p className="text-slate-500 text-xs mb-1">Grievance For (Department)</p>
-                                                        <p className="font-medium text-orange-600">{selectedGrievance.franchise_name}</p>
-                                                    </div>
-                                                )}
-                                                {(selectedGrievance.franchise_address || selectedGrievance.franchise_city) && (
-                                                    <div className="col-span-2">
-                                                        <p className="text-slate-500 text-xs mb-1">Address</p>
-                                                        <p className="font-medium">
-                                                            {[selectedGrievance.franchise_address, selectedGrievance.franchise_city].filter(Boolean).join(', ')}
-                                                        </p>
+                                                        <p className="text-slate-500 text-xs mb-1">To Department</p>
+                                                        <p className="font-medium text-orange-600 uppercase">{selectedGrievance.department}</p>
                                                     </div>
                                                 )}
                                             </div>
@@ -862,14 +861,38 @@ export const AdminGrievances = () => {
                                         </h4>
                                         <div className="grid md:grid-cols-3 gap-3">
                                             <div>
-                                                <label className="text-xs text-slate-500">Assignee Name</label>
-                                                <Input value={assigneeName} onChange={(e) => setAssigneeName(e.target.value)}
-                                                    placeholder="Enter name" className="mt-1" />
+                                                <label className="text-xs text-slate-500">Select Department / Person</label>
+                                                <Select 
+                                                   value={DEPARTMENTS.find(d => d.name === assigneeName)?.department || ""} 
+                                                   onValueChange={(val) => {
+                                                       const dept = DEPARTMENTS.find(d => d.department === val);
+                                                       if (dept) {
+                                                           setAssigneeName(dept.name);
+                                                           setAssigneeEmail(dept.email);
+                                                       }
+                                                   }}
+                                                >
+                                                    <SelectTrigger className="mt-1">
+                                                        <SelectValue placeholder="Select Department" />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        {DEPARTMENTS.map((dept) => (
+                                                            <SelectItem key={dept.department} value={dept.department}>
+                                                                {dept.department} ({dept.name})
+                                                            </SelectItem>
+                                                        ))}
+                                                    </SelectContent>
+                                                </Select>
                                             </div>
                                             <div>
                                                 <label className="text-xs text-slate-500">Assignee Email</label>
-                                                <Input type="email" value={assigneeEmail} onChange={(e) => setAssigneeEmail(e.target.value)}
-                                                    placeholder="email@example.com" className="mt-1" />
+                                                <Input 
+                                                   type="email" 
+                                                   value={assigneeEmail} 
+                                                   readOnly 
+                                                   placeholder="Select department first" 
+                                                   className="mt-1 bg-slate-50 cursor-not-allowed" 
+                                               />
                                             </div>
                                             <div>
                                                 <label className="text-xs text-slate-500">Expected Resolution Date</label>

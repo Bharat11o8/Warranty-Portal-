@@ -32,6 +32,7 @@ const Profile = lazy(() => import("./pages/Profile"));
 const AssignmentUpdatePanel = lazy(() => import("./pages/AssignmentUpdatePanel"));
 const PublicLayout = lazy(() => import("./components/layouts/PublicLayout"));
 const ConnectStorePage = lazy(() => import("./pages/public/ConnectStorePage"));
+const ThankYouPage = lazy(() => import("./pages/ThankYouPage"));
 
 const queryClient = new QueryClient();
 
@@ -81,6 +82,7 @@ const App = () => (
                 {/* Public QR Registration Route */}
                 <Route element={<PublicLayout />}>
                   <Route path="/connect/:storeCode" element={<ConnectStorePage />} />
+                  <Route path="/thank-you" element={<ThankYouPage />} />
                 </Route>
                 {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
                 <Route path="*" element={<NotFound />} />

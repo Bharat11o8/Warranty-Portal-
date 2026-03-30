@@ -679,9 +679,15 @@ const GrievancePage = () => {
                                                     </SelectContent>
                                                 </Select>
                                                 {warranties.length === 0 && !loadingWarranties && (
-                                                    <p className="text-xs text-amber-600">
-                                                        No warranties found. You can still submit, but please provide details in description.
-                                                    </p>
+                                                    <div className="mt-2 p-3 bg-amber-50 border border-amber-200 rounded-xl relative overflow-hidden">
+                                                        <div className="absolute top-0 left-0 w-1 h-full bg-amber-500"></div>
+                                                        <p className="text-xs text-amber-700 flex items-start gap-2">
+                                                            <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0" />
+                                                            <span>
+                                                                <strong>No active warranties found.</strong> If you recently registered a warranty, it may still be <strong>pending approval</strong> by the store or admin. You can still submit a grievance by providing your product details in the description below.
+                                                            </span>
+                                                        </p>
+                                                    </div>
                                                 )}
                                             </div>
                                         )}

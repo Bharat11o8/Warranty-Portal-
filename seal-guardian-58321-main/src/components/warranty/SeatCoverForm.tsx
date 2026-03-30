@@ -5,7 +5,8 @@ import {
   validateEmail,
   getPhoneError,
   getVehicleRegError,
-  formatVehicleRegLive
+  formatVehicleRegLive,
+  validateVehicleReg
 } from "@/lib/validation";
 import { getISTTodayISO } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -28,7 +29,7 @@ import fpPromise from '@fingerprintjs/fingerprintjs';
 interface SeatCoverFormProps {
   initialData?: any;
   warrantyId?: string;
-  onSuccess?: () => void;
+  onSuccess?: (result?: any) => void;
   isEditing?: boolean;
   isPublic?: boolean;
   vendorDirect?: boolean;
@@ -42,6 +43,7 @@ interface SeatCoverFormProps {
     city?: string;
     state?: string;
     store_code?: string;
+    owner_name?: string;
     vendor_details_id?: number;
   };
   installers?: any[];
@@ -134,7 +136,17 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
             // Fetch vendor's manpower list
             const manpowerResponse = await api.get('/vendor/manpower?active=true');
             if (manpowerResponse.data.success) {
-              setManpowerList(manpowerResponse.data.manpower);
+              const list = manpowerResponse.data.manpower || [];
+              
+              if (vendorDetails.owner_name && !list.some((mp: any) => mp.name === vendorDetails.owner_name)) {
+                list.unshift({
+                  id: 'owner',
+                  name: vendorDetails.owner_name,
+                  manpower_id: 'OWNER',
+                  applicator_type: 'Store Owner'
+                });
+              }
+              setManpowerList(list);
             }
           }
         } catch (error) {
@@ -216,6 +228,19 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
       if (installers) {
         setManpowerList(installers);
       }
+
+      // Add owner to manpower list if not already there
+      if (storeDetails.owner_name) {
+        setManpowerList(prev => {
+          if (prev.some(mp => mp.name === storeDetails.owner_name)) return prev;
+          return [{
+            id: 'owner', // Virtual ID
+            name: storeDetails.owner_name,
+            manpower_id: 'OWNER',
+            applicator_type: 'Store Owner'
+          }, ...prev];
+        });
+      }
     }
   }, [isPublic, storeDetails, installers]);
 
@@ -232,9 +257,30 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
         setFormData(prev => ({ ...prev, storeEmail: selectedStore.store_email, manpowerId: "" }));
 
         try {
-          const response = await api.get(`/public/stores/${selectedStore.vendor_details_id}/manpower?active=true`);
-          if (response.data.success) {
-            setManpowerList(response.data.manpower);
+          const manpowerResponse = await api.get(`/public/stores/${selectedStore.vendor_details_id}/manpower?active=true`);
+          if (manpowerResponse.data.success) {
+            const rawList = manpowerResponse.data.manpower || [];
+            
+            // Filter only seat cover specialists
+            const list = rawList.filter((mp: any) => mp.applicator_type === 'seat_cover');
+
+            // Always ensure at least one installer (Owner/Store Name) is available as fallback
+            const ownerName = selectedStore.owner_name || selectedStore.store_name || "Store Owner";
+            if (!list.some((mp: any) => mp.name === ownerName)) {
+              list.unshift({
+                id: 'owner-' + selectedStore.vendor_details_id,
+                name: ownerName,
+                phone_number: selectedStore.phone || "",
+                applicator_type: 'Default (Store)',
+                is_active: 1
+              });
+            }
+            setManpowerList(list);
+            
+            // Auto-select owner if it's the only one and no selection yet
+            if (list.length === 1 && list[0].id.toString().startsWith('owner') && !formData.manpowerId) {
+              setFormData(prev => ({ ...prev, manpowerId: list[0].id }));
+            }
           }
         } catch (error) {
           console.error("Failed to fetch manpower", error);
@@ -399,27 +445,18 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
         return;
       }
 
-      // Validate Car Registration
-      if (!formData.carReg) {
-        toast({
-          title: "Registration Number Required",
-          description: "Please enter vehicle registration number",
-          variant: "destructive",
-        });
-        setLoading(false);
-        return;
-      }
-
+      // Standard vehicle registration number validation (Indian formats)
       const regError = getVehicleRegError(formData.carReg);
       if (regError) {
         toast({
-          title: "Invalid Registration Number",
+          title: "Invalid Registration Format",
           description: regError,
           variant: "destructive",
         });
         setLoading(false);
         return;
       }
+
 
       // Validate mandatory files for new registration
       if (!warrantyId) {
@@ -507,10 +544,11 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
       // Submit or update warranty registration
       let result;
       if (warrantyId) {
-        result = await updateWarranty(warrantyId, warrantyData);
+        const response = await updateWarranty(warrantyId, warrantyData);
+        result = response.data;
         toast({
-          title: "Warranty Updated",
-          description: "Warranty updated and resubmitted successfully!",
+          title: "Success",
+          description: result.message || "Warranty registration updated successfully.",
         });
       } else if (isPublic) {
         // Public flow: use public API endpoint
@@ -524,7 +562,6 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
             const invoiceFile = pd.invoiceFile;
             const pdWithoutFile = { ...pd };
             delete pdWithoutFile.invoiceFile;
-            console.log('[FraudDetection] productDetails being sent:', { exifData: pdWithoutFile.exifData });
             formDataPayload.append('productDetails', JSON.stringify(pdWithoutFile));
 
             // Append invoice file
@@ -556,77 +593,32 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
             : "Your warranty has been submitted and is awaiting store verification.",
         });
       } else {
-        result = await submitWarranty(warrantyData);
+        const response = await submitWarranty(warrantyData);
+        result = response.data;
         toast({
           title: "Warranty Registered",
-          description: `Warranty registered successfully. UID: ${formData.uid}`,
+          description: `Warranty registered successfully. UID: ${result.uid || formData.uid}`,
         });
       }
 
-      // Call onSuccess callback if provided
-      if (onSuccess) {
-        onSuccess();
-        return; // Don't reset form if callback provided
-      }
+      // Redirection Details
+      const submissionDetails = {
+        customerName: formData.customerName,
+        productType: "seat-cover",
+        registrationId: result?.uid || formData.uid || "PENDING",
+        role: user?.role || 'public',
+        isPublic: isPublic
+      };
 
-      // For public flow, show success message and don't navigate
-      if (isPublic) {
-        // Reset form for another submission
-        setFormData({
-          uid: "",
-          customerName: "",
-          customerEmail: "",
-          customerMobile: "",
-          productName: "",
-          storeEmail: storeDetails?.store_email || "",
-          purchaseDate: "",
-          storeName: storeDetails?.store_name || "",
-          manpowerId: "",
-          carReg: "",
-          carYear: "",
-          warrantyType: "1 Year",
-          invoiceFile: null,
-          vehicleFile: null,
-          seatCoverPhoto: null,
-          carOuterPhoto: null,
-          termsAccepted: false,
-          exifData: null,
-          allExifData: {},
-        });
-        return;
-      }
-
-      // Reset form
-      setFormData({
-        uid: "",
-        customerName: "",
-        customerEmail: "",
-        customerMobile: "",
-        productName: "",
-        storeEmail: "",
-        purchaseDate: "",
-        storeName: "",
-        manpowerId: "",
-        carReg: "",
-        carYear: "",
-        warrantyType: "1 Year",
-        invoiceFile: null,
-        vehicleFile: null,
-        seatCoverPhoto: null,
-        carOuterPhoto: null,
-        termsAccepted: false,
-        exifData: null,
-        allExifData: {},
+      navigate("/thank-you", { 
+        state: { submissionDetails } 
       });
 
-      // Redirect to appropriate dashboard based on role
-      const dashboardRoutes: Record<string, string> = {
-        customer: "/dashboard/customer",
-        vendor: "/dashboard/vendor",
-        admin: "/dashboard/admin",
-      };
-      const redirectPath = user?.role ? dashboardRoutes[user.role] : "/warranty";
-      navigate(redirectPath, { replace: true });
+      // Call onSuccess callback if provided (for data refresh)
+      if (onSuccess) {
+        onSuccess(result);
+      }
+
     } catch (error: any) {
       console.error("Warranty submission error:", error);
       toast({

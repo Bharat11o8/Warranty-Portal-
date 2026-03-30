@@ -109,8 +109,8 @@ export const getPincodeError = (pincode: string): string => {
 export const VEHICLE_REG_PATTERNS = {
     // Standard format: XX-00-X(X)-0000 (State-RTO-Series-Number)
     // Covers: 4-wheelers (DL-01-AB-1234), 2-wheelers (MH-12-A-123)
-    // Also covers old format with 1-digit RTO
-    STANDARD: /^[A-Z]{2}[0-9]{1,2}[A-Z]{1,3}[0-9]{1,4}$/,
+    // Also covers old format with 1-digit RTO and vehicles without series letters
+    STANDARD: /^[A-Z]{2}[0-9]{1,2}[A-Z]{0,3}[0-9]{1,4}$/,
 
     // BH (Bharat) Series: National portability format
     // Example: BH-02-AA-1234

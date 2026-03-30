@@ -84,12 +84,6 @@ const FRANCHISE_CATEGORIES = [
     { value: "other", label: "Other" },
 ];
 
-const DEPARTMENTS = [
-    { value: "plant", label: "Plant", icon: Factory, requiresDetails: false },
-    { value: "distributor", label: "Distributor", icon: Truck, requiresDetails: true },
-    { value: "asm", label: "ASM", icon: UserCheck, requiresDetails: true },
-];
-
 const VendorGrievances = () => {
     const { toast } = useToast();
     const [grievances, setGrievances] = useState<Grievance[]>([]);
@@ -213,7 +207,7 @@ const VendorGrievances = () => {
     };
 
     const handleSubmitGrievance = async () => {
-        if (!department || !category || !subject.trim() || !description.trim()) {
+        if (!category || !subject.trim() || !description.trim()) {
             toast({
                 title: "Missing Fields",
                 description: "Please fill in all required fields",
@@ -222,21 +216,9 @@ const VendorGrievances = () => {
             return;
         }
 
-        const selectedDept = DEPARTMENTS.find(d => d.value === department);
-        if (selectedDept?.requiresDetails && !departmentDetails.trim()) {
-            toast({
-                title: "Missing Details",
-                description: `Please provide Name/Details for ${selectedDept.label}`,
-                variant: "destructive"
-            });
-            return;
-        }
-
         setSubmitting(true);
         try {
             const formData = new FormData();
-            formData.append('department', department);
-            if (departmentDetails) formData.append('departmentDetails', departmentDetails);
             formData.append('category', category);
             formData.append('subject', subject);
             formData.append('description', description);
@@ -561,52 +543,6 @@ const VendorGrievances = () => {
                             </DialogHeader>
 
                             <div className="space-y-5 p-6">
-                                {/* Department Selection */}
-                                <div className="grid grid-cols-3 gap-3">
-                                    {DEPARTMENTS.map((dept) => {
-                                        const Icon = dept.icon;
-                                        const isSelected = department === dept.value;
-                                        return (
-                                            <div
-                                                key={dept.value}
-                                                onClick={() => setDepartment(dept.value)}
-                                                className={cn(
-                                                    "cursor-pointer rounded-2xl border-2 p-3 md:p-4 flex flex-col items-center justify-center gap-2 transition-all hover:shadow-md",
-                                                    isSelected
-                                                        ? "border-orange-500 bg-orange-50 ring-2 ring-orange-500/20 shadow-lg shadow-orange-500/10"
-                                                        : "border-slate-100 bg-white hover:border-slate-200"
-                                                )}
-                                            >
-                                                <div className={cn(
-                                                    "h-10 w-10 md:h-12 md:w-12 rounded-xl flex items-center justify-center shrink-0 transition-colors",
-                                                    isSelected ? "bg-orange-500 text-white shadow-lg shadow-orange-500/30" : "bg-slate-100 text-slate-400"
-                                                )}>
-                                                    <Icon className="h-5 w-5 md:h-6 md:w-6" />
-                                                </div>
-                                                <span className={cn(
-                                                    "font-black text-[10px] md:text-xs uppercase tracking-widest text-center",
-                                                    isSelected ? "text-orange-600" : "text-slate-500"
-                                                )}>{dept.label}</span>
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-
-                                {department && DEPARTMENTS.find(d => d.value === department)?.requiresDetails && (
-                                    <div className="animate-in fade-in slide-in-from-top-2">
-                                        <label className="text-xs font-black text-slate-500 uppercase tracking-widest mb-2 block">
-                                            {department === 'distributor' ? 'Distributor Name/Details' : 'ASM Name/Details'} <span className="text-red-500">*</span>
-                                        </label>
-                                        <input
-                                            type="text"
-                                            className="flex h-12 w-full rounded-2xl border-2 border-slate-100 bg-slate-50/50 px-4 py-2 text-sm font-medium placeholder:text-slate-400 focus:outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/10 transition-all"
-                                            placeholder={`Enter ${department === 'distributor' ? 'distributor' : 'ASM'} name`}
-                                            value={departmentDetails}
-                                            onChange={(e) => setDepartmentDetails(e.target.value)}
-                                        />
-                                    </div>
-                                )}
-
                                 {/* Category */}
                                 <div>
                                     <label className="text-xs font-black text-slate-500 uppercase tracking-widest mb-3 block">Category <span className="text-red-500">*</span></label>
@@ -777,21 +713,16 @@ const VendorGrievances = () => {
 
                             <div className="flex-1 overflow-y-auto p-6 md:p-8 space-y-8 custom-scrollbar bg-white">
                                 {/* Target Info: Either Customer or Department */}
-                                {selectedGrievance.department ? (
+                                {selectedGrievance.department && (
                                     <div className="p-4 bg-orange-50/50 border border-orange-100 rounded-2xl animate-in fade-in slide-in-from-top-2 duration-300">
                                         <h4 className="text-[10px] font-black uppercase tracking-[0.1em] text-slate-400 mb-3">Target Department</h4>
                                         <div className="flex items-center gap-4">
                                             <div className="h-12 w-12 rounded-xl bg-orange-500 text-white flex items-center justify-center shadow-lg shadow-orange-500/10">
-                                                {(() => {
-                                                    const deptValue = (selectedGrievance.department || "").toLowerCase();
-                                                    const dept = DEPARTMENTS.find(d => d.value.toLowerCase() === deptValue);
-                                                    const Icon = dept?.icon || Building2;
-                                                    return <Icon className="h-6 w-6" />;
-                                                })()}
+                                                <Building2 className="h-6 w-6" />
                                             </div>
                                             <div>
                                                 <div className="font-black text-slate-800 text-base uppercase tracking-tight">
-                                                    {DEPARTMENTS.find(d => (d.value || "").toLowerCase() === (selectedGrievance.department || "").toLowerCase())?.label || selectedGrievance.department}
+                                                    {selectedGrievance.department}
                                                 </div>
                                                 {(selectedGrievance.department_details || selectedGrievance.departmentDetails) && (
                                                     <div className="text-sm text-slate-500 font-bold opacity-80">
@@ -801,7 +732,8 @@ const VendorGrievances = () => {
                                             </div>
                                         </div>
                                     </div>
-                                ) : (
+                                )}
+                                {!selectedGrievance.department && (
                                     <div className="p-5 bg-slate-50 border border-slate-100 rounded-2xl animate-in fade-in slide-in-from-top-2 duration-300">
                                         <h4 className="text-[10px] font-black uppercase tracking-[0.1em] text-slate-400 mb-3">Customer Details</h4>
                                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">

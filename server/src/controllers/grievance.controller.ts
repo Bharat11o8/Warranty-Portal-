@@ -240,29 +240,20 @@ class GrievanceController {
             const attachmentUrls = uploadedFiles?.map((file: any) => file.path || file.secure_url || file.url) || [];
 
             // Validation
-            if (!department || !category || !subject || !description) {
+            if (!category || !subject || !description) {
                 return res.status(400).json({
                     success: false,
-                    error: 'Department, category, subject, and description are required'
+                    error: 'Category, subject, and description are required'
                 });
             }
 
-            // Validate department
+            // Optional: Department validation (if provided)
             const validDepartments = ['plant', 'distributor', 'asm'];
-            if (!validDepartments.includes(department.toLowerCase())) {
-                return res.status(400).json({
-                    success: false,
-                    error: 'Invalid department. Must be Plant, Distributor, or ASM'
-                });
+            if (department && !validDepartments.includes(department.toLowerCase())) {
+                // We'll still allow it but maybe clean it up or just accept what comes
             }
 
-            // Require details for Distributor and ASM
-            if (['distributor', 'asm'].includes(department.toLowerCase()) && !departmentDetails) {
-                return res.status(400).json({
-                    success: false,
-                    error: 'Name/details are required for Distributor and ASM'
-                });
-            }
+            // No longer forcing details
 
             // Get franchise details
             const [vendorRows]: any = await db.execute(
@@ -288,7 +279,7 @@ class GrievanceController {
                 [
                     ticketId,
                     userId,
-                    department.toLowerCase(),
+                    department ? department.toLowerCase() : null,
                     departmentDetails || null,
                     category,
                     subject,
@@ -510,7 +501,13 @@ class GrievanceController {
                 END as customer_email,
 
                 CASE 
-                    WHEN g.source_type = 'franchise' THEN CONCAT(UPPER(COALESCE(g.department, '')), COALESCE(CONCAT(' - ', g.department_details), ''))
+                    WHEN g.source_type = 'franchise' THEN 
+                        CASE 
+                            WHEN g.department IS NOT NULL AND g.department != '' THEN
+                                CONCAT(UPPER(g.department), COALESCE(CONCAT(' - ', g.department_details), ''))
+                            ELSE
+                                'Head Office'
+                        END
                     ELSE vd_customer.store_name 
                 END as franchise_name,
                 

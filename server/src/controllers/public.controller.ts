@@ -20,7 +20,8 @@ export class PublicController {
           vd.state,
           vd.pincode,
           vd.store_email,
-          p.phone_number as phone
+          p.phone_number as phone,
+          p.name as owner_name
         FROM vendor_details vd
         JOIN profiles p ON vd.user_id = p.id
         JOIN vendor_verification vv ON vd.user_id = vv.user_id
@@ -62,6 +63,7 @@ export class PublicController {
                     vd.pincode,
                     vd.store_email,
                     p.phone_number as contact_number,
+                    p.name as owner_name,
                     vd.user_id
                 FROM vendor_details vd
                 JOIN profiles p ON vd.user_id = p.id

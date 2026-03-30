@@ -370,7 +370,8 @@ export class VendorController {
           vd.city,
           vd.state,
           vd.pincode as postal_code,
-          p.phone_number as contact_number
+          p.phone_number as contact_number,
+          p.name as owner_name
         FROM vendor_details vd
         JOIN profiles p ON vd.user_id = p.id
         WHERE vd.user_id = ?`,
@@ -398,7 +399,8 @@ export class VendorController {
           address_line2: "",
           city: profile.city,
           state: profile.state,
-          postal_code: profile.postal_code
+          postal_code: profile.postal_code,
+          owner_name: profile.owner_name // Included for default installer logic in vendor dashboard
         }
       });
     } catch (error: any) {

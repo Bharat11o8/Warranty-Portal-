@@ -59,7 +59,7 @@ export interface EVFormData {
 interface EVProductsFormProps {
   initialData?: any;
   warrantyId?: string;
-  onSuccess?: () => void;
+  onSuccess?: (result?: any) => void;
   isUniversal?: boolean;
   isEditing?: boolean;
   isPublic?: boolean;
@@ -73,6 +73,7 @@ interface EVProductsFormProps {
     city?: string;
     state?: string;
     store_code?: string;
+    owner_name?: string;
     vendor_details_id?: number;
   };
   installers?: any[];
@@ -85,6 +86,7 @@ const EVProductsForm = ({ initialData, warrantyId, onSuccess, isUniversal, isEdi
   const [currentStep, setCurrentStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [deviceFingerprint, setDeviceFingerprint] = useState<string | null>(null);
+  const [vendorOwnerName, setVendorOwnerName] = useState<string>("");
 
   const [formData, setFormData] = useState<EVFormData>({
     storeName: "",
@@ -204,6 +206,9 @@ const EVProductsForm = ({ initialData, warrantyId, onSuccess, isUniversal, isEdi
               dealerState: vendorDetails.state || "",
               dealerPostalCode: vendorDetails.postal_code || "",
             }));
+            if (vendorDetails.owner_name) {
+              setVendorOwnerName(vendorDetails.owner_name);
+            }
           }
         } catch (error) {
           console.error("Failed to fetch vendor details", error);
@@ -452,15 +457,30 @@ const EVProductsForm = ({ initialData, warrantyId, onSuccess, isUniversal, isEdi
             : "Your warranty has been submitted and is awaiting store verification.",
         });
       } else {
-        result = await submitWarranty(warrantyData);
+        const response = await submitWarranty(warrantyData);
+        result = response.data;
         toast({
           title: "Warranty Registered",
           description: `Success! Serial No: ${formData.serialNumber}, Vehicle Reg: ${formData.carReg}`,
         });
       }
 
+      // Redirect to a specialized Thank You Page
+      // Role-specific content is handled within the ThankYouPage component based on state
+      navigate("/thank-you", { 
+        state: { 
+          submissionDetails: {
+            customerName: `${formData.customerFname} ${formData.customerLname}`,
+            productType: "ev-ppf",
+            registrationId: result.warrantyId || result.uid || "PENDING",
+            role: user?.role || 'public',
+            isPublic: isPublic
+          } 
+        } 
+      });
+
       if (onSuccess) {
-        onSuccess();
+        onSuccess(result);
       } else {
         // Reset form only if not editing (or maybe redirect?)
         if (!warrantyId) {
@@ -621,6 +641,7 @@ const EVProductsForm = ({ initialData, warrantyId, onSuccess, isUniversal, isEdi
                   onNext={handleNext}
                   isPublic={isPublic}
                   installers={installers}
+                  storeDetails={isPublic ? storeDetails : { owner_name: vendorOwnerName }}
                 />
               </div>
             )}

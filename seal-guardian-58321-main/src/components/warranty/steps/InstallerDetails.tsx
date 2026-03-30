@@ -16,9 +16,13 @@ interface InstallerDetailsProps {
   onNext: () => void;
   isPublic?: boolean;
   installers?: any[];
+  storeDetails?: {
+    owner_name?: string;
+    [key: string]: any;
+  };
 }
 
-const InstallerDetails = ({ formData, updateFormData, onNext, isPublic, installers }: InstallerDetailsProps) => {
+const InstallerDetails = ({ formData, updateFormData, onNext, isPublic, installers, storeDetails }: InstallerDetailsProps) => {
   const { user } = useAuth();
   const { toast } = useToast();
   const [stores, setStores] = useState<any[]>([]);
@@ -27,7 +31,17 @@ const InstallerDetails = ({ formData, updateFormData, onNext, isPublic, installe
   // Fetch stores on mount (only if not public or no store data)
   useEffect(() => {
     if (isPublic && installers) {
-      setManpowerList(installers);
+      const list = [...installers];
+      const ownerName = storeDetails?.owner_name || "Store Owner";
+      if (!list.some(mp => mp.name === ownerName)) {
+        list.unshift({
+          id: 'owner',
+          name: ownerName,
+          manpower_id: 'OWNER',
+          applicator_type: 'Store Owner'
+        });
+      }
+      setManpowerList(list);
       return;
     }
 
@@ -64,11 +78,32 @@ const InstallerDetails = ({ formData, updateFormData, onNext, isPublic, installe
         });
 
         try {
-          const response = await api.get(`/public/stores/${selectedStore.vendor_details_id}/manpower?active=true`);
-          if (response.data.success) {
-            setManpowerList(response.data.manpower);
-            if (response.data.manpower.length === 0) {
-              toast({ title: "No Installers Found", description: "This store has no active installers. Please contact support.", variant: "destructive" });
+          const manpowerResponse = await api.get(`/public/stores/${selectedStore.vendor_details_id}/manpower?active=true`);
+          if (manpowerResponse.data.success) {
+            const rawList = manpowerResponse.data.manpower || [];
+            
+            // Filter only PPF specialists
+            const list = rawList.filter((mp: any) => mp.applicator_type === 'ppf_spf');
+
+            // Ensure the Store Owner is always an option fallback
+            const ownerName = selectedStore.owner_name || selectedStore.store_name || "Store Owner";
+            if (!list.some((mp: any) => mp.name === ownerName)) {
+              list.unshift({
+                id: 'owner',
+                name: ownerName,
+                manpower_id: 'OWNER',
+                applicator_type: 'Store Owner'
+              });
+            }
+            setManpowerList(list);
+            
+            // Auto-select owner if it's the only one and no selection yet
+            if (list.length === 1 && list[0].id === 'owner' && !formData.manpowerId) {
+              updateFormData({
+                installerName: list[0].name,
+                installerCode: 'OWNER',
+                manpowerId: 'owner'
+              });
             }
           }
         } catch (error) {
@@ -82,7 +117,16 @@ const InstallerDetails = ({ formData, updateFormData, onNext, isPublic, installe
     };
 
     if (isPublic && installers) {
-      setManpowerList(installers);
+      const list = [...installers];
+      if (storeDetails?.owner_name && !list.some(mp => mp.name === storeDetails.owner_name)) {
+        list.unshift({
+          id: 'owner',
+          name: storeDetails.owner_name,
+          manpower_id: 'OWNER',
+          applicator_type: 'Store Owner'
+        });
+      }
+      setManpowerList(list);
       return;
     }
 

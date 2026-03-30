@@ -18,6 +18,7 @@ interface StoreDetails {
     city?: string;
     state?: string;
     store_code?: string;
+    owner_name?: string;
     vendor_details_id?: number;
 }
 
