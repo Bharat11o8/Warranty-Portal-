@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, RefreshCw, MessageSquare, AlertCircle, CheckCircle, Clock, Users, Building2, Package, Receipt, Store, Wrench, ShieldCheck, HelpCircle, Paperclip, Plus, X, Upload, Factory, Truck, UserCheck, Eye } from "lucide-react";
+import { Loader2, RefreshCw, MessageSquare, AlertCircle, CheckCircle, Clock, Users, Building2, Package, Receipt, Store, Wrench, ShieldCheck, HelpCircle, Paperclip, Plus, X, Upload, Factory, Truck, UserCheck, Eye, Box, Monitor } from "lucide-react";
 import { compressImage, isCompressibleImage } from "@/lib/imageCompression";
 import { Pagination } from "./Pagination";
 import { WarrantySpecSheet } from "@/components/warranty/WarrantySpecSheet";
@@ -54,17 +54,23 @@ const CATEGORIES: Record<string, string> = {
     manpower_issue: "Manpower Issue",
     service_issue: "Service Issue",
     warranty_issue: "Warranty Issue",
+    logistics_issue: "Logistics Issue",
+    stock_issue: "Stock Issue",
+    software_issue: "Software/Portal Issue",
     other: "Other",
 };
 
 const CATEGORY_CONFIG: Record<string, { color: string; icon: any; border: string; bg: string; text: string }> = {
-    product_issue: { color: "bg-orange-500", border: "border-orange-500", bg: "bg-orange-50", text: "text-orange-700", icon: Package },
-    billing_issue: { color: "bg-green-500", border: "border-green-500", bg: "bg-green-50", text: "text-green-700", icon: Receipt },
-    store_issue: { color: "bg-blue-500", border: "border-blue-500", bg: "bg-blue-50", text: "text-blue-700", icon: Store },
-    manpower_issue: { color: "bg-purple-500", border: "border-purple-500", bg: "bg-purple-50", text: "text-purple-700", icon: Users },
-    service_issue: { color: "bg-cyan-500", border: "border-cyan-500", bg: "bg-cyan-50", text: "text-cyan-700", icon: Wrench },
-    warranty_issue: { color: "bg-amber-500", border: "border-amber-500", bg: "bg-amber-50", text: "text-amber-700", icon: ShieldCheck },
-    other: { color: "bg-slate-500", border: "border-slate-500", bg: "bg-slate-50", text: "text-slate-700", icon: HelpCircle },
+    product_issue:   { color: "bg-orange-500", border: "border-orange-500", bg: "bg-orange-50",  text: "text-orange-700",  icon: Package },
+    billing_issue:   { color: "bg-green-500",  border: "border-green-500",  bg: "bg-green-50",   text: "text-green-700",   icon: Receipt },
+    store_issue:     { color: "bg-blue-500",   border: "border-blue-500",   bg: "bg-blue-50",    text: "text-blue-700",    icon: Store },
+    manpower_issue:  { color: "bg-purple-500", border: "border-purple-500", bg: "bg-purple-50",  text: "text-purple-700",  icon: Users },
+    service_issue:   { color: "bg-cyan-500",   border: "border-cyan-500",   bg: "bg-cyan-50",    text: "text-cyan-700",    icon: Wrench },
+    warranty_issue:  { color: "bg-amber-500",  border: "border-amber-500",  bg: "bg-amber-50",   text: "text-amber-700",   icon: ShieldCheck },
+    logistics_issue: { color: "bg-sky-500",    border: "border-sky-500",    bg: "bg-sky-50",     text: "text-sky-700",     icon: Truck },
+    stock_issue:     { color: "bg-rose-500",   border: "border-rose-500",   bg: "bg-rose-50",    text: "text-rose-700",    icon: Box },
+    software_issue:  { color: "bg-violet-500", border: "border-violet-500", bg: "bg-violet-50",  text: "text-violet-700",  icon: Monitor },
+    other:           { color: "bg-slate-500",  border: "border-slate-500",  bg: "bg-slate-50",   text: "text-slate-700",   icon: HelpCircle },
 };
 
 const STATUS_CONFIG: Record<string, { color: string; icon: any; label: string }> = {
@@ -218,18 +224,23 @@ const VendorGrievances = () => {
 
         setSubmitting(true);
         try {
-            const formData = new FormData();
-            formData.append('category', category);
-            formData.append('subject', subject);
-            formData.append('description', description);
+            const hasFiles = attachment1 || attachment2 || attachment3;
+            let response;
 
-            if (attachment1) formData.append('attachments', attachment1);
-            if (attachment2) formData.append('attachments', attachment2);
-            if (attachment3) formData.append('attachments', attachment3);
-
-            const response = await api.post('/grievance/franchise', formData, {
-                headers: { 'Content-Type': undefined }
-            });
+            if (hasFiles) {
+                // Use FormData only when files are attached
+                const formData = new FormData();
+                formData.append('category', category);
+                formData.append('subject', subject);
+                formData.append('description', description);
+                if (attachment1) formData.append('attachments', attachment1);
+                if (attachment2) formData.append('attachments', attachment2);
+                if (attachment3) formData.append('attachments', attachment3);
+                response = await api.post('/grievance/franchise', formData);
+            } else {
+                // Send as JSON when no files — avoids all multipart/Content-Type issues
+                response = await api.post('/grievance/franchise', { category, subject, description });
+            }
 
             if (response.data.success) {
                 toast({
@@ -316,7 +327,7 @@ const VendorGrievances = () => {
         <div className="animate-in fade-in duration-700">
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full space-y-8">
                 {/* Header Container */}
-                <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4 md:gap-6 sticky top-0 z-30 bg-white py-3 md:py-4 px-3 md:px-2 -mx-3 md:-mx-2 rounded-2xl md:rounded-3xl border border-orange-100 shadow-[0_8px_30px_rgba(0,0,0,0.02)]">
+                <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4 md:gap-6 top-0 z-30 bg-white py-3 md:py-4 px-3 md:px-2 -mx-3 md:-mx-2 rounded-2xl md:rounded-3xl border border-orange-100 shadow-[0_8px_30px_rgba(0,0,0,0.02)]">
 
                     {/* Mobile: Refresh Icon Top Right */}
                     <div className="flex md:hidden justify-end w-full absolute top-2 right-2 z-20">
@@ -733,25 +744,7 @@ const VendorGrievances = () => {
                                         </div>
                                     </div>
                                 )}
-                                {!selectedGrievance.department && (
-                                    <div className="p-5 bg-slate-50 border border-slate-100 rounded-2xl animate-in fade-in slide-in-from-top-2 duration-300">
-                                        <h4 className="text-[10px] font-black uppercase tracking-[0.1em] text-slate-400 mb-3">Customer Details</h4>
-                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
-                                            <div className="space-y-1">
-                                                <p className="text-[10px] font-black text-slate-400 uppercase">Name</p>
-                                                <p className="font-bold text-slate-700">{selectedGrievance.customer_name || 'N/A'}</p>
-                                            </div>
-                                            <div className="space-y-1">
-                                                <p className="text-[10px] font-black text-slate-400 uppercase">Phone</p>
-                                                <p className="font-bold text-slate-700">{selectedGrievance.customer_phone || 'N/A'}</p>
-                                            </div>
-                                            <div className="sm:col-span-2 space-y-1">
-                                                <p className="text-[10px] font-black text-slate-400 uppercase">Email</p>
-                                                <p className="font-bold text-slate-700">{selectedGrievance.customer_email || 'N/A'}</p>
-                                            </div>
-                                        </div>
-                                    </div>
-                                )}
+                                {/* Customer Details section intentionally removed for franchise-raised grievances */}
 
                                 {/* Issue Details */}
                                 <div className="space-y-4">

@@ -72,6 +72,9 @@ const CATEGORIES: Record<string, string> = {
     manpower_issue: "Manpower Issue",
     service_issue: "Service Issue",
     warranty_issue: "Warranty Issue",
+    logistics_issue: "Logistics Issue",
+    stock_issue: "Stock Issue",
+    software_issue: "Software/Portal Issue",
     other: "Other",
 };
 

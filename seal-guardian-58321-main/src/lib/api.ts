@@ -38,6 +38,11 @@ api.interceptors.request.use((config) => {
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
+  // If sending FormData, remove the default Content-Type so the browser
+  // auto-sets multipart/form-data with the correct boundary
+  if (config.data instanceof FormData) {
+    delete config.headers['Content-Type'];
+  }
   if (isDev) console.log('API Request:', config.method?.toUpperCase(), config.url);
   return config;
 });

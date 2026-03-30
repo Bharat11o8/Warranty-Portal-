@@ -39,6 +39,12 @@ interface FormErrors {
 const Register = () => {
   const [searchParams] = useSearchParams();
   const role = (searchParams.get("role") as UserRole) || "customer";
+  const mode = searchParams.get("mode"); // "warranty" | "franchise" | null
+
+  // Build the back-to-login URL preserving mode if present
+  const loginUrl = mode
+    ? `/login?mode=${mode}`
+    : `/login?role=${role}`;
 
   // Common state
   const [otp, setOtp] = useState("");
@@ -288,7 +294,7 @@ const Register = () => {
           duration: 5000
         });
         setTimeout(() => {
-          navigate(`/login?role=vendor`, { replace: true });
+          navigate(loginUrl, { replace: true });
         }, 2000);
       }
     } catch (error: any) {
@@ -687,7 +693,7 @@ const Register = () => {
 
             <p className="text-center text-sm text-white/60">
               Already have an account?{" "}
-              <Link to={`/login?role=${role}`} className="text-white font-medium hover:text-blue-300 hover:underline">
+              <Link to={loginUrl} className="text-white font-medium hover:text-blue-300 hover:underline">
                 Login here
               </Link>
             </p>
