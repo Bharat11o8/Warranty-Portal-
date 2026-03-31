@@ -60,6 +60,7 @@ const ConnectStorePage = () => {
                         city: store.city,
                         state: store.state,
                         store_code: store.store_code,
+                        owner_name: store.owner_name,
                         vendor_details_id: store.vendor_details_id
                     });
                 } else {

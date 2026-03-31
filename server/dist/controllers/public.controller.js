@@ -1,4 +1,4 @@
-import db from '../config/database.js';
+import db, { getISTTimestamp } from '../config/database.js';
 import jwt from 'jsonwebtoken';
 import { EmailService } from '../services/email.service.js';
 import bcrypt from 'bcryptjs';
@@ -18,7 +18,8 @@ export class PublicController {
           vd.state,
           vd.pincode,
           vd.store_email,
-          p.phone_number as phone
+          p.phone_number as phone,
+          p.name as owner_name
         FROM vendor_details vd
         JOIN profiles p ON vd.user_id = p.id
         JOIN vendor_verification vv ON vd.user_id = vv.user_id
@@ -57,6 +58,7 @@ export class PublicController {
                     vd.pincode,
                     vd.store_email,
                     p.phone_number as contact_number,
+                    p.name as owner_name,
                     vd.user_id
                 FROM vendor_details vd
                 JOIN profiles p ON vd.user_id = p.id
@@ -138,6 +140,50 @@ export class PublicController {
         catch (error) {
             console.error('Uniqueness check error:', error);
             res.status(500).json({ error: 'Uniqueness check failed' });
+        }
+    }
+    /**
+     * Check if a UID exists in the pre_generated_uids table and is available
+     */
+    static async checkUID(req, res) {
+        try {
+            const { uid } = req.query;
+            if (!uid || typeof uid !== 'string') {
+                return res.status(400).json({ error: 'UID is required' });
+            }
+            // Check pre_generated_uids table
+            const [uidRows] = await db.execute('SELECT uid, is_used FROM pre_generated_uids WHERE uid = ?', [uid]);
+            if (uidRows.length === 0) {
+                return res.json({
+                    success: true,
+                    valid: false,
+                    reason: 'Invalid UID. This UID does not exist in our system. Please check the UID on your product packaging.'
+                });
+            }
+            if (uidRows[0].is_used) {
+                return res.json({
+                    success: true,
+                    valid: false,
+                    reason: 'This UID has already been used for another warranty registration.'
+                });
+            }
+            // Also check if it's already in warranty_registrations (belt and suspenders)
+            const [existingWarranty] = await db.execute('SELECT uid FROM warranty_registrations WHERE uid = ?', [uid]);
+            if (existingWarranty.length > 0) {
+                return res.json({
+                    success: true,
+                    valid: false,
+                    reason: 'This UID is already registered for a warranty.'
+                });
+            }
+            res.json({
+                success: true,
+                valid: true
+            });
+        }
+        catch (error) {
+            console.error('UID check error:', error);
+            res.status(500).json({ error: 'UID check failed' });
         }
     }
     static async checkVendorSchema(req, res) {
@@ -352,6 +398,21 @@ export class PublicController {
             if (warrantyData.productType === 'seat-cover' && !warrantyData.productDetails?.uid) {
                 return res.status(400).json({ error: 'UID is required for seat-cover products' });
             }
+            // ===== UID Pre-Validation for Seat Covers (against pre_generated_uids table) =====
+            const uid = warrantyData.productDetails?.uid || null;
+            if (warrantyData.productType === 'seat-cover' && uid) {
+                const [uidRows] = await db.execute('SELECT uid, is_used FROM pre_generated_uids WHERE uid = ?', [uid]);
+                if (uidRows.length === 0) {
+                    return res.status(400).json({
+                        error: 'Invalid UID. This UID does not exist in our system. Please check the UID on your product packaging.'
+                    });
+                }
+                if (uidRows[0].is_used) {
+                    return res.status(400).json({
+                        error: 'This UID has already been used for another warranty registration.'
+                    });
+                }
+            }
             const customerEmail = warrantyData.customerEmail.toLowerCase().trim();
             const customerPhone = warrantyData.customerPhone.trim();
             const customerName = warrantyData.customerName.trim();
@@ -482,6 +543,11 @@ export class PublicController {
                 warrantyData.productDetails?.photos?.seatCover || null,
                 warrantyData.productDetails?.photos?.carOuter || null
             ]);
+            // ===== Mark UID as used in the pre_generated_uids table =====
+            if (warrantyData.productType === 'seat-cover' && uid) {
+                const usedTimestamp = getISTTimestamp();
+                await db.execute('UPDATE pre_generated_uids SET is_used = TRUE, used_at = ? WHERE uid = ?', [usedTimestamp, uid]);
+            }
             // Step 4: Send vendor confirmation email
             if (warrantyData.installerContact) {
                 const token = jwt.sign({ warrantyId: warrantyId, vendorEmail: warrantyData.installerContact }, process.env.JWT_SECRET, { expiresIn: '7d' });

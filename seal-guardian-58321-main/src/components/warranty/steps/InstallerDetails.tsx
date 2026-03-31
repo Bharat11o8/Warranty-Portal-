@@ -32,7 +32,7 @@ const InstallerDetails = ({ formData, updateFormData, onNext, isPublic, installe
   useEffect(() => {
     if (isPublic && installers) {
       const list = [...installers];
-      const ownerName = storeDetails?.owner_name || "Store Owner";
+      const ownerName = storeDetails?.owner_name || storeDetails?.store_name || "Store Owner";
       if (!list.some(mp => mp.name === ownerName)) {
         list.unshift({
           id: 'owner',
@@ -82,8 +82,8 @@ const InstallerDetails = ({ formData, updateFormData, onNext, isPublic, installe
           if (manpowerResponse.data.success) {
             const rawList = manpowerResponse.data.manpower || [];
             
-            // Filter only PPF specialists
-            const list = rawList.filter((mp: any) => mp.applicator_type === 'ppf_spf');
+            // Filter only PPF and EV specialists
+            const list = rawList.filter((mp: any) => ['ppf_spf', 'ev'].includes(mp.applicator_type));
 
             // Ensure the Store Owner is always an option fallback
             const ownerName = selectedStore.owner_name || selectedStore.store_name || "Store Owner";
@@ -117,11 +117,12 @@ const InstallerDetails = ({ formData, updateFormData, onNext, isPublic, installe
     };
 
     if (isPublic && installers) {
-      const list = [...installers];
-      if (storeDetails?.owner_name && !list.some(mp => mp.name === storeDetails.owner_name)) {
+      const list = installers.filter((mp: any) => ['ppf_spf', 'ev'].includes(mp.applicator_type));
+      const ownerName = storeDetails?.owner_name || storeDetails?.store_name || "Store Owner";
+      if (!list.some(mp => mp.name === ownerName)) {
         list.unshift({
           id: 'owner',
-          name: storeDetails.owner_name,
+          name: ownerName,
           manpower_id: 'OWNER',
           applicator_type: 'Store Owner'
         });

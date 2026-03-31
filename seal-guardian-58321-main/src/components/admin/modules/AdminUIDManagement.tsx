@@ -7,7 +7,6 @@ import {
     ChevronLeft,
     ChevronRight,
     CheckCircle2,
-    XCircle,
     Hash,
     Loader2,
     AlertCircle,

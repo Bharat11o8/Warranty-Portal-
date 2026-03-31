@@ -136,7 +136,8 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
             // Fetch vendor's manpower list
             const manpowerResponse = await api.get('/vendor/manpower?active=true');
             if (manpowerResponse.data.success) {
-              const list = manpowerResponse.data.manpower || [];
+              const rawList = manpowerResponse.data.manpower || [];
+              const list = rawList.filter((mp: any) => mp.applicator_type === 'seat_cover');
               
               if (vendorDetails.owner_name && !list.some((mp: any) => mp.name === vendorDetails.owner_name)) {
                 list.unshift({
@@ -226,21 +227,20 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
         storeEmail: storeDetails.store_email || "",
       }));
       if (installers) {
-        setManpowerList(installers);
+        setManpowerList(installers.filter((mp: any) => mp.applicator_type === 'seat_cover'));
       }
 
       // Add owner to manpower list if not already there
-      if (storeDetails.owner_name) {
-        setManpowerList(prev => {
-          if (prev.some(mp => mp.name === storeDetails.owner_name)) return prev;
-          return [{
-            id: 'owner', // Virtual ID
-            name: storeDetails.owner_name,
-            manpower_id: 'OWNER',
-            applicator_type: 'Store Owner'
-          }, ...prev];
-        });
-      }
+      const ownerName = storeDetails.owner_name || storeDetails.store_name || "Store Owner";
+      setManpowerList(prev => {
+        if (prev.some(mp => mp.name === ownerName)) return prev;
+        return [{
+          id: 'owner', // Virtual ID
+          name: ownerName,
+          manpower_id: 'OWNER',
+          applicator_type: 'Store Owner'
+        }, ...prev];
+      });
     }
   }, [isPublic, storeDetails, installers]);
 
