@@ -178,7 +178,7 @@ export const WarrantySpecSheet = ({ isOpen, onClose, warranty }: WarrantySpecShe
                     <div className="space-y-1">
                         <h4 className="text-xs font-bold text-orange-500 uppercase tracking-widest mb-3 pl-1 flex items-center gap-2">
                             <div className="w-1 h-4 bg-gradient-to-b from-orange-500 to-orange-400 rounded-full" />
-                            Installer Details
+                            Store Details
                         </h4>
                         <div className="bg-white rounded-xl p-2 border border-orange-100 shadow-sm">
                             <SpecRow label="Store Name" value={productDetails.storeName || warranty.installer_name} />
@@ -193,8 +193,8 @@ export const WarrantySpecSheet = ({ isOpen, onClose, warranty }: WarrantySpecShe
                                 />
                             </div>
                             <div className="md:hidden">
-                                { (productDetails.storePhone || warranty.vendor_phone_number || productDetails.dealerMobile) && (
-                                     <SpecRow
+                                {(productDetails.storePhone || warranty.vendor_phone_number || productDetails.dealerMobile) && (
+                                    <SpecRow
                                         label="Store Phone"
                                         value={productDetails.storePhone || warranty.vendor_phone_number || productDetails.dealerMobile}
                                     />

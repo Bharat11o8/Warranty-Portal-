@@ -153,7 +153,7 @@ const ConnectStorePage = () => {
 
             {/* Product Type Tabs */}
             <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "ev" | "seat-cover")} className="space-y-6">
-                <TabsList className="grid w-full grid-cols-2 h-14 bg-slate-100 rounded-2xl p-1">
+                <TabsList className="grid w-full grid-cols-2 h-14 bg-slate-100/40 rounded-2xl p-1">
                     <TabsTrigger
                         value="seat-cover"
                         className="rounded-xl h-12 data-[state=active]:bg-white data-[state=active]:shadow-md flex items-center gap-2 font-bold"

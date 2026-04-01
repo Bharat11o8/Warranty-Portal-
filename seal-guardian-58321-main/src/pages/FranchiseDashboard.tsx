@@ -536,7 +536,7 @@ const FranchiseDashboard = () => {
                     <div className="-mt-8 md:-mt-14">
                         <div className="max-w-4xl mx-auto">
                             <Tabs value={registerTab} onValueChange={setRegisterTab} className="w-full">
-                                <TabsList className="grid w-full grid-cols-2 h-auto min-h-[3.5rem] bg-slate-100 rounded-2xl p-1 mb-6">
+                                <TabsList className="grid w-full grid-cols-2 h-auto min-h-[3.5rem] bg-slate-100/40 rounded-2xl p-1 mb-6">
                                     <TabsTrigger
                                         value="seat-cover"
                                         className="rounded-xl min-h-[2.75rem] h-auto py-2 data-[state=active]:bg-white data-[state=active]:shadow-md font-bold flex items-center justify-center"

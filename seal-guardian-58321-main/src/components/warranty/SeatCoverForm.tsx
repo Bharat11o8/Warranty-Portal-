@@ -138,7 +138,7 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
             if (manpowerResponse.data.success) {
               const rawList = manpowerResponse.data.manpower || [];
               const list = rawList.filter((mp: any) => mp.applicator_type === 'seat_cover');
-              
+
               if (vendorDetails.owner_name && !list.some((mp: any) => mp.name === vendorDetails.owner_name)) {
                 list.unshift({
                   id: 'owner',
@@ -260,7 +260,7 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
           const manpowerResponse = await api.get(`/public/stores/${selectedStore.vendor_details_id}/manpower?active=true`);
           if (manpowerResponse.data.success) {
             const rawList = manpowerResponse.data.manpower || [];
-            
+
             // Filter only seat cover specialists
             const list = rawList.filter((mp: any) => mp.applicator_type === 'seat_cover');
 
@@ -276,7 +276,7 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
               });
             }
             setManpowerList(list);
-            
+
             // Auto-select owner if it's the only one and no selection yet
             if (list.length === 1 && list[0].id.toString().startsWith('owner') && !formData.manpowerId) {
               setFormData(prev => ({ ...prev, manpowerId: list[0].id }));
@@ -610,8 +610,8 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
         isPublic: isPublic
       };
 
-      navigate("/thank-you", { 
-        state: { submissionDetails } 
+      navigate("/thank-you", {
+        state: { submissionDetails }
       });
 
       // Call onSuccess callback if provided (for data refresh)
@@ -892,7 +892,7 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
               <Building2 className="h-5 w-5 text-orange-600" />
             </div>
             <div>
-              <h3 className="font-semibold text-gray-900">Installer Details</h3>
+              <h3 className="font-semibold text-gray-900">Store Details</h3>
               <p className="text-xs text-muted-foreground">Store and manpower information</p>
             </div>
           </div>
