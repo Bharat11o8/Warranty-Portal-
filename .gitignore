@@ -8,8 +8,6 @@ dist/
 generated-qr-codes/
 *.txt
 *.sql
-security_best_practices_report.md
-safari_login_incident_report.md
-$Book1_geocoded.xlsx
-Book1_geocoded.xlsx
-Book1.xlsx
+*.xlsx
+.vscode/
+IMPLEMENTATION_PLAN_PRINT.html
