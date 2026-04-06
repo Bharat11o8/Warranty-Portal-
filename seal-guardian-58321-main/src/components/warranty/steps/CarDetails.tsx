@@ -1,13 +1,11 @@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DatePicker } from "@/components/ui/date-picker";
 import { Combobox } from "@/components/ui/combobox";
 import { CAR_MAKES } from "@/lib/carMakes";
-import { validateVehicleReg, formatVehicleRegLive, getVehicleRegError } from "@/lib/validation";
+import { formatVehicleRegLive, getVehicleRegError } from "@/lib/validation";
 import { EVFormData } from "../EVProductsForm";
-import { getISTTodayISO, getISTYear } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 
 interface CarDetailsProps {
@@ -136,7 +134,7 @@ const CarDetails = ({ formData, updateFormData, onNext, onPrev }: CarDetailsProp
           <DatePicker
             value={formData.installationDate || undefined}
             onChange={(value) => updateFormData({ installationDate: value })}
-            minDate={new Date()}
+            minDate={new Date(new Date().setDate(new Date().getDate() - 30))}
             maxDate={new Date()}
             placeholder="Select installation date"
           />

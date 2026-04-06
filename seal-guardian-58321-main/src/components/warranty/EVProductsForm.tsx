@@ -334,6 +334,11 @@ const EVProductsForm = ({ initialData, warrantyId, onSuccess, isUniversal, isEdi
       return;
     }
 
+    if (formData.serialNumber.length < 8 || formData.serialNumber.length > 10) {
+      toast({ title: "Invalid Serial Number", description: "Serial number must be 8–10 alphanumeric characters", variant: "destructive" });
+      return;
+    }
+
     // === Photo Validation ===
     if (!formData.lhsPhoto) {
       toast({ title: "LHS Photo Required", description: "Please upload left hand side photo", variant: "destructive" });
@@ -465,70 +470,23 @@ const EVProductsForm = ({ initialData, warrantyId, onSuccess, isUniversal, isEdi
         });
       }
 
-      // Redirect to a specialized Thank You Page
-      // Role-specific content is handled within the ThankYouPage component based on state
-      navigate("/thank-you", { 
-        state: { 
-          submissionDetails: {
-            customerName: `${formData.customerFname} ${formData.customerLname}`,
-            productType: "ev-ppf",
-            registrationId: result.warrantyId || result.uid || "PENDING",
-            role: user?.role || 'public',
-            isPublic: isPublic
-          } 
-        } 
-      });
-
+      // Redirect or callback
       if (onSuccess) {
+        // Embedded in admin panel — just call the callback, no navigation
         onSuccess(result);
       } else {
-        // Reset form only if not editing (or maybe redirect?)
-        if (!warrantyId) {
-          setCurrentStep(1);
-          setFormData({
-            storeName: "",
-            storeEmail: "",
-            dealerMobile: "",
-            dealerAddr1: "",
-            dealerAddr2: "",
-            dealerState: "",
-            dealerCity: "",
-            dealerPostalCode: "",
-            customerFname: "",
-            customerLname: "",
-            customerMobile: "",
-            customerEmail: "",
-
-            installerName: "",
-            installerCode: "",
-            manpowerId: "",
-            installationDate: getISTTodayISO(),
-            carModel: "",
-            carReg: "",
-            product: "",
-            warrantyType: "",
-            serialNumber: "",
-
-            installArea: "",
-            carMake: "",
-            carYear: "",
-            lhsPhoto: null,
-            rhsPhoto: null,
-            frontRegPhoto: null,
-            backRegPhoto: null,
-            warrantyPhoto: null,
-            termsAccepted: false,
-          });
-
-          // Redirect to appropriate dashboard based on role
-          const dashboardRoutes: Record<string, string> = {
-            customer: "/dashboard/customer",
-            vendor: "/dashboard/vendor",
-            admin: "/dashboard/admin",
-          };
-          const redirectPath = user?.role ? dashboardRoutes[user.role] : "/warranty";
-          navigate(redirectPath, { replace: true });
-        }
+        // Standalone form (public QR, vendor, customer) — go to thank you page
+        navigate("/thank-you", {
+          state: {
+            submissionDetails: {
+              customerName: `${formData.customerFname} ${formData.customerLname}`,
+              productType: "ev-ppf",
+              registrationId: result?.warrantyId || result?.uid || "PENDING",
+              role: user?.role || 'public',
+              isPublic: isPublic
+            }
+          }
+        });
       }
     } catch (error: any) {
       // Determine specific error message based on error type

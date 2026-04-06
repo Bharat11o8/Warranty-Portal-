@@ -7,7 +7,7 @@ import {
     DialogDescription,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Camera, RotateCcw, Check, X, Upload, Loader2 } from "lucide-react";
+import { Camera, RotateCcw, Check, X, Upload, Loader2, ImageIcon } from "lucide-react";
 
 interface CameraCaptureProps {
     /** Label shown on the upload button */
@@ -32,6 +32,10 @@ interface CameraCaptureProps {
     defaultIcon?: React.ReactNode;
     /** Unique ID for the input */
     id: string;
+    /** Optional sample image URL shown as a reference example for users */
+    sampleImageUrl?: string;
+    /** Label for the sample image (defaults to 'See Example') */
+    sampleImageLabel?: string;
 }
 
 /**
@@ -69,12 +73,15 @@ const CameraCapture = ({
     selectedIcon,
     defaultIcon,
     id,
+    sampleImageUrl,
+    sampleImageLabel = "See Example",
 }: CameraCaptureProps) => {
     const [showWebcam, setShowWebcam] = useState(false);
     const [stream, setStream] = useState<MediaStream | null>(null);
     const [capturedImage, setCapturedImage] = useState<string | null>(null);
     const [cameraError, setCameraError] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
+    const [showSample, setShowSample] = useState(false);
     const videoRef = useRef<HTMLVideoElement>(null);
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -225,11 +232,38 @@ const CameraCapture = ({
 
     return (
         <>
+            {/* Sample Image Dialog */}
+            <Dialog open={showSample} onOpenChange={setShowSample}>
+                <DialogContent className="max-w-sm p-0 overflow-hidden">
+                    <DialogHeader className="px-4 pt-4 pb-2">
+                        <DialogTitle className="text-sm font-semibold">{label} — Sample</DialogTitle>
+                        <DialogDescription className="text-xs">Use this as a reference for your photo</DialogDescription>
+                    </DialogHeader>
+                    <img
+                        src={sampleImageUrl}
+                        alt={`Sample ${label}`}
+                        className="w-full object-contain"
+                    />
+                </DialogContent>
+            </Dialog>
+
             {/* Upload Area */}
             <div className="space-y-3 md:col-span-2">
-                <label htmlFor={id} className="text-sm font-medium text-slate-700">
-                    {label} {required && <span className="text-destructive">*</span>}
-                </label>
+                <div className="flex items-center justify-between">
+                    <label htmlFor={id} className="text-sm font-medium text-slate-700">
+                        {label} {required && <span className="text-destructive">*</span>}
+                    </label>
+                    {sampleImageUrl && (
+                        <button
+                            type="button"
+                            onClick={() => setShowSample(true)}
+                            className="flex items-center gap-1 text-xs text-orange-600 font-medium hover:text-orange-800 transition-colors"
+                        >
+                            <ImageIcon className="h-3 w-3" />
+                            {sampleImageLabel}
+                        </button>
+                    )}
+                </div>
                 <div
                     className={`mt-2 border-2 border-dashed rounded-xl p-6 transition-all duration-200 text-center relative cursor-pointer ${value
                             ? "border-orange-300 bg-orange-50/30"

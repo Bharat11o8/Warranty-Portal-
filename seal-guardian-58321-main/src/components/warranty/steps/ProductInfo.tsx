@@ -1,5 +1,4 @@
 import { useState, useEffect } from "react";
-import exifr from "exifr";
 import api from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Loader2, CheckCircle2, FileText } from "lucide-react";
@@ -73,43 +72,9 @@ const ProductInfo = ({ formData, updateFormData, onPrev, onSubmit, loading }: Pr
         return;
       }
 
-      // --- FRAUD DETECTION: Extract EXIF BEFORE compression ---
-      try {
-        // Read first 128KB to avoid iOS Safari OOM crash
-        const exifChunk = file.slice(0, 128 * 1024);
-        const arrayBuffer = await exifChunk.arrayBuffer();
-        const exif = await exifr.parse(arrayBuffer, {
-          gps: true, exif: true, tiff: true, mergeOutput: true
-        });
-
-        if (exif) {
-          console.log(`[FraudDetection] EXIF for ${name}:`, {
-            lat: exif.latitude, lng: exif.longitude, time: exif.DateTimeOriginal,
-            make: exif.Make, model: exif.Model
-          });
-          
-          const fieldExif = {
-            lat: exif.latitude || null,
-            lng: exif.longitude || null,
-            timestamp: exif.DateTimeOriginal || exif.CreateDate || null,
-            deviceMake: exif.Make || null,
-            deviceModel: exif.Model || null
-          };
-
-          updateFormData({
-            allExifData: {
-              ...(formData.allExifData || {}),
-              [name]: fieldExif
-            }
-          });
-        }
-      } catch (err) {
-        console.warn(`[FraudDetection] EXIF extraction failed for ${name}:`, err);
-      }
-
-      // Compress image if it's a compressible type (not PDF)
+      // Compress image if > 1MB
       let processedFile = file;
-      if (isCompressibleImage(file) && file.size > 1024 * 1024) { // Compress if > 1MB
+      if (isCompressibleImage(file) && file.size > 1024 * 1024) {
         setCompressing(true);
         try {
           processedFile = await compressImage(file, { maxSizeKB: 1024, quality: 0.8 });
@@ -132,10 +97,6 @@ const ProductInfo = ({ formData, updateFormData, onPrev, onSubmit, loading }: Pr
       updateFormData({ [name]: processedFile });
     } else {
       updateFormData({ [name]: null });
-      // Remove EXIF data if file is removed
-      const newAllExif = { ...(formData.allExifData || {}) };
-      delete newAllExif[name as string];
-      updateFormData({ allExifData: newAllExif });
     }
   };
 
@@ -228,12 +189,23 @@ const ProductInfo = ({ formData, updateFormData, onPrev, onSubmit, loading }: Pr
           <Input
             id="serialNumber"
             type="text"
-            placeholder="Enter Product Serial Number"
+            placeholder="8–10 character serial number"
             value={formData.serialNumber}
-            onChange={(e) => updateFormData({ serialNumber: e.target.value })}
+            onChange={(e) => {
+              const val = e.target.value.replace(/[^a-zA-Z0-9]/g, '').slice(0, 10);
+              updateFormData({ serialNumber: val });
+            }}
             required
+            maxLength={10}
             disabled={loading}
+            className={formData.serialNumber.length > 0 && (formData.serialNumber.length < 8 || formData.serialNumber.length > 10) ? 'border-red-400 focus-visible:ring-red-300' : ''}
           />
+          <div className="flex justify-between text-xs px-0.5">
+            <span className={formData.serialNumber.length > 0 && formData.serialNumber.length < 8 ? 'text-red-500' : 'text-muted-foreground'}>
+              {formData.serialNumber.length > 0 && formData.serialNumber.length < 8 ? `${8 - formData.serialNumber.length} more characters needed` : 'Alphanumeric only'}
+            </span>
+            <span className="text-muted-foreground">{formData.serialNumber.length}/10</span>
+          </div>
         </div>
 
         <div className="space-y-2">
@@ -245,7 +217,10 @@ const ProductInfo = ({ formData, updateFormData, onPrev, onSubmit, loading }: Pr
             type="text"
             placeholder="e.g., Full Body, Hood, etc."
             value={formData.installArea}
-            onChange={(e) => updateFormData({ installArea: e.target.value })}
+            onChange={(e) => {
+              const val = e.target.value.replace(/[0-9]/g, '');
+              updateFormData({ installArea: val });
+            }}
             required
             disabled={loading}
           />

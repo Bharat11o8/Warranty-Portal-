@@ -970,7 +970,7 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
                 <DatePicker
                   value={formData.purchaseDate}
                   onChange={(value) => handleChange("purchaseDate", value)}
-                  minDate={new Date()}
+                  minDate={new Date(new Date().setDate(new Date().getDate() - 30))}
                   maxDate={new Date()}
                   placeholder="Select purchase date"
                   disabled={loading}
@@ -1241,8 +1241,8 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
               {/* Number Plate Photo — Camera Only */}
               <CameraCapture
                 id="vehicleFile"
-                label="Number Plate Photo"
-                description="Capture a clear photo of the vehicle number plate"
+                label="Number Plate Image"
+                description="Capture a clear image of the vehicle number plate"
                 required={!warrantyId}
                 disabled={loading}
                 cameraOnly={true}
@@ -1250,13 +1250,14 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
                 onChange={(file) => handleCameraCapture(file, 'vehicleFile')}
                 accept="image/jpeg,image/png,image/heic,image/heif"
                 selectedIcon={<Car className="h-6 w-6" />}
+                sampleImageUrl="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1775217077/Car_Number_Plate_Image_s8xmem.jpg"
               />
 
               {/* Fitted Seat Cover Photo — Camera Only */}
               <CameraCapture
                 id="seatCoverPhoto"
-                label="Fitted Seat Cover Photo"
-                description="Capture a photo of the seat cover after installation"
+                label="Fitted Seat Cover Image"
+                description="Capture a image of the seat cover after installation"
                 required={!warrantyId}
                 disabled={loading}
                 cameraOnly={true}
@@ -1264,13 +1265,14 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
                 onChange={(file) => handleCameraCapture(file, 'seatCoverPhoto')}
                 accept="image/jpeg,image/png,image/heic,image/heif"
                 selectedIcon={<Armchair className="h-6 w-6" />}
+                sampleImageUrl="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1775217073/Seat_Cover_Fitted_jfgizq.jpg"
               />
 
               {/* Car Outer Image — Camera Only */}
               <CameraCapture
                 id="carOuterPhoto"
-                label="Car Outer Image"
-                description="Capture a photo of the car exterior"
+                label="Car Exterior Image"
+                description="Capture a image of the car exterior"
                 required={!warrantyId}
                 disabled={loading}
                 cameraOnly={true}
@@ -1278,6 +1280,7 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
                 onChange={(file) => handleCameraCapture(file, 'carOuterPhoto')}
                 accept="image/jpeg,image/png,image/heic,image/heif"
                 selectedIcon={<ImageIcon className="h-6 w-6" />}
+                sampleImageUrl="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1775217076/Car_Exterior_Image_k3snoa.jpg"
               />
             </div>
             <div className="space-y-3 mt-5 md:col-span-2">
