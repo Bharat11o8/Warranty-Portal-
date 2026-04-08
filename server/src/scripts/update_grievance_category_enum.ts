@@ -6,6 +6,11 @@ async function updateGrievanceCategoryEnum() {
         await db.execute(`
             ALTER TABLE grievances
             MODIFY COLUMN category ENUM(
+                'seat_cover',
+                'mats',
+                'accessories',
+                'software_issue',
+                'other',
                 'product_issue',
                 'billing_issue',
                 'store_issue',
@@ -13,9 +18,7 @@ async function updateGrievanceCategoryEnum() {
                 'service_issue',
                 'warranty_issue',
                 'logistics_issue',
-                'stock_issue',
-                'software_issue',
-                'other'
+                'stock_issue'
             ) NOT NULL
         `);
         console.log('✅ category ENUM updated successfully.');

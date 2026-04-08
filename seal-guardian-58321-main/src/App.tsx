@@ -21,8 +21,8 @@ const AdminLayout = lazy(() => import("@/components/admin/layout/AdminLayout").t
 const AdminManagement = lazy(() => import("./pages/AdminManagement"));
 const AdminProducts = lazy(() => import("./pages/AdminProducts"));
 const ActivityLogs = lazy(() => import("./pages/ActivityLogs"));
-const GrievancePage = lazy(() => import("./pages/GrievancePage"));
 const AdminGrievancesPage = lazy(() => import("./pages/AdminGrievancesPage"));
+
 const CustomerLayout = lazy(() => import("./components/layouts/CustomerLayout"));
 const Terms = lazy(() => import("./pages/Terms"));
 const CataloguePage = lazy(() => import("./pages/CataloguePage"));
@@ -64,7 +64,7 @@ const App = () => (
                 <Route element={<CustomerLayout />}>
                   <Route path="/dashboard/customer" element={<CustomerDashboard />} />
                   <Route path="/profile" element={<Profile />} />
-                  <Route path="/grievance" element={<GrievancePage />} />
+
                   <Route path="/terms" element={<Terms />} />
                 </Route>
 
@@ -74,10 +74,11 @@ const App = () => (
                 <Route path="/admin/manage" element={<AdminManagement />} />
                 <Route path="/admin/products" element={<AdminProducts />} />
                 <Route path="/admin/activity-logs" element={<ActivityLogs />} />
+                <Route path="/admin/grievances" element={<AdminGrievancesPage />} />
                 <Route path="/catalogue" element={<CataloguePage />} />
                 <Route path="/category/:categoryId" element={<CategoryPage />} />
                 <Route path="/product/:productId" element={<ProductPage />} />
-                <Route path="/admin/grievances" element={<AdminGrievancesPage />} />
+
                 <Route path="/assignment/update/:token" element={<AssignmentUpdatePanel />} />
                 {/* Public QR Registration Route */}
                 <Route element={<PublicLayout />}>

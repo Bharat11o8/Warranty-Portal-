@@ -19,7 +19,6 @@ import {
     Loader2,
     Check,
     X,
-    Trash2,
     Eye,
     Store,
     MapPin,
@@ -141,30 +140,6 @@ export const AdminVendors = () => {
             setRejectDialogOpen(false);
             setRejectReason("");
             setSelectedVendor(null);
-        }
-    };
-
-    const handleDeleteVendor = async (vendorId: string) => {
-        if (!confirm("Are you sure you want to delete this vendor? This action cannot be undone.")) {
-            return;
-        }
-
-        try {
-            const response = await api.delete(`/admin/vendors/${vendorId}`);
-            if (response.data.success) {
-                toast({
-                    title: "Franchise Deleted",
-                    description: "Franchise deleted successfully",
-                });
-                setVendors(vendors.filter(v => v.id !== vendorId));
-            }
-        } catch (error) {
-            console.error("Failed to delete vendor:", error);
-            toast({
-                title: "Deletion Failed",
-                description: "Failed to delete vendor",
-                variant: "destructive"
-            });
         }
     };
 
@@ -473,14 +448,7 @@ export const AdminVendors = () => {
                                                         </Button>
                                                     </div>
                                                 )}
-                                                <Button
-                                                    size="icon"
-                                                    variant="ghost"
-                                                    className="h-10 w-10 bg-red-50 text-red-500 rounded-xl"
-                                                    onClick={() => handleDeleteVendor(vendor.id)}
-                                                >
-                                                    <Trash2 className="h-5 w-5" />
-                                                </Button>
+
                                             </div>
                                         </div>
 
@@ -633,15 +601,7 @@ export const AdminVendors = () => {
                                                         </>
                                                     )}
 
-                                                    <Button
-                                                        size="icon"
-                                                        variant="ghost"
-                                                        className="h-8 w-8 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-full"
-                                                        onClick={() => handleDeleteVendor(vendor.id)}
-                                                        title="Delete"
-                                                    >
-                                                        <Trash2 className="h-4 w-4" />
-                                                    </Button>
+
                                                 </div>
                                             </td>
                                         </tr>

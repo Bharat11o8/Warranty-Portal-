@@ -133,7 +133,6 @@ export const SidebarContent = ({
     // Calculate Section Updates from notifications (Hidden for Phase 1)
     // const unreadWarranties = notifications.filter(n => !n.is_read && n.type === 'warranty').length;
     const unreadGrievances = notifications.filter(n => !n.is_read && n.type === 'grievance').length;
-
     // Define menu items inside the component or outside if static
     const menuGroups = [
         {

@@ -61,12 +61,10 @@ interface GrievanceRemark {
 }
 
 const CATEGORIES: Record<string, string> = {
-    product_issue: "Product Issue",
-    billing_issue: "Billing Issue",
-    store_issue: "Store/Dealer Issue",
-    manpower_issue: "Manpower Issue",
-    service_issue: "Service Issue",
-    warranty_issue: "Warranty Issue",
+    seat_cover: "Seat Cover",
+    mats: "Mats",
+    accessories: "Accessories",
+    software_issue: "Software/Portal Issue",
     other: "Other",
 };
 
@@ -104,7 +102,6 @@ const AdminGrievances = () => {
     const [loadingRemarks, setLoadingRemarks] = useState(false);
 
     const [dialogTab, setDialogTab] = useState<'details' | 'assignment'>('details');
-    const [activeTab, setActiveTab] = useState("customer");
 
     const fetchGrievances = async () => {
         setLoading(true);
@@ -129,15 +126,7 @@ const AdminGrievances = () => {
     }, []);
 
     useEffect(() => {
-        let result = grievances.filter(g => {
-            // Filter by Tab (Source Type)
-            if (activeTab === 'franchise') {
-                return g.source_type === 'franchise';
-            } else {
-                // Customer tab shows 'customer' or anything undefined (legacy)
-                return g.source_type !== 'franchise';
-            }
-        });
+        let result = grievances.filter(g => g.source_type === 'franchise');
 
         // Search filter
         if (searchQuery) {
@@ -157,7 +146,7 @@ const AdminGrievances = () => {
         }
 
         setFilteredGrievances(result);
-    }, [searchQuery, statusFilter, grievances, activeTab]);
+    }, [searchQuery, statusFilter, grievances]);
 
     const fetchRemarksHistory = async (grievanceId: number) => {
         setLoadingRemarks(true);
@@ -294,21 +283,11 @@ const AdminGrievances = () => {
     };
 
     const getStats = () => {
-        // Filter grievances based on active tab
-        const tabGrievances = grievances.filter(g =>
-            activeTab === 'franchise'
-                ? g.source_type === 'franchise'
-                : g.source_type !== 'franchise'
-        );
-
+        const tabGrievances = grievances.filter(g => g.source_type === 'franchise');
         const total = tabGrievances.length;
         const open = tabGrievances.filter(g => !["resolved", "rejected"].includes(g.status)).length;
         const resolved = tabGrievances.filter(g => ["resolved", "rejected"].includes(g.status)).length;
-        const ratedGrievances = tabGrievances.filter(g => g.customer_rating);
-        const avgRating = ratedGrievances.length > 0
-            ? ratedGrievances.reduce((acc, g) => acc + (g.customer_rating || 0), 0) / ratedGrievances.length
-            : 0;
-        return { total, open, resolved, avgRating: avgRating.toFixed(1) };
+        return { total, open, resolved };
     };
 
     const stats = getStats();
@@ -334,10 +313,8 @@ const AdminGrievances = () => {
                 </Button>
             </div>
 
-            {/* Tabs Structure */}
-
             {/* Stats Row */}
-            <div className={`grid grid-cols-2 ${activeTab === 'customer' ? 'md:grid-cols-4' : 'md:grid-cols-3'} gap-4`}>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                 <Card>
                     <CardContent className="pt-6">
                         <p className="text-3xl font-bold">{stats.total}</p>
@@ -356,34 +333,8 @@ const AdminGrievances = () => {
                         <p className="text-sm text-muted-foreground">Resolved</p>
                     </CardContent>
                 </Card>
-                {activeTab === 'customer' && (
-                    <Card>
-                        <CardContent className="pt-6">
-                            <p className="text-3xl font-bold text-green-500">⭐ {stats.avgRating}</p>
-                            <p className="text-sm text-muted-foreground">Avg. Rating</p>
-                        </CardContent>
-                    </Card>
-                )}
             </div>
 
-            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-                <TabsList className="bg-muted/50 p-1 rounded-lg mb-6 w-full md:w-auto inline-flex">
-                    <TabsTrigger
-                        value="customer"
-                        className="flex-1 md:flex-none px-6 py-2.5 rounded-md text-sm font-medium data-[state=active]:bg-white data-[state=active]:shadow-sm transition-all flex items-center gap-2"
-                    >
-                        <Users className="h-4 w-4" />
-                        Customer Grievances
-                    </TabsTrigger>
-                    <TabsTrigger
-                        value="franchise"
-                        className="flex-1 md:flex-none px-6 py-2.5 rounded-md text-sm font-medium data-[state=active]:bg-white data-[state=active]:shadow-sm transition-all flex items-center gap-2"
-                    >
-                        <Store className="h-4 w-4" />
-                        Franchise Grievances
-                    </TabsTrigger>
-                </TabsList>
-            </Tabs>
 
             <div className="flex flex-col md:flex-row gap-4 mb-6 justify-between items-center">
                 <div className="flex gap-2 w-full md:w-auto">
@@ -428,12 +379,8 @@ const AdminGrievances = () => {
                                 <th className="text-left p-3 text-sm font-medium w-12">S.No</th>
                                 <th className="text-left p-3 text-sm font-medium">Date</th>
                                 <th className="text-left p-3 text-sm font-medium">Ticket</th>
-                                <th className="text-left p-3 text-sm font-medium">
-                                    {activeTab === 'customer' ? 'Customer' : 'Raised By'}
-                                </th>
-                                <th className="text-left p-3 text-sm font-medium">
-                                    {activeTab === 'customer' ? 'Franchise' : 'To Department'}
-                                </th>
+                                <th className="text-left p-3 text-sm font-medium">Raised By</th>
+                                <th className="text-left p-3 text-sm font-medium">To Department</th>
                                 <th className="text-left p-3 text-sm font-medium">Category</th>
                                 <th className="text-left p-3 text-sm font-medium">Status</th>
                                 <th className="text-left p-3 text-sm font-medium">Assigned To</th>

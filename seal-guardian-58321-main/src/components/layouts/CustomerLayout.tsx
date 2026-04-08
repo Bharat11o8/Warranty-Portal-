@@ -7,7 +7,6 @@ import { HelpPopover } from "@/components/fms/HelpPopover";
 import { Button } from "@/components/ui/button";
 import {
     FileText,
-    MessageSquareWarning,
     LogOut,
     ChevronLeft,
     ChevronRight,
@@ -53,7 +52,6 @@ const CustomerLayout = () => {
 
     const navItems = [
         { path: "/dashboard/customer", label: "Dashboard", icon: LayoutDashboard, badge: dashboardUpdates },
-        { path: "/grievance", label: "Grievance", icon: MessageSquareWarning, badge: 0 },
         { path: "/terms", label: "Terms", icon: FileText, badge: termsUpdates },
     ];
 

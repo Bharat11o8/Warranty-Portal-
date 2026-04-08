@@ -1,7 +1,6 @@
 import { v4 as uuidv4 } from "uuid";
 import crypto from "crypto";
 import db from "../config/database.js";
-import nodemailer from "nodemailer"; // if you want to send via email
 
 export class OTPService {
   static generateOTP(): string {
@@ -33,30 +32,5 @@ export class OTPService {
 
     await db.execute("UPDATE otp_codes SET is_used = TRUE WHERE id = ?", [rows[0].id]);
     return true;
-  }
-
-  // ✅ Add this method
-  static async generateAndSendOTP(userId: string, email: string) {
-    const otp = await this.createOTP(userId);
-
-    // Send OTP via email
-    const transporter = nodemailer.createTransport({
-      host: process.env.SMTP_HOST,
-      port: Number(process.env.SMTP_PORT),
-      secure: false, // true for 465
-      auth: {
-        user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASS,
-      },
-    });
-
-    await transporter.sendMail({
-      from: `"Warranty App" <${process.env.SMTP_USER}>`,
-      to: email,
-      subject: "Your OTP Code",
-      text: `Your OTP is: ${otp}. It will expire in 10 minutes.`,
-    });
-
-    return otp;
   }
 }

@@ -150,6 +150,8 @@ export class AuthController {
                 // Note: We allow login for deactivated vendors but return isActive=false
                 // Frontend will handle showing deactivation message
             }
+            // Invalidate any previous unused OTPs for this user before generating a new one
+            await db.execute('UPDATE otp_codes SET is_used = TRUE WHERE user_id = ? AND is_used = FALSE', [user.id]);
             // Generate OTP
             const otp = await OTPService.createOTP(user.id);
             // Send OTP email

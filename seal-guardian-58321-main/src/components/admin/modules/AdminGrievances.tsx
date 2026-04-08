@@ -66,14 +66,9 @@ interface AssignmentRecord {
 }
 
 const CATEGORIES: Record<string, string> = {
-    product_issue: "Product Issue",
-    billing_issue: "Billing Issue",
-    store_issue: "Store/Dealer Issue",
-    manpower_issue: "Manpower Issue",
-    service_issue: "Service Issue",
-    warranty_issue: "Warranty Issue",
-    logistics_issue: "Logistics Issue",
-    stock_issue: "Stock Issue",
+    seat_cover: "Seat Cover",
+    mats: "Mats",
+    accessories: "Accessories",
     software_issue: "Software/Portal Issue",
     other: "Other",
 };
@@ -82,7 +77,8 @@ const DEPARTMENTS = [
     { department: "Sales (Seatcover)", name: "Anuka", email: "afacsales@autoformindia.com" },
     { department: "Accessories", name: "Ashish Dwivedi", email: "aashishdwivedi@autoformindia.com" },
     { department: "Mats", name: "Anurag Gupta", email: "anuraggupta@autoformindia.com" },
-    { department: "Tech-Software", name: "DevTeam", email: "Dev@autoformindia.com" }
+    { department: "Tech-Software", name: "DevTeam", email: "Dev@autoformindia.com" },
+    { department: "Others", name: "Ashish", email: "ashish@autoformindia.com" }
 ];
 
 const STATUS_COLORS: Record<string, string> = {
@@ -91,6 +87,19 @@ const STATUS_COLORS: Record<string, string> = {
     in_progress: "bg-amber-500",
     resolved: "bg-green-500",
     rejected: "bg-red-500",
+};
+
+const calculateSLA = (createdAt: string, resolvedAt: string | null, status: string) => {
+    const start = new Date(createdAt);
+    const end = (status === 'resolved' || status === 'rejected') && resolvedAt ? new Date(resolvedAt) : new Date();
+    
+    const diffMs = end.getTime() - start.getTime();
+    const hours = diffMs / (1000 * 60 * 60);
+
+    if (hours <= 24) return { color: "bg-green-100 text-green-800 border-green-200", label: "< 24h" };
+    if (hours > 24 && hours <= 36) return { color: "bg-yellow-100 text-yellow-800 border-yellow-200", label: "24-36h" };
+    if (hours > 36 && hours <= 48) return { color: "bg-orange-100 text-orange-800 border-orange-200", label: "36-48h" };
+    return { color: "bg-red-100 text-red-800 border-red-200", label: "> 48h" };
 };
 
 export const AdminGrievances = () => {
@@ -121,7 +130,6 @@ export const AdminGrievances = () => {
     const [loadingHistory, setLoadingHistory] = useState(false);
 
     const [dialogTab, setDialogTab] = useState<'details' | 'assignment'>('details');
-    const [activeTab, setActiveTab] = useState("customer");
 
     // Warranty View State
     const [viewingWarranty, setViewingWarranty] = useState<any>(null);
@@ -151,15 +159,7 @@ export const AdminGrievances = () => {
     }, []);
 
     useEffect(() => {
-        let result = grievances.filter(g => {
-            // Filter by Tab (Source Type)
-            if (activeTab === 'franchise') {
-                return g.source_type === 'franchise';
-            } else {
-                // Customer tab shows 'customer' or anything undefined (legacy)
-                return g.source_type !== 'franchise';
-            }
-        });
+        let result = grievances.filter(g => g.source_type === 'franchise');
 
         // Search filter
         if (searchQuery) {
@@ -179,8 +179,8 @@ export const AdminGrievances = () => {
         }
 
         setFilteredGrievances(result);
-        setCurrentPage(1); // Reset to first page when filters change
-    }, [searchQuery, statusFilter, grievances, activeTab]);
+        setCurrentPage(1);
+    }, [searchQuery, statusFilter, grievances]);
 
     // Pagination Calculation
     const totalPages = Math.ceil(filteredGrievances.length / itemsPerPage);
@@ -272,21 +272,11 @@ export const AdminGrievances = () => {
     };
 
     const getStats = () => {
-        // Filter grievances based on active tab
-        const tabGrievances = grievances.filter(g =>
-            activeTab === 'franchise'
-                ? g.source_type === 'franchise'
-                : g.source_type !== 'franchise'
-        );
-
+        const tabGrievances = grievances.filter(g => g.source_type === 'franchise');
         const total = tabGrievances.length;
         const open = tabGrievances.filter(g => !["resolved", "rejected"].includes(g.status)).length;
         const resolved = tabGrievances.filter(g => ["resolved", "rejected"].includes(g.status)).length;
-        const ratedGrievances = tabGrievances.filter(g => g.customer_rating);
-        const avgRating = ratedGrievances.length > 0
-            ? ratedGrievances.reduce((acc, g) => acc + (g.customer_rating || 0), 0) / ratedGrievances.length
-            : 0;
-        return { total, open, resolved, avgRating: avgRating.toFixed(1) };
+        return { total, open, resolved };
     };
 
     const stats = getStats();
@@ -300,8 +290,7 @@ export const AdminGrievances = () => {
         }
 
         const headers = [
-            "Date", "Ticket ID", activeTab === 'customer' ? "Customer" : "Raised By",
-            activeTab === 'customer' ? "Franchise" : "Department", "Category", "Subject", "Status", "Assigned To", "Last Update"
+            "Date", "Ticket ID", "Raised By", "Department", "Category", "Subject", "Status", "Assigned To", "Last Update"
         ];
 
         const csvContent = [
@@ -322,11 +311,11 @@ export const AdminGrievances = () => {
         const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
         const link = document.createElement("a");
         link.href = URL.createObjectURL(blob);
-        link.download = `${activeTab}_grievances_${new Date().toISOString().split('T')[0]}.csv`;
+        link.download = `franchise_grievances_${new Date().toISOString().split('T')[0]}.csv`;
         link.click();
         URL.revokeObjectURL(link.href);
 
-        toast({ title: "Exported", description: `${dataToExport.length} ${activeTab} grievances exported to CSV.` });
+        toast({ title: "Exported", description: `${dataToExport.length} franchise grievances exported to CSV.` });
     };
 
     if (loading) {
@@ -340,7 +329,7 @@ export const AdminGrievances = () => {
     return (
         <div className="space-y-6">
             {/* Stats Row */}
-            <div className={`grid grid-cols-2 ${activeTab === 'customer' ? 'md:grid-cols-4' : 'md:grid-cols-3'} gap-3 md:gap-4`}>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-4">
                 <Card className="border-orange-100 shadow-sm">
                     <CardContent className="pt-4 md:pt-6 p-4 md:p-6">
                         <p className="text-2xl md:text-3xl font-bold text-slate-800">{stats.total}</p>
@@ -359,35 +348,9 @@ export const AdminGrievances = () => {
                         <p className="text-xs md:text-sm text-slate-500">Resolved</p>
                     </CardContent>
                 </Card>
-                {activeTab === 'customer' && (
-                    <Card className="border-orange-100 shadow-sm">
-                        <CardContent className="pt-4 md:pt-6 p-4 md:p-6">
-                            <p className="text-2xl md:text-3xl font-bold text-blue-500">⭐ {stats.avgRating}</p>
-                            <p className="text-xs md:text-sm text-slate-500">Avg. Rating</p>
-                        </CardContent>
-                    </Card>
-                )}
             </div>
 
             <div className="flex flex-col xl:flex-row gap-4 justify-between items-start xl:items-center">
-                <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full xl:w-auto">
-                    <TabsList className="bg-white border border-orange-100 p-1 rounded-lg w-full md:w-auto grid grid-cols-2 md:inline-flex">
-                        <TabsTrigger
-                            value="customer"
-                            className="px-4 md:px-6 data-[state=active]:bg-orange-50 data-[state=active]:text-orange-700 data-[state=active]:border-orange-200 transition-all flex items-center justify-center gap-2"
-                        >
-                            <Users className="h-4 w-4" />
-                            <span className="truncate">Customer</span>
-                        </TabsTrigger>
-                        <TabsTrigger
-                            value="franchise"
-                            className="px-4 md:px-6 data-[state=active]:bg-orange-50 data-[state=active]:text-orange-700 data-[state=active]:border-orange-200 transition-all flex items-center justify-center gap-2"
-                        >
-                            <Store className="h-4 w-4" />
-                            <span className="truncate">Franchise</span>
-                        </TabsTrigger>
-                    </TabsList>
-                </Tabs>
 
                 <div className="flex w-full md:w-auto gap-2 items-center">
                     <div className="relative flex-1 md:w-[300px]">
@@ -467,15 +430,20 @@ export const AdminGrievances = () => {
                                                 <span className="font-mono font-bold text-slate-800">{g.ticket_id}</span>
                                                 <span className="text-xs text-slate-500">{formatToIST(g.created_at)}</span>
                                             </div>
-                                            <Badge className={`${STATUS_COLORS[g.status]} text-[10px] px-2 py-0.5`}>
-                                                {g.status.replace("_", " ")}
-                                            </Badge>
+                                            <div className="flex items-center gap-1">
+                                                <Badge className={cn("text-[10px] px-2 py-0.5 border shadow-sm", calculateSLA(g.created_at, g.resolved_at, g.status).color)}>
+                                                    {calculateSLA(g.created_at, g.resolved_at, g.status).label}
+                                                </Badge>
+                                                <Badge className={cn(STATUS_COLORS[g.status], "text-[10px] px-2 py-0.5 whitespace-nowrap")}>
+                                                    {g.status.replace("_", " ")}
+                                                </Badge>
+                                            </div>
                                         </div>
 
                                         <div className="space-y-2 mb-4">
                                             <div>
                                                 <p className="text-xs text-slate-500 uppercase tracking-wider mb-0.5">
-                                                    {activeTab === 'customer' ? 'Customer' : 'Raised By'}
+                                                    Raised By
                                                 </p>
                                                 <p className="font-medium text-sm">{g.customer_name}</p>
                                             </div>
@@ -520,14 +488,10 @@ export const AdminGrievances = () => {
                                             <th className="p-4 w-12">S.No</th>
                                             <th className="p-4">Date</th>
                                             <th className="p-4">Ticket</th>
-                                            <th className="p-4">
-                                                {activeTab === 'customer' ? 'Customer' : 'Raised By'}
-                                            </th>
-                                            <th className="p-4">
-                                                {activeTab === 'customer' ? 'Franchise' : 'To Department'}
-                                            </th>
+                                            <th className="p-4">Raised By</th>
+                                            <th className="p-4">To Department</th>
                                             <th className="p-4">Category</th>
-                                            <th className="p-4">Status</th>
+                                            <th className="p-4">Status & SLA</th>
                                             <th className="p-4">Assigned To</th>
                                             <th className="p-4">Last Update</th>
                                         </tr>
@@ -552,9 +516,17 @@ export const AdminGrievances = () => {
                                                     </Badge>
                                                 </td>
                                                 <td className="p-4">
-                                                    <Badge className={`${STATUS_COLORS[g.status]} hover:${STATUS_COLORS[g.status]}`}>
-                                                        {g.status.replace("_", " ")}
-                                                    </Badge>
+                                                    <div className="flex flex-col gap-1 items-start">
+                                                        <Badge className={`${STATUS_COLORS[g.status]} hover:${STATUS_COLORS[g.status]} whitespace-nowrap`}>
+                                                            {g.status.replace("_", " ")}
+                                                        </Badge>
+                                                        <Badge className={cn(
+                                                            "text-[10px] font-medium border shadow-sm whitespace-nowrap",
+                                                            calculateSLA(g.created_at, g.resolved_at, g.status).color
+                                                        )}>
+                                                            {calculateSLA(g.created_at, g.resolved_at, g.status).label}
+                                                        </Badge>
+                                                    </div>
                                                 </td>
                                                 <td className="p-4 text-slate-600">
                                                     {g.assigned_to || <span className="text-slate-300 italic">Unassigned</span>}

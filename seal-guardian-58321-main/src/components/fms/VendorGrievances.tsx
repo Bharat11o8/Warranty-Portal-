@@ -48,27 +48,17 @@ interface GrievanceRemark {
 }
 
 const CATEGORIES: Record<string, string> = {
-    product_issue: "Product Issue",
-    billing_issue: "Billing Issue",
-    store_issue: "Store/Dealer Issue",
-    manpower_issue: "Manpower Issue",
-    service_issue: "Service Issue",
-    warranty_issue: "Warranty Issue",
-    logistics_issue: "Logistics Issue",
-    stock_issue: "Stock Issue",
+    seat_cover: "Seat Cover",
+    mats: "Mats",
+    accessories: "Accessories",
     software_issue: "Software/Portal Issue",
     other: "Other",
 };
 
 const CATEGORY_CONFIG: Record<string, { color: string; icon: any; border: string; bg: string; text: string }> = {
-    product_issue:   { color: "bg-orange-500", border: "border-orange-500", bg: "bg-orange-50",  text: "text-orange-700",  icon: Package },
-    billing_issue:   { color: "bg-green-500",  border: "border-green-500",  bg: "bg-green-50",   text: "text-green-700",   icon: Receipt },
-    store_issue:     { color: "bg-blue-500",   border: "border-blue-500",   bg: "bg-blue-50",    text: "text-blue-700",    icon: Store },
-    manpower_issue:  { color: "bg-purple-500", border: "border-purple-500", bg: "bg-purple-50",  text: "text-purple-700",  icon: Users },
-    service_issue:   { color: "bg-cyan-500",   border: "border-cyan-500",   bg: "bg-cyan-50",    text: "text-cyan-700",    icon: Wrench },
-    warranty_issue:  { color: "bg-amber-500",  border: "border-amber-500",  bg: "bg-amber-50",   text: "text-amber-700",   icon: ShieldCheck },
-    logistics_issue: { color: "bg-sky-500",    border: "border-sky-500",    bg: "bg-sky-50",     text: "text-sky-700",     icon: Truck },
-    stock_issue:     { color: "bg-rose-500",   border: "border-rose-500",   bg: "bg-rose-50",    text: "text-rose-700",    icon: Box },
+    seat_cover:      { color: "bg-orange-500", border: "border-orange-500", bg: "bg-orange-50",  text: "text-orange-700",  icon: Package },
+    mats:            { color: "bg-green-500",  border: "border-green-500",  bg: "bg-green-50",   text: "text-green-700",   icon: Box },
+    accessories:     { color: "bg-blue-500",   border: "border-blue-500",   bg: "bg-blue-50",    text: "text-blue-700",    icon: Wrench },
     software_issue:  { color: "bg-violet-500", border: "border-violet-500", bg: "bg-violet-50",  text: "text-violet-700",  icon: Monitor },
     other:           { color: "bg-slate-500",  border: "border-slate-500",  bg: "bg-slate-50",   text: "text-slate-700",   icon: HelpCircle },
 };
@@ -82,13 +72,25 @@ const STATUS_CONFIG: Record<string, { color: string; icon: any; label: string }>
 };
 
 const FRANCHISE_CATEGORIES = [
-    { value: "product_issue", label: "Product Issue" },
-    { value: "warranty_issue", label: "Warranty Issue" },
-    { value: "logistics_issue", label: "Logistics Issue" },
-    { value: "stock_issue", label: "Stock Issue" },
+    { value: "seat_cover", label: "Seat Cover" },
+    { value: "mats", label: "Mats" },
+    { value: "accessories", label: "Accessories" },
     { value: "software_issue", label: "Software/Portal Issue" },
     { value: "other", label: "Other" },
 ];
+
+const calculateSLA = (createdAt: string, resolvedAt: string | null, status: string) => {
+    const start = new Date(createdAt);
+    const end = (status === 'resolved' || status === 'rejected') && resolvedAt ? new Date(resolvedAt) : new Date();
+    
+    const diffMs = end.getTime() - start.getTime();
+    const hours = diffMs / (1000 * 60 * 60);
+
+    if (hours <= 24) return { color: "bg-green-100 text-green-800 border-green-200", label: "< 24h" };
+    if (hours > 24 && hours <= 36) return { color: "bg-yellow-100 text-yellow-800 border-yellow-200", label: "24-36h" };
+    if (hours > 36 && hours <= 48) return { color: "bg-orange-100 text-orange-800 border-orange-200", label: "36-48h" };
+    return { color: "bg-red-100 text-red-800 border-red-200", label: "> 48h" };
+};
 
 const VendorGrievances = () => {
     const { toast } = useToast();
@@ -118,7 +120,6 @@ const VendorGrievances = () => {
     const [myGrievancePagination, setMyGrievancePagination] = useState({ currentPage: 1, totalPages: 1, totalCount: 0, limit: 15 });
 
     // Form state
-    const [activeTab, setActiveTab] = useState("customer");
     const [department, setDepartment] = useState("");
     const [departmentDetails, setDepartmentDetails] = useState("");
     const [category, setCategory] = useState("");
@@ -324,156 +325,37 @@ const VendorGrievances = () => {
     }
 
     return (
-        <div className="animate-in fade-in duration-700">
-            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full space-y-8">
-                {/* Header Container */}
-                <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4 md:gap-6 top-0 z-30 bg-white py-3 md:py-4 px-3 md:px-2 -mx-3 md:-mx-2 rounded-2xl md:rounded-3xl border border-orange-100 shadow-[0_8px_30px_rgba(0,0,0,0.02)]">
-
-                    {/* Mobile: Refresh Icon Top Right */}
-                    <div className="flex md:hidden justify-end w-full absolute top-2 right-2 z-20">
-                        <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => {
-                                fetchGrievances();
-                                fetchMyGrievances();
-                            }}
-                            className="h-8 w-8 rounded-full text-orange-600 hover:bg-orange-50 p-0"
-                        >
-                            <RefreshCw className={`h-4 w-4 ${loading || loadingMyGrievances ? "animate-spin" : ""}`} />
-                        </Button>
-                    </div>
-
-                    {/* Tabs List */}
-                    <TabsList className="bg-white p-1 rounded-full h-10 md:h-11 w-full md:w-auto grid grid-cols-2 md:inline-flex gap-0.5 shadow-sm border border-orange-100 mt-6 md:mt-0">
-                        <TabsTrigger
-                            value="customer"
-                            className="relative z-10 rounded-full px-4 md:px-8 py-1.5 md:py-2 text-[10px] md:text-sm font-black md:font-bold text-slate-500 data-[state=active]:text-orange-600 data-[state=active]:bg-orange-50/50 data-[state=active]:shadow-sm transition-all duration-500 ease-out whitespace-nowrap flex items-center justify-center gap-1.5 md:gap-2 uppercase md:normal-case"
-                        >
-                            <Users className="h-3.5 w-3.5 md:h-4 md:w-4" />
-                            Customer
-                        </TabsTrigger>
-                        <TabsTrigger
-                            value="my"
-                            className="relative z-10 rounded-full px-4 md:px-8 py-1.5 md:py-2 text-[10px] md:text-sm font-black md:font-bold text-slate-500 data-[state=active]:text-orange-600 data-[state=active]:bg-orange-50/50 data-[state=active]:shadow-sm transition-all duration-500 ease-out whitespace-nowrap flex items-center justify-center gap-1.5 md:gap-2 uppercase md:normal-case"
-                        >
-                            <Building2 className="h-3.5 w-3.5 md:h-4 md:w-4" />
-                            My Grievance
-                        </TabsTrigger>
-                    </TabsList>
-
-                    {/* Desktop Refresh Button */}
-                    <div className="hidden md:flex items-center gap-2 md:gap-3 w-full md:w-auto">
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => {
-                                fetchGrievances();
-                                fetchMyGrievances();
-                            }}
-                            className="h-10 md:h-11 flex-1 md:flex-none px-6 rounded-full border-orange-100 text-orange-600 font-bold hover:bg-orange-50 transition-all flex items-center justify-center gap-2 shadow-sm text-xs md:text-sm"
-                        >
-                            <RefreshCw className={`h-3.5 w-3.5 md:h-4 md:w-4 ${loading || loadingMyGrievances ? "animate-spin" : ""}`} />
-                            Refresh
-                        </Button>
-                    </div>
-
-                    {/* Mobile: Raise New Concern (Only for My Grievance Tab) */}
-                    {activeTab === 'my' && (
-                        <div className="flex md:hidden w-full">
-                            <Button
-                                onClick={() => setShowNewGrievanceForm(true)}
-                                className="w-full h-11 rounded-2xl bg-orange-600 hover:bg-orange-700 text-white font-black uppercase tracking-widest shadow-xl shadow-orange-600/20 transition-all active:scale-95 flex items-center justify-center gap-2 text-xs"
-                            >
-                                <Plus className="h-4 w-4" />
-                                Raise New Concern
-                            </Button>
-                        </div>
-                    )}
+        <div className="animate-in fade-in duration-700 space-y-6">
+            {/* Unified Header */}
+            <div className="flex justify-between items-center bg-white py-3 md:py-4 px-4 md:px-6 rounded-2xl md:rounded-3xl border border-orange-100 shadow-[0_8px_30px_rgba(0,0,0,0.02)]">
+                <h2 className="text-base md:text-lg font-black text-slate-800 tracking-tight">Grievances</h2>
+                
+                <div className="flex items-center gap-2 md:gap-3">
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                            fetchGrievances();
+                            fetchMyGrievances();
+                        }}
+                        className="h-10 md:h-11 px-3 md:px-6 rounded-xl md:rounded-2xl border-orange-100 text-orange-600 font-bold hover:bg-orange-50 transition-all flex items-center justify-center gap-2 shadow-sm text-xs md:text-sm"
+                    >
+                        <RefreshCw className={`h-4 w-4 ${loading || loadingMyGrievances ? "animate-spin" : ""}`} />
+                        <span className="hidden md:inline">Refresh</span>
+                    </Button>
+                    <Button
+                        onClick={() => setShowNewGrievanceForm(true)}
+                        className="h-10 md:h-11 px-4 md:px-8 rounded-xl md:rounded-2xl bg-orange-600 hover:bg-orange-700 text-white font-black uppercase md:tracking-widest shadow-xl shadow-orange-600/20 transition-all active:scale-95 flex items-center gap-2 text-xs"
+                    >
+                        <Plus className="h-4 w-4 md:h-5 md:w-5 shrink-0" />
+                        <span className="hidden md:inline">Raise New Concern</span>
+                        <span className="md:hidden">Raise</span>
+                    </Button>
                 </div>
+            </div>
 
-                {/* Customer Grievance Tab Content */}
-                <TabsContent value="customer" className="mt-0 outline-none space-y-4">
-
-                    {/* Grievances List */}
-                    {grievances.length === 0 ? (
-                        <Card>
-                            <CardContent className="py-12 text-center">
-                                <MessageSquare className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                                <p className="text-muted-foreground">No grievances received yet</p>
-                            </CardContent>
-                        </Card>
-                    ) : (
-                        <div className="space-y-3">
-                            {grievances.map((g) => {
-                                const categoryConfig = CATEGORY_CONFIG[g.category] || CATEGORY_CONFIG['other'];
-                                const CategoryIcon = categoryConfig.icon;
-
-                                return (
-                                    <div
-                                        key={g.id}
-                                        onClick={() => handleOpenDetail(g)}
-                                        className={`group relative flex items-center gap-3 md:gap-4 p-3 md:p-5 bg-white hover:bg-orange-50/30 transition-all duration-300 rounded-[18px] md:rounded-[24px] border border-slate-100 hover:border-orange-200 shadow-sm hover:shadow-xl cursor-pointer active:scale-[0.99] ${categoryConfig.border?.replace('border-', 'border-l-[6px] border-l-')}`}
-                                    >
-                                        {/* Icon Box */}
-                                        <div className={`h-9 w-9 md:h-12 md:w-12 rounded-lg md:rounded-xl flex items-center justify-center shrink-0 ${categoryConfig.bg} ${categoryConfig.text}`}>
-                                            <CategoryIcon className="w-4 h-4 md:w-6 md:h-6" />
-                                        </div>
-
-                                        {/* Content */}
-                                        <div className="flex-1 min-w-0">
-                                            <div className="flex items-center gap-2 mb-1">
-                                                <span className="font-mono text-[9px] md:text-xs text-muted-foreground bg-slate-50 border border-slate-100 px-1.5 py-0.5 rounded uppercase font-black tracking-tight">{g.ticket_id}</span>
-                                                <Badge variant="outline" className={`${STATUS_CONFIG[g.status]?.color?.replace('bg-', 'text-')} border-0 bg-transparent font-black tracking-widest text-[9px] md:text-[10px] pl-0 uppercase`}>
-                                                    • {STATUS_CONFIG[g.status]?.label}
-                                                </Badge>
-                                            </div>
-                                            <h3 className="font-black text-slate-800 text-sm md:text-base truncate tracking-tight">{g.subject}</h3>
-                                            <p className="text-[10px] md:text-sm text-slate-400 truncate font-bold uppercase tracking-widest opacity-70">
-                                                {g.customer_name} • {CATEGORIES[g.category] || g.category}
-                                                <span className="text-[9px] md:text-xs opacity-60 ml-2">• {formatToIST(g.created_at)}</span>
-                                            </p>
-                                        </div>
-
-                                        {/* Arrow/Action */}
-                                        <div className="shrink-0 text-muted-foreground/30 group-hover:text-primary transition-colors">
-                                            {/* Minimal hover indicator */}
-                                        </div>
-                                    </div>
-                                );
-                            })}
-                        </div>
-                    )}
-
-                    {customerPagination.totalPages > 0 && (
-                        <div className="mt-8 flex justify-end pb-8">
-                            <Pagination
-                                currentPage={customerPagination.currentPage}
-                                totalPages={customerPagination.totalPages}
-                                onPageChange={fetchGrievances}
-                                rowsPerPage={customerLimit}
-                                onRowsPerPageChange={(rows) => {
-                                    setCustomerLimit(rows);
-                                    fetchGrievances(1, rows);
-                                }}
-                            />
-                        </div>
-                    )}
-
-
-                </TabsContent>
-
-                {/* My Grievance Tab Content */}
-                <TabsContent value="my" className="mt-0 outline-none space-y-6">
-                    <div className="hidden md:flex justify-end mb-2">
-                        <Button
-                            onClick={() => setShowNewGrievanceForm(true)}
-                            className="h-12 px-8 rounded-2xl bg-orange-600 hover:bg-orange-700 text-white font-black uppercase tracking-widest shadow-xl shadow-orange-600/20 transition-all active:scale-95 flex items-center gap-2"
-                        >
-                            <Plus className="h-5 w-5" />
-                            Raise New Concern
-                        </Button>
-                    </div>
+            {/* List Content */}
+            <div className="outline-none">
 
                     {loadingMyGrievances ? (
                         <div className="flex items-center justify-center p-12">
@@ -510,6 +392,9 @@ const VendorGrievances = () => {
                                                 <span className="font-mono text-[8px] md:text-[10px] font-bold text-slate-400 bg-slate-50 px-1.5 py-0.5 md:px-2 md:py-1 rounded-md border border-slate-100">{g.ticket_id}</span>
                                                 <Badge variant="outline" className={`${STATUS_CONFIG[g.status]?.color?.replace('bg-', 'text-')} border-0 bg-transparent font-black tracking-widest text-[8px] md:text-[10px] uppercase pl-0`}>
                                                     • {STATUS_CONFIG[g.status]?.label}
+                                                </Badge>
+                                                <Badge className={cn("text-[8px] md:text-[10px] font-black uppercase tracking-widest border shrink-0", calculateSLA(g.created_at, g.resolved_at, g.status).color)}>
+                                                    SLA: {calculateSLA(g.created_at, g.resolved_at, g.status).label}
                                                 </Badge>
                                                 <Badge variant="secondary" className="text-[8px] md:text-[10px] font-black uppercase tracking-widest bg-slate-50 text-slate-400 border-slate-100 shrink-0">
                                                     To: {g.department_display || g.department?.toUpperCase()}
@@ -683,8 +568,7 @@ const VendorGrievances = () => {
                             </div>
                         </DialogContent>
                     </Dialog>
-                </TabsContent>
-            </Tabs>
+                </div>
 
 
             {/* Global Detail Dialog - Fixed scrolling and height */}
@@ -834,7 +718,7 @@ const VendorGrievances = () => {
                                         let attachments: string[] = [];
                                         try {
                                             if (Array.isArray(selectedGrievance.attachments)) {
-                                                attachments = selectedGrievance.attachments;
+                                                attachments = selectedGrievance.attachments as unknown as string[];
                                             } else if (typeof selectedGrievance.attachments === 'string' && selectedGrievance.attachments) {
                                                 attachments = JSON.parse(selectedGrievance.attachments);
                                             }

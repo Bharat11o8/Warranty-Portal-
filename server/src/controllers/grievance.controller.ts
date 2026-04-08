@@ -271,11 +271,21 @@ class GrievanceController {
             const vendor = vendorRows[0];
             const ticketId = this.generateTicketId();
 
+            // Auto-Assignment Mapping
+            const categoryAssignments: Record<string, {name: string, email: string}> = {
+                'seat_cover': { name: "Anuka", email: "afacsales@autoformindia.com" },
+                'mats': { name: "Anurag Gupta", email: "anuraggupta@autoformindia.com" },
+                'accessories': { name: "Ashish Dwivedi", email: "aashishdwivedi@autoformindia.com" },
+                'software_issue': { name: "DevTeam", email: "Dev@autoformindia.com" },
+                'other': { name: "Ashish", email: "ashish@autoformindia.com" }
+            };
+            const assignee = categoryAssignments[category] || categoryAssignments['other'];
+
             // Insert grievance
-            await db.execute(
+            const [insertResult]: any = await db.execute(
                 `INSERT INTO grievances 
-                (ticket_id, customer_id, source_type, department, department_details, category, subject, description, attachments, status, created_at, status_updated_at)
-                VALUES (?, ?, 'franchise', ?, ?, ?, ?, ?, ?, 'submitted', ?, ?)`,
+                (ticket_id, customer_id, source_type, department, department_details, category, subject, description, attachments, status, created_at, status_updated_at, assigned_to)
+                VALUES (?, ?, 'franchise', ?, ?, ?, ?, ?, ?, 'submitted', ?, ?, ?)`,
                 [
                     ticketId,
                     userId,
@@ -286,9 +296,69 @@ class GrievanceController {
                     description,
                     JSON.stringify(attachmentUrls),
                     getISTTimestamp(),
-                    getISTTimestamp()
+                    getISTTimestamp(),
+                    assignee.name
                 ]
             );
+
+            const newGrievanceId = insertResult.insertId;
+
+            // Create Initial grievance assignment record
+            const updateToken = uuidv4();
+            await db.execute(
+                `INSERT INTO grievance_assignments 
+                 (grievance_id, assignee_name, assignee_email, remarks, assignment_type, sent_by, sent_by_name, status, update_token, email_sent_at)
+                 VALUES (?, ?, ?, ?, 'initial', 'system', 'System Auto-Assign', 'pending', ?, ?)`,
+                [newGrievanceId, assignee.name, assignee.email, 'Auto-assigned based on category', updateToken, getISTTimestamp()]
+            );
+
+            // Send Email to Assignee with Magic Link
+            try {
+                // Fetch the grievance we just created with relationships needed for the email
+                const [gRows]: any = await db.execute(
+                    `SELECT g.*,
+                     p.name as customer_name,
+                     p.email as customer_email,
+                     vd.store_name as franchise_name,
+                     vd.address as franchise_address,
+                     vd.city as franchise_city
+                     FROM grievances g
+                     LEFT JOIN profiles p ON g.customer_id = p.id
+                     LEFT JOIN vendor_details vd ON g.customer_id = vd.user_id
+                     WHERE g.id = ?`,
+                    [newGrievanceId]
+                );
+                
+                if (gRows.length > 0) {
+                    const gData = gRows[0];
+                    await EmailService.sendGrievanceAssignmentEmail(
+                        assignee.email,
+                        assignee.name,
+                        {
+                            ticket_id: gData.ticket_id,
+                            category: gData.category,
+                            sub_category: gData.sub_category,
+                            subject: gData.subject,
+                            description: gData.description,
+                            source_type: gData.source_type,
+                            department: gData.department,
+                            department_details: gData.department_details,
+                            customer_name: gData.customer_name,
+                            customer_email: gData.customer_email,
+                            franchise_name: gData.franchise_name,
+                            franchise_address: gData.franchise_address,
+                            franchise_city: gData.franchise_city,
+                            attachments: gData.attachments,
+                            created_at: gData.created_at,
+                            estimated_completion_date: undefined
+                        },
+                        'Auto-assigned based on category',
+                        updateToken
+                    );
+                }
+            } catch (assignNotifErr) {
+                console.error('Failed to send auto-assignment email:', assignNotifErr);
+            }
 
             // Create notification for admin
             try {
