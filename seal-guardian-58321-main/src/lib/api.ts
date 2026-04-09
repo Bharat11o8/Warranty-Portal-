@@ -65,7 +65,9 @@ api.interceptors.response.use(
       requestUrl.includes('/auth/me') ||
       requestUrl.includes('/auth/logout');
 
-    if ((status === 401 || status === 403) && !isAuthRoute) {
+    // 401 = session expired / invalid token → force logout
+    // 403 = insufficient permissions → let the component handle it (do NOT logout)
+    if (status === 401 && !isAuthRoute) {
       localStorage.removeItem('auth_token');
       if (!window.location.pathname.startsWith('/login')) {
         const role = new URL(window.location.href).searchParams.get('role');

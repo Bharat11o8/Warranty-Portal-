@@ -9,6 +9,8 @@
     "seed:admin": "tsx src/scripts/seed-admin.ts",
     "migrate:warranty": "tsx src/scripts/create_warranty_table.ts",
     "migrate:store-email": "tsx src/scripts/add_store_email.ts",
+    "migrate:admin-permissions": "tsx src/scripts/setup_admin_permissions.ts",
+    "promote:superadmin": "tsx src/scripts/set_super_admin.ts",
     "fix:warranty": "tsx src/scripts/fix_warranty_table.ts",
     "recreate:warranty": "tsx src/scripts/recreate_warranty_table.ts",
     "check:warranty-data": "tsx src/scripts/check_warranty_data.ts",

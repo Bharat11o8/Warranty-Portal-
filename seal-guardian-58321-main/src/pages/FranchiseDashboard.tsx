@@ -779,7 +779,7 @@ const FranchiseDashboard = () => {
                         </div>
                         <h1 className="text-2xl font-bold text-slate-800 mb-3">Franchise Deactivated</h1>
                         <p className="text-slate-500 mb-8 leading-relaxed">
-                            Your franchise account has been deactivated. Access to the dashboard and all features has been restricted.
+                            Your account has been deactivated. Access to the dashboard and all features has been restricted.
                         </p>
                         <div className="bg-slate-50 rounded-xl p-6 border border-slate-100">
                             <p className="text-sm text-slate-500 font-medium mb-2 uppercase tracking-wide">For assistance contact</p>

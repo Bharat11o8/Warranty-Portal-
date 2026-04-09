@@ -1,11 +1,11 @@
 import { Router } from 'express';
 import { OldWarrantiesController } from '../controllers/old-warranties.controller.js';
-import { authenticateToken, requireRole } from '../middleware/auth.js';
+import { authenticateToken, requireRole, requirePermission } from '../middleware/auth.js';
 
 const router = Router();
 
-// All routes require admin authentication
-router.use(authenticateToken, requireRole('admin'));
+// All routes require admin auth + old_warranties read permission
+router.use(authenticateToken, requireRole('admin'), requirePermission('old_warranties', 'read'));
 
 // Get seat cover warranties with search and pagination
 router.get('/seatcovers', OldWarrantiesController.getSeatCoverWarranties);

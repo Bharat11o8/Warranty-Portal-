@@ -56,11 +56,11 @@ const CATEGORIES: Record<string, string> = {
 };
 
 const CATEGORY_CONFIG: Record<string, { color: string; icon: any; border: string; bg: string; text: string }> = {
-    seat_cover:      { color: "bg-orange-500", border: "border-orange-500", bg: "bg-orange-50",  text: "text-orange-700",  icon: Package },
-    mats:            { color: "bg-green-500",  border: "border-green-500",  bg: "bg-green-50",   text: "text-green-700",   icon: Box },
-    accessories:     { color: "bg-blue-500",   border: "border-blue-500",   bg: "bg-blue-50",    text: "text-blue-700",    icon: Wrench },
-    software_issue:  { color: "bg-violet-500", border: "border-violet-500", bg: "bg-violet-50",  text: "text-violet-700",  icon: Monitor },
-    other:           { color: "bg-slate-500",  border: "border-slate-500",  bg: "bg-slate-50",   text: "text-slate-700",   icon: HelpCircle },
+    seat_cover:      { color: "bg-blue-500", border: "border-blue-200", bg: "bg-blue-50",  text: "text-blue-700",  icon: Package },
+    mats:            { color: "bg-emerald-500",  border: "border-emerald-200",  bg: "bg-emerald-50",   text: "text-emerald-700",   icon: Box },
+    accessories:     { color: "bg-amber-500",   border: "border-amber-200",   bg: "bg-amber-50",    text: "text-amber-700",    icon: Wrench },
+    software_issue:  { color: "bg-fuchsia-500", border: "border-fuchsia-200", bg: "bg-fuchsia-50",  text: "text-fuchsia-700",  icon: Monitor },
+    other:           { color: "bg-slate-500",  border: "border-slate-200",  bg: "bg-slate-100",   text: "text-slate-700",   icon: HelpCircle },
 };
 
 const STATUS_CONFIG: Record<string, { color: string; icon: any; label: string }> = {
@@ -79,18 +79,6 @@ const FRANCHISE_CATEGORIES = [
     { value: "other", label: "Other" },
 ];
 
-const calculateSLA = (createdAt: string, resolvedAt: string | null, status: string) => {
-    const start = new Date(createdAt);
-    const end = (status === 'resolved' || status === 'rejected') && resolvedAt ? new Date(resolvedAt) : new Date();
-    
-    const diffMs = end.getTime() - start.getTime();
-    const hours = diffMs / (1000 * 60 * 60);
-
-    if (hours <= 24) return { color: "bg-green-100 text-green-800 border-green-200", label: "< 24h" };
-    if (hours > 24 && hours <= 36) return { color: "bg-yellow-100 text-yellow-800 border-yellow-200", label: "24-36h" };
-    if (hours > 36 && hours <= 48) return { color: "bg-orange-100 text-orange-800 border-orange-200", label: "36-48h" };
-    return { color: "bg-red-100 text-red-800 border-red-200", label: "> 48h" };
-};
 
 const VendorGrievances = () => {
     const { toast } = useToast();
@@ -381,7 +369,7 @@ const VendorGrievances = () => {
                                     <div
                                         key={g.id}
                                         onClick={() => handleOpenDetail(g)}
-                                        className={`group relative flex items-center gap-3 md:gap-4 p-4 md:p-5 bg-white hover:bg-orange-50/30 transition-all duration-300 rounded-[18px] md:rounded-[24px] border border-slate-100 hover:border-orange-200 shadow-sm hover:shadow-xl cursor-pointer active:scale-[0.99] ${categoryConfig.border?.replace('border-', 'border-l-[6px] border-l-')}`}
+                                        className={`group relative flex items-center gap-3 md:gap-4 p-4 md:p-5 bg-white hover:bg-slate-50/50 transition-all duration-300 rounded-[18px] md:rounded-[24px] border border-slate-100 shadow-sm hover:shadow-xl cursor-pointer active:scale-[0.99] border-l-[6px] ${categoryConfig.border.replace('border-', 'border-l-')}`}
                                     >
                                         <div className={`h-11 w-11 md:h-14 md:w-14 rounded-xl md:rounded-2xl flex items-center justify-center shrink-0 shadow-sm transition-transform duration-500 group-hover:scale-110 ${categoryConfig.bg} ${categoryConfig.text}`}>
                                             <CategoryIcon className="w-5 h-5 md:w-7 md:h-7" />
@@ -389,23 +377,21 @@ const VendorGrievances = () => {
 
                                         <div className="flex-1 min-w-0">
                                             <div className="flex flex-wrap items-center gap-1.5 md:gap-2 mb-1.5">
-                                                <span className="font-mono text-[8px] md:text-[10px] font-bold text-slate-400 bg-slate-50 px-1.5 py-0.5 md:px-2 md:py-1 rounded-md border border-slate-100">{g.ticket_id}</span>
+                                                <span className="font-mono text-[8px] md:text-[10px] font-bold text-indigo-700 bg-indigo-50/80 px-1.5 py-0.5 md:px-2 md:py-1 rounded-md border border-indigo-100 shadow-sm">{g.ticket_id}</span>
                                                 <Badge variant="outline" className={`${STATUS_CONFIG[g.status]?.color?.replace('bg-', 'text-')} border-0 bg-transparent font-black tracking-widest text-[8px] md:text-[10px] uppercase pl-0`}>
                                                     • {STATUS_CONFIG[g.status]?.label}
                                                 </Badge>
-                                                <Badge className={cn("text-[8px] md:text-[10px] font-black uppercase tracking-widest border shrink-0", calculateSLA(g.created_at, g.resolved_at, g.status).color)}>
-                                                    SLA: {calculateSLA(g.created_at, g.resolved_at, g.status).label}
-                                                </Badge>
-                                                <Badge variant="secondary" className="text-[8px] md:text-[10px] font-black uppercase tracking-widest bg-slate-50 text-slate-400 border-slate-100 shrink-0">
-                                                    To: {g.department_display || g.department?.toUpperCase()}
-                                                </Badge>
+
+
                                             </div>
                                             <h3 className="font-black text-slate-800 text-sm md:text-lg truncate tracking-tight group-hover:text-orange-600 transition-colors">{g.subject}</h3>
-                                            <p className="text-[8px] md:text-[10px] font-bold text-slate-500 uppercase tracking-widest truncate opacity-70">
-                                                {CATEGORIES[g.category] || FRANCHISE_CATEGORIES.find(c => c.value === g.category)?.label || g.category}
-                                                <span className="mx-1 md:mx-2 opacity-30">•</span>
-                                                {formatToIST(g.created_at)}
-                                            </p>
+                                            <div className="flex items-center gap-2 mt-1">
+                                                <Badge variant="outline" className={`text-[8px] md:text-[9px] font-black uppercase tracking-widest border shrink-0 ${categoryConfig.bg} ${categoryConfig.text} ${categoryConfig.border}`}>
+                                                    {CATEGORIES[g.category] || FRANCHISE_CATEGORIES.find(c => c.value === g.category)?.label || g.category}
+                                                </Badge>
+                                                <span className="text-slate-300 opacity-50">•</span>
+                                                <span className="text-[8px] md:text-[10px] font-bold text-slate-400 uppercase tracking-widest">{formatToIST(g.created_at)}</span>
+                                            </div>
                                         </div>
                                     </div>
                                 );
@@ -582,31 +568,37 @@ const VendorGrievances = () => {
                     </DialogHeader>
                     {selectedGrievance && (
                         <div className="flex flex-col h-full bg-white overflow-hidden">
-                            {/* Header Section - Sticky-like */}
-                            <div className="px-6 md:px-8 pt-8 pb-6 bg-slate-50/50 border-b border-slate-100 flex-shrink-0">
-                                <div className="flex items-center justify-between mb-2">
-                                    <div className="flex items-center gap-3">
-                                        <Badge variant="outline" className="bg-white border-slate-200 text-slate-500 font-bold tracking-widest uppercase text-[10px] shadow-sm">
-                                            {selectedGrievance.ticket_id}
-                                        </Badge>
-                                        <Badge className={cn(
-                                            "font-black tracking-widest text-[10px] uppercase px-3 py-1 rounded-full shadow-sm",
-                                            STATUS_CONFIG[selectedGrievance.status]?.color || "bg-slate-500"
-                                        )}>
-                                            {STATUS_CONFIG[selectedGrievance.status]?.label}
-                                        </Badge>
+                            {/* Header Section - Modern Gradient */}
+                            <div className="px-6 md:px-8 pt-8 pb-6 bg-gradient-to-br from-indigo-50/80 via-white to-purple-50/50 border-b border-slate-100 flex-shrink-0 relative overflow-hidden">
+                                {/* Decorative background elements */}
+                                <div className="absolute -top-24 -right-12 w-48 h-48 bg-purple-200/40 rounded-full blur-3xl" />
+                                <div className="absolute bottom-0 left-12 w-32 h-32 bg-indigo-200/40 rounded-full blur-2xl" />
+                                
+                                <div className="relative z-10">
+                                    <div className="flex items-center justify-between mb-3">
+                                        <div className="flex items-center gap-3">
+                                            <Badge variant="outline" className="bg-white/80 backdrop-blur-sm border-indigo-100 text-indigo-700 font-bold tracking-widest uppercase text-[10px] shadow-sm">
+                                                {selectedGrievance.ticket_id}
+                                            </Badge>
+                                            <Badge className={cn(
+                                                "font-black tracking-widest text-[10px] uppercase px-3 py-1 rounded-full shadow-sm",
+                                                STATUS_CONFIG[selectedGrievance.status]?.color || "bg-slate-500"
+                                            )}>
+                                                {STATUS_CONFIG[selectedGrievance.status]?.label}
+                                            </Badge>
+                                        </div>
                                     </div>
+                                    <h2 className="text-xl md:text-3xl font-black text-slate-900 tracking-tight leading-tight drop-shadow-sm">
+                                        {selectedGrievance.subject}
+                                    </h2>
+                                    <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mt-3 flex items-center gap-2">
+                                        <Clock className="h-3.5 w-3.5 text-indigo-400" />
+                                        {formatToIST(selectedGrievance.created_at)}
+                                    </p>
                                 </div>
-                                <h2 className="text-xl md:text-2xl font-black text-slate-800 tracking-tight leading-tight">
-                                    {selectedGrievance.subject}
-                                </h2>
-                                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-2 flex items-center gap-2">
-                                    <Clock className="h-3 w-3" />
-                                    {formatToIST(selectedGrievance.created_at)}
-                                </p>
                             </div>
 
-                            <div className="flex-1 overflow-y-auto p-6 md:p-8 space-y-8 custom-scrollbar bg-white">
+                            <div className="flex-1 overflow-y-auto p-6 md:p-8 space-y-8 custom-scrollbar bg-slate-50/30">
                                 {/* Target Info: Either Customer or Department */}
                                 {selectedGrievance.department && (
                                     <div className="p-4 bg-orange-50/50 border border-orange-100 rounded-2xl animate-in fade-in slide-in-from-top-2 duration-300">
@@ -633,27 +625,44 @@ const VendorGrievances = () => {
                                 {/* Issue Details */}
                                 <div className="space-y-4">
                                     {/* Subject and Category explicit display */}
-                                    <div className="grid grid-cols-1 gap-4">
-                                        <div className="space-y-1">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-white p-5 rounded-2xl border border-slate-100 shadow-sm leading-relaxed">
+                                        <div className="space-y-1.5">
                                             <h4 className="text-[10px] font-black uppercase tracking-[0.1em] text-slate-400">Subject</h4>
-                                            <p className="font-bold text-slate-800 text-sm md:text-base border-b border-slate-100 pb-2">
+                                            <p className="font-bold text-slate-800 text-sm md:text-base">
                                                 {selectedGrievance.subject}
                                             </p>
                                         </div>
 
-                                        <div className="space-y-1">
+                                        <div className="space-y-1.5">
                                             <h4 className="text-[10px] font-black uppercase tracking-[0.1em] text-slate-400">Category</h4>
-                                            <div className="flex items-center gap-2">
-                                                <Badge variant="secondary" className="bg-slate-100 text-slate-600 border-slate-200 uppercase text-[9px] font-black tracking-widest">
-                                                    {(() => {
-                                                        const val = String(selectedGrievance.category || "").trim().toLowerCase();
-                                                        return CATEGORIES[val] ||
-                                                            FRANCHISE_CATEGORIES.find(c => c.value.toLowerCase() === val)?.label ||
-                                                            selectedGrievance.category || "N/A";
-                                                    })()}
-                                                </Badge>
+                                            <div className="flex items-center gap-2 mt-1">
+                                                {(() => {
+                                                    const val = String(selectedGrievance.category || "").trim().toLowerCase();
+                                                    const displayVal = CATEGORIES[val] ||
+                                                        FRANCHISE_CATEGORIES.find(c => c.value.toLowerCase() === val)?.label ||
+                                                        selectedGrievance.category || "N/A";
+                                                    
+                                                    // Dynamic color mapping for categories
+                                                    const categoryColors: Record<string, string> = {
+                                                        'seat_cover': 'bg-blue-50 text-blue-700 border-blue-200',
+                                                        'seat-cover': 'bg-blue-50 text-blue-700 border-blue-200',
+                                                        'mats': 'bg-emerald-50 text-emerald-700 border-emerald-200',
+                                                        'accessories': 'bg-amber-50 text-amber-700 border-amber-200',
+                                                        'software_issue': 'bg-fuchsia-50 text-fuchsia-700 border-fuchsia-200',
+                                                        'software/portal issue': 'bg-fuchsia-50 text-fuchsia-700 border-fuchsia-200',
+                                                        'other': 'bg-slate-100 text-slate-700 border-slate-200'
+                                                    };
+                                                    
+                                                    const colorClass = categoryColors[val] || 'bg-indigo-50 text-indigo-700 border-indigo-200';
+
+                                                    return (
+                                                        <Badge className={`uppercase text-[10px] font-black tracking-widest border shadow-sm ${colorClass}`}>
+                                                            {displayVal}
+                                                        </Badge>
+                                                    );
+                                                })()}
                                                 {selectedGrievance.sub_category && (
-                                                    <Badge variant="outline" className="border-slate-200 text-slate-500 uppercase text-[9px] font-black tracking-widest">
+                                                    <Badge variant="outline" className="border-slate-200 text-slate-500 uppercase text-[9px] font-black tracking-widest bg-slate-50">
                                                         {selectedGrievance.sub_category}
                                                     </Badge>
                                                 )}
@@ -661,8 +670,11 @@ const VendorGrievances = () => {
                                         </div>
                                     </div>
 
-                                    <div className="space-y-2">
-                                        <div className="text-slate-600 text-base bg-slate-50/50 p-5 rounded-2xl border border-slate-100/50 leading-relaxed whitespace-pre-wrap font-medium">
+                                    <div className="space-y-3">
+                                        <h4 className="text-[10px] font-black uppercase tracking-[0.1em] text-slate-400 flex items-center gap-2">
+                                            Description
+                                        </h4>
+                                        <div className="text-slate-700 text-sm md:text-base bg-white p-6 rounded-2xl border border-slate-100 shadow-sm leading-relaxed whitespace-pre-wrap font-medium">
                                             {selectedGrievance.description}
                                         </div>
                                     </div>

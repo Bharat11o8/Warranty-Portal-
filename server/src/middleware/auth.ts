@@ -4,12 +4,16 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
+export type ModulePermissions = Record<string, { read: boolean; write: boolean }>;
+
 export interface AuthRequest extends Request {
   user?: {
     id: string;
     email: string;
     role: string;
     name: string;
+    isSuperAdmin?: boolean;
+    permissions?: ModulePermissions;
   };
 }
 
@@ -44,6 +48,47 @@ export const requireRole = (roles: string | string[]) => {
     if (!req.user || !allowedRoles.includes(req.user.role)) {
       return res.status(403).json({ error: 'Insufficient permissions' });
     }
+    next();
+  };
+};
+
+/**
+ * requirePermission — granular RBAC middleware.
+ * Super Admin bypasses all checks.
+ * Non-admin roles (vendor, customer) are skipped — they are controlled by requireRole.
+ * Regular admins must have the specified action (read/write) for the module.
+ * The 'admins' module is Super Admin only.
+ */
+export const requirePermission = (module: string, action: 'read' | 'write') => {
+  return (req: AuthRequest, res: Response, next: NextFunction) => {
+    const user = req.user;
+
+    if (!user) {
+      return res.status(401).json({ error: 'Not authenticated' });
+    }
+
+    // Non-admin roles (vendor, customer) are not subject to module permissions
+    if (user.role !== 'admin') {
+      return next();
+    }
+
+    // Super admin has unrestricted access
+    if (user.isSuperAdmin) {
+      return next();
+    }
+
+    // 'admins' module is Super Admin only
+    if (module === 'admins') {
+      return res.status(403).json({ error: 'Super Admin access required' });
+    }
+
+    const perm = user.permissions?.[module];
+    if (!perm || !perm[action]) {
+      return res.status(403).json({
+        error: `You do not have ${action === 'write' ? 'edit' : action} access to this module`
+      });
+    }
+
     next();
   };
 };

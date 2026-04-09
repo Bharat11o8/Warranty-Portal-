@@ -61,8 +61,7 @@ const STATUS_OPTIONS = [
     { value: 'in_production', label: 'In Production' },
     { value: 'dispatched', label: 'Dispatched' },
     { value: 'delivered', label: 'Delivered' },
-    { value: 'closed', label: 'Closed' },
-    { value: 'rejected', label: 'Rejected' }
+    { value: 'closed', label: 'Closed' }
 ];
 
 export const AdminPOSM = () => {

@@ -95,11 +95,11 @@ export function AdminWarrantyProducts() {
                 setNewProduct({ name: "", type: "seat_cover", warranty_years: "" });
                 fetchProducts();
             }
-        } catch (error) {
+        } catch (error: any) {
             console.error("Failed to add product", error);
             toast({
-                title: "Error",
-                description: "Failed to add product",
+                title: "Couldn't Add Product",
+                description: error.response?.data?.error || "Something went wrong. Please try again.",
                 variant: "destructive",
             });
         }
@@ -126,11 +126,11 @@ export function AdminWarrantyProducts() {
                 setEditingProduct(null);
                 fetchProducts();
             }
-        } catch (error) {
+        } catch (error: any) {
             console.error("Failed to update product", error);
             toast({
-                title: "Error",
-                description: "Failed to update product",
+                title: "Couldn't Update Product",
+                description: error.response?.data?.error || "Something went wrong. Please try again.",
                 variant: "destructive",
             });
         }
@@ -148,11 +148,11 @@ export function AdminWarrantyProducts() {
                 });
                 fetchProducts();
             }
-        } catch (error) {
+        } catch (error: any) {
             console.error("Failed to delete product", error);
             toast({
-                title: "Error",
-                description: "Failed to delete product",
+                title: "Couldn't Delete Product",
+                description: error.response?.data?.error || "Something went wrong. Please try again.",
                 variant: "destructive",
             });
         }

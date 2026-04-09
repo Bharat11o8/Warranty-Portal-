@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, RefreshCw, MessageSquare, Search, Paperclip, Store, Users, Mail, Send, Clock, Eye, Filter, ShieldCheck, Download } from "lucide-react";
+import { Loader2, RefreshCw, MessageSquare, Search, Paperclip, Store, Users, Mail, Send, Clock, Eye, Filter, ShieldCheck, Download, Package, Box, Wrench, Monitor, HelpCircle } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { WarrantySpecSheet } from "@/components/warranty/WarrantySpecSheet";
 import {
@@ -73,6 +73,14 @@ const CATEGORIES: Record<string, string> = {
     other: "Other",
 };
 
+const CATEGORY_CONFIG: Record<string, { color: string; icon: any; border: string; bg: string; text: string }> = {
+    seat_cover: { color: "bg-blue-500", border: "border-blue-200", bg: "bg-blue-50", text: "text-blue-700", icon: Package },
+    mats: { color: "bg-emerald-500", border: "border-emerald-200", bg: "bg-emerald-50", text: "text-emerald-700", icon: Box },
+    accessories: { color: "bg-amber-500", border: "border-amber-200", bg: "bg-amber-50", text: "text-amber-700", icon: Wrench },
+    software_issue: { color: "bg-fuchsia-500", border: "border-fuchsia-200", bg: "bg-fuchsia-50", text: "text-fuchsia-700", icon: Monitor },
+    other: { color: "bg-slate-500", border: "border-slate-200", bg: "bg-slate-100", text: "text-slate-700", icon: HelpCircle },
+};
+
 const DEPARTMENTS = [
     { department: "Sales (Seatcover)", name: "Anuka", email: "afacsales@autoformindia.com" },
     { department: "Accessories", name: "Ashish Dwivedi", email: "aashishdwivedi@autoformindia.com" },
@@ -92,7 +100,7 @@ const STATUS_COLORS: Record<string, string> = {
 const calculateSLA = (createdAt: string, resolvedAt: string | null, status: string) => {
     const start = new Date(createdAt);
     const end = (status === 'resolved' || status === 'rejected') && resolvedAt ? new Date(resolvedAt) : new Date();
-    
+
     const diffMs = end.getTime() - start.getTime();
     const hours = diffMs / (1000 * 60 * 60);
 
@@ -115,6 +123,7 @@ export const AdminGrievances = () => {
     // Filters
     const [searchQuery, setSearchQuery] = useState("");
     const [statusFilter, setStatusFilter] = useState("all");
+    const [categoryFilter, setCategoryFilter] = useState("all");
 
     // Pagination State
     const [currentPage, setCurrentPage] = useState(1);
@@ -178,9 +187,14 @@ export const AdminGrievances = () => {
             result = result.filter(g => g.status === statusFilter);
         }
 
+        // Category Filter
+        if (categoryFilter !== "all") {
+            result = result.filter(g => g.category === categoryFilter);
+        }
+
         setFilteredGrievances(result);
         setCurrentPage(1);
-    }, [searchQuery, statusFilter, grievances]);
+    }, [searchQuery, statusFilter, categoryFilter, grievances]);
 
     // Pagination Calculation
     const totalPages = Math.ceil(filteredGrievances.length / itemsPerPage);
@@ -377,13 +391,12 @@ export const AdminGrievances = () => {
                                 <DropdownMenuItem onClick={() => setStatusFilter("under_review")}>Under Review</DropdownMenuItem>
                                 <DropdownMenuItem onClick={() => setStatusFilter("in_progress")}>In Progress</DropdownMenuItem>
                                 <DropdownMenuItem onClick={() => setStatusFilter("resolved")}>Resolved</DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => setStatusFilter("rejected")}>Rejected</DropdownMenuItem>
                             </DropdownMenuContent>
                         </DropdownMenu>
                     </div>
 
                     {/* Desktop: Select Dropdown */}
-                    <div className="hidden md:block">
+                    <div className="hidden md:flex gap-2">
                         <Select value={statusFilter} onValueChange={setStatusFilter}>
                             <SelectTrigger className="w-[150px] border-orange-100 h-10">
                                 <SelectValue placeholder="Status" />
@@ -394,7 +407,18 @@ export const AdminGrievances = () => {
                                 <SelectItem value="under_review">Under Review</SelectItem>
                                 <SelectItem value="in_progress">In Progress</SelectItem>
                                 <SelectItem value="resolved">Resolved</SelectItem>
-                                <SelectItem value="rejected">Rejected</SelectItem>
+                            </SelectContent>
+                        </Select>
+
+                        <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+                            <SelectTrigger className="w-[180px] border-orange-100 h-10">
+                                <SelectValue placeholder="Category" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">All Categories</SelectItem>
+                                {Object.entries(CATEGORIES).map(([key, label]) => (
+                                    <SelectItem key={key} value={key}>{label}</SelectItem>
+                                ))}
                             </SelectContent>
                         </Select>
                     </div>
@@ -489,7 +513,6 @@ export const AdminGrievances = () => {
                                             <th className="p-4">Date</th>
                                             <th className="p-4">Ticket</th>
                                             <th className="p-4">Raised By</th>
-                                            <th className="p-4">To Department</th>
                                             <th className="p-4">Category</th>
                                             <th className="p-4">Status & SLA</th>
                                             <th className="p-4">Assigned To</th>
@@ -507,13 +530,19 @@ export const AdminGrievances = () => {
                                                 <td className="p-4 text-slate-600">
                                                     {formatToIST(g.created_at)}
                                                 </td>
-                                                <td className="p-4 font-mono font-medium text-slate-700">{g.ticket_id}</td>
+                                                <td className="p-4 font-mono font-bold text-black-600">{g.ticket_id}</td>
                                                 <td className="p-4 font-medium text-slate-900">{g.customer_name}</td>
-                                                <td className="p-4 text-slate-500">{g.franchise_name || "-"}</td>
                                                 <td className="p-4">
-                                                    <Badge variant="outline" className="font-normal text-slate-600 border-slate-200">
-                                                        {CATEGORIES[g.category] || g.category}
-                                                    </Badge>
+                                                    {CATEGORY_CONFIG[g.category] ? (
+                                                        <Badge variant="outline" className={cn("font-bold uppercase tracking-wider text-[10px] flex items-center w-max gap-1 px-2.5 py-1", CATEGORY_CONFIG[g.category].border, CATEGORY_CONFIG[g.category].bg, CATEGORY_CONFIG[g.category].text)}>
+                                                            <div className={cn("w-1.5 h-1.5 rounded-full mr-1", CATEGORY_CONFIG[g.category].color)} />
+                                                            {CATEGORIES[g.category]}
+                                                        </Badge>
+                                                    ) : (
+                                                        <Badge variant="outline" className="font-normal text-slate-600 border-slate-200">
+                                                            {CATEGORIES[g.category] || g.category}
+                                                        </Badge>
+                                                    )}
                                                 </td>
                                                 <td className="p-4">
                                                     <div className="flex flex-col gap-1 items-start">
@@ -609,14 +638,15 @@ export const AdminGrievances = () => {
                 <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
                     {selectedGrievance && (
                         <>
-                            <DialogHeader>
-                                <DialogTitle className="flex items-center gap-2">
-                                    <span>{selectedGrievance.ticket_id}</span>
-                                    <Badge className={STATUS_COLORS[selectedGrievance.status]}>
-                                        {selectedGrievance.status.replace("_", " ")}
-                                    </Badge>
-                                </DialogTitle>
-                                <DialogDescription>{selectedGrievance.subject}</DialogDescription>
+                            <DialogHeader className="pb-2 border-b border-slate-100 flex flex-col md:flex-row md:items-center justify-between px-2 pt-2">
+                                <div className="space-y-1">
+                                    <DialogTitle className="flex flex-wrap items-center gap-2 md:gap-3">
+                                        <span className="text-2xl text-blue-600 font-black tracking-tight">{selectedGrievance.ticket_id}</span>
+                                        <Badge className={cn("font-black uppercase tracking-widest text-[10px] px-2 py-0.5", STATUS_COLORS[selectedGrievance.status] || "bg-slate-500")}>
+                                            {selectedGrievance.status.replace("_", " ")}
+                                        </Badge>
+                                    </DialogTitle>
+                                </div>
                             </DialogHeader>
 
                             {/* Sub-Tabs */}
@@ -632,73 +662,116 @@ export const AdminGrievances = () => {
                                 </TabsList>
 
                                 {/* Details Tab */}
-                                <TabsContent value="details" className="mt-4 space-y-4">
-                                    {/* For Franchise Grievances - show clean "Raised By" section */}
+                                <TabsContent value="details" className="mt-6 space-y-5 px-1 pb-4">
+
+                                    {/* Raised By Block */}
                                     {selectedGrievance.source_type === 'franchise' ? (
-                                        <div className="p-4 bg-slate-50 rounded-lg border border-slate-100">
-                                            <h4 className="font-semibold mb-4 flex items-center gap-2 text-base border-b pb-2 text-slate-800">
-                                                <Store className="h-4 w-4" />
-                                                Raised By
+                                        <div className="p-5 bg-white rounded-2xl border-2 border-slate-100 shadow-sm">
+                                            <h4 className="font-bold mb-4 flex items-center gap-2 text-xs uppercase tracking-widest text-slate-400 border-b border-slate-100 pb-3">
+                                                <Store className="h-4 w-4 text-orange-500" />
+                                                Store Details
                                             </h4>
-                                            <div className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm">
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                                                 <div>
-                                                    <p className="text-slate-500 text-xs mb-1">Store Name</p>
-                                                    <p className="font-medium">{selectedGrievance.customer_name}</p>
+                                                    <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-1.5">Raised By</p>
+                                                    <p className="font-bold text-slate-900 text-base">{selectedGrievance.customer_name}</p>
                                                 </div>
                                                 <div>
-                                                    <p className="text-slate-500 text-xs mb-1">Email</p>
-                                                    <p className="font-medium">{selectedGrievance.customer_email}</p>
+                                                    <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-1.5">Registered Address</p>
+                                                    <p className="font-medium text-slate-600 leading-snug">
+                                                        {[selectedGrievance.franchise_address, selectedGrievance.franchise_city].filter(Boolean).join(", ") || <span className="text-slate-300 italic">Address unavailable</span>}
+                                                    </p>
                                                 </div>
-                                                {selectedGrievance.department && (
-                                                    <div>
-                                                        <p className="text-slate-500 text-xs mb-1">To Department</p>
-                                                        <p className="font-medium text-orange-600 uppercase">{selectedGrievance.department}</p>
-                                                    </div>
-                                                )}
                                             </div>
                                         </div>
                                     ) : (
-                                        /* For Customer Grievances - show Customer and Franchise sections */
                                         <div className="grid md:grid-cols-2 gap-4">
-                                            <div className="p-4 bg-slate-50 rounded-lg border border-slate-100">
-                                                <h4 className="font-semibold mb-2 flex items-center gap-2 text-slate-800">
-                                                    <Users className="h-4 w-4" />
-                                                    Customer
+                                            <div className="p-5 bg-white rounded-2xl border-2 border-slate-100 shadow-sm">
+                                                <h4 className="font-bold mb-4 flex items-center gap-2 text-xs uppercase tracking-widest text-slate-400 border-b border-slate-100 pb-3">
+                                                    <Users className="h-4 w-4 text-orange-500" />
+                                                    Customer Contact
                                                 </h4>
-                                                <div className="text-sm space-y-1">
-                                                    <p className="font-medium">{selectedGrievance.customer_name}</p>
-                                                    <p className="text-slate-500">{selectedGrievance.customer_email}</p>
+                                                <div className="space-y-4">
+                                                    <div>
+                                                        <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-1">Name</p>
+                                                        <p className="font-bold text-slate-900 text-sm">{selectedGrievance.customer_name}</p>
+                                                    </div>
+                                                    <div>
+                                                        <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-1">Contact</p>
+                                                        <p className="font-medium text-slate-600 text-sm">{selectedGrievance.customer_email}</p>
+                                                    </div>
                                                 </div>
                                             </div>
-                                            <div className="p-4 bg-slate-50 rounded-lg border border-slate-100">
-                                                <h4 className="font-semibold mb-2 flex items-center gap-2 text-slate-800">
-                                                    <Store className="h-4 w-4" />
-                                                    Franchise
+                                            <div className="p-5 bg-white rounded-2xl border-2 border-slate-100 shadow-sm">
+                                                <h4 className="font-bold mb-4 flex items-center gap-2 text-xs uppercase tracking-widest text-slate-400 border-b border-slate-100 pb-3">
+                                                    <Store className="h-4 w-4 text-orange-500" />
+                                                    Servicing Franchise
                                                 </h4>
-                                                <div className="text-sm space-y-1">
-                                                    <p className="font-medium">{selectedGrievance.franchise_name || "Not specified"}</p>
-                                                    {selectedGrievance.franchise_address && (
-                                                        <p className="text-slate-500 text-xs">{selectedGrievance.franchise_address}</p>
-                                                    )}
-                                                    {selectedGrievance.franchise_city && (
-                                                        <p className="text-slate-500 text-xs">{selectedGrievance.franchise_city}</p>
-                                                    )}
+                                                <div className="space-y-4">
+                                                    <div>
+                                                        <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-1">Store Name</p>
+                                                        <p className="font-bold text-slate-900 text-sm">{selectedGrievance.franchise_name || <span className="text-slate-300 italic">Not Linked</span>}</p>
+                                                    </div>
+                                                    <div>
+                                                        <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-1">Location</p>
+                                                        <p className="font-medium text-slate-600 text-sm">
+                                                            {[selectedGrievance.franchise_address, selectedGrievance.franchise_city].filter(Boolean).join(", ") || <span className="text-slate-300 italic">-</span>}
+                                                        </p>
+                                                    </div>
                                                 </div>
                                             </div>
                                         </div>
                                     )}
 
-                                    <div>
-                                        <h4 className="font-semibold mb-2 text-slate-800">Issue Details</h4>
-                                        <div className="space-y-3 text-sm">
-                                            <p><strong className="text-slate-600">Category:</strong> {CATEGORIES[selectedGrievance.category] || selectedGrievance.category}</p>
-                                            {selectedGrievance.sub_category && (
-                                                <p><strong className="text-slate-600">Sub-Category:</strong> {selectedGrievance.sub_category}</p>
-                                            )}
-                                            <p><strong className="text-slate-600">Subject:</strong> {selectedGrievance.subject}</p>
-                                            <div>
-                                                <p className="mb-1"><strong className="text-slate-600">Description:</strong></p>
-                                                <p className="whitespace-pre-wrap bg-slate-50 p-3 rounded border border-slate-100 text-slate-700">{selectedGrievance.description || "No description provided"}</p>
+                                    {/* Issue Core Display */}
+                                    <div className="p-5 bg-slate-50 rounded-2xl border-2 border-slate-100 shadow-inner">
+                                        <h4 className="font-bold mb-5 flex items-center gap-2 text-xs uppercase tracking-widest text-slate-500">
+                                            <MessageSquare className="h-4 w-4" />
+                                            Issue Details
+                                        </h4>
+
+                                        <div className="space-y-4">
+                                            {/* Top Banner: Category & Subject */}
+                                            <div className="flex flex-col md:flex-row md:items-center gap-4 bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                                                <div className="shrink-0 flex items-center">
+                                                    {CATEGORY_CONFIG[selectedGrievance.category] ? (
+                                                        <Badge variant="outline" className={cn("font-black uppercase tracking-widest text-[10px] flex items-center w-max gap-1.5 px-3 py-1.5", CATEGORY_CONFIG[selectedGrievance.category].border, CATEGORY_CONFIG[selectedGrievance.category].bg, CATEGORY_CONFIG[selectedGrievance.category].text)}>
+                                                            <div className={cn("w-2 h-2 rounded-full", CATEGORY_CONFIG[selectedGrievance.category].color)} />
+                                                            {CATEGORIES[selectedGrievance.category]}
+                                                        </Badge>
+                                                    ) : (
+                                                        <Badge variant="outline" className="font-black uppercase tracking-widest text-[10px] text-slate-600 border-slate-200 bg-slate-100 px-3 py-1.5">
+                                                            {CATEGORIES[selectedGrievance.category] || selectedGrievance.category}
+                                                        </Badge>
+                                                    )}
+                                                </div>
+
+                                                <div className="w-px h-8 bg-slate-200 hidden md:block" />
+
+                                                <div className="flex-1">
+                                                    <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-0.5">Subject</p>
+                                                    <p className="font-bold text-slate-900 text-base leading-tight">{selectedGrievance.subject || "No Subject"}</p>
+                                                </div>
+
+                                                {selectedGrievance.sub_category && (
+                                                    <>
+                                                        <div className="w-px h-8 bg-slate-200 hidden md:block" />
+                                                        <div className="shrink-0 pr-4">
+                                                            <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-0.5">Tags</p>
+                                                            <span className="text-xs font-semibold text-slate-600 bg-slate-100 px-2 py-1 rounded-md">{selectedGrievance.sub_category}</span>
+                                                        </div>
+                                                    </>
+                                                )}
+                                            </div>
+
+                                            {/* Description Card */}
+                                            <div className="bg-white p-5 pt-6 rounded-xl border border-slate-200 shadow-sm relative mt-2">
+                                                <div className="absolute -top-2.5 left-4 bg-white px-2 text-[10px] font-black uppercase tracking-widest text-slate-400 rounded">
+                                                    Detailed Description
+                                                </div>
+                                                <p className="whitespace-pre-wrap text-slate-700 leading-relaxed font-medium text-sm">
+                                                    {selectedGrievance.description || <span className="text-slate-300 italic">No description provided</span>}
+                                                </p>
                                             </div>
                                         </div>
                                     </div>
@@ -794,37 +867,54 @@ export const AdminGrievances = () => {
                                         </div>
                                     )}
 
-                                    <div className="flex flex-wrap gap-2">
-                                        <span className="text-sm font-medium mr-2 self-center text-slate-600">Quick Actions:</span>
-                                        {["under_review", "in_progress", "resolved", "rejected"].map(status => (
-                                            <Button key={status} size="sm"
-                                                variant={selectedGrievance.status === status ? "default" : "outline"}
-                                                className={selectedGrievance.status === status ? STATUS_COLORS[status] : ""}
-                                                onClick={() => handleStatusLocalUpdate(status)}>
-                                                {status.replace("_", " ")}
-                                            </Button>
-                                        ))}
-                                    </div>
-
-                                    <div>
-                                        <label className="text-sm font-medium text-slate-700">Admin Remarks (Visible to Vendor)</label>
-                                        <Textarea value={adminRemarks} onChange={(e) => setAdminRemarks(e.target.value)}
-                                            placeholder="Add reply or public notes..." rows={3} className="mt-1" />
-                                    </div>
-
-                                    <div>
-                                        <div className="flex justify-between">
-                                            <label className="text-sm font-medium text-slate-700">Internal Notes (Private)</label>
-                                            <span className="text-xs text-slate-400">{adminNotes.length}/1000</span>
+                                    <div className="p-5 bg-white shadow-[0_4px_20px_rgba(0,0,0,0.03)] border-2 border-slate-100 rounded-2xl space-y-6 mt-4">
+                                        <div>
+                                            <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-3">Quick Update Status</p>
+                                            <div className="flex flex-wrap gap-3 mt-1">
+                                                {["under_review", "in_progress", "resolved"].map(status => {
+                                                    const isActive = selectedGrievance.status === status;
+                                                    return (
+                                                        <Button key={status} size="sm"
+                                                            variant={isActive ? "default" : "outline"}
+                                                            className={cn(
+                                                                "font-bold tracking-widest uppercase text-[11px] px-6 py-4 transition-all rounded-xl border-2",
+                                                                isActive
+                                                                    ? STATUS_COLORS[status] + " border-transparent text-white shadow-lg"
+                                                                    : "border-slate-100 text-slate-500 hover:text-slate-800 hover:bg-slate-50 hover:border-slate-200"
+                                                            )}
+                                                            onClick={() => handleStatusLocalUpdate(status)}>
+                                                            {status.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}
+                                                        </Button>
+                                                    );
+                                                })}
+                                            </div>
                                         </div>
-                                        <Textarea value={adminNotes} onChange={(e) => setAdminNotes(e.target.value)}
-                                            maxLength={1000} placeholder="Private observations, hidden from vendor..."
-                                            rows={3} className="mt-1 bg-yellow-50/30 border-yellow-100 focus:border-yellow-200" />
-                                    </div>
 
-                                    <Button onClick={handleSaveChanges} disabled={updating} className="w-full bg-orange-600 hover:bg-orange-700">
-                                        {updating ? (<><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Saving...</>) : "Save Changes"}
-                                    </Button>
+                                        <div className="grid md:grid-cols-2 gap-5 pt-2 border-t border-slate-100">
+                                            <div>
+                                                <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-2.5 flex items-center justify-between">
+                                                    Admin Remarks
+                                                    <span className="text-orange-600 bg-orange-50 border border-orange-100 px-2 flex items-center h-5 rounded uppercase tracking-widest text-[8px]">Visible to Vendor</span>
+                                                </p>
+                                                <Textarea value={adminRemarks} onChange={(e) => setAdminRemarks(e.target.value)}
+                                                    placeholder="Add reply or public notes..." rows={3} className="bg-slate-50 border-slate-200 focus:border-slate-300 rounded-xl" />
+                                            </div>
+
+                                            <div>
+                                                <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-2.5 flex justify-between items-center">
+                                                    <span className="flex items-center gap-2">Internal Notes <span className="text-slate-500 bg-slate-100 border border-slate-200 px-2 flex items-center h-5 rounded uppercase tracking-widest text-[8px]">Private</span></span>
+                                                    <span className="text-slate-300 font-medium">{adminNotes.length}/1000</span>
+                                                </p>
+                                                <Textarea value={adminNotes} onChange={(e) => setAdminNotes(e.target.value)}
+                                                    maxLength={1000} placeholder="Private observations, hidden from vendor..."
+                                                    rows={3} className="bg-amber-50/50 border-amber-200/60 focus:border-amber-400 rounded-xl placeholder:text-amber-700/40 text-amber-900" />
+                                            </div>
+                                        </div>
+
+                                        <Button onClick={handleSaveChanges} disabled={updating} className="w-full h-12 rounded-xl text-xs font-black uppercase tracking-widest shadow-xl shadow-orange-500/20 bg-orange-600 hover:bg-orange-700 transition-all">
+                                            {updating ? (<><Loader2 className="h-4 w-4 mr-3 animate-spin" /> Committing Changes...</>) : "Save Grievance Updates"}
+                                        </Button>
+                                    </div>
                                 </TabsContent>
 
                                 {/* Assignment Tab */}
@@ -834,18 +924,18 @@ export const AdminGrievances = () => {
                                             <Mail className="h-4 w-4" />
                                             Send Assignment Email
                                         </h4>
-                                        <div className="grid md:grid-cols-3 gap-3">
+                                        <div className="grid md:grid-cols-2 gap-3">
                                             <div>
                                                 <label className="text-xs text-slate-500">Select Department / Person</label>
-                                                <Select 
-                                                   value={DEPARTMENTS.find(d => d.name === assigneeName)?.department || ""} 
-                                                   onValueChange={(val) => {
-                                                       const dept = DEPARTMENTS.find(d => d.department === val);
-                                                       if (dept) {
-                                                           setAssigneeName(dept.name);
-                                                           setAssigneeEmail(dept.email);
-                                                       }
-                                                   }}
+                                                <Select
+                                                    value={DEPARTMENTS.find(d => d.name === assigneeName)?.department || ""}
+                                                    onValueChange={(val) => {
+                                                        const dept = DEPARTMENTS.find(d => d.department === val);
+                                                        if (dept) {
+                                                            setAssigneeName(dept.name);
+                                                            setAssigneeEmail(dept.email);
+                                                        }
+                                                    }}
                                                 >
                                                     <SelectTrigger className="mt-1">
                                                         <SelectValue placeholder="Select Department" />
@@ -861,20 +951,13 @@ export const AdminGrievances = () => {
                                             </div>
                                             <div>
                                                 <label className="text-xs text-slate-500">Assignee Email</label>
-                                                <Input 
-                                                   type="email" 
-                                                   value={assigneeEmail} 
-                                                   readOnly 
-                                                   placeholder="Select department first" 
-                                                   className="mt-1 bg-slate-50 cursor-not-allowed" 
-                                               />
-                                            </div>
-                                            <div>
-                                                <label className="text-xs text-slate-500">Expected Resolution Date</label>
-                                                <Input type="date" value={estimatedCompletionDate}
-                                                    min={getISTTodayISO()}
-                                                    onChange={(e) => setEstimatedCompletionDate(e.target.value)}
-                                                    className="mt-1" />
+                                                <Input
+                                                    type="email"
+                                                    value={assigneeEmail}
+                                                    readOnly
+                                                    placeholder="Select department first"
+                                                    className="mt-1 bg-slate-50 cursor-not-allowed"
+                                                />
                                             </div>
                                         </div>
                                         <div className="mt-3">

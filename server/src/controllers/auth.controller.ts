@@ -438,13 +438,30 @@ export class AuthController {
         }
       }
 
+      // Fetch admin permissions if applicable
+      let isSuperAdmin = false;
+      let permissions = {};
+      if (userRole === 'admin') {
+        const [permRows]: any = await db.execute(
+          'SELECT is_super_admin, permissions FROM admin_permissions WHERE admin_id = ?',
+          [user.id]
+        );
+        if (permRows.length > 0) {
+          isSuperAdmin = permRows[0].is_super_admin === 1 || permRows[0].is_super_admin === true;
+          permissions = typeof permRows[0].permissions === 'string'
+            ? JSON.parse(permRows[0].permissions)
+            : (permRows[0].permissions || {});
+        }
+      }
+
       // Generate JWT (only for customers or verified vendors)
       const token = jwt.sign(
         {
           id: user.id,
           email: user.email,
           name: user.name,
-          role: userRole
+          role: userRole,
+          ...(userRole === 'admin' && { isSuperAdmin, permissions })
         },
         process.env.JWT_SECRET as string,
         { expiresIn: process.env.JWT_EXPIRES_IN || '24h' } as jwt.SignOptions
@@ -462,7 +479,8 @@ export class AuthController {
           role: userRole,
           phoneNumber: user.phone_number,
           isValidated,
-          isActive
+          isActive,
+          ...(userRole === 'admin' && { isSuperAdmin, permissions })
         }
       });
 
@@ -584,6 +602,22 @@ export class AuthController {
         isActive = (activeVal === 1 || activeVal === true || activeVal === '1');
       }
 
+      // Fetch admin permissions for /auth/me refresh
+      let isSuperAdmin = false;
+      let permissions = {};
+      if (userRole === 'admin') {
+        const [permRows]: any = await db.execute(
+          'SELECT is_super_admin, permissions FROM admin_permissions WHERE admin_id = ?',
+          [authenticatedUser.id]
+        );
+        if (permRows.length > 0) {
+          isSuperAdmin = permRows[0].is_super_admin === 1 || permRows[0].is_super_admin === true;
+          permissions = typeof permRows[0].permissions === 'string'
+            ? JSON.parse(permRows[0].permissions)
+            : (permRows[0].permissions || {});
+        }
+      }
+
       res.json({
         user: {
           id: user.id,
@@ -592,7 +626,8 @@ export class AuthController {
           role: userRole,
           phoneNumber: user.phone_number,
           isValidated,
-          isActive
+          isActive,
+          ...(userRole === 'admin' && { isSuperAdmin, permissions })
         }
       });
     } catch (error: any) {

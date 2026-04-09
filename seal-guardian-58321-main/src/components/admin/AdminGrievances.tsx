@@ -1,8 +1,8 @@
 import { useState, useEffect } from "react";
 import api from "@/lib/api";
-import { formatToIST, cn } from "@/lib/utils";
+import { formatToIST } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
@@ -358,7 +358,6 @@ const AdminGrievances = () => {
                         <SelectItem value="under_review">Under Review</SelectItem>
                         <SelectItem value="in_progress">In Progress</SelectItem>
                         <SelectItem value="resolved">Resolved</SelectItem>
-                        <SelectItem value="rejected">Rejected</SelectItem>
                     </SelectContent>
                 </Select>
             </div>
@@ -595,7 +594,7 @@ const AdminGrievances = () => {
 
                                     <div className="flex flex-wrap gap-2 pt-2">
                                         <span className="text-sm font-medium mr-2">Update Status:</span>
-                                        {["under_review", "in_progress", "resolved", "rejected"].map(status => (
+                                        {["under_review", "in_progress", "resolved"].map(status => (
                                             <Button key={status} size="sm"
                                                 variant={selectedGrievance.status === status ? "default" : "outline"}
                                                 onClick={() => handleStatusLocalUpdate(status)}>

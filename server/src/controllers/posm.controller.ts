@@ -1,4 +1,5 @@
 import { Response } from 'express';
+import db from '../config/database.js';
 import { AuthRequest } from '../middleware/auth.js';
 import { vendorRepository } from '../repositories/vendor.repository.js';
 import { posmRepository } from '../repositories/posm.repository.js';
@@ -7,12 +8,26 @@ import { ActivityLogService } from '../services/activity-log.service.js';
 
 class POSMController {
     /**
-     * Generate unique ticket ID (PO-XXXXXX)
+     * Generate unique sequential ticket ID (PO-0000001)
      */
-    private generateTicketId(): string {
-        const timestamp = Date.now().toString(36).toUpperCase();
-        const random = Math.random().toString(36).substring(2, 6).toUpperCase();
-        return `PO-${timestamp}${random}`.substring(0, 12);
+    private async generateTicketId(): Promise<string> {
+        const [rows]: any = await db.execute(
+            `SELECT ticket_id FROM posm_requests
+             WHERE ticket_id LIKE 'PO-%'
+             ORDER BY ticket_id DESC
+             LIMIT 1`
+        );
+
+        let nextNumber = 1;
+        if (rows.length > 0) {
+            const lastId: string = rows[0].ticket_id;
+            const parts = lastId.split('-');
+            const lastNum = parseInt(parts[1], 10);
+            if (!isNaN(lastNum)) nextNumber = lastNum + 1;
+        }
+
+        const padded = String(nextNumber).padStart(7, '0');
+        return `PO-${padded}`;
     }
 
     /**
@@ -41,7 +56,7 @@ class POSMController {
             const uploadedFiles = req.files as Express.Multer.File[];
             const attachmentUrls = uploadedFiles?.map((file: any) => file.path || file.secure_url || file.url) || [];
 
-            const ticketId = this.generateTicketId();
+            const ticketId = await this.generateTicketId();
 
             // 1. Create the request
             const requestId = await posmRepository.createPOSMRequest({

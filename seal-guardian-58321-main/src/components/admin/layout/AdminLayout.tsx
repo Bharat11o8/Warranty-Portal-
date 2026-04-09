@@ -29,9 +29,15 @@ import { AdminUIDManagement } from "../modules/AdminUIDManagement";
 
 export const AdminLayout = () => {
     const { user, loading } = useAuth();
-    const [activeModule, setActiveModule] = useState<AdminModule>('overview');
+    const [activeModule, setActiveModuleRaw] = useState<AdminModule>('overview');
     const [isCollapsed, setIsCollapsed] = useState(false);
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
+    // Guard: non-super-admins cannot navigate to the 'admins' module
+    const setActiveModule = (module: AdminModule) => {
+        if (module === 'admins' && !user?.isSuperAdmin) return;
+        setActiveModuleRaw(module);
+    };
 
     if (loading) {
         return (

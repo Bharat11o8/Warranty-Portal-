@@ -1,6 +1,6 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { UIDController } from '../controllers/uid.controller.js';
-import { authenticateToken, requireRole } from '../middleware/auth.js';
+import { authenticateToken, requireRole, requirePermission } from '../middleware/auth.js';
 
 const router = Router();
 
@@ -34,14 +34,14 @@ router.get('/validate/:uid', authenticateToken, UIDController.validateUID);
 
 // ===== Admin API (JWT + admin role) =====
 // GET /api/uid/ — List all UIDs (paginated)
-router.get('/', authenticateToken, requireRole('admin'), UIDController.getAllUIDs);
+router.get('/', authenticateToken, requireRole('admin'), requirePermission('uid_management', 'read'), UIDController.getAllUIDs);
 // GET /api/uid/export — Export filtered UIDs to CSV
-router.get('/export', authenticateToken, requireRole('admin'), UIDController.exportUIDs);
+router.get('/export', authenticateToken, requireRole('admin'), requirePermission('uid_management', 'read'), UIDController.exportUIDs);
 // POST /api/uid/add — Manually add a UID
-router.post('/add', authenticateToken, requireRole('admin'), UIDController.addUID);
+router.post('/add', authenticateToken, requireRole('admin'), requirePermission('uid_management', 'write'), UIDController.addUID);
 // DELETE /api/uid/:uid — Delete an unused UID
-router.delete('/:uid', authenticateToken, requireRole('admin'), UIDController.deleteUID);
+router.delete('/:uid', authenticateToken, requireRole('admin'), requirePermission('uid_management', 'write'), UIDController.deleteUID);
 // GET /api/uid/:uid/details — Get full UID details with warranty spec sheet
-router.get('/:uid/details', authenticateToken, requireRole('admin'), UIDController.getUIDDetails);
+router.get('/:uid/details', authenticateToken, requireRole('admin'), requirePermission('uid_management', 'read'), UIDController.getUIDDetails);
 
 export default router;

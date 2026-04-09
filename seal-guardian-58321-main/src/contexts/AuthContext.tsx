@@ -3,6 +3,8 @@ import api from "@/lib/api";
 
 export type UserRole = "customer" | "vendor" | "admin";
 
+export type ModulePermissions = Record<string, { read: boolean; write: boolean }>;
+
 export interface User {
   id: string;
   email: string;
@@ -11,6 +13,9 @@ export interface User {
   phoneNumber: string;
   isValidated?: boolean;
   isActive?: boolean;
+  // Admin-only RBAC fields
+  isSuperAdmin?: boolean;
+  permissions?: ModulePermissions;
 }
 
 interface AuthContextType {
@@ -21,6 +26,8 @@ interface AuthContextType {
   login: (email: string, role: UserRole) => Promise<{ userId: string; requiresOTP: boolean }>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
+  // RBAC helpers
+  hasPermission: (module: string, action: 'read' | 'write') => boolean;
 }
 
 interface RegisterData {
@@ -117,8 +124,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setUser(null);
   };
 
+  /**
+   * hasPermission — checks if the current admin user has the given action on a module.
+   * Super admins always return true. Non-admin users return false.
+   */
+  const hasPermission = (module: string, action: 'read' | 'write'): boolean => {
+    if (!user || user.role !== 'admin') return false;
+    if (user.isSuperAdmin) return true;
+    const perm = user.permissions?.[module];
+    return perm?.[action] === true;
+  };
+
   return (
-    <AuthContext.Provider value={{ user, loading, register, verifyOTP, login, logout, refreshUser: fetchCurrentUser }}>
+    <AuthContext.Provider value={{ user, loading, register, verifyOTP, login, logout, refreshUser: fetchCurrentUser, hasPermission }}>
       {children}
     </AuthContext.Provider>
   );

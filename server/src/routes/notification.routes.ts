@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { NotificationController } from '../controllers/notification.controller.js';
-import { authenticateToken, requireRole } from '../middleware/auth.js';
+import { authenticateToken, requireRole, requirePermission } from '../middleware/auth.js';
 
 const router = Router();
 
@@ -16,6 +16,6 @@ router.patch('/:id/restore', NotificationController.restoreById);
 router.delete('/', NotificationController.clearAll);
 
 // Admin-only broadcast
-router.post('/broadcast', requireRole('admin'), NotificationController.broadcast);
+router.post('/broadcast', requireRole('admin'), requirePermission('announcements', 'write'), NotificationController.broadcast);
 
 export default router;

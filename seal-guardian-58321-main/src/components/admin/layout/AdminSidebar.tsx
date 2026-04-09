@@ -15,7 +15,8 @@ import {
     PenTool,
     FileText,
     Megaphone,
-    BookOpen
+    BookOpen,
+    Crown
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNotifications } from "@/contexts/NotificationContext";
@@ -120,6 +121,27 @@ interface AdminSidebarProps {
     onToggleCollapse?: () => void;
 }
 
+// Maps sidebar module IDs to permission keys
+const moduleToPermKey: Record<string, string> = {
+    'overview':         'overview',
+    'warranties':       'warranties',
+    'warranty-products': 'warranty_products',
+    'uid-management':   'uid_management',
+    'warranty-form':    'warranty_form',
+    'vendors':          'vendors',
+    'customers':        'customers',
+    'products':         'products',
+    'announcements':    'announcements',
+    'grievances':       'grievances',
+    'posm':             'posm',
+    'ecatalogue':       'ecatalogue',
+    'terms':            'terms',
+    'old-warranties':   'old_warranties',
+    'activity-logs':    'activity_logs',
+    'admins':           'admins',   // Super Admin only
+    'profile':          'profile',  // Always visible
+};
+
 // Extracted Sidebar Content for reuse in Mobile Sheet
 export const SidebarContent = ({
     activeModule,
@@ -127,14 +149,25 @@ export const SidebarContent = ({
     isCollapsed = false,
     onToggleCollapse
 }: AdminSidebarProps) => {
-    const { logout, user } = useAuth();
+    const { logout, user, hasPermission } = useAuth();
     const { notifications } = useNotifications();
 
     // Calculate Section Updates from notifications (Hidden for Phase 1)
     // const unreadWarranties = notifications.filter(n => !n.is_read && n.type === 'warranty').length;
     const unreadGrievances = notifications.filter(n => !n.is_read && n.type === 'grievance').length;
+
+    // Helper: can this admin see a given module?
+    const canSeeModule = (moduleId: string): boolean => {
+        if (moduleId === 'profile') return true;      // always visible
+        if (moduleId === 'admins') return !!user?.isSuperAdmin; // Super Admin only
+        if (user?.isSuperAdmin) return true;          // super admin sees all
+        const permKey = moduleToPermKey[moduleId];
+        if (!permKey) return true;
+        return hasPermission(permKey, 'read');
+    };
+
     // Define menu items inside the component or outside if static
-    const menuGroups = [
+    const allMenuGroups = [
         {
             label: "Dashboard",
             items: [
@@ -188,6 +221,14 @@ export const SidebarContent = ({
             ]
         }
     ];
+
+    // Filter groups/items by permission
+    const menuGroups = allMenuGroups
+        .map(group => ({
+            ...group,
+            items: group.items.filter(item => canSeeModule(item.id))
+        }))
+        .filter(group => group.items.length > 0);
 
     return (
         <TooltipProvider>
@@ -266,7 +307,12 @@ export const SidebarContent = ({
                                 {!isCollapsed && (
                                     <div className="flex-1 min-w-0 animate-in-fade">
                                         <p className="text-xs font-black text-slate-800 truncate uppercase mt-0.5">{user?.name || "Administrator"}</p>
-                                        <p className="text-[10px] font-bold text-orange-500 tracking-tighter truncate uppercase leading-none">Super Admin</p>
+                                        <p className="text-[10px] font-bold tracking-tighter truncate uppercase leading-none flex items-center gap-1"
+                                           style={{ color: user?.isSuperAdmin ? '#f97316' : '#64748b' }}>
+                                            {user?.isSuperAdmin ? (
+                                                <><Crown className="h-2.5 w-2.5" />Super Admin</>
+                                            ) : 'Admin'}
+                                        </p>
                                     </div>
                                 )}
                             </div>

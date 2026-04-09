@@ -13,12 +13,45 @@ import { v4 as uuidv4 } from 'uuid';
 class GrievanceController {
 
     /**
-     * Generate unique ticket ID (GR-XXXXXX)
+     * Category prefix map for ticket IDs
      */
-    private generateTicketId(): string {
-        const timestamp = Date.now().toString(36).toUpperCase();
-        const random = Math.random().toString(36).substring(2, 6).toUpperCase();
-        return `GR-${timestamp}${random}`.substring(0, 12);
+    private readonly CATEGORY_PREFIXES: Record<string, string> = {
+        'seat_cover': 'SC',
+        'mats': 'MT',
+        'accessories': 'AC',
+        'software_issue': 'SW',
+        'other': 'OT',
+    };
+
+    /**
+     * Generate unique, sequential, category-scoped ticket ID
+     * Format: GR-{PREFIX}-{6-digit padded number}
+     * e.g.  GR-SC-000001, GR-MT-000042
+     */
+    private async generateTicketId(category: string): Promise<string> {
+        const prefix = this.CATEGORY_PREFIXES[category] || 'OT';
+        const likePattern = `GR-${prefix}-%`;
+
+        // Find the highest existing number for this prefix
+        const [rows]: any = await db.execute(
+            `SELECT ticket_id FROM grievances
+             WHERE ticket_id LIKE ?
+             ORDER BY ticket_id DESC
+             LIMIT 1`,
+            [likePattern]
+        );
+
+        let nextNumber = 1;
+        if (rows.length > 0) {
+            // Extract the numeric part after the last dash
+            const lastId: string = rows[0].ticket_id; // e.g. 'GR-SC-000042'
+            const parts = lastId.split('-');
+            const lastNum = parseInt(parts[parts.length - 1], 10);
+            if (!isNaN(lastNum)) nextNumber = lastNum + 1;
+        }
+
+        const padded = String(nextNumber).padStart(6, '0');
+        return `GR-${prefix}-${padded}`;
     }
 
     /**
@@ -83,7 +116,7 @@ class GrievanceController {
                 }
             }
 
-            const ticketId = this.generateTicketId();
+            const ticketId = await this.generateTicketId(category || 'other');
 
 
 
@@ -269,10 +302,10 @@ class GrievanceController {
             }
 
             const vendor = vendorRows[0];
-            const ticketId = this.generateTicketId();
+            const ticketId = await this.generateTicketId(category);
 
             // Auto-Assignment Mapping
-            const categoryAssignments: Record<string, {name: string, email: string}> = {
+            const categoryAssignments: Record<string, { name: string, email: string }> = {
                 'seat_cover': { name: "Anuka", email: "afacsales@autoformindia.com" },
                 'mats': { name: "Anurag Gupta", email: "anuraggupta@autoformindia.com" },
                 'accessories': { name: "Ashish Dwivedi", email: "aashishdwivedi@autoformindia.com" },
@@ -328,7 +361,7 @@ class GrievanceController {
                      WHERE g.id = ?`,
                     [newGrievanceId]
                 );
-                
+
                 if (gRows.length > 0) {
                     const gData = gRows[0];
                     await EmailService.sendGrievanceAssignmentEmail(

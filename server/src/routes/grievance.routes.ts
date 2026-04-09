@@ -1,7 +1,7 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import multer from 'multer';
 import GrievanceController from '../controllers/grievance.controller.js';
-import { authenticateToken } from '../middleware/auth.js';
+import { authenticateToken, requirePermission } from '../middleware/auth.js';
 import { CloudinaryStorage } from 'multer-storage-cloudinary';
 import cloudinary from '../config/cloudinary.js';
 
@@ -52,15 +52,15 @@ router.post('/franchise', authenticateToken, handleUpload, GrievanceController.s
 router.get('/franchise/submitted', authenticateToken, GrievanceController.getFranchiseSubmittedGrievances);
 
 // Admin routes
-router.get('/admin', authenticateToken, GrievanceController.getAllGrievances);
+router.get('/admin', authenticateToken, requirePermission('grievances', 'read'), GrievanceController.getAllGrievances);
 
 // Shared routes (Vendor/Admin)
 router.get('/:id', authenticateToken, GrievanceController.getGrievanceById);
-router.put('/:id/status', authenticateToken, GrievanceController.updateStatus);
-router.put('/:id/assign', authenticateToken, GrievanceController.assignGrievance);
-router.put('/:id/admin-update', authenticateToken, GrievanceController.adminUpdateGrievance); // New route
-router.put('/:id/remarks', authenticateToken, GrievanceController.addRemarks);
-router.post('/:id/send-assignment-email', authenticateToken, GrievanceController.sendAssignmentEmail);
+router.put('/:id/status', authenticateToken, requirePermission('grievances', 'write'), GrievanceController.updateStatus);
+router.put('/:id/assign', authenticateToken, requirePermission('grievances', 'write'), GrievanceController.assignGrievance);
+router.put('/:id/admin-update', authenticateToken, requirePermission('grievances', 'write'), GrievanceController.adminUpdateGrievance);
+router.put('/:id/remarks', authenticateToken, requirePermission('grievances', 'write'), GrievanceController.addRemarks);
+router.post('/:id/send-assignment-email', authenticateToken, requirePermission('grievances', 'write'), GrievanceController.sendAssignmentEmail);
 router.get('/:id/remarks', authenticateToken, GrievanceController.getRemarks);
 router.get('/:id/assignments', authenticateToken, GrievanceController.getAssignmentHistory);
 

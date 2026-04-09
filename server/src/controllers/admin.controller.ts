@@ -1161,18 +1161,30 @@ export class AdminController {
                     p.name,
                     p.email,
                     p.phone_number,
-                    p.created_at
+                    p.created_at,
+                    COALESCE(ap.is_super_admin, 0) as is_super_admin,
+                    ap.permissions
                 FROM profiles p
                 JOIN user_roles ur ON p.id = ur.user_id
+                LEFT JOIN admin_permissions ap ON p.id = ap.admin_id
                 WHERE ur.role = 'admin'
-                ORDER BY p.created_at DESC
+                ORDER BY ap.is_super_admin DESC, p.created_at ASC
             `;
 
             const [admins]: any = await db.execute(query);
 
+            // Parse permissions JSON for each admin
+            const adminList = admins.map((admin: any) => ({
+                ...admin,
+                is_super_admin: admin.is_super_admin === 1 || admin.is_super_admin === true,
+                permissions: admin.permissions
+                    ? (typeof admin.permissions === 'string' ? JSON.parse(admin.permissions) : admin.permissions)
+                    : {}
+            }));
+
             res.json({
                 success: true,
-                admins
+                admins: adminList
             });
         } catch (error: any) {
             console.error('Get all admins error:', error);
@@ -1182,7 +1194,7 @@ export class AdminController {
 
     static async createAdmin(req: Request, res: Response) {
         try {
-            const { name, email, phone } = req.body;
+            const { name, email, phone, permissions } = req.body;
             const invitedBy = (req as any).user;
 
             // Validate required fields
@@ -1220,6 +1232,26 @@ export class AdminController {
             const { v4: uuidv4 } = await import('uuid');
             const userId = uuidv4();
 
+            // Normalize permissions — default all to false if not provided
+            const defaultPermissions = {
+                overview:          { read: false, write: false },
+                warranties:        { read: false, write: false },
+                warranty_products: { read: false, write: false },
+                uid_management:    { read: false, write: false },
+                warranty_form:     { read: false, write: false },
+                vendors:           { read: false, write: false },
+                customers:         { read: false, write: false },
+                products:          { read: false, write: false },
+                announcements:     { read: false, write: false },
+                grievances:        { read: false, write: false },
+                posm:              { read: false, write: false },
+                ecatalogue:        { read: false, write: false },
+                terms:             { read: false, write: false },
+                old_warranties:    { read: false, write: false },
+                activity_logs:     { read: false, write: false },
+            };
+            const resolvedPermissions = permissions || defaultPermissions;
+
             // Create profile (no password needed for OTP-based auth)
             await db.execute(
                 'INSERT INTO profiles (id, name, email, phone_number) VALUES (?, ?, ?, ?)',
@@ -1230,6 +1262,12 @@ export class AdminController {
             await db.execute(
                 'INSERT INTO user_roles (id, user_id, role) VALUES (?, ?, ?)',
                 [uuidv4(), userId, 'admin']
+            );
+
+            // Insert permissions row (is_super_admin = false for all invited admins)
+            await db.execute(
+                'INSERT INTO admin_permissions (id, admin_id, is_super_admin, permissions) VALUES (?, ?, 0, ?)',
+                [uuidv4(), userId, JSON.stringify(resolvedPermissions)]
             );
 
             // Send invitation email
@@ -1265,12 +1303,141 @@ export class AdminController {
                     id: userId,
                     name,
                     email,
-                    phone_number: phone
+                    phone_number: phone,
+                    is_super_admin: false,
+                    permissions: resolvedPermissions
                 }
             });
         } catch (error: any) {
             console.error('Create admin error:', error);
             res.status(500).json({ error: 'Failed to create admin' });
+        }
+    }
+
+    static async updateAdminPermissions(req: Request, res: Response) {
+        try {
+            const { id } = req.params;
+            const { permissions } = req.body;
+            const actor = (req as any).user;
+
+            if (!permissions || typeof permissions !== 'object') {
+                return res.status(400).json({ error: 'permissions object is required' });
+            }
+
+            // Prevent modifying a Super Admin's permissions
+            const [target]: any = await db.execute(
+                'SELECT is_super_admin FROM admin_permissions WHERE admin_id = ?',
+                [id]
+            );
+
+            if (target.length === 0) {
+                return res.status(404).json({ error: 'Admin permissions record not found' });
+            }
+
+            const isSuperAdmin = target[0].is_super_admin === 1 || target[0].is_super_admin === true;
+            if (isSuperAdmin) {
+                return res.status(403).json({ error: 'Super Admin permissions cannot be modified' });
+            }
+
+            // Ensure write implies read for all modules
+            const normalized: Record<string, { read: boolean; write: boolean }> = {};
+            for (const [module, perm] of Object.entries(permissions as any)) {
+                const p = perm as { read: boolean; write: boolean };
+                normalized[module] = {
+                    read: p.write ? true : p.read,   // write implies read
+                    write: p.write
+                };
+            }
+
+            await db.execute(
+                'UPDATE admin_permissions SET permissions = ? WHERE admin_id = ?',
+                [JSON.stringify(normalized), id]
+            );
+
+            // Get admin name for log
+            const [adminProfile]: any = await db.execute(
+                'SELECT name FROM profiles WHERE id = ?',
+                [id]
+            );
+
+            await ActivityLogService.log({
+                adminId: actor.id,
+                adminName: actor.name,
+                adminEmail: actor.email,
+                actionType: 'ADMIN_PERMISSIONS_UPDATED',
+                targetType: 'ADMIN',
+                targetId: id,
+                targetName: adminProfile[0]?.name || 'Unknown',
+                details: { permissions: normalized },
+                ipAddress: req.ip || req.socket?.remoteAddress
+            });
+
+            res.json({
+                success: true,
+                message: 'Permissions updated successfully',
+                permissions: normalized
+            });
+        } catch (error: any) {
+            console.error('Update admin permissions error:', error);
+            res.status(500).json({ error: 'Failed to update permissions' });
+        }
+    }
+
+    static async deleteAdmin(req: Request, res: Response) {
+        try {
+            const { id } = req.params;
+            const actor = (req as any).user;
+
+            // Cannot delete yourself
+            if (id === actor.id) {
+                return res.status(400).json({ error: 'You cannot delete your own admin account' });
+            }
+
+            // Cannot delete a Super Admin
+            const [target]: any = await db.execute(
+                'SELECT is_super_admin FROM admin_permissions WHERE admin_id = ?',
+                [id]
+            );
+
+            if (target.length > 0) {
+                const isSuperAdmin = target[0].is_super_admin === 1 || target[0].is_super_admin === true;
+                if (isSuperAdmin) {
+                    return res.status(403).json({ error: 'Super Admin account cannot be deleted' });
+                }
+            }
+
+            // Get admin name for log
+            const [adminProfile]: any = await db.execute(
+                'SELECT name, email FROM profiles WHERE id = ?',
+                [id]
+            );
+
+            if (adminProfile.length === 0) {
+                return res.status(404).json({ error: 'Admin not found' });
+            }
+
+            // Delete — CASCADE handles admin_permissions row
+            await db.execute('DELETE FROM profiles WHERE id = ?', [id]);
+
+            await ActivityLogService.log({
+                adminId: actor.id,
+                adminName: actor.name,
+                adminEmail: actor.email,
+                actionType: 'ADMIN_DELETED',
+                targetType: 'ADMIN',
+                targetId: id,
+                targetName: adminProfile[0]?.name || 'Unknown',
+                details: { email: adminProfile[0]?.email },
+                ipAddress: req.ip || req.socket?.remoteAddress
+            });
+
+            res.json({
+                success: true,
+                message: 'Admin account removed successfully'
+            });
+        } catch (error: any) {
+            console.error('Delete admin error:', error);
+            res.status(500).json({ error: 'Failed to delete admin' });
         }
     }
 

@@ -44,7 +44,12 @@ export class POSMRepository extends BaseRepository<POSMRequest> {
      * Get all requests for a specific franchise
      */
     async getFranchiseRequests(franchiseId: string, connection?: PoolConnection): Promise<POSMRequest[]> {
-        return this.findBy('franchise_id', franchiseId, connection);
+        const rows = await this.query<RowDataPacket[]>(
+            `SELECT * FROM posm_requests WHERE franchise_id = ? ORDER BY created_at DESC`,
+            [franchiseId],
+            connection
+        );
+        return rows as POSMRequest[];
     }
 
     /**

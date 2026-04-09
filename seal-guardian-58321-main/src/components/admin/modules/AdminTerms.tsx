@@ -1,9 +1,10 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardDescription } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { Save, FileText, CheckCircle2, Eye, Code } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
+import { Save, Eye, Code, Lock } from "lucide-react";
 import api from "@/lib/api";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
@@ -87,6 +88,9 @@ const DEFAULT_TERMS = `
 
 export const AdminTerms = () => {
     const { toast } = useToast();
+    const { hasPermission } = useAuth();
+    const canWrite = hasPermission('terms', 'write');
+
     const [termsContent, setTermsContent] = useState("");
     const [loading, setLoading] = useState(false);
     const [fetching, setFetching] = useState(true);
@@ -142,10 +146,17 @@ export const AdminTerms = () => {
                     <h2 className="text-2xl font-bold tracking-tight text-slate-900">Terms & Conditions</h2>
                     <p className="text-slate-500">Manage the warranty terms displayed to customers.</p>
                 </div>
-                <Button onClick={handleSave} disabled={loading} className="bg-orange-600 hover:bg-orange-700">
-                    {loading ? <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent mr-2" /> : <Save className="h-4 w-4 mr-2" />}
-                    Save Changes
-                </Button>
+                {canWrite ? (
+                    <Button onClick={handleSave} disabled={loading} className="bg-orange-600 hover:bg-orange-700">
+                        {loading ? <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent mr-2" /> : <Save className="h-4 w-4 mr-2" />}
+                        Save Changes
+                    </Button>
+                ) : (
+                    <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-slate-100 border border-slate-200">
+                        <Lock className="h-3.5 w-3.5 text-slate-400" />
+                        <span className="text-xs font-bold text-slate-500 uppercase tracking-wide">View Only</span>
+                    </div>
+                )}
             </div>
 
             <Tabs defaultValue="edit" className="w-full">
@@ -168,9 +179,11 @@ export const AdminTerms = () => {
                         <CardContent className="p-0">
                             <Textarea
                                 value={termsContent}
-                                onChange={(e) => setTermsContent(e.target.value)}
+                                onChange={(e) => canWrite && setTermsContent(e.target.value)}
+                                readOnly={!canWrite}
                                 className="min-h-[600px] rounded-none border-0 focus-visible:ring-0 resize-y p-6 font-mono text-sm leading-relaxed"
                                 placeholder="Enter terms and conditions HTML..."
+                                style={!canWrite ? { cursor: 'default', opacity: 0.7 } : {}}
                             />
                         </CardContent>
                     </Card>
