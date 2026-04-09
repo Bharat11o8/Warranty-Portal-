@@ -20,7 +20,7 @@ This is a **Stateless API**. No standard login or user token (JWT) is required. 
 
 **Required Header:**
 ```http
-x-api-key: uid_autoform_man_s3cur3_2026_xK9mP7qW
+x-api-key: <YOUR_SECRET_API_KEY>
 ```
 
 > [!NOTE]
@@ -103,7 +103,7 @@ The system returns a high-level summary and detailed info for **every** UID in t
 ```bash
 curl -X POST https://server-bharat-maheshwaris-projects.vercel.app/api/uid/sync \
   -H "Content-Type: application/json" \
-  -H "x-api-key: uid_autoform_man_s3cur3_2026_xK9mP7qW" \
+  -H "x-api-key: <YOUR_SECRET_API_KEY>" \
   -d '{
     "uids": ["23112000000001", "23112000000002"]
   }'
