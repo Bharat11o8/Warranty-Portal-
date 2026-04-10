@@ -10,7 +10,6 @@ dotenv.config();
 const INDIAN_MOBILE_REGEX = /^[6-9]\d{9}$/;
 const EMAIL_REGEX = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
 const PINCODE_REGEX = /^\d{6}$/;
-const GENERIC_LOGIN_MESSAGE = 'If the account is eligible, an OTP will be sent.';
 const getRoleBasedCookieMaxAge = (role) => {
     const roleDefaults = {
         admin: 7 * 24 * 60 * 60 * 1000,
@@ -141,16 +140,10 @@ export class AuthController {
             if (!role) {
                 return res.status(400).json({ error: 'Role is required' });
             }
-            const genericLoginResponse = () => ({
-                success: true,
-                message: GENERIC_LOGIN_MESSAGE,
-                userId: uuidv4(),
-                requiresOTP: true
-            });
             // Get user profile
             const [users] = await executeWithRetry('SELECT * FROM profiles WHERE email = ?', [email]);
             if (users.length === 0) {
-                return res.json(genericLoginResponse());
+                return res.status(401).json({ error: 'User not found. Please register first.' });
             }
             const user = users[0];
             // Get user role
@@ -159,11 +152,18 @@ export class AuthController {
                 return res.status(500).json({ error: 'User role not found' });
             }
             const userRole = roles[0].role;
+            if (userRole !== role) {
+                return res.status(403).json({
+                    error: `This email is registered as a ${userRole}. Please use the ${userRole} login.`
+                });
+            }
             // Check vendor verification and activation status
             if (userRole === 'vendor') {
                 const [verification] = await executeWithRetry('SELECT is_verified, is_active FROM vendor_verification WHERE user_id = ?', [user.id]);
                 if (verification.length === 0 || !verification[0].is_verified) {
-                    return res.json(genericLoginResponse());
+                    return res.status(403).json({
+                        error: 'Vendor account pending verification. Please wait for admin approval.'
+                    });
                 }
                 // Note: We allow login for deactivated vendors but return isActive=false
                 // Frontend will handle showing deactivation message
@@ -176,7 +176,7 @@ export class AuthController {
             await EmailService.sendOTP(user.email, user.name, otp);
             res.json({
                 success: true,
-                message: GENERIC_LOGIN_MESSAGE,
+                message: 'OTP sent to your email',
                 userId: user.id,
                 requiresOTP: true
             });

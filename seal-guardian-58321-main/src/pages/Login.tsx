@@ -111,7 +111,7 @@ const Login = () => {
         setUserId(result.userId);
         setStep('otp');
         setCountdown(30);
-        toast({ title: "Check Your Email", description: "If your account is eligible, a verification code has been sent." });
+        toast({ title: "OTP Sent", description: "Please check your email for the verification code." });
       }
     } catch (error: any) {
       const errorMessage = getApiErrorMessage(error, "Login failed");
@@ -311,7 +311,7 @@ const Login = () => {
                 Verification Code
               </label>
               <p className="text-sm text-white/60 mt-1 mb-4">
-                If your account is eligible, a code was sent to <span className="text-white font-medium">{email}</span>
+                sent to <span className="text-white font-medium">{email}</span>
               </p>
               <div className="[&_input]:bg-white/10 [&_input]:border-white/20 [&_input]:text-white">
                 <OTPInput value={otp} onChange={setOtp} />
