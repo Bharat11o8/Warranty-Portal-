@@ -22,7 +22,7 @@ interface AuthContextType {
   user: User | null;
   loading: boolean;
   register: (data: RegisterData) => Promise<{ userId: string; requiresOTP: boolean }>;
-  verifyOTP: (userId: string, otp: string) => Promise<{ token?: string; user?: User }>;
+  verifyOTP: (userId: string, otp: string) => Promise<{ user?: User }>;
   login: (email: string, role: UserRole) => Promise<{ userId: string; requiresOTP: boolean }>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
@@ -52,12 +52,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const token = localStorage.getItem("auth_token");
-    if (token) {
-      fetchCurrentUser();
-    } else {
-      setLoading(false);
-    }
+    fetchCurrentUser();
   }, []);
 
   const fetchCurrentUser = async () => {
@@ -65,7 +60,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const response = await api.get("/auth/me");
       setUser(response.data.user);
     } catch (error) {
-      localStorage.removeItem("auth_token");
       setUser(null);
     } finally {
       setLoading(false);
@@ -83,14 +77,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   };
 
-  const verifyOTP = async (userId: string, otp: string): Promise<{ token?: string; user?: User }> => {
+  const verifyOTP = async (userId: string, otp: string): Promise<{ user?: User }> => {
     const response = await api.post("/auth/verify-otp", { userId, otp });
     if (!response.data.success) {
       throw new Error(getErrorMessage(response.data.error, "OTP verification failed"));
-    }
-
-    if (response.data.token) {
-      localStorage.setItem("auth_token", response.data.token);
     }
 
     if (response.data.user) {
@@ -98,7 +88,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     return {
-      token: response.data.token,
       user: response.data.user
     };
   };
@@ -120,7 +109,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch (error) {
       console.error("Logout error:", error);
     }
-    localStorage.removeItem("auth_token");
     setUser(null);
   };
 

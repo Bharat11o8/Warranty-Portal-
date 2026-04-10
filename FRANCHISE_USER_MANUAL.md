@@ -1,12 +1,12 @@
-# 🏪 Seal Guardian: The Complete Franchise User Manual
+# 🏪 Autoform India: The Complete Franchise User Manual
 *Version 2.0 - Exhaustive Operational Guide (with Master Flowchart)*
 
-Welcome to the definitive guide for **Seal Guardian Authorized Franchises**. This manual is designed to empower your dealership with the tools to manage installations, marketing, and customer satisfaction with 100% efficiency.
+Welcome to the definitive guide for **Autoform Authorized Franchises**. This manual is designed to empower your dealership with the tools to manage installations, marketing, and customer satisfaction with 100% efficiency.
 
 ---
 
 ## 🗺️ The Master Franchise Operations Flowchart
-*The big picture: How you run your store within the Seal Guardian ecosystem.*
+*The big picture: How you run your store within the Autoform ecosystem.*
 
 ```mermaid
 graph TD
@@ -123,7 +123,7 @@ If a customer is unable to register, you can do it for them.
 
 <a name="module-4"></a>
 ## 📦 Module 4: POSM & Marketing Requirements
-Keep your store looking premium with official Seal Guardian materials.
+Keep your store looking premium with official Autoform materials.
 
 ### 4.1 Requesting Material
 1.  Navigate to **POSM Requirements**.
@@ -160,7 +160,7 @@ Showcase the full range to your customers directly from your tablet or screen.
 Stay updated with official communication.
 *   **System Alerts**: Notifications about portal maintenance or new features.
 *   **Product Launches**: Be the first to know about new material releases.
-*   **Announcements**: Direct messages from the Seal Guardian Head Office.
+*   **Announcements**: Direct messages from the Autoform Head Office.
 
 ---
 
@@ -199,8 +199,8 @@ Submit issues regarding product quality, delivery delays, or portal technicaliti
 ---
 
 **Franchise Support Channel**
-📧 dealer-support@sealguardian.com
+📧 support@autoformindia.com
 🏢 Noida Head Office, India
 
 *Scaling Your Business with Quality & Trust.*
-*© 2026 Seal Guardian India.*
+*© 2026 Autoform India.*

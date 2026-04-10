@@ -1,7 +1,7 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import multer from 'multer';
 import GrievanceController from '../controllers/grievance.controller.js';
-import { authenticateToken, requirePermission } from '../middleware/auth.js';
+import { authenticateToken, requirePermission, requireRole } from '../middleware/auth.js';
 import { CloudinaryStorage } from 'multer-storage-cloudinary';
 import cloudinary from '../config/cloudinary.js';
 
@@ -40,28 +40,28 @@ const handleUpload = (req: Request, res: Response, next: NextFunction) => {
 };
 
 // Customer routes
-router.post('/', authenticateToken, handleUpload, GrievanceController.submitGrievance);
-router.get('/', authenticateToken, GrievanceController.getMyGrievances);
-router.put('/:id/rating', authenticateToken, GrievanceController.addRating);
+router.post('/', authenticateToken, requireRole('customer'), handleUpload, GrievanceController.submitGrievance);
+router.get('/', authenticateToken, requireRole('customer'), GrievanceController.getMyGrievances);
+router.put('/:id/rating', authenticateToken, requireRole('customer'), GrievanceController.addRating);
 
 // Vendor routes
-router.get('/vendor', authenticateToken, GrievanceController.getVendorGrievances);
+router.get('/vendor', authenticateToken, requireRole('vendor'), GrievanceController.getVendorGrievances);
 
 // Franchise grievance routes (for vendors to submit their own grievances)
-router.post('/franchise', authenticateToken, handleUpload, GrievanceController.submitFranchiseGrievance);
-router.get('/franchise/submitted', authenticateToken, GrievanceController.getFranchiseSubmittedGrievances);
+router.post('/franchise', authenticateToken, requireRole('vendor'), handleUpload, GrievanceController.submitFranchiseGrievance);
+router.get('/franchise/submitted', authenticateToken, requireRole('vendor'), GrievanceController.getFranchiseSubmittedGrievances);
 
 // Admin routes
-router.get('/admin', authenticateToken, requirePermission('grievances', 'read'), GrievanceController.getAllGrievances);
+router.get('/admin', authenticateToken, requireRole('admin'), requirePermission('grievances', 'read'), GrievanceController.getAllGrievances);
 
 // Shared routes (Vendor/Admin)
 router.get('/:id', authenticateToken, GrievanceController.getGrievanceById);
-router.put('/:id/status', authenticateToken, requirePermission('grievances', 'write'), GrievanceController.updateStatus);
-router.put('/:id/assign', authenticateToken, requirePermission('grievances', 'write'), GrievanceController.assignGrievance);
-router.put('/:id/admin-update', authenticateToken, requirePermission('grievances', 'write'), GrievanceController.adminUpdateGrievance);
-router.put('/:id/remarks', authenticateToken, requirePermission('grievances', 'write'), GrievanceController.addRemarks);
-router.post('/:id/send-assignment-email', authenticateToken, requirePermission('grievances', 'write'), GrievanceController.sendAssignmentEmail);
+router.put('/:id/status', authenticateToken, requireRole(['vendor', 'admin']), requirePermission('grievances', 'write'), GrievanceController.updateStatus);
+router.put('/:id/assign', authenticateToken, requireRole('admin'), requirePermission('grievances', 'write'), GrievanceController.assignGrievance);
+router.put('/:id/admin-update', authenticateToken, requireRole('admin'), requirePermission('grievances', 'write'), GrievanceController.adminUpdateGrievance);
+router.put('/:id/remarks', authenticateToken, requireRole(['vendor', 'admin']), requirePermission('grievances', 'write'), GrievanceController.addRemarks);
+router.post('/:id/send-assignment-email', authenticateToken, requireRole('admin'), requirePermission('grievances', 'write'), GrievanceController.sendAssignmentEmail);
 router.get('/:id/remarks', authenticateToken, GrievanceController.getRemarks);
-router.get('/:id/assignments', authenticateToken, GrievanceController.getAssignmentHistory);
+router.get('/:id/assignments', authenticateToken, requireRole('admin'), requirePermission('grievances', 'read'), GrievanceController.getAssignmentHistory);
 
 export default router;

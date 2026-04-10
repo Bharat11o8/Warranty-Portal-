@@ -55,12 +55,93 @@ class GrievanceController {
     }
 
     /**
+     * Resolve the vendor_details.id for the authenticated vendor user.
+     * Grievance ownership for franchise-facing tickets is scoped by this ID.
+     */
+    private async getVendorFranchiseId(userId: string): Promise<string | null> {
+        const [vendorRows]: any = await db.execute(
+            'SELECT id FROM vendor_details WHERE user_id = ? LIMIT 1',
+            [userId]
+        );
+
+        return vendorRows.length > 0 ? vendorRows[0].id : null;
+    }
+
+    /**
+     * Enforce object-level authorization for grievance reads/writes.
+     * - Admins can access all grievances
+     * - Customers can access only their own grievances
+     * - Vendors can access grievances assigned to their franchise, plus grievances
+     *   they personally submitted through the franchise grievance flow
+     */
+    private async authorizeGrievanceAccess(req: AuthRequest, grievanceId: string): Promise<{
+        authorized: boolean;
+        grievance?: any;
+        reason?: 'not_found' | 'forbidden';
+    }> {
+        const user = req.user;
+        if (!user?.id || !user.role) {
+            return { authorized: false, reason: 'forbidden' };
+        }
+
+        const [rows]: any = await db.execute(
+            `SELECT id, ticket_id, customer_id, franchise_id, source_type
+             FROM grievances
+             WHERE id = ?`,
+            [grievanceId]
+        );
+
+        if (!rows || rows.length === 0) {
+            return { authorized: false, reason: 'not_found' };
+        }
+
+        const grievance = rows[0];
+
+        if (user.role === 'admin') {
+            return { authorized: true, grievance };
+        }
+
+        if (user.role === 'customer') {
+            return grievance.customer_id === user.id
+                ? { authorized: true, grievance }
+                : { authorized: false, reason: 'forbidden' };
+        }
+
+        if (user.role === 'vendor') {
+            const franchiseId = await this.getVendorFranchiseId(user.id);
+
+            if (!franchiseId) {
+                return { authorized: false, reason: 'forbidden' };
+            }
+
+            const isAssignedToVendorFranchise = grievance.franchise_id === franchiseId;
+            const isOwnFranchiseSubmission =
+                grievance.source_type === 'franchise' && grievance.customer_id === user.id;
+
+            if (isAssignedToVendorFranchise || isOwnFranchiseSubmission) {
+                return { authorized: true, grievance };
+            }
+        }
+
+        return { authorized: false, reason: 'forbidden' };
+    }
+
+    /**
      * Get remarks history for a grievance
      * GET /api/grievance/:id/remarks
      */
     getRemarks = async (req: AuthRequest, res: Response) => {
         try {
             const { id } = req.params;
+            const access = await this.authorizeGrievanceAccess(req, id);
+
+            if (!access.authorized) {
+                return res.status(access.reason === 'not_found' ? 404 : 403).json({
+                    success: false,
+                    error: access.reason === 'not_found' ? 'Grievance not found' : 'Access denied'
+                });
+            }
+
             const [remarks] = await db.execute(
                 'SELECT * FROM grievance_remarks WHERE grievance_id = ? ORDER BY created_at ASC',
                 [id]
@@ -648,8 +729,15 @@ class GrievanceController {
     getGrievanceById = async (req: AuthRequest, res: Response) => {
         try {
             const { id } = req.params;
-            const userId = req.user?.id;
             const userRole = req.user?.role;
+            const access = await this.authorizeGrievanceAccess(req, id);
+
+            if (!access.authorized) {
+                return res.status(access.reason === 'not_found' ? 404 : 403).json({
+                    success: false,
+                    error: access.reason === 'not_found' ? 'Grievance not found' : 'Access denied'
+                });
+            }
 
             const [rows]: any = await db.execute(
                 `SELECT g.*, 
@@ -666,16 +754,7 @@ class GrievanceController {
                 [id]
             );
 
-            if (!rows || rows.length === 0) {
-                return res.status(404).json({ success: false, error: 'Grievance not found' });
-            }
-
             const grievance = rows[0];
-
-            // Check access permissions
-            if (userRole === 'customer' && grievance.customer_id !== userId) {
-                return res.status(403).json({ success: false, error: 'Access denied' });
-            }
 
             // Sanitization: Remove admin_notes if not admin
             if (userRole !== 'admin') {
@@ -755,6 +834,14 @@ class GrievanceController {
                 return res.status(403).json({ success: false, error: 'Access denied' });
             }
 
+            const access = await this.authorizeGrievanceAccess(req, id);
+            if (!access.authorized) {
+                return res.status(access.reason === 'not_found' ? 404 : 403).json({
+                    success: false,
+                    error: access.reason === 'not_found' ? 'Grievance not found' : 'Access denied'
+                });
+            }
+
             const validStatuses = ['submitted', 'under_review', 'in_progress', 'resolved', 'rejected'];
             if (status && !validStatuses.includes(status)) {
                 return res.status(400).json({ success: false, error: 'Invalid status' });
@@ -790,30 +877,23 @@ class GrievanceController {
             );
 
             // Notify User (Franchise/Customer) about status update
-            let ticketId = id;
+            let ticketId = access.grievance.ticket_id || id;
             try {
-                // Get the grievance owner to notify
-                const [rows]: any = await db.execute('SELECT customer_id, ticket_id FROM grievances WHERE id = ?', [id]);
-
-                if (rows.length > 0) {
-                    const g = rows[0];
-                    ticketId = g.ticket_id;
-                    await NotificationService.notify(g.customer_id, {
-                        title: `Grievance Updated: ${g.ticket_id}`,
-                        message: `Status changed to ${status}. Details available in portal.`,
-                        type: 'warranty',
-                        link: `/grievance/view/${id}`
-                    });
-                    // Notify admins about the status change
-                    await NotificationService.broadcast({
-                        title: `Grievance ${g.ticket_id} Status Updated`,
-                        message: `Grievance ${g.ticket_id} status changed to ${status}.`,
-                        type: 'warranty',
-                        link: `/admin/grievances/${g.ticket_id}?id=${id}`, // Assuming admin url structure
-                        targetUsers: [],
-                        targetRole: 'admin'
-                    });
-                }
+                const grievance = access.grievance;
+                await NotificationService.notify(grievance.customer_id, {
+                    title: `Grievance Updated: ${grievance.ticket_id}`,
+                    message: `Status changed to ${status}. Details available in portal.`,
+                    type: 'warranty',
+                    link: `/grievance/view/${id}`
+                });
+                await NotificationService.broadcast({
+                    title: `Grievance ${grievance.ticket_id} Status Updated`,
+                    message: `Grievance ${grievance.ticket_id} status changed to ${status}.`,
+                    type: 'warranty',
+                    link: `/admin/grievances/${grievance.ticket_id}?id=${id}`,
+                    targetUsers: [],
+                    targetRole: 'admin'
+                });
             } catch (e) {
                 console.error("Failed to notify user of grievance update", e);
             }
@@ -862,6 +942,14 @@ class GrievanceController {
                 return res.status(400).json({ success: false, error: 'Remarks are required' });
             }
 
+            const access = await this.authorizeGrievanceAccess(req, id);
+            if (!access.authorized) {
+                return res.status(access.reason === 'not_found' ? 404 : 403).json({
+                    success: false,
+                    error: access.reason === 'not_found' ? 'Grievance not found' : 'Access denied'
+                });
+            }
+
             let field: string;
             if (userRole === 'admin') {
                 field = 'admin_remarks';
@@ -902,18 +990,15 @@ class GrievanceController {
             }
 
             // Notify Customer about new remarks
-            let ticketId = id;
+            let ticketId = access.grievance.ticket_id || id;
             try {
-                const [rows]: any = await db.execute('SELECT customer_id, ticket_id FROM grievances WHERE id = ?', [id]);
-                if (rows.length > 0) {
-                    ticketId = rows[0].ticket_id;
-                    await NotificationService.notify(rows[0].customer_id, {
-                        title: `Update on Grievance: ${rows[0].ticket_id}`,
-                        message: `${userRole === 'admin' ? 'Admin' : 'Franchise'} has added remarks to your ticket.`,
-                        type: 'warranty',
-                        link: `/grievance/view/${id}`
-                    });
-                }
+                const grievance = access.grievance;
+                await NotificationService.notify(grievance.customer_id, {
+                    title: `Update on Grievance: ${grievance.ticket_id}`,
+                    message: `${userRole === 'admin' ? 'Admin' : 'Franchise'} has added remarks to your ticket.`,
+                    type: 'warranty',
+                    link: `/grievance/view/${id}`
+                });
             } catch (notifError) {
                 console.error('Failed to notify customer of remarks:', notifError);
             }

@@ -7,6 +7,34 @@ import { NotificationService } from '../services/notification.service.js';
 import { ActivityLogService } from '../services/activity-log.service.js';
 
 class POSMController {
+    private async authorizeRequestAccess(req: AuthRequest, requestIdParam: string) {
+        const requestId = Number.parseInt(requestIdParam, 10);
+        if (!Number.isInteger(requestId) || requestId <= 0) {
+            return { error: { status: 400, body: { success: false, error: 'Invalid ticket id' } } };
+        }
+
+        const request = await posmRepository.findById(requestIdParam);
+        if (!request) {
+            return { error: { status: 404, body: { success: false, error: 'Ticket not found' } } };
+        }
+
+        if (req.user?.role === 'admin') {
+            return { requestId, request };
+        }
+
+        const userId = req.user?.id;
+        if (!userId) {
+            return { error: { status: 401, body: { success: false, error: 'Unauthorized' } } };
+        }
+
+        const vendor = await vendorRepository.findByUserId(userId);
+        if (!vendor || vendor.id !== request.franchise_id) {
+            return { error: { status: 403, body: { success: false, error: 'Access denied.' } } };
+        }
+
+        return { requestId, request };
+    }
+
     /**
      * Generate unique sequential ticket ID (PO-0000001)
      */
@@ -126,28 +154,17 @@ class POSMController {
      */
     getTicketDetails = async (req: AuthRequest, res: Response) => {
         try {
-            const { id } = req.params;
-            const requestId = parseInt(id);
-
-            const request = await posmRepository.findById(id);
-            if (!request) {
-                return res.status(404).json({ success: false, error: 'Ticket not found' });
+            const access = await this.authorizeRequestAccess(req, req.params.id);
+            if (access.error) {
+                return res.status(access.error.status).json(access.error.body);
             }
 
-            // Security check: Only allow the franchise who created it or an admin
-            if (req.user?.role !== 'admin') {
-                const vendor = await vendorRepository.findByUserId(req.user?.id!);
-                if (!vendor || vendor.id !== request.franchise_id) {
-                    return res.status(403).json({ success: false, error: 'Access denied.' });
-                }
-            }
-
-            const messages = await posmRepository.getMessages(requestId);
+            const messages = await posmRepository.getMessages(access.requestId);
 
             return res.json({
                 success: true,
                 data: {
-                    ...request,
+                    ...access.request,
                     messages
                 }
             });
@@ -165,13 +182,15 @@ class POSMController {
     sendMessage = async (req: AuthRequest, res: Response) => {
         try {
             const userId = req.user?.id;
-            const { id } = req.params;
-            const requestId = parseInt(id);
+            if (!userId) {
+                return res.status(401).json({ success: false, error: 'Unauthorized' });
+            }
+
             const { message } = req.body;
 
-            const request = await posmRepository.findById(id);
-            if (!request) {
-                return res.status(404).json({ success: false, error: 'Ticket not found' });
+            const access = await this.authorizeRequestAccess(req, req.params.id);
+            if (access.error) {
+                return res.status(access.error.status).json(access.error.body);
             }
 
             // Uploaded files
@@ -183,8 +202,8 @@ class POSMController {
             }
 
             await posmRepository.createMessage({
-                request_id: requestId,
-                sender_id: userId!,
+                request_id: access.requestId,
+                sender_id: userId,
                 sender_role: req.user?.role === 'admin' ? 'admin' : 'franchise',
                 message: message || null,
                 attachments: attachmentUrls.length > 0 ? attachmentUrls : null

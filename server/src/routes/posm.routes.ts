@@ -1,7 +1,7 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import multer from 'multer';
 import POSMController from '../controllers/posm.controller.js';
-import { authenticateToken, requirePermission } from '../middleware/auth.js';
+import { authenticateToken, requirePermission, requireRole } from '../middleware/auth.js';
 import { CloudinaryStorage } from 'multer-storage-cloudinary';
 import cloudinary from '../config/cloudinary.js';
 
@@ -39,14 +39,13 @@ const handleUpload = (req: Request, res: Response, next: NextFunction) => {
 };
 
 // Admin Routes
-router.get('/admin/all', authenticateToken, requirePermission('posm', 'read'), POSMController.getAllRequests);
-router.put('/:id/status', authenticateToken, requirePermission('posm', 'write'), POSMController.updateRequest);
+router.get('/admin/all', authenticateToken, requireRole('admin'), requirePermission('posm', 'read'), POSMController.getAllRequests);
+router.put('/:id/status', authenticateToken, requireRole('admin'), requirePermission('posm', 'write'), POSMController.updateRequest);
 
 // Shared/General Routes
-router.post('/', authenticateToken, handleUpload, POSMController.submitRequest);
-router.get('/', authenticateToken, POSMController.getFranchiseRequests);
+router.post('/', authenticateToken, requireRole('vendor'), handleUpload, POSMController.submitRequest);
+router.get('/', authenticateToken, requireRole('vendor'), POSMController.getFranchiseRequests);
 router.get('/:id', authenticateToken, POSMController.getTicketDetails);
-// sendMessage: vendors pass through freely; admins need posm:write
-router.post('/:id/messages', authenticateToken, requirePermission('posm', 'write'), handleUpload, POSMController.sendMessage);
+router.post('/:id/messages', authenticateToken, requireRole(['vendor', 'admin']), requirePermission('posm', 'write'), handleUpload, POSMController.sendMessage);
 
 export default router;

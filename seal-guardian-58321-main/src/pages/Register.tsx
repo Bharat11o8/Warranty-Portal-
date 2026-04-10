@@ -280,7 +280,7 @@ const Register = () => {
       const result = await verifyOTP(userId, otp);
 
       if (role === "customer") {
-        if (result.token) {
+        if (result.user) {
           toast({
             title: "Registration Successful",
             description: "Registration complete! Welcome aboard!"

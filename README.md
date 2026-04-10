@@ -8,7 +8,7 @@ A full-stack, production-grade franchise management system serving **400+ franch
 
 ## Overview
 
-This is not a demo — it is a live operational platform that manages the complete lifecycle of a product franchise network. It handles everything from warranty registration and grievance resolution to product catalogs, marketing assets, and announcements, all under a single unified system with role-based access.
+This is a live operational platform that manages the complete lifecycle of a product franchise network. It handles everything from warranty registration and grievance resolution to product catalogs, marketing assets, and announcements, all under a single unified system with role-based access.
 
 ---
 
@@ -82,6 +82,5 @@ This system protects against fake warranty claims at scale across a distributed 
 
 - [`CUSTOMER_USER_MANUAL.md`](./CUSTOMER_USER_MANUAL.md) — End-user guide for customers
 - [`FRANCHISE_USER_MANUAL.md`](./FRANCHISE_USER_MANUAL.md) — Guide for franchise partners
-- [`FRAUD_PREVENTION_ANALYSIS.md`](./FRAUD_PREVENTION_ANALYSIS.md) — Deep dive into fraud detection logic
 - [`UID_SYNC_API_DOCS.md`](./UID_SYNC_API_DOCS.md) — API documentation for UID sync
 - [`UID_SYNC_GUIDE_FOR_TEAMS.md`](./UID_SYNC_GUIDE_FOR_TEAMS.md) — Integration guide for teams

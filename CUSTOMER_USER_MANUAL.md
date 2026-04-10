@@ -1,7 +1,7 @@
-# 🛡️ Seal Guardian: The Complete Customer Manual
+# 🛡️ Autoform India: The Complete Customer Manual
 *Version 2.2 - Final Comprehensive Guide (with Master Flowchart)*
 
-Welcome to the ultimate guide for the **Seal Guardian Warranty Portal**. This manual captures every detail of the car owner's journey, from scanning a dealer's QR code to holding your final protection certificate.
+Welcome to the ultimate guide for the **Autoform Warranty Portal**. This manual captures every detail of the car owner's journey, from scanning a dealer's QR code to holding your final protection certificate.
 
 ---
 
@@ -75,13 +75,13 @@ graph TD
 ## 📱 Module 1: Entry Points (QR vs. Web)
 
 ### 1.1 The "Quick Scan" Experience
-If you are at a dealership, look for the Seal Guardian QR Code.
+If you are at a dealership, look for the Autoform QR Code.
 1.  **Scan**: Use your camera.
 2.  **Dealer Linked**: The portal auto-identifies the store (e.g., "Verified Franchise: Delhi Auto Mobiles").
 3.  **Jumpstart**: You skip searching for the dealer and go straight to product selection.
 
 ### 1.2 Direct Web Access
-If you are at home, visit [portal.sealguardian.com](https://portal.sealguardian.com). You will need to manually select your dealer from a list later.
+If you are at home, visit [warranty.emporiobyautoformindia.in](https://warranty.emporiobyautoformindia.in). You will need to manually select your dealer from a list later.
 
 ---
 
@@ -169,10 +169,3 @@ If there is a defect or service delay:
 | **Do** check UID sticker vs screen entry. | **Don't** upload HEIC if you have slow net. |
 | **Do** capture the whole car in profiles. | **Don't** share account access. |
 
----
-
-**Technical Support**
-📧 support@sealguardian.com
-🌐 www.sealguardian.com
-
-*© 2026 Seal Guardian. Excellence in Protection.*

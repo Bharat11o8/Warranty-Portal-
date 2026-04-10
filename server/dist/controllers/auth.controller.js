@@ -10,7 +10,27 @@ dotenv.config();
 const INDIAN_MOBILE_REGEX = /^[6-9]\d{9}$/;
 const EMAIL_REGEX = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
 const PINCODE_REGEX = /^\d{6}$/;
-const getAuthCookieOptions = () => {
+const GENERIC_LOGIN_MESSAGE = 'If the account is eligible, an OTP will be sent.';
+const getRoleBasedCookieMaxAge = (role) => {
+    const roleDefaults = {
+        admin: 7 * 24 * 60 * 60 * 1000,
+        customer: 7 * 24 * 60 * 60 * 1000,
+        vendor: 30 * 24 * 60 * 60 * 1000
+    };
+    const envOverride = role === 'admin'
+        ? process.env.AUTH_COOKIE_MAX_AGE_ADMIN_MS
+        : role === 'vendor'
+            ? process.env.AUTH_COOKIE_MAX_AGE_VENDOR_MS
+            : role === 'customer'
+                ? process.env.AUTH_COOKIE_MAX_AGE_CUSTOMER_MS
+                : process.env.AUTH_COOKIE_MAX_AGE_MS;
+    const parsed = Number(envOverride);
+    if (Number.isFinite(parsed) && parsed > 0) {
+        return parsed;
+    }
+    return roleDefaults[role || 'customer'] || roleDefaults.customer;
+};
+const getAuthCookieOptions = (role) => {
     const isProduction = process.env.NODE_ENV === 'production';
     const secure = process.env.SESSION_COOKIE_SECURE
         ? process.env.SESSION_COOKIE_SECURE === 'true'
@@ -21,7 +41,7 @@ const getAuthCookieOptions = () => {
     if (!secure && sameSite === 'none') {
         sameSite = 'lax';
     }
-    const maxAgeMs = Number(process.env.AUTH_COOKIE_MAX_AGE_MS || 24 * 60 * 60 * 1000);
+    const maxAgeMs = getRoleBasedCookieMaxAge(role);
     return {
         httpOnly: true,
         secure,
@@ -121,10 +141,16 @@ export class AuthController {
             if (!role) {
                 return res.status(400).json({ error: 'Role is required' });
             }
+            const genericLoginResponse = () => ({
+                success: true,
+                message: GENERIC_LOGIN_MESSAGE,
+                userId: uuidv4(),
+                requiresOTP: true
+            });
             // Get user profile
             const [users] = await executeWithRetry('SELECT * FROM profiles WHERE email = ?', [email]);
             if (users.length === 0) {
-                return res.status(401).json({ error: 'User not found. Please register first.' });
+                return res.json(genericLoginResponse());
             }
             const user = users[0];
             // Get user role
@@ -133,19 +159,11 @@ export class AuthController {
                 return res.status(500).json({ error: 'User role not found' });
             }
             const userRole = roles[0].role;
-            // Validate that the user's registered role matches the login role
-            if (userRole !== role) {
-                return res.status(403).json({
-                    error: `This email is registered as a ${userRole}. Please use the ${userRole} login.`
-                });
-            }
             // Check vendor verification and activation status
             if (userRole === 'vendor') {
                 const [verification] = await executeWithRetry('SELECT is_verified, is_active FROM vendor_verification WHERE user_id = ?', [user.id]);
                 if (verification.length === 0 || !verification[0].is_verified) {
-                    return res.status(403).json({
-                        error: 'Vendor account pending verification. Please wait for admin approval.'
-                    });
+                    return res.json(genericLoginResponse());
                 }
                 // Note: We allow login for deactivated vendors but return isActive=false
                 // Frontend will handle showing deactivation message
@@ -158,7 +176,7 @@ export class AuthController {
             await EmailService.sendOTP(user.email, user.name, otp);
             res.json({
                 success: true,
-                message: 'OTP sent to your email',
+                message: GENERIC_LOGIN_MESSAGE,
                 userId: user.id,
                 requiresOTP: true
             });
@@ -235,7 +253,6 @@ export class AuthController {
                         return res.json({
                             success: true,
                             message: 'Registration complete! Your vendor account is pending admin approval.',
-                            token: null,
                             user: null
                         });
                     }
@@ -250,11 +267,10 @@ export class AuthController {
                         name: pending.name,
                         role: pending.role
                     }, process.env.JWT_SECRET, { expiresIn: process.env.JWT_EXPIRES_IN || '24h' });
-                    res.cookie('auth_token', token, getAuthCookieOptions());
+                    res.cookie('auth_token', token, getAuthCookieOptions(pending.role));
                     return res.json({
                         success: true,
                         message: 'Registration successful!',
-                        token,
                         user: {
                             id: newUserId,
                             email: pending.email,
@@ -298,7 +314,6 @@ export class AuthController {
                     return res.json({
                         success: true,
                         message: 'OTP verified. Waiting for vendor approval.',
-                        token: null,
                         user: null
                     });
                 }
@@ -323,10 +338,9 @@ export class AuthController {
                 role: userRole,
                 ...(userRole === 'admin' && { isSuperAdmin, permissions })
             }, process.env.JWT_SECRET, { expiresIn: process.env.JWT_EXPIRES_IN || '24h' });
-            res.cookie('auth_token', token, getAuthCookieOptions());
+            res.cookie('auth_token', token, getAuthCookieOptions(userRole));
             res.json({
                 success: true,
-                token,
                 user: {
                     id: user.id,
                     email: user.email,
