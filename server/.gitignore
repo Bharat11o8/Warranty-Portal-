@@ -17,4 +17,4 @@ coverage
 # Backups
 *.backup
 *.bak
-
+.vscode
