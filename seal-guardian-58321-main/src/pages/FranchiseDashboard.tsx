@@ -726,7 +726,7 @@ const FranchiseDashboard = () => {
 
     const getModuleTitle = () => {
         const titles: Record<string, string> = {
-            home: "Channel Partner Home",
+            home: "Home",
             warranty: "Warranty Management",
             manpower: "Manpower Control",
             catalogue: "Product Catalogue",

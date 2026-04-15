@@ -166,7 +166,7 @@ const ConnectStorePage = () => {
                         className="rounded-xl h-12 data-[state=active]:bg-white data-[state=active]:shadow-md flex items-center gap-2 font-bold"
                     >
                         <img src="/ppf-icon.png" alt="" className="h-5 w-5 object-contain" />
-                        <span>Paint Protection Film (PPF)</span>
+                        <span>PPF</span>
                     </TabsTrigger>
                 </TabsList>
 

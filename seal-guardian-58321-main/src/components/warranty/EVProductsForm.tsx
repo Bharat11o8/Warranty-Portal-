@@ -463,7 +463,7 @@ const EVProductsForm = ({ initialData, warrantyId, onSuccess, isUniversal, isEdi
         });
       } else {
         const response = await submitWarranty(warrantyData);
-        result = response.data;
+        result = response;
         toast({
           title: "Warranty Registered",
           description: `Success! Serial No: ${formData.serialNumber}, Vehicle Reg: ${formData.carReg}`,

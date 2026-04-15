@@ -545,7 +545,7 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
       let result;
       if (warrantyId) {
         const response = await updateWarranty(warrantyId, warrantyData);
-        result = response.data;
+        result = response;
         toast({
           title: "Success",
           description: result.message || "Warranty registration updated successfully.",
@@ -594,7 +594,7 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
         });
       } else {
         const response = await submitWarranty(warrantyData);
-        result = response.data;
+        result = response;
         toast({
           title: "Warranty Registered",
           description: `Warranty registered successfully. UID: ${result.uid || formData.uid}`,
@@ -1250,7 +1250,7 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
                 onChange={(file) => handleCameraCapture(file, 'vehicleFile')}
                 accept="image/jpeg,image/png,image/heic,image/heif"
                 selectedIcon={<Car className="h-6 w-6" />}
-                sampleImageUrl="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1775217077/Car_Number_Plate_Image_s8xmem.jpg"
+                sampleImageUrl="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776227240/Car-Number-Plate-Image_cmbu0u.png"
               />
 
               {/* Fitted Seat Cover Photo — Camera Only */}
@@ -1280,7 +1280,7 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
                 onChange={(file) => handleCameraCapture(file, 'carOuterPhoto')}
                 accept="image/jpeg,image/png,image/heic,image/heif"
                 selectedIcon={<ImageIcon className="h-6 w-6" />}
-                sampleImageUrl="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1775217076/Car_Exterior_Image_k3snoa.jpg"
+                sampleImageUrl="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776228125/Car_Exterior_Image_New_vvjoqa.jpg"
               />
             </div>
             <div className="space-y-3 mt-5 md:col-span-2">

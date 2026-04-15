@@ -282,7 +282,7 @@ export class WarrantyController {
           warrantyData.installerName || null,
           warrantyData.installerContact || null,
           JSON.stringify(warrantyData.productDetails),
-          warrantyData.manpowerId || null,
+          (warrantyData.manpowerId && warrantyData.manpowerId !== 'owner') ? warrantyData.manpowerId : null,
           warrantyData.warrantyType,
           initialStatus,
           exifData.lat,
@@ -458,14 +458,16 @@ export class WarrantyController {
         params.push(req.user.id);
       }
       else if (req.user.role === 'vendor') {
-        // First, get vendor's vendor_details_id
+        // First, get vendor's vendor_details_id and store_name
         const [vendorDetails]: any = await db.execute(
-          'SELECT id FROM vendor_details WHERE user_id = ?',
+          'SELECT id, store_name FROM vendor_details WHERE user_id = ?',
           [req.user.id]
         );
 
         if (vendorDetails.length > 0) {
           const vendorDetailsId = vendorDetails[0].id;
+          const vendorStoreName = vendorDetails[0].store_name;
+
           // Get all manpower IDs for this vendor
           const [manpower]: any = await db.execute(
             'SELECT id FROM manpower WHERE vendor_id = ?',
@@ -475,13 +477,16 @@ export class WarrantyController {
           if (manpower.length > 0) {
             const manpowerIds = manpower.map((m: any) => m.id);
             const inClause = manpowerIds.map(() => '?').join(',');
-            // Show warranties where manpower_id matches OR user_id matches (vendor submitted)
-            conditions.push(`(w.manpower_id IN (${inClause}) OR w.user_id = ?)`);
-            params.push(...manpowerIds, req.user.id);
+            // Show warranties where:
+            // 1. manpower_id matches one of this vendor's manpower, OR
+            // 2. user_id matches (vendor submitted directly), OR
+            // 3. installer_name matches store_name (catches QR/public submissions where user_id = customer's)
+            conditions.push(`(w.manpower_id IN (${inClause}) OR w.user_id = ? OR w.installer_name = ?)`);
+            params.push(...manpowerIds, req.user.id, vendorStoreName);
           } else {
-            // No manpower, just show warranties submitted by vendor
-            conditions.push('w.user_id = ?');
-            params.push(req.user.id);
+            // No manpower — show warranties submitted by vendor OR linked via store name
+            conditions.push('(w.user_id = ? OR w.installer_name = ?)');
+            params.push(req.user.id, vendorStoreName);
           }
         } else {
           // No vendor details, just show warranties submitted by vendor
@@ -609,12 +614,13 @@ export class WarrantyController {
         params.push(req.user.id);
       } else if (req.user.role === 'vendor') {
         const [vendorDetails]: any = await db.execute(
-          'SELECT id FROM vendor_details WHERE user_id = ?',
+          'SELECT id, store_name FROM vendor_details WHERE user_id = ?',
           [req.user.id]
         );
 
         if (vendorDetails.length > 0) {
           const vendorDetailsId = vendorDetails[0].id;
+          const vendorStoreName = vendorDetails[0].store_name;
           const [manpower]: any = await db.execute(
             'SELECT id FROM manpower WHERE vendor_id = ?',
             [vendorDetailsId]
@@ -623,11 +629,11 @@ export class WarrantyController {
           if (manpower.length > 0) {
             const manpowerIds = manpower.map((m: any) => m.id);
             const inClause = manpowerIds.map(() => '?').join(',');
-            conditions.push(`(manpower_id IN (${inClause}) OR user_id = ?)`);
-            params.push(...manpowerIds, req.user.id);
+            conditions.push(`(manpower_id IN (${inClause}) OR user_id = ? OR installer_name = ?)`);
+            params.push(...manpowerIds, req.user.id, vendorStoreName);
           } else {
-            conditions.push('user_id = ?');
-            params.push(req.user.id);
+            conditions.push('(user_id = ? OR installer_name = ?)');
+            params.push(req.user.id, vendorStoreName);
           }
         } else {
           conditions.push('user_id = ?');
@@ -856,7 +862,7 @@ export class WarrantyController {
           warrantyData.installerName || null,
           warrantyData.installerContact || null,
           JSON.stringify(warrantyData.productDetails),
-          warrantyData.manpowerId || warranty.manpower_id || null,
+          (warrantyData.manpowerId && warrantyData.manpowerId !== 'owner') ? warrantyData.manpowerId : (warranty.manpower_id && warranty.manpower_id !== 'owner' ? warranty.manpower_id : null),
           warrantyData.warrantyType,
           warrantyRecordId
         ]

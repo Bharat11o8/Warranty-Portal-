@@ -615,6 +615,8 @@ export class AdminController {
                 `SELECT 
                     wr.id,
                     wr.uid,
+                    wr.user_id,
+                    wr.installer_name,
                     wr.customer_name, 
                     wr.customer_email, 
                     wr.customer_phone,
@@ -721,102 +723,120 @@ export class AdminController {
                 console.log(`ℹ️ No customer email provided, skipping email notification for warranty ${warrantyData.uid}`);
             }
 
-            // Send email notification to vendor (if manpower is involved)
-            if (warrantyData.manpower_id) {
-                try {
-                    // Get vendor details from manpower
+            // Send email + notification to franchise/vendor
+            // Strategy: try manpower lookup first, fall back to installer_name (store name)
+            try {
+                let vendorEmail: string | null = null;
+                let vendorName: string | null = warrantyData.store_name || null;
+                let vendorUserId: string | null = null;
+                let applicatorName: string | null = warrantyData.applicator_name || null;
+
+                // 1. Try manpower lookup (real DB manpower ID)
+                const manpowerId = warrantyData.manpower_id;
+                if (manpowerId && manpowerId !== 'owner') {
                     const [vendorInfo]: any = await db.execute(
                         `SELECT 
                             p.email as vendor_email,
+                            p.id as vendor_user_id,
                             vd.store_name as vendor_name,
                             m.name as manpower_name
                         FROM manpower m
                         JOIN vendor_details vd ON m.vendor_id = vd.id
                         JOIN profiles p ON vd.user_id = p.id
                         WHERE m.id = ?`,
-                        [warrantyData.manpower_id]
+                        [manpowerId]
                     );
-
                     if (vendorInfo.length > 0) {
-                        const vendor = vendorInfo[0];
-
-                        if (status === 'validated') {
-                            // Send approval email to vendor
-                            await EmailService.sendWarrantyApprovalToVendor(
-                                vendor.vendor_email,
-                                vendor.vendor_name,
-                                warrantyData.customer_name,
-                                warrantyData.customer_phone,
-                                warrantyData.product_type,
-                                warrantyData.registration_number,
-                                vendor.manpower_name,
-                                warrantyData.uid,
-                                warrantyData.car_make,
-                                warrantyData.car_model,
-                                productDetails,
-                                warrantyData.warranty_type
-                            );
-                            console.log(`✓ Warranty approval email sent to vendor: ${vendor.vendor_email}`);
-                        } else {
-                            // Send rejection email to vendor
-                            await EmailService.sendWarrantyRejectionToVendor(
-                                vendor.vendor_email,
-                                vendor.vendor_name,
-                                warrantyData.customer_name,
-                                warrantyData.customer_phone,
-                                warrantyData.product_type,
-                                warrantyData.registration_number,
-                                vendor.manpower_name,
-                                rejectionReason,
-                                warrantyData.uid,
-                                warrantyData.car_make,
-                                warrantyData.car_model,
-                                productDetails,
-                                warrantyData.warranty_type
-                            );
-                            console.log(`✓ Warranty rejection email sent to vendor: ${vendor.vendor_email}`);
-                        }
+                        vendorEmail = vendorInfo[0].vendor_email;
+                        vendorName = vendorInfo[0].vendor_name;
+                        vendorUserId = vendorInfo[0].vendor_user_id;
+                        applicatorName = vendorInfo[0].manpower_name || applicatorName;
                     }
-                } catch (vendorEmailError: any) {
-                    console.error('Vendor email sending error:', vendorEmailError);
-                    // Don't fail the request if vendor email fails
                 }
 
-                // Send real-time notification to vendor
-                try {
-                    const [vendorUser]: any = await db.execute(
-                        `SELECT vd.user_id FROM manpower m 
-                         JOIN vendor_details vd ON m.vendor_id = vd.id 
-                         WHERE m.id = ?`,
-                        [warrantyData.manpower_id]
+                // 2. Fallback: find vendor by installer_name (catches QR/direct/owner submissions)
+                if (!vendorEmail && warrantyData.installer_name) {
+                    const [vendorByName]: any = await db.execute(
+                        `SELECT p.email as vendor_email, p.id as vendor_user_id, vd.store_name as vendor_name
+                         FROM vendor_details vd
+                         JOIN profiles p ON vd.user_id = p.id
+                         WHERE vd.store_name = ?
+                         LIMIT 1`,
+                        [warrantyData.installer_name]
                     );
-
-                    if (vendorUser.length > 0) {
-                        const vendorUserId = vendorUser[0].user_id;
-                        await NotificationService.notify(vendorUserId, {
-                            title: status === 'validated' ? 'Warranty Approved! ✓' : 'Warranty Rejected ✗',
-                            message: status === 'validated'
-                                ? `The warranty for ${warrantyData.customer_name} (${warrantyData.uid}) has been approved.`
-                                : `The warranty for ${warrantyData.customer_name} (${warrantyData.uid}) was rejected. Reason: ${rejectionReason}`,
-                            type: 'warranty',
-                            link: `/dashboard/vendor`
-                        });
+                    if (vendorByName.length > 0) {
+                        vendorEmail = vendorByName[0].vendor_email;
+                        vendorName = vendorByName[0].vendor_name;
+                        vendorUserId = vendorByName[0].vendor_user_id;
                     }
-
-                    // 4. Notify Customer
-                    if (warrantyData.user_id) {
-                        await NotificationService.notify(warrantyData.user_id, {
-                            title: status === 'validated' ? 'Warranty Validated! ✓' : 'Warranty Rejected ✗',
-                            message: status === 'validated'
-                                ? `Your warranty for ${warrantyData.uid} has been validated by AutoForm.`
-                                : `Your warranty for ${warrantyData.uid} was rejected. Reason: ${rejectionReason}`,
-                            type: 'warranty',
-                            link: `/dashboard/customer`
-                        });
-                    }
-                } catch (notifError) {
-                    console.error('Failed to send warranty status notification:', notifError);
                 }
+
+                // 3. Send vendor email if we found one
+                if (vendorEmail && vendorName) {
+                    if (status === 'validated') {
+                        await EmailService.sendWarrantyApprovalToVendor(
+                            vendorEmail,
+                            vendorName,
+                            warrantyData.customer_name,
+                            warrantyData.customer_phone,
+                            warrantyData.product_type,
+                            warrantyData.registration_number,
+                            applicatorName ?? '',
+                            warrantyData.uid,
+                            warrantyData.car_make,
+                            warrantyData.car_model,
+                            productDetails,
+                            warrantyData.warranty_type
+                        );
+                        console.log(`✓ Warranty approval email sent to vendor: ${vendorEmail}`);
+                    } else {
+                        await EmailService.sendWarrantyRejectionToVendor(
+                            vendorEmail,
+                            vendorName,
+                            warrantyData.customer_name,
+                            warrantyData.customer_phone,
+                            warrantyData.product_type,
+                            warrantyData.registration_number,
+                            applicatorName ?? '',
+                            rejectionReason,
+                            warrantyData.uid,
+                            warrantyData.car_make,
+                            warrantyData.car_model,
+                            productDetails,
+                            warrantyData.warranty_type
+                        );
+                        console.log(`✓ Warranty rejection email sent to vendor: ${vendorEmail}`);
+                    }
+                } else {
+                    console.log(`ℹ️ No vendor email found for warranty ${warrantyData.uid}, skipping vendor email`);
+                }
+
+                // 4. Send real-time notification to vendor
+                if (vendorUserId) {
+                    await NotificationService.notify(vendorUserId, {
+                        title: status === 'validated' ? 'Warranty Approved! ✓' : 'Warranty Rejected ✗',
+                        message: status === 'validated'
+                            ? `The warranty for ${warrantyData.customer_name} (${warrantyData.uid}) has been approved.`
+                            : `The warranty for ${warrantyData.customer_name} (${warrantyData.uid}) was rejected. Reason: ${rejectionReason}`,
+                        type: 'warranty',
+                        link: `/dashboard/vendor`
+                    });
+                }
+
+                // 5. Notify Customer
+                if (warrantyData.user_id) {
+                    await NotificationService.notify(warrantyData.user_id, {
+                        title: status === 'validated' ? 'Warranty Validated! ✓' : 'Warranty Rejected ✗',
+                        message: status === 'validated'
+                            ? `Your warranty for ${warrantyData.uid} has been validated by AutoForm.`
+                            : `Your warranty for ${warrantyData.uid} was rejected. Reason: ${rejectionReason}`,
+                        type: 'warranty',
+                        link: `/dashboard/customer`
+                    });
+                }
+            } catch (notifError: any) {
+                console.error('Failed to send vendor/customer notifications:', notifError);
+                // Don't fail the request if notifications fail
             }
 
             // Log the activity
