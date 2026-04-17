@@ -1,6 +1,3 @@
-
-import React from 'react';
-
 interface ProductRatingProps {
   rating?: number;
   reviewCount?: number;

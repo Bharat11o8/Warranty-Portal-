@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { User, LogOut, Settings, Shield, Store, UserCircle } from "lucide-react";
+import { LogOut, Settings, Shield, Store, UserCircle } from "lucide-react";
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -9,7 +9,6 @@ import {
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { useAuth, UserRole } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 

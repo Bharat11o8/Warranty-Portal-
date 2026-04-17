@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Product, ProductPrice } from '@/types/catalog';
 import { ChevronLeft, ChevronRight } from 'lucide-react';

@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Heart } from 'lucide-react';
 import { useWishlist } from '@/context/WishlistContext';
@@ -15,13 +14,11 @@ import { Link } from 'react-router-dom';
 
 const NavWishlist = () => {
   const { 
-    getWishlistItemsWithDetails, 
-    wishlistItems, 
+    wishlist, 
     removeFromWishlist 
   } = useWishlist();
 
-  const wishlistProducts = getWishlistItemsWithDetails();
-  const itemCount = wishlistItems.length;
+  const itemCount = wishlist.length;
 
   return (
     <DropdownMenu>
@@ -39,29 +36,19 @@ const NavWishlist = () => {
         <DropdownMenuLabel>Your Wishlist</DropdownMenuLabel>
         <DropdownMenuSeparator />
         
-        {wishlistProducts.length === 0 ? (
+        {wishlist.length === 0 ? (
           <div className="p-4 text-center">
             <p className="text-sm text-muted-foreground">Your wishlist is empty</p>
           </div>
         ) : (
           <>
             <div className="max-h-[300px] overflow-auto">
-              {wishlistProducts.map(product => (
-                <DropdownMenuItem key={product.id} className="flex items-center p-4 focus:bg-transparent cursor-default">
-                  <div className="w-12 h-12 flex-shrink-0 mr-3">
-                    <img 
-                      src={product.images[0]} 
-                      alt={product.name} 
-                      className="w-full h-full object-cover rounded"
-                    />
-                  </div>
+              {wishlist.map(productId => (
+                <DropdownMenuItem key={productId} className="flex items-center p-4 focus:bg-transparent cursor-default">
                   <div className="flex-grow">
-                    <Link to={`/product/${product.id}`} className="text-sm font-medium hover:text-primary">
-                      {product.name}
+                    <Link to={`/product/${productId}`} className="text-sm font-medium hover:text-primary">
+                      Product #{productId}
                     </Link>
-                    <div className="text-xs text-muted-foreground">
-                      ₹{product.price.toFixed(2)}
-                    </div>
                   </div>
                   <div className="ml-2">
                     <Button 
@@ -69,7 +56,7 @@ const NavWishlist = () => {
                       size="sm" 
                       onClick={(e) => {
                         e.preventDefault();
-                        removeFromWishlist(product.id);
+                        removeFromWishlist(productId);
                       }}
                       className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
                     >

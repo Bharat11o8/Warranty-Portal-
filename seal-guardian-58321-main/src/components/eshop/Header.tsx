@@ -1,11 +1,9 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Car,
   Gauge,
   LayoutList,
-  Phone,
-  Heart,
   Search,
   ChevronDown,
   Menu,
@@ -17,7 +15,6 @@ import {
   Wind,
   Eye,
   Lightbulb,
-  Radio,
   Volume2,
   Fuel,
   Cog,
@@ -27,7 +24,6 @@ import {
   Truck,
   Lock,
   Key,
-  Compass,
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { getMainCategories, getSubcategories, products } from '@/data/mockData';

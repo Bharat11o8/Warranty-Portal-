@@ -3,13 +3,11 @@ import { Button } from '@/components/ui/button';
 import { Share2 } from 'lucide-react';
 
 interface ProductActionsProps {
-  productId: string;
   productName: string;
   price: number;
-  inStock?: boolean;
 }
 
-const ProductActions: React.FC<ProductActionsProps> = ({ productId, productName, price, inStock = true }) => {
+const ProductActions: React.FC<ProductActionsProps> = ({ productName, price }) => {
   const handleWhatsAppShare = () => {
     const numericPrice = Number(price);
     const priceDisplay = !isNaN(numericPrice) ? numericPrice.toLocaleString() : 'Price varies';

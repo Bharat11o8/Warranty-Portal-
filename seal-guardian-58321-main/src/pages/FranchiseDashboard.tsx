@@ -218,7 +218,17 @@ const FranchiseDashboard = () => {
             params.append('page', page.toString());
             params.append('limit', currentLimit.toString());
 
-            if (activeStatusTab !== 'all') params.append('status', activeStatusTab);
+            // UI tab values → DB status values mapping
+            const tabToStatus: Record<string, string> = {
+                'pending': 'pending_vendor',   // "Pending" tab = needs franchise verification
+                'pending_ho': 'pending',        // "Verified" tab = franchise done, HO pending
+                'validated': 'validated',
+                'rejected': 'rejected',
+            };
+            if (activeStatusTab !== 'all') {
+                const dbStatus = tabToStatus[activeStatusTab] || activeStatusTab;
+                params.append('status', dbStatus);
+            }
             if (selectedProduct !== 'all') params.append('product_type', selectedProduct);
             if (selectedMake !== 'all') params.append('make', selectedMake);
             if (selectedModel !== 'all') params.append('model', selectedModel);
@@ -403,11 +413,16 @@ const FranchiseDashboard = () => {
             let allWarranties = response.data.success ? response.data.warranties : warranties;
 
             // Apply the same filters as in the view
+            const exportTabToStatus: Record<string, string> = {
+                'pending': 'pending_vendor',
+                'pending_ho': 'pending',
+                'validated': 'validated',
+                'rejected': 'rejected',
+            };
             const filteredForExport = allWarranties.filter((w: any) => {
                 // Status Tab Filter
-                const matchesStatus = activeStatusTab === 'all' ? true :
-                    activeStatusTab === 'pending' ? w.status === 'pending_vendor' :
-                        w.status === activeStatusTab;
+                const expectedDbStatus = exportTabToStatus[activeStatusTab];
+                const matchesStatus = activeStatusTab === 'all' ? true : w.status === expectedDbStatus;
                 if (!matchesStatus) return false;
 
                 // Search Filter
@@ -484,12 +499,12 @@ const FranchiseDashboard = () => {
     if (user.role !== "vendor") return <Navigate to="/" />;
 
     const renderModule = () => {
-        // Pre-calculate data for Home module
+        // Use real stats from backend (dashboardStats), not the paginated local list
         const homeStats = {
-            total: warranties.length,
-            approved: warranties.filter(w => w.status === 'validated').length,
-            pending: warranties.filter(w => w.status === 'pending_vendor').length,
-            manpower: manpowerList.length
+            total: (dashboardStats.pending_vendor || 0) + (dashboardStats.validated || 0) + (dashboardStats.rejected || 0),
+            approved: dashboardStats.validated || 0,
+            pending: dashboardStats.pending_vendor || 0,
+            manpower: manpowerPagination.totalCount || manpowerList.length
         };
 
         const recentActivityData = warranties
@@ -604,7 +619,7 @@ const FranchiseDashboard = () => {
                             activeTab={activeStatusTab}
                             setActiveTab={setActiveStatusTab}
                             actionLoadingId={actionLoadingId}
-                            onRefresh={() => { fetchAllData(); fetchStats(); }}
+                            onRefresh={() => { fetchWarranties(1); fetchStats(); }}
                             isRefreshing={loading}
                             pagination={warrantyPagination}
                             onPageChange={fetchWarranties}

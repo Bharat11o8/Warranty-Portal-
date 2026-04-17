@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Product } from '@/types/catalog';
 import ProductCard from '@/components/ProductCard';
