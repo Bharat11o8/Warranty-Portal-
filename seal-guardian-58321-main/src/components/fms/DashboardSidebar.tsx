@@ -43,6 +43,7 @@ export type FmsModule =
     | 'audit'
     | 'targets'
     | 'posm'
+    | 'terms'
     | 'profile';
 
 interface SidebarItemProps {
@@ -189,6 +190,7 @@ export const menuGroups = [
                 icon: Bell,
             },
             { id: 'grievances' as const, label: "Grievance Redressal", icon: LifeBuoy },
+            { id: 'terms' as const, label: "Terms & Conditions", icon: BookOpen },
         ]
     },
     {

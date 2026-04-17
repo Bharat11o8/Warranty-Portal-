@@ -21,6 +21,7 @@ import VendorGrievances from "@/components/fms/VendorGrievances";
 import POSMModule from "@/components/fms/POSMModule";
 import ECatalogue from "@/components/fms/ECatalogue";
 import Profile from "./Profile";
+import Terms from "./Terms";
 import CategoryPage from "./eshop/CategoryPage";
 import ProductPage from "./eshop/ProductPage";
 import { Button } from "@/components/ui/button";
@@ -632,6 +633,12 @@ const FranchiseDashboard = () => {
                             }}
                             stats={dashboardStats}
                         />
+                    </div>
+                );
+            case 'terms':
+                return (
+                    <div className="-mt-8 md:-mt-14">
+                        <Terms />
                     </div>
                 );
             case 'manpower':
