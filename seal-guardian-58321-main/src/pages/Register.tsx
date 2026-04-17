@@ -625,9 +625,8 @@ const Register = () => {
                                 <SelectValue placeholder="Select Type" />
                               </SelectTrigger>
                               <SelectContent>
-                                <SelectItem value="seat_cover">Seat Cover Applicator</SelectItem>
-                                <SelectItem value="ppf_spf">PPF/SPF Applicator</SelectItem>
-                                <SelectItem value="ev">EV Applicator</SelectItem>
+                                <SelectItem value="seat_cover">Seat cover applicator</SelectItem>
+                                <SelectItem value="ppf_spf">PPF Applicator</SelectItem>
                               </SelectContent>
                             </Select>
                           </div>

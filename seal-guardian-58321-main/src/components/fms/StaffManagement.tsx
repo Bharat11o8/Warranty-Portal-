@@ -251,8 +251,8 @@ export const StaffManagement = ({
                                                 onChange={e => setNewMember({ ...newMember, type: e.target.value })}
                                                 className="flex h-11 md:h-12 w-full rounded-xl border border-slate-100 bg-slate-50/50 px-3 py-2 text-xs md:text-sm font-bold text-slate-700 focus:bg-white focus:outline-none focus:border-orange-200 focus:ring-4 focus:ring-orange-500/10 transition-all cursor-pointer hover:bg-white"
                                             >
-                                                <option value="seat_cover">Seat Cover</option>
-                                                <option value="ppf_spf">PPF Specialist</option>
+                                                <option value="seat_cover">Seat cover applicator</option>
+                                                <option value="ppf_spf">PPF Applicator</option>
                                             </select>
                                         </div>
                                         <div className="w-full md:col-span-2">
@@ -294,8 +294,8 @@ export const StaffManagement = ({
                                                 onChange={e => setEditMember({ ...editMember, type: e.target.value })}
                                                 className="w-full p-2 border border-slate-200 rounded-xl text-sm"
                                             >
-                                                <option value="seat_cover">Seat Cover</option>
-                                                <option value="ppf_spf">PPF</option>
+                                                <option value="seat_cover">Seat cover applicator</option>
+                                                <option value="ppf_spf">PPF Applicator</option>
                                             </select>
                                             <div className="flex gap-2">
                                                 <Button onClick={() => handleSaveEdit(member.id)} className="flex-1 rounded-xl bg-orange-500 hover:bg-orange-600" disabled={isSaving}>
@@ -334,7 +334,7 @@ export const StaffManagement = ({
                                                             <Phone className="h-3.5 w-3.5 md:h-4 md:w-4 text-slate-400" /> {member.phone_number}
                                                         </div>
                                                         <div className="flex items-center gap-3 text-xs md:text-sm text-slate-600 font-bold">
-                                                            <Briefcase className="h-3.5 w-3.5 md:h-4 md:w-4 text-slate-400" /> {member.applicator_type === 'seat_cover' ? 'Seat Cover Expert' : 'PPF Specialist'}
+                                                            <Briefcase className="h-3.5 w-3.5 md:h-4 md:w-4 text-slate-400" /> {member.applicator_type === 'seat_cover' ? 'Seat cover applicator' : 'PPF Applicator'}
                                                         </div>
                                                     </div>
                                                 </div>
@@ -385,8 +385,8 @@ export const StaffManagement = ({
                                                 <Input value={editMember.name} onChange={e => setEditMember({ ...editMember, name: e.target.value })} placeholder="Name" className="rounded-xl border-slate-200" />
                                                 <Input value={editMember.phone} onChange={e => setEditMember({ ...editMember, phone: e.target.value })} placeholder="Phone" className="rounded-xl border-slate-200" />
                                                 <select value={editMember.type} onChange={e => setEditMember({ ...editMember, type: e.target.value })} className="w-full h-10 px-3 border border-slate-200 rounded-xl bg-white text-sm">
-                                                    <option value="seat_cover">Seat Cover</option>
-                                                    <option value="ppf_spf">PPF</option>
+                                                    <option value="seat_cover">Seat cover applicator</option>
+                                                    <option value="ppf_spf">PPF Applicator</option>
                                                 </select>
                                                 <div className="flex gap-2 col-span-2">
                                                     <Button onClick={() => handleSaveEdit(member.id)} className="flex-1 rounded-xl bg-orange-500 hover:bg-orange-600" disabled={isSaving}>
@@ -411,7 +411,7 @@ export const StaffManagement = ({
                                                 </div>
                                                 <div className="w-full md:w-32 lg:w-40">
                                                     <Badge variant="secondary" className="bg-orange-50 text-orange-600 border-none font-bold text-[9px] md:text-[10px] uppercase tracking-wider px-3 py-1">
-                                                        {member.applicator_type === 'seat_cover' ? 'Seat Cover' : 'PPF Specialist'}
+                                                        {member.applicator_type === 'seat_cover' ? 'Seat cover applicator' : 'PPF Applicator'}
                                                     </Badge>
                                                 </div>
                                                 <div className="w-full md:w-auto flex justify-between md:justify-center gap-2 mt-2 md:mt-0 pt-2 md:pt-0 border-t md:border-0 border-slate-50">

@@ -227,7 +227,7 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
         storeEmail: storeDetails.store_email || "",
       }));
       if (installers) {
-        setManpowerList(installers.filter((mp: any) => mp.applicator_type === 'seat_cover'));
+        setManpowerList(installers.filter((mp: any) => ['seat_cover', 'ppf_spf'].includes(mp.applicator_type)));
       }
 
       // Add owner to manpower list if not already there
@@ -261,8 +261,8 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
           if (manpowerResponse.data.success) {
             const rawList = manpowerResponse.data.manpower || [];
 
-            // Filter only seat cover specialists
-            const list = rawList.filter((mp: any) => mp.applicator_type === 'seat_cover');
+            // Filter only Seat Cover and PPF specialists
+            const list = rawList.filter((mp: any) => ['seat_cover', 'ppf_spf'].includes(mp.applicator_type));
 
             // Always ensure at least one installer (Owner/Store Name) is available as fallback
             const ownerName = selectedStore.owner_name || selectedStore.store_name || "Store Owner";
@@ -953,7 +953,7 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
                 <MobileSelect
                   options={manpowerList.map((mp) => ({
                     value: mp.id.toString(),
-                    label: `${mp.name} (${mp.applicator_type || 'Staff'})`
+                    label: `${mp.name} (${mp.applicator_type === 'seat_cover' ? 'Seat cover applicator' : mp.applicator_type === 'ppf_spf' ? 'PPF Applicator' : mp.applicator_type || 'Staff'})`
                   }))}
                   value={formData.manpowerId}
                   onValueChange={(value) => handleChange("manpowerId", value)}

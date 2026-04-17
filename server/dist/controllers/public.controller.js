@@ -525,7 +525,7 @@ export class PublicController {
                 warrantyData.installerName || null,
                 warrantyData.installerContact || null,
                 JSON.stringify(warrantyData.productDetails),
-                warrantyData.manpowerId || null,
+                (warrantyData.manpowerId && warrantyData.manpowerId !== 'owner') ? warrantyData.manpowerId : null,
                 warrantyData.warrantyType,
                 initialStatus,
                 exifData.lat,
