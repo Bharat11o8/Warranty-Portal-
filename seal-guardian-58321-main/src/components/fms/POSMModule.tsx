@@ -375,7 +375,7 @@ const POSMModule: React.FC = () => {
                                 >
                                     <Paperclip className="h-8 w-8 mb-2" />
                                     <span className="text-sm font-medium">Click to upload files</span>
-                                    <span className="text-xs">Supports: Images, Videos, PDFs, Excel</span>
+                                    <span className="text-xs">Supports: Images</span>
                                 </label>
 
                                 {attachments.length > 0 && (

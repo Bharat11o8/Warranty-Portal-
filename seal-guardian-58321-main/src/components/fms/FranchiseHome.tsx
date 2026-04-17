@@ -70,7 +70,7 @@ const BANNERS = [
         title: "Elevate Every Installation.",
         subtitle: "Premium Partner Workspace",
         description: "Manage your seat cover installations, floor mats, and accessories with precision. Scale your business with our premium tools.",
-        image: "https://images.unsplash.com/photo-1503376780353-7e6692767b70?auto=format&fit=crop&q=80&w=1200",
+        image: "https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776409457/f663e415-d27e-412d-8253-a7ab1ebe76d5_p3lxbv.jpg",
         cta: "Explore Catalogue",
         accent: "orange"
     },
