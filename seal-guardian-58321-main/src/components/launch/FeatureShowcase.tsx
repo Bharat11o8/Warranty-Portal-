@@ -1,4 +1,3 @@
-import React from 'react';
 import ScrollReveal from './ScrollReveal';
 
 interface Feature {

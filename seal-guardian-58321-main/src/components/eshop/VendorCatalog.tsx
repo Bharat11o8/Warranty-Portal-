@@ -177,7 +177,7 @@ const VendorCatalog = () => {
                             Why Autoform
                         </span>
                         <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold text-gray-900 mb-4">
-                            30+ Years of Excellence
+                            36+ Years of Excellence
                         </h2>
                         <p className="text-xl text-gray-600 max-w-2xl mx-auto">
                             ISO TS/16949 certified manufacturing with world-class quality standards
@@ -188,7 +188,7 @@ const VendorCatalog = () => {
                         {[
                             { icon: <Shield className="w-8 h-8" />, title: 'Premium Quality', desc: 'Crafted with finest materials' },
                             { icon: <Zap className="w-8 h-8" />, title: 'Easy Installation', desc: 'Hassle-free setup guides' },
-                            { icon: <Award className="w-8 h-8" />, title: 'ISO Certified', desc: 'World-class standards' },
+                            { icon: <Award className="w-8 h-8" />, title: 'ISO Certified', desc: 'IATF 16949 certified plants' },
                             { icon: <Truck className="w-8 h-8" />, title: 'Pan India Delivery', desc: 'Fast & reliable shipping' },
                         ].map((feature, index) => (
                             <ScrollReveal key={index} animation="fadeInUp" delay={index * 100}>
@@ -206,8 +206,8 @@ const VendorCatalog = () => {
                     {/* Trust Stats */}
                     <div className="mt-16 grid grid-cols-2 md:grid-cols-4 gap-8">
                         {[
-                            { number: '30+', label: 'Years Experience' },
-                            { number: '2.2L', label: 'Sq. Ft. Facility' },
+                            { number: '36+', label: 'Years Experience' },
+                            { number: '6.0L', label: 'Sq. Ft. Facility' },
                             { number: '500+', label: 'Products' },
                             { number: '1M+', label: 'Happy Customers' },
                         ].map((stat, index) => (

@@ -76,18 +76,18 @@ const BANNERS = [
     },
     {
         id: 2,
-        title: "7D Diamond Flooring.",
-        subtitle: "New Arrival Spotlight",
-        description: "Discover our latest all-weather custom fit mats. Engineered for luxury, designed for durability. Exclusive franchise discounts available.",
+        title: "Car Floor Mats",
+        subtitle: "Spotlight",
+        description: "Discover our latest all-weather custom fit mats. Engineered for luxury, designed for durability.",
         image: "https://images.unsplash.com/photo-1605559424843-9e4c228bf1c2?auto=format&fit=crop&q=80&w=1200",
-        cta: "Order Now",
+        cta: "Explore Catalogue",
         accent: "blue"
     },
     {
         id: 3,
-        title: "Micro-Perforated Nappa.",
-        subtitle: "Design Studio Update",
-        description: "The next generation of breathable seat covers is here. Update your sample kits and show your customers the premium difference.",
+        title: "Premium Seat Covers",
+        subtitle: "Spotlight",
+        description: "The next generation of breathable seat covers. Update your sample kits and show your customers the premium difference.",
         image: "https://images.unsplash.com/photo-1594787318286-3d835c1d207f?auto=format&fit=crop&q=80&w=1200",
         cta: "View Collection",
         accent: "purple"

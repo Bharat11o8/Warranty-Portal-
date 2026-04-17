@@ -2,29 +2,15 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import {
     Car,
-    Gauge,
     LayoutList,
     Search,
     ChevronDown,
     Menu,
     X,
     Settings,
-    Wrench,
-    Zap,
-    Shield,
     Wind,
-    Eye,
     Lightbulb,
-    Volume2,
-    Fuel,
-    Cog,
-    Battery,
-    Camera,
-    Navigation,
-    Truck,
-    Lock,
-    Key,
-    Loader2
+    Volume2
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { fetchCategories, fetchProducts, Product, Category } from '@/lib/catalogService';
