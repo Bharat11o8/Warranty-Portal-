@@ -847,7 +847,7 @@ const FranchiseDashboard = () => {
                     <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
                         <DialogHeader>
                             <DialogTitle className="text-2xl font-bold">
-                                {registrationType === 'ev' ? 'PPF / EV Product Registration' : 'Seat Cover Registration'}
+                                {registrationType === 'ev' ? 'PPF Product Registration' : 'Seat Cover Registration'}
                             </DialogTitle>
                         </DialogHeader>
                         {registrationType === 'ev' ? (

@@ -36,14 +36,14 @@ const pool = mysql.createPool({
     timezone: '+05:30',
     // Connection Pool Settings (environment-configurable)
     waitForConnections: true,
-    connectionLimit: parseInt(process.env.DB_POOL_SIZE || '2'),
-    maxIdle: parseInt(process.env.DB_MAX_IDLE || '5'),
+    connectionLimit: parseInt(process.env.DB_POOL_SIZE || '20'),
+    maxIdle: parseInt(process.env.DB_MAX_IDLE || '10'),
     queueLimit: 0,
     // Keep-Alive Settings
     enableKeepAlive: true,
     keepAliveInitialDelay: 10000, // Send keep-alive after 10 seconds idle
     // Timeout Settings
-    connectTimeout: parseInt(process.env.DB_CONNECT_TIMEOUT || '5000'),
+    connectTimeout: parseInt(process.env.DB_CONNECT_TIMEOUT || '10000'),
     idleTimeout: parseInt(process.env.DB_IDLE_TIMEOUT || '60000'),
 });
 const TRANSIENT_DB_ERROR_CODES = new Set([
@@ -52,7 +52,8 @@ const TRANSIENT_DB_ERROR_CODES = new Set([
     'EPIPE',
     'PROTOCOL_CONNECTION_LOST',
     'PROTOCOL_ENQUEUE_AFTER_FATAL_ERROR',
-    'PROTOCOL_ENQUEUE_AFTER_QUIT'
+    'PROTOCOL_ENQUEUE_AFTER_QUIT',
+    'PROTOCOL_PACKETS_OUT_OF_ORDER'
 ]);
 let transientRetryCount = 0;
 let lastTransientRetryAt = null;
@@ -63,26 +64,55 @@ export function isTransientDbError(error) {
 function sleep(ms) {
     return new Promise((resolve) => setTimeout(resolve, ms));
 }
-export async function executeWithRetry(sql, params = [], options) {
-    const retries = options?.retries ?? 1;
-    const baseDelayMs = options?.baseDelayMs ?? 150;
+/**
+ * Enhanced Database Proxy
+ * Wraps the pool to automatically retry transient errors on .execute() and .query()
+ * Uses Proxy to maintain compatibility with all Pool methods (end, on, etc.)
+ */
+// MONKEY PATCH: Enhance pool.execute and pool.query with retry logic
+const originalExecute = pool.execute;
+const originalQuery = pool.query;
+// @ts-ignore - Patching existing pool methods with resilient versions
+pool.execute = (async function (sql, params = []) {
+    const retries = 2;
+    const baseDelayMs = 200;
     for (let attempt = 0;; attempt++) {
         try {
-            return await pool.execute(sql, params);
+            return await originalExecute.call(this, sql, params);
         }
         catch (error) {
             const shouldRetry = isTransientDbError(error) && attempt < retries;
-            if (!shouldRetry) {
+            if (!shouldRetry)
                 throw error;
-            }
             transientRetryCount += 1;
             lastTransientRetryAt = new Date().toISOString();
             const delayMs = baseDelayMs * Math.pow(2, attempt);
-            console.warn(`[DB] transient error "${error.code}" on attempt ${attempt + 1}. Retrying in ${delayMs}ms.`);
+            console.warn(`[DB] Transient error "${error.code}" on attempt ${attempt + 1}. Retrying in ${delayMs}ms...`);
             await sleep(delayMs);
         }
     }
-}
+});
+// @ts-ignore
+pool.query = (async function (sql, params = []) {
+    const retries = 2;
+    const baseDelayMs = 200;
+    for (let attempt = 0;; attempt++) {
+        try {
+            return await originalQuery.call(this, sql, params);
+        }
+        catch (error) {
+            const shouldRetry = isTransientDbError(error) && attempt < retries;
+            if (!shouldRetry)
+                throw error;
+            transientRetryCount += 1;
+            lastTransientRetryAt = new Date().toISOString();
+            const delayMs = baseDelayMs * Math.pow(2, attempt);
+            console.warn(`[DB] Transient error "${error.code}" on attempt ${attempt + 1}. Retrying in ${delayMs}ms...`);
+            await sleep(delayMs);
+        }
+    }
+});
+const db = pool;
 export function getDbRetryStats() {
     return {
         transientRetryCount,
@@ -129,4 +159,4 @@ export function getISTTimestamp() {
 export function getISTDate() {
     return getISTTimestamp().split(' ')[0];
 }
-export default pool;
+export default db;

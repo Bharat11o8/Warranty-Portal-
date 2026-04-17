@@ -13,6 +13,7 @@ import api from "@/lib/api";
 import { cn, getWarrantyExpiration, formatToIST } from "@/lib/utils";
 import EVProductsForm from "@/components/warranty/EVProductsForm";
 import SeatCoverForm from "@/components/warranty/SeatCoverForm";
+import { getWarrantyFormComponent, getEditFormProps } from "@/lib/warrantyFormRegistry";
 import {
     Pagination,
     PaginationContent,
@@ -140,9 +141,23 @@ const CustomerDashboard = () => {
             ? editingWarranty.product_type
             : (creatingWarranty === 'ppf' ? 'ev-products' : 'seat-cover');
 
-        const FormComponent = productType === "seat-cover"
-            ? SeatCoverForm
-            : EVProductsForm;
+        const FormComponent = getWarrantyFormComponent(productType);
+
+        const formProps = isEditing
+            ? getEditFormProps(editingWarranty, () => {
+                setEditingWarranty(null);
+                setCreatingWarranty(null);
+                fetchWarranties();
+                fetchStats();
+              })
+            : {
+                onSuccess: () => {
+                    setEditingWarranty(null);
+                    setCreatingWarranty(null);
+                    fetchWarranties();
+                    fetchStats();
+                },
+              };
 
         return (
             <div className="">
@@ -158,14 +173,7 @@ const CustomerDashboard = () => {
                         <ArrowLeft className="mr-2 h-4 w-4" /> Home
                     </Button>
                     <FormComponent
-                        initialData={editingWarranty}
-                        warrantyId={editingWarranty?.id}
-                        onSuccess={() => {
-                            setEditingWarranty(null);
-                            setCreatingWarranty(null);
-                            fetchWarranties();
-                            fetchStats();
-                        }}
+                        {...formProps}
                     />
                 </div>
             </div>
@@ -753,28 +761,15 @@ const CustomerDashboard = () => {
                         <DialogTitle>Edit Warranty</DialogTitle>
                         <DialogDescription>Update the details for your rejected warranty.</DialogDescription>
                     </DialogHeader>
-                    {editingWarranty?.product_type === 'seat-cover' ? (
-                        <SeatCoverForm
-                            initialData={editingWarranty}
-                            isEditing={true}
-                            onSuccess={() => {
-                                setEditingWarranty(null);
-                                fetchWarranties();
-                                fetchStats();
-                            }}
-                        />
-                    ) : (
-                        <EVProductsForm
-                            initialData={editingWarranty}
-                            isEditing={true}
-                            isUniversal={false}
-                            onSuccess={() => {
-                                setEditingWarranty(null);
-                                fetchWarranties();
-                                fetchStats();
-                            }}
-                        />
-                    )}
+                    {editingWarranty && (() => {
+                        const FormComponent = getWarrantyFormComponent(editingWarranty.product_type);
+                        const formProps = getEditFormProps(editingWarranty, () => {
+                            setEditingWarranty(null);
+                            fetchWarranties();
+                            fetchStats();
+                        });
+                        return <FormComponent {...formProps} />;
+                    })()}
                 </DialogContent>
             </Dialog>
         </div>

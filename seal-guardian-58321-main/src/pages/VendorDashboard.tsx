@@ -15,6 +15,7 @@ import { downloadCSV, getWarrantyExpiration, cn, formatToIST, getISTTodayISO } f
 import { Input } from "@/components/ui/input";
 import EVProductsForm from "@/components/warranty/EVProductsForm";
 import SeatCoverForm from "@/components/warranty/SeatCoverForm";
+import { getWarrantyFormComponent, getEditFormProps } from "@/lib/warrantyFormRegistry";
 import { WarrantySpecSheet } from "@/components/warranty/WarrantySpecSheet";
 import { ProductCatalog } from "@/components/vendor/ProductCatalog";
 import VendorGrievances from "@/components/fms/VendorGrievances";
@@ -169,13 +170,25 @@ const WarrantyList = ({ items, showReason = false, user, onEditWarranty, onVerif
                                 </div>
                             )}
 
-                            {/* Rejection Reason */}
+                            {/* Rejection Reason + Edit & Resubmit */}
                             {showReason && warranty.rejection_reason && (
                                 <div className="relative mx-1 p-3 bg-red-500/5 rounded-b-xl border border-t-0 border-red-500/10 text-sm animate-in slide-in-from-top-1 z-0">
                                     <p className="text-red-600 font-medium flex items-start gap-2">
                                         <span className="shrink-0 pt-0.5">•</span>
                                         {warranty.rejection_reason}
                                     </p>
+                                    {onEditWarranty && (
+                                        <Button
+                                            size="sm"
+                                            className="mt-2 w-full h-9 bg-amber-600 hover:bg-amber-700 text-white shadow-sm"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                onEditWarranty(warranty);
+                                            }}
+                                        >
+                                            <Edit2 className="w-4 h-4 mr-2" /> Edit & Resubmit
+                                        </Button>
+                                    )}
                                 </div>
                             )}
                         </div>
@@ -280,6 +293,9 @@ const VendorDashboard = () => {
 
     // Spec Sheet State for viewing warranty details
     const [specSheetData, setSpecSheetData] = useState<any | null>(null);
+
+    // Edit Warranty State (for rejected warranties)
+    const [editingWarranty, setEditingWarranty] = useState<any | null>(null);
 
     // Warranty stats
     const pendingVendorWarranties = warranties.filter(w => w.status === 'pending_vendor');
@@ -830,6 +846,7 @@ const VendorDashboard = () => {
                             items={filterAndSortWarranties(rejectedWarranties)}
                             showReason={true}
                             user={user}
+                            onEditWarranty={setEditingWarranty}
                             onSelectWarranty={setSpecSheetData}
                         />
                     </TabsContent>
@@ -897,7 +914,7 @@ const VendorDashboard = () => {
                                                         value={newManpowerType}
                                                         onChange={(e) => setNewManpowerType(e.target.value)}
                                                     >
-                                                        <option value="seat_cover">Seat Cover Applicator</option>
+                                                        <option value="seat_cover">Seat cover applicator</option>
                                                         <option value="ppf_spf">PPF Applicator</option>
                                                     </select>
                                                     <Button type="submit" size="icon" disabled={addingManpower}>
@@ -941,8 +958,8 @@ const VendorDashboard = () => {
                                                                         value={editType}
                                                                         onChange={(e) => setEditType(e.target.value)}
                                                                     >
-                                                                        <option value="seat_cover">Seat Cover</option>
-                                                                        <option value="ppf_spf">PPF</option>
+                                                                        <option value="seat_cover">Seat cover applicator</option>
+                                                                        <option value="ppf_spf">PPF Applicator</option>
                                                                     </select>
                                                                     <div className="flex gap-2">
                                                                         <Button
@@ -1004,8 +1021,8 @@ const VendorDashboard = () => {
                                                                     {/* Meta Row: ID + Type */}
                                                                     <div className="flex items-center gap-2 flex-wrap">
                                                                         <span className="font-mono text-xs bg-muted px-2 py-1 rounded">{member.manpower_id}</span>
-                                                                        <Badge variant="secondary" className="text-xs capitalize">
-                                                                            {member.applicator_type?.replace('_', ' ')}
+                                                                        <Badge variant="secondary" className="text-xs">
+                                                                            {member.applicator_type === 'seat_cover' ? 'Seat cover applicator' : 'PPF Applicator'}
                                                                         </Badge>
                                                                     </div>
 
@@ -1204,6 +1221,24 @@ const VendorDashboard = () => {
                                 })
                             )}
                         </div>
+                    </DialogContent>
+                </Dialog>
+
+                {/* Edit Warranty Dialog */}
+                <Dialog open={!!editingWarranty} onOpenChange={(open) => !open && setEditingWarranty(null)}>
+                    <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+                        <DialogHeader>
+                            <DialogTitle>Edit & Resubmit Warranty</DialogTitle>
+                            <DialogDescription>Update the details for the rejected warranty and resubmit for approval.</DialogDescription>
+                        </DialogHeader>
+                        {editingWarranty && (() => {
+                            const FormComponent = getWarrantyFormComponent(editingWarranty.product_type);
+                            const formProps = getEditFormProps(editingWarranty, () => {
+                                setEditingWarranty(null);
+                                fetchWarranties();
+                            });
+                            return <FormComponent {...formProps} />;
+                        })()}
                     </DialogContent>
                 </Dialog>
 

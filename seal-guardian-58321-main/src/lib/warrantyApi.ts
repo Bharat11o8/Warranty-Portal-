@@ -154,7 +154,7 @@ export const getWarranties = async () => {
 };
 
 export const getWarrantyById = async (id: string) => {
-  const response = await api.get(`/ warranty / ${id} `);
+  const response = await api.get(`/warranty/${id}`);
   return response.data;
 };
 
@@ -198,12 +198,12 @@ export const updateWarranty = async (id: string, data: WarrantyData) => {
   formData.append('productDetails', JSON.stringify(pd));
 
   if (hasFiles) {
-    const response = await api.put(`/ warranty / ${id} `, formData, {
+    const response = await api.put(`/warranty/${id}`, formData, {
       headers: { 'Content-Type': 'multipart/form-data' }
     });
     return response.data;
   } else {
-    const response = await api.put(`/ warranty / ${id} `, data);
+    const response = await api.put(`/warranty/${id}`, data);
     return response.data;
   }
 };

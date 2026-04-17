@@ -837,7 +837,13 @@ export class WarrantyController {
       }
 
       // Update warranty details
-      // Reset status to 'pending' and clear rejection_reason
+      // Determine status based on who is updating
+      // For customer updates, set status to 'pending_vendor' (needs franchise verification)
+      // For vendor/admin updates, go directly to 'pending' (admin review)
+      const updatedStatus = req.user.role === 'customer' ? 'pending_vendor' : 'pending';
+
+      // Update warranty details
+      // Reset status and clear rejection_reason
       // Use the warranty's actual id from the found record for update
       const warrantyRecordId = warranty.id;
       await db.execute(
@@ -846,7 +852,7 @@ export class WarrantyController {
          customer_address = ?, registration_number = ?, car_make = ?, car_model = ?, car_year = ?,
          purchase_date = ?, installer_name = ?,
          installer_contact = ?, product_details = ?, manpower_id = ?, warranty_type = ?,
-         status = 'pending', rejection_reason = NULL
+         status = ?, rejection_reason = NULL
          WHERE id = ?`,
         [
           warrantyData.productType,
@@ -864,41 +870,88 @@ export class WarrantyController {
           JSON.stringify(warrantyData.productDetails),
           (warrantyData.manpowerId && warrantyData.manpowerId !== 'owner') ? warrantyData.manpowerId : (warranty.manpower_id && warranty.manpower_id !== 'owner' ? warranty.manpower_id : null),
           warrantyData.warrantyType,
+          updatedStatus,
           warrantyRecordId
         ]
       );
 
-      // Notify the User (Vendor/Customer) about the status update
+      // --- Notifications ---
+      const warrantyUid = warranty.uid;
+
+      // 1. Notify the Customer (Owner)
       try {
         if (warranty.user_id) {
-          let notifTitle = 'Warranty Update';
-          let notifMessage = `Your warranty registration (${warranty.uid}) has been updated.`;
-
-          if (warrantyData.productType) { // If it was an edit/resubmission
-            notifMessage = `Your warranty registration (${warranty.uid}) has been updated and resubmitted.`;
-          }
-
-          // If we are just updating status (logic in a different method? No, this is updateWarranty which is mostly for EDITS)
-          // For APPROVAl/REJECTION, that's usually a different method "updateStatus" or similar?
-          // The current file doesn't seem to have a specific "approveWarranty" method visible in the 540 lines? 
-          // Wait, I might have missed it or it's in a different controller? 
-          // Re-reading file... I see submit, get, getById, update. 
-          // Where is approve? Ah, I might need to scroll down or it was truncated? 
-          // The file has 540 lines and ends with closing brace. 
-          // It seems "updateWarranty" is used for EDITS by vendor.
-          // Admin approval usually happens via `updateStatus` or similar. 
-          // Let me check if there are more methods or a separate admin controller.
-
-          // For now, I'll add notification for this "update" action (e.g. if Admin fixed a typo?)
           await NotificationService.notify(warranty.user_id, {
-            title: notifTitle,
-            message: notifMessage,
+            title: 'Warranty Resubmitted',
+            message: `Your warranty registration (${warrantyUid}) has been updated and resubmitted for review.`,
             type: 'warranty',
-            link: `/warranty/view/${warranty.uid}`
+            link: `/warranty/view/${warrantyUid}`
           });
         }
       } catch (e) {
-        console.error('Failed to notify user of warranty update', e);
+        console.error('Failed to notify customer of warranty update', e);
+      }
+
+      // 2. Notify Admin
+      try {
+        await NotificationService.broadcast({
+          title: 'Warranty Resubmitted',
+          message: `Warranty ${warrantyUid} has been resubmitted by the customer (${warrantyData.customerName}) and is awaiting ${updatedStatus === 'pending_vendor' ? 'franchise' : 'admin'} review.`,
+          type: 'warranty',
+          link: `/admin/verifications?uid=${warrantyUid}`,
+          targetUsers: [],
+          targetRole: 'admin'
+        });
+      } catch (err) {
+        console.error('Failed to send admin notification for update', err);
+      }
+
+      // 3. Notify Vendor/Franchise
+      try {
+        let vendorUserId: string | null = null;
+        let storeName: string | null = null;
+
+        // Method 1: Look up vendor by manpower_id
+        if (warrantyData.manpowerId || warranty.manpower_id) {
+          const mId = (warrantyData.manpowerId && warrantyData.manpowerId !== 'owner') ? warrantyData.manpowerId : warranty.manpower_id;
+          if (mId && mId !== 'owner') {
+            const [vendorInfo]: any = await db.execute(
+              `SELECT vd.user_id, vd.store_name FROM manpower m 
+               JOIN vendor_details vd ON m.vendor_id = vd.id 
+               WHERE m.id = ?`,
+              [mId]
+            );
+            if (vendorInfo.length > 0) {
+              vendorUserId = vendorInfo[0].user_id;
+              storeName = vendorInfo[0].store_name;
+            }
+          }
+        }
+
+        // Method 2: Fallback - Look up vendor by installer_name
+        if (!vendorUserId && (warrantyData.installerName || warranty.installer_name)) {
+          const iName = warrantyData.installerName || warranty.installer_name;
+          const [vendorByName]: any = await db.execute(
+            `SELECT user_id, store_name FROM vendor_details WHERE store_name = ?`,
+            [iName]
+          );
+          if (vendorByName.length > 0) {
+            vendorUserId = vendorByName[0].user_id;
+            storeName = vendorByName[0].store_name;
+          }
+        }
+
+        if (vendorUserId) {
+          await NotificationService.notify(vendorUserId, {
+            title: 'Warranty Updated',
+            message: `The warranty for ${warrantyData.customerName} (${warrantyUid}) has been resubmitted and requires your verification.`,
+            type: 'warranty',
+            link: `/dashboard/vendor`
+          });
+          console.log(`✓ Notified vendor ${storeName} about warranty update`);
+        }
+      } catch (err) {
+        console.error('Failed to send vendor notification for update', err);
       }
 
       res.json({

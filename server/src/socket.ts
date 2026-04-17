@@ -11,9 +11,18 @@ export const initSocket = (server: HttpServer) => {
     io = new Server(server, {
         cors: {
             // SBP-005: Use strict origin allowlist instead of wildcard
+            // Must match the Express CORS allowedOrigins list in index.ts
             origin: process.env.ALLOWED_ORIGINS
                 ? process.env.ALLOWED_ORIGINS.split(',').map(o => o.trim())
-                : ['http://localhost:5173', 'https://warranty.emporiobyautoform.in'],
+                : [
+                    'http://localhost:5173',
+                    'http://localhost:3000',
+                    'http://localhost:8080',
+                    'http://localhost:8081',
+                    'http://127.0.0.1:8080',
+                    'https://server-bharat-maheshwaris-projects.vercel.app',
+                    'https://warranty.emporiobyautoform.in'
+                  ],
             methods: ["GET", "POST"],
             credentials: true
         }

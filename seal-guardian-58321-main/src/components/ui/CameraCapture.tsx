@@ -39,20 +39,29 @@ interface CameraCaptureProps {
 }
 
 /**
- * Detects if the current device is a mobile/tablet device.
- * Mobile devices support native <input capture> attribute.
+ * Detects if the current device is a genuine mobile/tablet device.
+ * 
+ * IMPORTANT: Uses user-agent as the primary signal and physical screen
+ * dimensions (window.screen.width) as a secondary check. We intentionally
+ * avoid window.innerWidth because it changes when DevTools is open,
+ * which would cause desktop browsers to fall into the mobile path
+ * and bypass the webcam-only enforcement.
  */
 const isMobileDevice = (): boolean => {
-    // Check touch points (most reliable)
-    if (navigator.maxTouchPoints > 0) {
-        // Also check screen size to exclude touch-enabled laptops
-        const isSmallScreen = window.innerWidth <= 1024;
-        if (isSmallScreen) return true;
-    }
-    // Fallback: check user agent
-    return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
+    // Primary check: user agent (most reliable for actual device type)
+    const mobileUA = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
         navigator.userAgent
     );
+    if (mobileUA) return true;
+
+    // Secondary check: touch-capable device with a physically small screen
+    // window.screen.width returns the physical display width, NOT the viewport,
+    // so it's immune to DevTools toggling or responsive mode simulation
+    if (navigator.maxTouchPoints > 0 && window.screen.width <= 1024) {
+        return true;
+    }
+
+    return false;
 };
 
 /**
