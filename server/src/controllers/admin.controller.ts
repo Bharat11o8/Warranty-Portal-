@@ -670,6 +670,22 @@ export class AdminController {
                 [status, status === 'rejected' ? rejectionReason : null, warrantyData.uid]
             );
 
+            // Mark UID as used ONLY when validated, and free it up if rejected
+            if (warrantyData.product_type === 'seat-cover') {
+                if (status === 'validated') {
+                    const usedTimestamp = getISTTimestamp();
+                    await db.execute(
+                        'UPDATE pre_generated_uids SET is_used = TRUE, used_at = ? WHERE uid = ?',
+                        [usedTimestamp, warrantyData.uid]
+                    );
+                } else if (status === 'rejected') {
+                    await db.execute(
+                        'UPDATE pre_generated_uids SET is_used = FALSE, used_at = NULL WHERE uid = ?',
+                        [warrantyData.uid]
+                    );
+                }
+            }
+
             // Send email notification to customer only if email is provided
             if (warrantyData.customer_email && warrantyData.customer_email.trim()) {
                 try {

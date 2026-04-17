@@ -663,14 +663,7 @@ export class PublicController {
                 ]
             );
 
-            // ===== Mark UID as used in the pre_generated_uids table =====
-            if (warrantyData.productType === 'seat-cover' && uid) {
-                const usedTimestamp = getISTTimestamp();
-                await db.execute(
-                    'UPDATE pre_generated_uids SET is_used = TRUE, used_at = ? WHERE uid = ?',
-                    [usedTimestamp, uid]
-                );
-            }
+            // UID is checked but NOT marked as used until Admin approves it.
 
             // Step 4: Send vendor confirmation email
             if (warrantyData.installerContact) {
