@@ -37,6 +37,7 @@ import { WarrantySpecSheet } from "@/components/warranty/WarrantySpecSheet";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
+import { getWarrantyFormComponent, getEditFormProps } from "@/lib/warrantyFormRegistry";
 
 interface DashboardContext {
     activeModule: FmsModule;
@@ -150,6 +151,7 @@ const FranchiseDashboard = () => {
     // Modal/Dialog States
     const [registrationType, setRegistrationType] = useState<'ev' | 'seat-cover' | null>(null);
     const [selectedWarranty, setSelectedWarranty] = useState<any | null>(null);
+    const [editingWarranty, setEditingWarranty] = useState<any | null>(null);
     const [manpowerWarrantyDialogOpen, setManpowerWarrantyDialogOpen] = useState(false);
     const [manpowerWarrantyDialogData, setManpowerWarrantyDialogData] = useState<{ member: any; status: 'validated' | 'pending' | 'rejected'; warranties: any[] }>({ member: null, status: 'validated', warranties: [] });
 
@@ -604,6 +606,7 @@ const FranchiseDashboard = () => {
                             onRegisterNew={setRegistrationType}
                             onExport={handleExportWarranties}
                             onSelect={setSelectedWarranty}
+                            onEditWarranty={setEditingWarranty}
                             onVerify={handleVerifyWarranty}
                             onReject={handleRejectWarranty}
                             warrantySearch={warrantySearch}
@@ -855,6 +858,25 @@ const FranchiseDashboard = () => {
                         ) : (
                             <SeatCoverForm onSuccess={() => { setRegistrationType(null); fetchAllData(); }} />
                         )}
+                    </DialogContent>
+                </Dialog>
+
+                {/* Edit Warranty Dialog */}
+                <Dialog open={!!editingWarranty} onOpenChange={(open) => !open && setEditingWarranty(null)}>
+                    <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+                        <DialogHeader>
+                            <DialogTitle className="text-2xl font-bold">Edit & Resubmit Warranty</DialogTitle>
+                            <DialogDescription>Update the details for the rejected warranty and resubmit for approval.</DialogDescription>
+                        </DialogHeader>
+                        {editingWarranty && (() => {
+                            const FormComponent = getWarrantyFormComponent(editingWarranty.product_type);
+                            const formProps = getEditFormProps(editingWarranty, () => {
+                                setEditingWarranty(null);
+                                fetchAllData();
+                                fetchStats();
+                            });
+                            return <FormComponent {...formProps} />;
+                        })()}
                     </DialogContent>
                 </Dialog>
 

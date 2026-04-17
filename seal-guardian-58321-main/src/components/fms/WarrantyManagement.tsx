@@ -13,7 +13,8 @@ import {
     LayoutGrid,
     List,
     Filter,
-    Loader2
+    Loader2,
+    Edit
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -49,6 +50,7 @@ interface WarrantyManagementProps {
     onRegisterNew: (type: 'ev' | 'seat-cover') => void;
     onExport: () => void;
     onSelect: (warranty: any) => void;
+    onEditWarranty?: (warranty: any) => void;
     onVerify: (warranty: any) => void;
     onReject: (warranty: any) => void;
     warrantySearch: string;
@@ -87,6 +89,7 @@ export const WarrantyManagement = ({
     onRegisterNew,
     onExport,
     onSelect,
+    onEditWarranty,
     onVerify,
     onReject,
     warrantySearch,
@@ -329,9 +332,22 @@ export const WarrantyManagement = ({
                                                         <span className="font-mono">{warranty.uid}</span>
                                                     </div>
                                                     {warranty.status === 'rejected' && warranty.rejection_reason && (
-                                                        <div className="mt-1 flex items-start gap-1.5 px-2.5 py-1.5 rounded-lg bg-red-50/50 border border-red-100/50 max-w-md">
-                                                            <XCircle className="h-3 w-3 text-red-500 shrink-0 mt-0.5" />
-                                                            <p className="text-[9px] md:text-[10px] font-bold text-red-600 line-clamp-1 italic">Reason: {warranty.rejection_reason}</p>
+                                                        <div className="mt-1 space-y-2">
+                                                            <div className="flex items-start gap-1.5 px-2.5 py-1.5 rounded-lg bg-red-50/50 border border-red-100/50 max-w-md">
+                                                                <XCircle className="h-3 w-3 text-red-500 shrink-0 mt-0.5" />
+                                                                <p className="text-[9px] md:text-[10px] font-bold text-red-600 line-clamp-1 italic">Reason: {warranty.rejection_reason}</p>
+                                                            </div>
+                                                            {onEditWarranty && (
+                                                                <Button
+                                                                    size="sm"
+                                                                    variant="outline"
+                                                                    className="h-8 rounded-xl border-red-200 text-red-700 hover:bg-red-50 text-[10px] font-black uppercase tracking-wider"
+                                                                    onClick={(e) => { e.stopPropagation(); onEditWarranty(warranty); }}
+                                                                >
+                                                                    <Edit className="h-3 w-3 mr-2" />
+                                                                    Edit & Resubmit
+                                                                </Button>
+                                                            )}
                                                         </div>
                                                     )}
                                                 </div>
@@ -460,7 +476,7 @@ export const WarrantyManagement = ({
                                             <span className="font-mono font-black text-xs text-orange-600 truncate">{warranty.uid}</span>
                                         </div>
                                         {warranty.status === 'rejected' && warranty.rejection_reason && (
-                                            <div className="mt-3 pt-3 border-t border-orange-100/50">
+                                            <div className="mt-3 pt-3 border-t border-orange-100/50 space-y-2">
                                                 <div className="flex items-start gap-2 p-2 rounded-xl bg-red-50/50 border border-red-100/30">
                                                     <XCircle className="h-3.5 w-3.5 text-red-500 shrink-0 mt-0.5" />
                                                     <div className="flex-1 min-w-0">
@@ -468,6 +484,17 @@ export const WarrantyManagement = ({
                                                         <p className="text-[10px] font-bold text-red-600 italic leading-tight line-clamp-2">{warranty.rejection_reason}</p>
                                                     </div>
                                                 </div>
+                                                {onEditWarranty && (
+                                                    <Button
+                                                        size="sm"
+                                                        variant="outline"
+                                                        className="w-full h-9 rounded-xl border-red-200 text-red-700 hover:bg-red-50 text-[10px] font-black uppercase tracking-wider shadow-sm"
+                                                        onClick={(e) => { e.stopPropagation(); onEditWarranty(warranty); }}
+                                                    >
+                                                        <Edit className="h-3.5 w-3.5 mr-2" />
+                                                        Edit & Resubmit
+                                                    </Button>
+                                                )}
                                             </div>
                                         )}
                                     </div>
