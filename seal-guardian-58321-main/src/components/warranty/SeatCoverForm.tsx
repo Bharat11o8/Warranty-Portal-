@@ -337,7 +337,8 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
       // ===== UID Validation against backend =====
       try {
         setUidStatus('checking');
-        const uidCheckRes = await api.get(`/public/warranty/check-uid?uid=${formData.uid}`);
+        const excludeParam = warrantyId ? `&excludeId=${warrantyId}` : '';
+        const uidCheckRes = await api.get(`/public/warranty/check-uid?uid=${formData.uid}${excludeParam}`);
         if (uidCheckRes.data.success && !uidCheckRes.data.valid) {
           setUidStatus('invalid');
           setUidMessage(uidCheckRes.data.reason);

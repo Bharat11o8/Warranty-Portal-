@@ -203,10 +203,16 @@ export class PublicController {
             }
 
             // Also check if it's already in warranty_registrations (belt and suspenders)
-            const [existingWarranty]: any = await db.execute(
-                'SELECT uid FROM warranty_registrations WHERE uid = ?',
-                [uid]
-            );
+            const { excludeId } = req.query;
+            let query = 'SELECT uid FROM warranty_registrations WHERE uid = ?';
+            const params: any[] = [uid];
+            
+            if (excludeId) {
+                query += ' AND id != ? AND uid != ?';
+                params.push(excludeId, excludeId);
+            }
+            
+            const [existingWarranty]: any = await db.execute(query, params);
 
             if (existingWarranty.length > 0) {
                 return res.json({
