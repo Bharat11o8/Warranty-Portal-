@@ -72,7 +72,7 @@ const allowedOrigins = process.env.ALLOWED_ORIGINS
         'http://localhost:8081',
         'http://127.0.0.1:8080',
         'https://server-bharat-maheshwaris-projects.vercel.app',
-        'https://warranty.autoformindia.co.in'
+        'https://warranty2.autoformindia.co.in'
     ];
 app.use(cors({
     origin: (origin, callback) => {

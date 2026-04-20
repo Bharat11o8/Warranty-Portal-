@@ -55,11 +55,11 @@ export class EmailService {
     // Priority 2: Use known production backend if in production mode
     const isProduction = process.env.NODE_ENV === 'production' || process.env.VERCEL === '1';
     if (isProduction) {
-      return 'https://warranty2.autoformindia.co.in';
+      return 'https://server-bharat-maheshwaris-projects.vercel.app';
     }
 
     // Default to localhost for development
-    return 'http://localhost:3000';
+    return 'http://localhost:8080';
   }
 
   /**

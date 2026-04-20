@@ -34,10 +34,10 @@ export class EmailService {
         // Priority 2: Use known production domain if in production mode
         const isProduction = process.env.NODE_ENV === 'production' || process.env.VERCEL === '1';
         if (isProduction) {
-            return 'https://warranty.autoformindia.co.in';
+            return 'https://warranty2.autoformindia.co.in';
         }
         // Default to APP_URL from env or Production URL (fallback for when env var is missing in prod)
-        return (process.env.APP_URL || 'https://warranty.autoformindia.co.in').replace(/\/$/, '');
+        return (process.env.APP_URL || 'https://warranty2.autoformindia.co.in').replace(/\/$/, '');
     }
     /**
      * Helper to get the correct API/Backend URL for email action links
@@ -53,7 +53,7 @@ export class EmailService {
             return 'https://server-bharat-maheshwaris-projects.vercel.app';
         }
         // Default to localhost for development
-        return 'http://localhost:3000';
+        return 'http://localhost:8080';
     }
     /**
      * Send email with retry and exponential backoff
@@ -662,7 +662,7 @@ export class EmailService {
         });
     }
     static async sendAdminInvitation(adminEmail, adminName, invitedByName) {
-        const loginUrl = process.env.FRONTEND_URL || 'https://warranty.autoformindia.co.in/login?role=admin';
+        const loginUrl = process.env.FRONTEND_URL || 'https://warranty2.autoformindia.co.in/login?role=admin';
         const htmlContent = `
       <h2 style="color: #333; margin-top: 0;">Hello ${adminName},</h2>
       
