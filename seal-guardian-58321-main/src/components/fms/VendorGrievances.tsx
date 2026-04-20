@@ -56,11 +56,11 @@ const CATEGORIES: Record<string, string> = {
 };
 
 const CATEGORY_CONFIG: Record<string, { color: string; icon: any; border: string; bg: string; text: string }> = {
-    seat_cover:      { color: "bg-blue-500", border: "border-blue-200", bg: "bg-blue-50",  text: "text-blue-700",  icon: Package },
-    mats:            { color: "bg-emerald-500",  border: "border-emerald-200",  bg: "bg-emerald-50",   text: "text-emerald-700",   icon: Box },
-    accessories:     { color: "bg-amber-500",   border: "border-amber-200",   bg: "bg-amber-50",    text: "text-amber-700",    icon: Wrench },
-    software_issue:  { color: "bg-fuchsia-500", border: "border-fuchsia-200", bg: "bg-fuchsia-50",  text: "text-fuchsia-700",  icon: Monitor },
-    other:           { color: "bg-slate-500",  border: "border-slate-200",  bg: "bg-slate-100",   text: "text-slate-700",   icon: HelpCircle },
+    seat_cover: { color: "bg-blue-500", border: "border-blue-200", bg: "bg-blue-50", text: "text-blue-700", icon: Package },
+    mats: { color: "bg-emerald-500", border: "border-emerald-200", bg: "bg-emerald-50", text: "text-emerald-700", icon: Box },
+    accessories: { color: "bg-amber-500", border: "border-amber-200", bg: "bg-amber-50", text: "text-amber-700", icon: Wrench },
+    software_issue: { color: "bg-fuchsia-500", border: "border-fuchsia-200", bg: "bg-fuchsia-50", text: "text-fuchsia-700", icon: Monitor },
+    other: { color: "bg-slate-500", border: "border-slate-200", bg: "bg-slate-100", text: "text-slate-700", icon: HelpCircle },
 };
 
 const STATUS_CONFIG: Record<string, { color: string; icon: any; label: string }> = {
@@ -317,7 +317,7 @@ const VendorGrievances = () => {
             {/* Unified Header */}
             <div className="flex justify-between items-center bg-white py-3 md:py-4 px-4 md:px-6 rounded-2xl md:rounded-3xl border border-orange-100 shadow-[0_8px_30px_rgba(0,0,0,0.02)]">
                 <h2 className="text-base md:text-lg font-black text-slate-800 tracking-tight">Grievances</h2>
-                
+
                 <div className="flex items-center gap-2 md:gap-3">
                     <Button
                         variant="outline"
@@ -345,216 +345,216 @@ const VendorGrievances = () => {
             {/* List Content */}
             <div className="outline-none">
 
-                    {loadingMyGrievances ? (
-                        <div className="flex items-center justify-center p-12">
-                            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-                        </div>
-                    ) : myGrievances.length === 0 ? (
-                        <Card className="border-dashed">
-                            <CardContent className="py-12 text-center">
-                                <MessageSquare className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                                <p className="text-muted-foreground">You haven't submitted any grievances yet</p>
-                                <Button variant="link" onClick={() => setShowNewGrievanceForm(true)}>
-                                    Submit your first grievance
-                                </Button>
-                            </CardContent>
-                        </Card>
-                    ) : (
-                        <div className="space-y-3">
-                            {myGrievances.map((g) => {
-                                const categoryConfig = CATEGORY_CONFIG[g.category] || CATEGORY_CONFIG['other'];
-                                const CategoryIcon = categoryConfig.icon;
+                {loadingMyGrievances ? (
+                    <div className="flex items-center justify-center p-12">
+                        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                    </div>
+                ) : myGrievances.length === 0 ? (
+                    <Card className="border-dashed">
+                        <CardContent className="py-12 text-center">
+                            <MessageSquare className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                            <p className="text-muted-foreground">You haven't submitted any grievances yet</p>
+                            <Button variant="link" onClick={() => setShowNewGrievanceForm(true)}>
+                                Submit your first grievance
+                            </Button>
+                        </CardContent>
+                    </Card>
+                ) : (
+                    <div className="space-y-3">
+                        {myGrievances.map((g) => {
+                            const categoryConfig = CATEGORY_CONFIG[g.category] || CATEGORY_CONFIG['other'];
+                            const CategoryIcon = categoryConfig.icon;
 
-                                return (
-                                    <div
-                                        key={g.id}
-                                        onClick={() => handleOpenDetail(g)}
-                                        className={`group relative flex items-center gap-3 md:gap-4 p-4 md:p-5 bg-white hover:bg-slate-50/50 transition-all duration-300 rounded-[18px] md:rounded-[24px] border border-slate-100 shadow-sm hover:shadow-xl cursor-pointer active:scale-[0.99] border-l-[6px] ${categoryConfig.border.replace('border-', 'border-l-')}`}
-                                    >
-                                        <div className={`h-11 w-11 md:h-14 md:w-14 rounded-xl md:rounded-2xl flex items-center justify-center shrink-0 shadow-sm transition-transform duration-500 group-hover:scale-110 ${categoryConfig.bg} ${categoryConfig.text}`}>
-                                            <CategoryIcon className="w-5 h-5 md:w-7 md:h-7" />
+                            return (
+                                <div
+                                    key={g.id}
+                                    onClick={() => handleOpenDetail(g)}
+                                    className={`group relative flex items-center gap-3 md:gap-4 p-4 md:p-5 bg-white hover:bg-slate-50/50 transition-all duration-300 rounded-[18px] md:rounded-[24px] border border-slate-100 shadow-sm hover:shadow-xl cursor-pointer active:scale-[0.99] border-l-[6px] ${categoryConfig.border.replace('border-', 'border-l-')}`}
+                                >
+                                    <div className={`h-11 w-11 md:h-14 md:w-14 rounded-xl md:rounded-2xl flex items-center justify-center shrink-0 shadow-sm transition-transform duration-500 group-hover:scale-110 ${categoryConfig.bg} ${categoryConfig.text}`}>
+                                        <CategoryIcon className="w-5 h-5 md:w-7 md:h-7" />
+                                    </div>
+
+                                    <div className="flex-1 min-w-0">
+                                        <div className="flex flex-wrap items-center gap-1.5 md:gap-2 mb-1.5">
+                                            <span className="font-mono text-[8px] md:text-[10px] font-bold text-indigo-700 bg-indigo-50/80 px-1.5 py-0.5 md:px-2 md:py-1 rounded-md border border-indigo-100 shadow-sm">{g.ticket_id}</span>
+                                            <Badge variant="outline" className={`${STATUS_CONFIG[g.status]?.color?.replace('bg-', 'text-')} border-0 bg-transparent font-black tracking-widest text-[8px] md:text-[10px] uppercase pl-0`}>
+                                                • {STATUS_CONFIG[g.status]?.label}
+                                            </Badge>
+
+
                                         </div>
-
-                                        <div className="flex-1 min-w-0">
-                                            <div className="flex flex-wrap items-center gap-1.5 md:gap-2 mb-1.5">
-                                                <span className="font-mono text-[8px] md:text-[10px] font-bold text-indigo-700 bg-indigo-50/80 px-1.5 py-0.5 md:px-2 md:py-1 rounded-md border border-indigo-100 shadow-sm">{g.ticket_id}</span>
-                                                <Badge variant="outline" className={`${STATUS_CONFIG[g.status]?.color?.replace('bg-', 'text-')} border-0 bg-transparent font-black tracking-widest text-[8px] md:text-[10px] uppercase pl-0`}>
-                                                    • {STATUS_CONFIG[g.status]?.label}
-                                                </Badge>
-
-
-                                            </div>
-                                            <h3 className="font-black text-slate-800 text-sm md:text-lg truncate tracking-tight group-hover:text-orange-600 transition-colors">{g.subject}</h3>
-                                            <div className="flex items-center gap-2 mt-1">
-                                                <Badge variant="outline" className={`text-[8px] md:text-[9px] font-black uppercase tracking-widest border shrink-0 ${categoryConfig.bg} ${categoryConfig.text} ${categoryConfig.border}`}>
-                                                    {CATEGORIES[g.category] || FRANCHISE_CATEGORIES.find(c => c.value === g.category)?.label || g.category}
-                                                </Badge>
-                                                <span className="text-slate-300 opacity-50">•</span>
-                                                <span className="text-[8px] md:text-[10px] font-bold text-slate-400 uppercase tracking-widest">{formatToIST(g.created_at)}</span>
-                                            </div>
+                                        <h3 className="font-black text-slate-800 text-sm md:text-lg truncate tracking-tight group-hover:text-orange-600 transition-colors">{g.subject}</h3>
+                                        <div className="flex items-center gap-2 mt-1">
+                                            <Badge variant="outline" className={`text-[8px] md:text-[9px] font-black uppercase tracking-widest border shrink-0 ${categoryConfig.bg} ${categoryConfig.text} ${categoryConfig.border}`}>
+                                                {CATEGORIES[g.category] || FRANCHISE_CATEGORIES.find(c => c.value === g.category)?.label || g.category}
+                                            </Badge>
+                                            <span className="text-slate-300 opacity-50">•</span>
+                                            <span className="text-[8px] md:text-[10px] font-bold text-slate-400 uppercase tracking-widest">{formatToIST(g.created_at)}</span>
                                         </div>
                                     </div>
-                                );
-                            })}
-                        </div>
-                    )}
-
-                    {myGrievancePagination.totalPages > 0 && (
-                        <div className="mt-8 flex justify-end pb-8">
-                            <Pagination
-                                currentPage={myGrievancePagination.currentPage}
-                                totalPages={myGrievancePagination.totalPages}
-                                onPageChange={fetchMyGrievances}
-                                rowsPerPage={myGrievanceLimit}
-                                onRowsPerPageChange={(rows) => {
-                                    setMyGrievanceLimit(rows);
-                                    fetchMyGrievances(1, rows);
-                                }}
-                            />
-                        </div>
-                    )}
-
-                    {/* New Grievance Dialog */}
-                    <Dialog open={showNewGrievanceForm} onOpenChange={setShowNewGrievanceForm}>
-                        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto p-0 border-0 rounded-[30px] shadow-2xl bg-white">
-                            <DialogHeader className="px-6 pt-6 pb-4 border-b border-slate-100 bg-slate-50/50">
-                                <DialogTitle className="text-xl font-black text-slate-800">Submit New Grievance</DialogTitle>
-                                <DialogDescription className="text-slate-500">
-                                    Report an issue to Plant, Distributor, or ASM.
-                                </DialogDescription>
-                            </DialogHeader>
-
-                            <div className="space-y-5 p-6">
-                                {/* Category */}
-                                <div>
-                                    <label className="text-xs font-black text-slate-500 uppercase tracking-widest mb-3 block">Category <span className="text-red-500">*</span></label>
-                                    <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                                        {FRANCHISE_CATEGORIES.map((cat) => (
-                                            <div
-                                                key={cat.value}
-                                                onClick={() => setCategory(cat.value)}
-                                                className={cn(
-                                                    "cursor-pointer rounded-xl border-2 px-3 py-3 text-xs md:text-sm text-center font-bold transition-all hover:shadow-sm",
-                                                    category === cat.value
-                                                        ? "border-orange-500 bg-orange-50 text-orange-600 ring-1 ring-orange-500/20"
-                                                        : "text-slate-600 border-slate-100 bg-white hover:border-slate-200 hover:bg-slate-50"
-                                                )}
-                                            >
-                                                {cat.label}
-                                            </div>
-                                        ))}
-                                    </div>
                                 </div>
+                            );
+                        })}
+                    </div>
+                )}
 
-                                {/* Subject */}
-                                <div>
-                                    <label className="text-xs font-black text-slate-500 uppercase tracking-widest mb-2 block">Subject <span className="text-red-500">*</span></label>
-                                    <input
-                                        type="text"
-                                        className="flex h-12 w-full rounded-2xl border-2 border-slate-100 bg-slate-50/50 px-4 py-2 text-sm font-medium placeholder:text-slate-400 focus:outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/10 transition-all"
-                                        placeholder="Brief title of the issue"
-                                        value={subject}
-                                        onChange={(e) => setSubject(e.target.value)}
-                                    />
-                                </div>
+                {myGrievancePagination.totalPages > 0 && (
+                    <div className="mt-8 flex justify-end pb-8">
+                        <Pagination
+                            currentPage={myGrievancePagination.currentPage}
+                            totalPages={myGrievancePagination.totalPages}
+                            onPageChange={fetchMyGrievances}
+                            rowsPerPage={myGrievanceLimit}
+                            onRowsPerPageChange={(rows) => {
+                                setMyGrievanceLimit(rows);
+                                fetchMyGrievances(1, rows);
+                            }}
+                        />
+                    </div>
+                )}
 
-                                {/* Description */}
-                                <div>
-                                    <label className="text-xs font-black text-slate-500 uppercase tracking-widest mb-2 block">Description <span className="text-red-500">*</span></label>
-                                    <Textarea
-                                        value={description}
-                                        onChange={(e: any) => setDescription(e.target.value)}
-                                        placeholder="Detailed description of the issue..."
-                                        rows={4}
-                                        className="rounded-2xl border-2 border-slate-100 bg-slate-50/50 px-4 py-3 text-sm font-medium placeholder:text-slate-400 focus:outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/10 transition-all resize-none"
-                                    />
-                                </div>
+                {/* New Grievance Dialog */}
+                <Dialog open={showNewGrievanceForm} onOpenChange={setShowNewGrievanceForm}>
+                    <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto p-0 border-0 rounded-[30px] shadow-2xl bg-white">
+                        <DialogHeader className="px-6 pt-6 pb-4 border-b border-slate-100 bg-slate-50/50">
+                            <DialogTitle className="text-xl font-black text-slate-800">Submit New Grievance</DialogTitle>
+                            <DialogDescription className="text-slate-500">
+                                Report an issue to the Concerned Department.
+                            </DialogDescription>
+                        </DialogHeader>
 
-                                {/* Attachments */}
-                                <div>
-                                    <label className="text-xs font-black text-slate-500 uppercase tracking-widest mb-3 block flex items-center gap-2">
-                                        <Paperclip className="h-4 w-4" />
-                                        Attachments (Optional - Max 3)
-                                    </label>
-                                    <div className="grid grid-cols-3 gap-3">
-                                        {[
-                                            { file: attachment1, setter: setAttachment1, id: 1 },
-                                            { file: attachment2, setter: setAttachment2, id: 2 },
-                                            { file: attachment3, setter: setAttachment3, id: 3 }
-                                        ].map((slot) => (
-                                            <div key={slot.id} className="relative">
-                                                <input
-                                                    type="file"
-                                                    id={`attachment-${slot.id}`}
-                                                    className="hidden"
-                                                    accept="image/*"
-                                                    onChange={(e) => handleAttachmentChange(e, slot.setter)}
-                                                />
-                                                <label
-                                                    htmlFor={`attachment-${slot.id}`}
-                                                    className={cn(
-                                                        "flex flex-col items-center justify-center border-2 border-dashed rounded-2xl p-4 h-28 cursor-pointer transition-all",
-                                                        slot.file
-                                                            ? "border-orange-400 bg-orange-50"
-                                                            : "border-slate-200 hover:border-orange-300 hover:bg-orange-50/30"
-                                                    )}
-                                                >
-                                                    {slot.file ? (
-                                                        <>
-                                                            <CheckCircle className="h-7 w-7 text-orange-500 mb-1" />
-                                                            <span className="text-[10px] text-orange-600 font-bold truncate max-w-full px-1 text-center">
-                                                                {slot.file.name.length > 12 ? slot.file.name.substring(0, 12) + '...' : slot.file.name}
-                                                            </span>
-                                                        </>
-                                                    ) : (
-                                                        <>
-                                                            <Upload className="h-6 w-6 text-slate-400 mb-1" />
-                                                            <span className="text-[10px] text-slate-400 font-medium">Upload</span>
-                                                        </>
-                                                    )}
-                                                </label>
-                                                {slot.file && (
-                                                    <button
-                                                        onClick={(e) => {
-                                                            e.preventDefault();
-                                                            slot.setter(null);
-                                                        }}
-                                                        className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 shadow-lg hover:bg-red-600 transition-colors"
-                                                    >
-                                                        <X className="h-3 w-3" />
-                                                    </button>
-                                                )}
-                                            </div>
-                                        ))}
-                                    </div>
-                                    <p className="text-[10px] text-slate-400 mt-2 text-center">
-                                        Supported: JPG, PNG, JPEG
-                                    </p>
-                                </div>
-
-                                <div className="pt-2">
-                                    <Button
-                                        onClick={handleSubmitGrievance}
-                                        disabled={submitting || compressing}
-                                        className="w-full h-12 rounded-2xl bg-slate-900 hover:bg-slate-800 text-white font-black uppercase tracking-widest shadow-xl shadow-slate-900/20 transition-all hover:translate-y-[-1px] active:translate-y-[0px]"
-                                    >
-                                        {submitting || compressing ? (
-                                            <>
-                                                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                                                {compressing ? "Compressing..." : "Submitting..."}
-                                            </>
-                                        ) : (
-                                            "Submit Grievance"
-                                        )}
-                                    </Button>
-                                    <p className="text-[10px] text-center text-slate-400 mt-3">
-                                        Your grievance will be sent to the selected department and tracked by admin.
-                                    </p>
+                        <div className="space-y-5 p-6">
+                            {/* Category */}
+                            <div>
+                                <label className="text-xs font-black text-slate-500 uppercase tracking-widest mb-3 block">Category <span className="text-red-500">*</span></label>
+                                <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                                    {FRANCHISE_CATEGORIES.map((cat) => (
+                                        <div
+                                            key={cat.value}
+                                            onClick={() => setCategory(cat.value)}
+                                            className={cn(
+                                                "cursor-pointer rounded-xl border-2 px-3 py-3 text-xs md:text-sm text-center font-bold transition-all hover:shadow-sm",
+                                                category === cat.value
+                                                    ? "border-orange-500 bg-orange-50 text-orange-600 ring-1 ring-orange-500/20"
+                                                    : "text-slate-600 border-slate-100 bg-white hover:border-slate-200 hover:bg-slate-50"
+                                            )}
+                                        >
+                                            {cat.label}
+                                        </div>
+                                    ))}
                                 </div>
                             </div>
-                        </DialogContent>
-                    </Dialog>
-                </div>
+
+                            {/* Subject */}
+                            <div>
+                                <label className="text-xs font-black text-slate-500 uppercase tracking-widest mb-2 block">Subject <span className="text-red-500">*</span></label>
+                                <input
+                                    type="text"
+                                    className="flex h-12 w-full rounded-2xl border-2 border-slate-100 bg-slate-50/50 px-4 py-2 text-sm font-medium placeholder:text-slate-400 focus:outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/10 transition-all"
+                                    placeholder="Brief title of the issue"
+                                    value={subject}
+                                    onChange={(e) => setSubject(e.target.value)}
+                                />
+                            </div>
+
+                            {/* Description */}
+                            <div>
+                                <label className="text-xs font-black text-slate-500 uppercase tracking-widest mb-2 block">Description <span className="text-red-500">*</span></label>
+                                <Textarea
+                                    value={description}
+                                    onChange={(e: any) => setDescription(e.target.value)}
+                                    placeholder="Detailed description of the issue..."
+                                    rows={4}
+                                    className="rounded-2xl border-2 border-slate-100 bg-slate-50/50 px-4 py-3 text-sm font-medium placeholder:text-slate-400 focus:outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/10 transition-all resize-none"
+                                />
+                            </div>
+
+                            {/* Attachments */}
+                            <div>
+                                <label className="text-xs font-black text-slate-500 uppercase tracking-widest mb-3 block flex items-center gap-2">
+                                    <Paperclip className="h-4 w-4" />
+                                    Attachments (Optional - Max 3)
+                                </label>
+                                <div className="grid grid-cols-3 gap-3">
+                                    {[
+                                        { file: attachment1, setter: setAttachment1, id: 1 },
+                                        { file: attachment2, setter: setAttachment2, id: 2 },
+                                        { file: attachment3, setter: setAttachment3, id: 3 }
+                                    ].map((slot) => (
+                                        <div key={slot.id} className="relative">
+                                            <input
+                                                type="file"
+                                                id={`attachment-${slot.id}`}
+                                                className="hidden"
+                                                accept="image/*"
+                                                onChange={(e) => handleAttachmentChange(e, slot.setter)}
+                                            />
+                                            <label
+                                                htmlFor={`attachment-${slot.id}`}
+                                                className={cn(
+                                                    "flex flex-col items-center justify-center border-2 border-dashed rounded-2xl p-4 h-28 cursor-pointer transition-all",
+                                                    slot.file
+                                                        ? "border-orange-400 bg-orange-50"
+                                                        : "border-slate-200 hover:border-orange-300 hover:bg-orange-50/30"
+                                                )}
+                                            >
+                                                {slot.file ? (
+                                                    <>
+                                                        <CheckCircle className="h-7 w-7 text-orange-500 mb-1" />
+                                                        <span className="text-[10px] text-orange-600 font-bold truncate max-w-full px-1 text-center">
+                                                            {slot.file.name.length > 12 ? slot.file.name.substring(0, 12) + '...' : slot.file.name}
+                                                        </span>
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <Upload className="h-6 w-6 text-slate-400 mb-1" />
+                                                        <span className="text-[10px] text-slate-400 font-medium">Upload</span>
+                                                    </>
+                                                )}
+                                            </label>
+                                            {slot.file && (
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.preventDefault();
+                                                        slot.setter(null);
+                                                    }}
+                                                    className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 shadow-lg hover:bg-red-600 transition-colors"
+                                                >
+                                                    <X className="h-3 w-3" />
+                                                </button>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+                                <p className="text-[10px] text-slate-400 mt-2 text-center">
+                                    Supported: JPG, PNG, JPEG
+                                </p>
+                            </div>
+
+                            <div className="pt-2">
+                                <Button
+                                    onClick={handleSubmitGrievance}
+                                    disabled={submitting || compressing}
+                                    className="w-full h-12 rounded-2xl bg-slate-900 hover:bg-slate-800 text-white font-black uppercase tracking-widest shadow-xl shadow-slate-900/20 transition-all hover:translate-y-[-1px] active:translate-y-[0px]"
+                                >
+                                    {submitting || compressing ? (
+                                        <>
+                                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                            {compressing ? "Compressing..." : "Submitting..."}
+                                        </>
+                                    ) : (
+                                        "Submit Grievance"
+                                    )}
+                                </Button>
+                                <p className="text-[10px] text-center text-slate-400 mt-3">
+                                    Your grievance will be sent to the selected department and tracked by admin.
+                                </p>
+                            </div>
+                        </div>
+                    </DialogContent>
+                </Dialog>
+            </div>
 
 
             {/* Global Detail Dialog - Fixed scrolling and height */}
@@ -573,7 +573,7 @@ const VendorGrievances = () => {
                                 {/* Decorative background elements */}
                                 <div className="absolute -top-24 -right-12 w-48 h-48 bg-purple-200/40 rounded-full blur-3xl" />
                                 <div className="absolute bottom-0 left-12 w-32 h-32 bg-indigo-200/40 rounded-full blur-2xl" />
-                                
+
                                 <div className="relative z-10">
                                     <div className="flex items-center justify-between mb-3">
                                         <div className="flex items-center gap-3">
@@ -641,7 +641,7 @@ const VendorGrievances = () => {
                                                     const displayVal = CATEGORIES[val] ||
                                                         FRANCHISE_CATEGORIES.find(c => c.value.toLowerCase() === val)?.label ||
                                                         selectedGrievance.category || "N/A";
-                                                    
+
                                                     // Dynamic color mapping for categories
                                                     const categoryColors: Record<string, string> = {
                                                         'seat_cover': 'bg-blue-50 text-blue-700 border-blue-200',
@@ -652,7 +652,7 @@ const VendorGrievances = () => {
                                                         'software/portal issue': 'bg-fuchsia-50 text-fuchsia-700 border-fuchsia-200',
                                                         'other': 'bg-slate-100 text-slate-700 border-slate-200'
                                                     };
-                                                    
+
                                                     const colorClass = categoryColors[val] || 'bg-indigo-50 text-indigo-700 border-indigo-200';
 
                                                     return (

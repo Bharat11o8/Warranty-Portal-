@@ -40,19 +40,20 @@ const pool = mysql.createPool({
   // This ensures all date operations use IST
   timezone: '+05:30',
 
-  // Connection Pool Settings (environment-configurable)
+  // Connection Pool Settings
+  // Serverless (Vercel): keep pool small, connections are per-invocation
   waitForConnections: true,
   connectionLimit: parseInt(process.env.DB_POOL_SIZE || '2'),
-  maxIdle: parseInt(process.env.DB_MAX_IDLE || '5'),
+  maxIdle: parseInt(process.env.DB_MAX_IDLE || '1'),
   queueLimit: 0,
 
-  // Keep-Alive Settings
-  enableKeepAlive: true,
-  keepAliveInitialDelay: 10000, // Send keep-alive after 10 seconds idle
+  // Keep-Alive DISABLED on serverless — Vercel freezes idle TCP sockets,
+  // making keep-alive packets cause stale connections and ETIMEDOUT on reuse.
+  enableKeepAlive: false,
 
-  // Timeout Settings
-  connectTimeout: parseInt(process.env.DB_CONNECT_TIMEOUT || '5000'),
-  idleTimeout: parseInt(process.env.DB_IDLE_TIMEOUT || '60000'),
+  // Timeout Settings — longer connect timeout for cold starts
+  connectTimeout: parseInt(process.env.DB_CONNECT_TIMEOUT || '15000'),
+  idleTimeout: parseInt(process.env.DB_IDLE_TIMEOUT || '30000'),
 });
 
 const TRANSIENT_DB_ERROR_CODES = new Set([
@@ -81,8 +82,8 @@ export async function executeWithRetry<T = any>(
   params: any[] = [],
   options?: { retries?: number; baseDelayMs?: number }
 ): Promise<T> {
-  const retries = options?.retries ?? 1;
-  const baseDelayMs = options?.baseDelayMs ?? 150;
+  const retries = options?.retries ?? 3;
+  const baseDelayMs = options?.baseDelayMs ?? 300;
 
   for (let attempt = 0; ; attempt++) {
     try {
