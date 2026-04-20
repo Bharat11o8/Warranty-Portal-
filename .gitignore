@@ -9,6 +9,7 @@ generated-qr-codes/
 *.txt
 *.sql
 *.xlsx
+*.csv
 .vscode/
 #DOCS
 IMPLEMENTATION_PLAN_PRINT.html
@@ -16,3 +17,8 @@ FRAUD_PREVENTION_ANALYSIS.md
 WHATSAPP_COSTING_ANALYSIS.md
 security_best_practices_report.md
 .vscode
+Autoform and AFAC store data for FMS.json
+safari_login_incident_report.md
+$Book1_geocoded.xlsx
+Book1_geocoded.xlsx
+Book1.xlsx

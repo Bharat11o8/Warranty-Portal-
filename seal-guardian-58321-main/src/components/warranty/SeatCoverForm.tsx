@@ -324,10 +324,10 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
         return;
       }
 
-      if (formData.uid.length < 13 || formData.uid.length > 16) {
+      if (!/^[a-zA-Z0-9]{13,30}$/.test(formData.uid)) {
         toast({
           title: "Invalid UID",
-          description: "UID must be between 13-16 digits",
+          description: "UID must be a 13-30 character alphanumeric string",
           variant: "destructive",
         });
         setLoading(false);
@@ -641,8 +641,8 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
       // Allow only letters and spaces for customer name
       processedValue = value.replace(/[^A-Za-z\s]/g, '');
     } else if (name === 'uid') {
-      // UID should be only digits
-      processedValue = value.replace(/\D/g, '').slice(0, 16);
+      // UID should be alphanumeric, max 30 chars
+      processedValue = value.replace(/[^A-Za-z0-9-]/g, '').slice(0, 30);
       // Reset UID validation status when value changes
       setUidStatus('idle');
       setUidMessage('');
