@@ -11,7 +11,7 @@
             "source": "/(.*)",
             "headers": [
                 { "key": "Access-Control-Allow-Credentials", "value": "true" },
-                { "key": "Access-Control-Allow-Origin", "value": "https://warranty.emporiobyautoform.in" },
+                { "key": "Access-Control-Allow-Origin", "value": "https://warranty2.autoformindia.co.in" },
                 { "key": "Access-Control-Allow-Methods", "value": "GET,HEAD,OPTIONS,POST,PUT,PATCH,DELETE" },
                 { "key": "Access-Control-Allow-Headers", "value": "Origin, X-Requested-With, Content-Type, Accept, Authorization, X-Request-Id, X-Api-Key" }
             ]

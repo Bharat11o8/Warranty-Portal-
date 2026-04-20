@@ -1,4 +1,4 @@
-﻿import { transporter } from '../config/email.js';
+import { transporter } from '../config/email.js';
 import { formatDateIST, formatDateTimeIST, getISTYear } from '../utils/dateUtils.js';
 import dotenv from 'dotenv';
 
@@ -37,11 +37,11 @@ export class EmailService {
     // Priority 2: Use known production domain if in production mode
     const isProduction = process.env.NODE_ENV === 'production' || process.env.VERCEL === '1';
     if (isProduction) {
-      return 'https://warranty.emporiobyautoform.in';
+      return 'https://warranty2.autoformindia.co.in';
     }
 
     // Default to APP_URL from env or Production URL (fallback for when env var is missing in prod)
-    return (process.env.APP_URL || 'https://warranty.emporiobyautoform.in').replace(/\/$/, '');
+    return (process.env.APP_URL || 'https://warranty2.autoformindia.co.in').replace(/\/$/, '');
   }
 
   /**
@@ -55,7 +55,7 @@ export class EmailService {
     // Priority 2: Use known production backend if in production mode
     const isProduction = process.env.NODE_ENV === 'production' || process.env.VERCEL === '1';
     if (isProduction) {
-      return 'https://server-bharat-maheshwaris-projects.vercel.app';
+      return 'https://warranty2.autoformindia.co.in';
     }
 
     // Default to localhost for development
@@ -791,7 +791,7 @@ export class EmailService {
     adminName: string,
     invitedByName: string
   ): Promise<void> {
-    const loginUrl = process.env.FRONTEND_URL || 'https://warranty.emporiobyautoform.in/login?role=admin';
+    const loginUrl = process.env.FRONTEND_URL || 'https://warranty2.autoformindia.co.in/login?role=admin';
 
     const htmlContent = `
       <h2 style="color: #333; margin-top: 0;">Hello ${adminName},</h2>

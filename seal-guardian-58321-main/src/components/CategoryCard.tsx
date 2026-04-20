@@ -10,8 +10,7 @@ const CategoryCard: React.FC<CategoryCardProps> = ({ category }) => {
   return (
     <Link to={`/category/${category.id}`} className="group block">
       <div className="bg-white rounded-[2rem] overflow-hidden border border-slate-100 hover:border-orange-100 transition-all duration-500 hover:shadow-[0_20px_40px_-15px_rgba(0,0,0,0.05)] hover:-translate-y-1 flex flex-col h-full">
-        <div className="relative overflow-hidden aspect-[16/9]">
-          <div className="absolute inset-0 bg-slate-50 group-hover:bg-orange-50 transition-colors duration-500" />
+        <div className="relative overflow-hidden aspect-[16/9] bg-slate-50">
           <img
             src={category.image || "/placeholder.svg"}
             alt={category.name}

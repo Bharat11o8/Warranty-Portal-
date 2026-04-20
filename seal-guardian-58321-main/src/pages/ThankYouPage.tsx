@@ -96,7 +96,7 @@ const ThankYouPage = () => {
                       <span className="flex-shrink-0 h-6 w-6 bg-white rounded-full flex items-center justify-center text-orange-500 font-bold shadow-sm text-xs">1</span>
                       <p className="text-sm">
                         <span className="font-bold text-slate-800 block mb-1 underline decoration-orange-300 decoration-2 underline-offset-4">Access Your Warranty</span>
-                        Login at <span className="font-bold text-orange-600">https://warranty.emporiobyautoform.in/</span> with your registered email. Check your phone/email for the login OTP.
+                        Login at <span className="font-bold text-orange-600">https://warranty2.autoformindia.co.in/</span> with your registered email. Check your phone/email for the login OTP.
                       </p>
                     </li>
                     <li className="flex gap-4">

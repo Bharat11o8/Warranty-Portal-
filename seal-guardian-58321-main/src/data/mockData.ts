@@ -19,7 +19,7 @@ export const categories: Category[] = [
   { id: "riviera", name: "REVIERA SERIES", parentId: "4-wheeler-seat-cover", image: "/images/Autoform - Swatch Book 12-4-22 T2.jpg" },
   { id: "lucenzo", name: "LUCENZO SERIES", parentId: "4-wheeler-seat-cover", image: "/images/Autoform - Swatch Book 12-4-22 T1.jpg" },
   { id: "signature", name: "SIGNATURE SERIES", parentId: "4-wheeler-seat-cover", image: "/images/Autoform - Swatch Book 22-12-23.jpg" },
-  { id: "emporio", name: "EMPORIO SERIES", parentId: "4-wheeler-seat-cover", image: " /images/Autoform - Swatch Book 12-4-22 T4.jpg" },
+  { id: "emporio", name: "EMPORIO SERIES", parentId: "4-wheeler-seat-cover", image: "/images/Autoform - Swatch Book 12-4-22 T4.jpg" },
 
 
 
@@ -138,7 +138,7 @@ export const categories: Category[] = [
 
   // Subcategories for Mat
   { id: "pu-pvc", name: "PU/PVC", parentId: "mat", image: "/images/bannersforcataloguewebsite/PVC-Mat.jpg" },
-  // { id: "3d-mat", name: "3D Mat", parentId: "mat", image: "https://images.unsplash.com/photo-1606028638131-29913d642c04?q=80&w=1972&auto=format&fit=crop" },
+  // { id: "3d-mat", name: "3D Mat", parentId: "mat", image: "/images/mats/TPE-Mat.png" },
   { id: "tpe", name: "TPE", parentId: "mat", image: "/images/bannersforcataloguewebsite/TPE-Mat.jpg" },
   // { id: "boot-mat", name: "Boot Mat", parentId: "mat", image: "https://images.unsplash.com/photo-1603811478698-7e15b7d724b9?q=80&w=2070&auto=format&fit=crop" },
 
@@ -275,6 +275,8 @@ export const products: Product[] = [
       "Note: Professional installation recommended for best results. Color and finish may vary slightly from images."
     ],
     "inStock": true,
+    "isFeatured": true,
+    "isNewArrival": true,
     "rating": 4.5,
     "reviews": reviews["1"]
   }
@@ -419,6 +421,8 @@ export const products: Product[] = [
     ],
     "price": 25439,
     "inStock": true,
+    "isFeatured": true,
+    "isNewArrival": true,
     "rating": 5.0,
     "reviews": reviews["1"]
   },
@@ -1630,10 +1634,10 @@ export const products: Product[] = [
       "Power Cable: Cigar charger compatible with most vehicles."
     ],
     images: [
-      "/images/K32渲染-2.jpg",
-      "/images/K32渲染-3.jpg",
-      "/images/K32渲染-1.jpg",
-      "/images/K32渲染-8.jpg",
+      "/images/K32-1.jpg",
+      "/images/K32-2.jpg",
+      "/images/K32-3.jpg",
+      "/images/K32-8.jpg"
     ],
     categoryId: "dvr",
     additionalInfo: [
@@ -2070,8 +2074,8 @@ export const products: Product[] = [
     id: "u-max-arrow",
     name: "U Max Arrow ",
     price: {
-      twoRow: 11999,
-      threeRow: 14999
+      twoRow: 14769,
+      threeRow: 18369
     },
     description: [
       "Premium 7D car floor mat designed for 2-row vehicles, offering full coverage and luxury protection.",
@@ -2101,8 +2105,8 @@ export const products: Product[] = [
     id: "u-max-nhb",
     name: "U Max NHB",
     price: {
-      twoRow: 11999,
-      threeRow: 14999
+      twoRow: 14769,
+      threeRow: 18369
     },
     description: [
       "Premium 7D U Max NHB car floor mat designed for 2-row vehicles, offering high-end protection and elegant styling.",
@@ -2222,7 +2226,7 @@ export const products: Product[] = [
   {
     id: "seat-bag-black",
     name: "Seat Bag",
-    price: 1013,
+    price: 1085,
     description: [
       "Spacious and compact seat bag perfect for daily commuting and long rides.",
       "Made with premium water-resistant material to keep contents safe and dry.",
@@ -2247,7 +2251,7 @@ export const products: Product[] = [
   {
     id: "round-saddle-bag",
     name: "Round Saddle Bag",
-    price: 736,
+    price: 785,
     description: [
       "Classic round saddle bag designed for enhanced storage during rides.",
       "Durable and water-resistant material for reliable protection in all weather conditions.",
@@ -2277,7 +2281,7 @@ export const products: Product[] = [
   {
     id: "magnetic-bag-small",
     name: "Magnetic Bag - Small",
-    price: 2861,
+    price: 3050,
     description: [
       "Compact magnetic tank bag designed for easy access and convenience during rides.",
       "Powerful built-in magnets ensure a secure grip on metal fuel tanks.",
@@ -2305,7 +2309,7 @@ export const products: Product[] = [
   {
     id: "premium-saddle-bag",
     name: "Premium Saddle Bag (L&R) Side",
-    price: 4835,
+    price: 5155,
     description: [
       "Spacious & Dual-Sided – Large capacity for carrying travel essentials.",
       "Durable & Water-Resistant – Protects belongings from rain and dust.",
@@ -2334,7 +2338,7 @@ export const products: Product[] = [
   {
     id: "premium-side-bag",
     name: "Premium Side Bag (PVC)",
-    price: 2079,
+    price: 2220,
     description: [
       "Spacious & Dual-Sided – Large capacity for carrying travel essentials.",
       "Durable & Water-Resistant – Protects belongings from rain and dust.",
@@ -2367,7 +2371,7 @@ export const products: Product[] = [
   {
     id: "eco-round-rope",
     name: "Eco Round Rope",
-    price: 1050,
+    price: 1135,
     description: [
       "High-Quality Material – Durable, long-lasting, and resistant to breakage.",
       "Strong Grip & Flexibility – Ensures a secure hold for luggage and accessories.",
@@ -2395,7 +2399,7 @@ export const products: Product[] = [
   {
     id: "eco-flat-rope",
     name: "Eco Flat Rope",
-    price: 900,
+    price: 975,
     description: [
       "High-Quality Material – Durable, long-lasting, and resistant to breakage.",
       "Strong Grip & Flexibility – Ensures a secure hold for luggage and accessories.",
@@ -2422,7 +2426,7 @@ export const products: Product[] = [
   {
     id: "bike-net",
     name: "Bike Net",
-    price: 1800,
+    price: 1945,
     description: [
       "Strong and stretchable elastic net ideal for securing luggage on bikes.",
       "Heavy-duty hooks ensure tight grip and reliable hold during rides.",
@@ -2450,7 +2454,7 @@ export const products: Product[] = [
   {
     id: "premium-round-rope",
     name: "Premium Round Rope",
-    price: 1900,
+    price: 2050,
     description: [
       "Premium quality rope made from durable and high-tensile fibers.",
       "Round design offers excellent grip and flexibility for secure tying.",
@@ -2479,7 +2483,7 @@ export const products: Product[] = [
   {
     id: "premium-flat-rope",
     name: "Premium Flat Rope",
-    price: 1420,
+    price: 1535,
     description: [
       "Premium quality rope made from durable and high-tensile fibers.",
       "Flat design offers excellent grip and flexibility for secure tying.",
@@ -2506,7 +2510,7 @@ export const products: Product[] = [
   {
     id: "quilting-mat",
     name: "Quilting Mat",
-    price: 355,
+    price: 380,
     description: [
       "Premium quilted texture for a luxurious look and feel.",
       "Durable material protects vehicle floor from dust and dirt.",
@@ -2533,7 +2537,7 @@ export const products: Product[] = [
   {
     id: "quilted-spike-mat",
     name: "Quilted Spike (Black)",
-    price: 685,
+    price: 730,
     description: [
       "Bold spike design with quilted finish for added grip and style.",
       "Designed to protect foot area from mud, dust, and spills.",
@@ -2671,7 +2675,7 @@ export const products: Product[] = [
   {
     id: "eco-chest-guard",
     name: "Eco Chest Guard",
-    price: 495,
+    price: 570,
     description: [
       "Impact Protection – Protects your chest from wind, debris, and minor impacts.",
 
@@ -2707,7 +2711,7 @@ export const products: Product[] = [
   {
     id: "premium-chest-guard",
     name: "Premium Chest Guard",
-    price: 670,
+    price: 775,
     description: [
       "Impact Protection – Protects your chest from wind, debris, and minor impacts.",
 
@@ -2933,7 +2937,7 @@ export const products: Product[] = [
   {
     id: "body-cover-wp-xl",
     name: "Body Cover 100% Water Proof XL",
-    price: 1300,
+    price: 1495,
     description: [
       "High Quality.",
       "Product Type-2 wheeler Specific Bike/Scooter Body Cover",
@@ -2961,7 +2965,7 @@ export const products: Product[] = [
   {
     id: "body-cover-wp-xxl",
     name: "Body Cover 100% Water Proof XXL",
-    price: 1500,
+    price: 1725,
     description: [
       "High Quality.",
       "Product Type-2 wheeler Specific Bike/Scooter Body Cover",
@@ -2989,7 +2993,7 @@ export const products: Product[] = [
   {
     id: "body-cover-wr-xl",
     name: "Body Cover Water Repellent XL",
-    price: 840,
+    price: 970,
     description: [
       "High Quality.",
       "Product Type-2 wheeler Specific Bike/Scooter Body Cover",
@@ -3017,7 +3021,7 @@ export const products: Product[] = [
   {
     id: "body-cover-wr-xxl",
     name: "Body Cover Water Repellent XXL",
-    price: 1090,
+    price: 1255,
     description: [
       "High Quality.",
       "Product Type-2 wheeler Specific Bike/Scooter Body Cover",
@@ -5451,8 +5455,8 @@ Memory Foam from Autoformindia.`,
     id: "1r",
     name: "D3 Artificial Leather Seat Covers",
     price: {
-      twoRow: 11999,
-      threeRow: 14999
+      twoRow: 14769,
+      threeRow: 18369
     },
     description: [
       "PU leather with a protective coating that is soft to the touch, water resistant, and durable",
@@ -5495,8 +5499,8 @@ Memory Foam from Autoformindia.`,
     id: "2r",
     name: "D5 Artificial Leather Seat Covers",
     price: {
-      twoRow: 11999,
-      threeRow: 14999
+      twoRow: 14769,
+      threeRow: 18369
     },
     description: [
       "PU leather with a protective coating that is soft to the touch, water resistant, and durable",
@@ -5539,8 +5543,8 @@ Memory Foam from Autoformindia.`,
     id: "3r",
     name: "Q2 Artificial Leather Seat Covers",
     price: {
-      twoRow: 11999,
-      threeRow: 14999
+      twoRow: 14769,
+      threeRow: 18369
     },
     description: [
       "PU leather with a protective coating that is soft to the touch, water resistant, and durable",
@@ -5576,8 +5580,8 @@ Memory Foam from Autoformindia.`,
     id: "4r",
     name: "H Cross Artificial Leather Seat Covers",
     price: {
-      twoRow: 11999,
-      threeRow: 14999
+      twoRow: 14769,
+      threeRow: 18369
     },
     description: [
       "PU leather with a protective coating that is soft to the touch, water resistant, and durable",
@@ -5619,8 +5623,8 @@ Memory Foam from Autoformindia.`,
     id: "5r",
     name: "U Focus Artificial Leather Seat Covers",
     price: {
-      twoRow: 11999,
-      threeRow: 14999
+      twoRow: 14769,
+      threeRow: 18369
     },
     description: [
       "PU leather with a protective coating that is soft to the touch, water resistant, and durable",
@@ -5663,8 +5667,8 @@ Memory Foam from Autoformindia.`,
     id: "6r",
     name: "U Highway Artificial Leather Seat Covers",
     price: {
-      twoRow: 11999,
-      threeRow: 14999
+      twoRow: 14769,
+      threeRow: 18369
     },
     description: [
       "PU leather with a protective coating that is soft to the touch, water resistant, and durable",
@@ -5707,8 +5711,8 @@ Memory Foam from Autoformindia.`,
     id: "7r",
     name: "U-Arrow Artificial Leather Car Seat Covers",
     price: {
-      twoRow: 11999,
-      threeRow: 14999
+      twoRow: 14769,
+      threeRow: 18369
     },
     description: [
       "PU leather with a protective coating that is soft to the touch, water resistant, and durable",
@@ -5751,8 +5755,8 @@ Memory Foam from Autoformindia.`,
     id: "8r",
     name: "Amaze Plus Artificial Leather Seat Covers",
     price: {
-      twoRow: 11999,
-      threeRow: 14999
+      twoRow: 14769,
+      threeRow: 18369
     },
     description: [
       "PU leather with a protective coating that is soft to the touch, water resistant, and durable",
@@ -5795,8 +5799,8 @@ Memory Foam from Autoformindia.`,
     id: "9r",
     name: "Amaze Duo Plus Artificial Leather Seat Covers",
     price: {
-      twoRow: 11999,
-      threeRow: 14999
+      twoRow: 14769,
+      threeRow: 18369
     },
     description: [
       "PU leather with a protective coating that is soft to the touch, water resistant, and durable",
@@ -5839,8 +5843,8 @@ Memory Foam from Autoformindia.`,
     id: "10r",
     name: "E1 Artificial Leather Seat Covers",
     price: {
-      twoRow: 11999,
-      threeRow: 14999
+      twoRow: 14769,
+      threeRow: 18369
     },
     description: [
       "PU leather with a protective coating that is soft to the touch, water resistant, and durable",
@@ -5883,8 +5887,8 @@ Memory Foam from Autoformindia.`,
     id: "11r",
     name: "E2 Artificial Leather Seat Covers",
     price: {
-      twoRow: 11999,
-      threeRow: 14999
+      twoRow: 14769,
+      threeRow: 18369
     },
     description: [
       "PU leather with a protective coating that is soft to the touch, water resistant, and durable",
@@ -5927,8 +5931,8 @@ Memory Foam from Autoformindia.`,
     id: "12r",
     name: "E4 Artificial Leather Seat Covers",
     price: {
-      twoRow: 11999,
-      threeRow: 14999
+      twoRow: 14769,
+      threeRow: 18369
     },
     description: [
       "PU leather with a protective coating that is soft to the touch, water resistant, and durable",
@@ -5971,8 +5975,8 @@ Memory Foam from Autoformindia.`,
     id: "13r",
     name: "E5 Artificial Leather Seat Covers",
     price: {
-      twoRow: 11999,
-      threeRow: 14999
+      twoRow: 14769,
+      threeRow: 18369
     },
     description: [
       "PU leather with a protective coating that is soft to the touch, water resistant, and durable",
@@ -6034,8 +6038,8 @@ Memory Foam from Autoformindia.`,
     id: "1l",
     name: "D3 Artificial Leather Seat Covers",
     price: {
-      twoRow: 11999,
-      threeRow: 14999
+      twoRow: 14769,
+      threeRow: 18369
     },
     description: [
       "PU leather with a protective coating that is soft to the touch, water resistant, and durable",
@@ -6078,8 +6082,8 @@ Memory Foam from Autoformindia.`,
     id: "2l",
     name: "D5 Artificial Leather Seat Covers",
     price: {
-      twoRow: 11999,
-      threeRow: 14999
+      twoRow: 14769,
+      threeRow: 18369
     },
     description: [
       "PU leather with a protective coating that is soft to the touch, water resistant, and durable",
@@ -6121,8 +6125,8 @@ Memory Foam from Autoformindia.`,
     id: "3l",
     name: "Q2 Artificial Leather Seat Covers",
     price: {
-      twoRow: 11999,
-      threeRow: 14999
+      twoRow: 14769,
+      threeRow: 18369
     },
     description: [
       "PU leather with a protective coating that is soft to the touch, water resistant, and durable",
@@ -6157,8 +6161,8 @@ Memory Foam from Autoformindia.`,
     id: "4l",
     name: "H Cross Artificial Leather Seat Covers",
     price: {
-      twoRow: 11999,
-      threeRow: 14999
+      twoRow: 14769,
+      threeRow: 18369
     },
     description: [
       "PU leather with a protective coating that is soft to the touch, water resistant, and durable",
@@ -6200,8 +6204,8 @@ Memory Foam from Autoformindia.`,
     id: "5l",
     name: "U Focus Artificial Leather Seat Covers",
     price: {
-      twoRow: 11999,
-      threeRow: 14999
+      twoRow: 14769,
+      threeRow: 18369
     },
     description: [
       "PU leather with a protective coating that is soft to the touch, water resistant, and durable",
@@ -6243,8 +6247,8 @@ Memory Foam from Autoformindia.`,
     id: "6l",
     name: "U Highway Artificial Leather Seat Covers",
     price: {
-      twoRow: 11999,
-      threeRow: 14999
+      twoRow: 14769,
+      threeRow: 18369
     },
     description: [
       "PU leather with a protective coating that is soft to the touch, water resistant, and durable",
@@ -6286,8 +6290,8 @@ Memory Foam from Autoformindia.`,
     id: "7l",
     name: "U-Arrow Artificial Leather Car Seat Covers",
     price: {
-      twoRow: 11999,
-      threeRow: 14999
+      twoRow: 14769,
+      threeRow: 18369
     },
     description: [
       "PU leather with a protective coating that is soft to the touch, water resistant, and durable",
@@ -6329,8 +6333,8 @@ Memory Foam from Autoformindia.`,
     id: "8l",
     name: "Amaze Plus Artificial Leather Seat Covers",
     price: {
-      twoRow: 11999,
-      threeRow: 14999
+      twoRow: 14769,
+      threeRow: 18369
     },
     description: [
       "PU leather with a protective coating that is soft to the touch, water resistant, and durable",
@@ -6372,8 +6376,8 @@ Memory Foam from Autoformindia.`,
     id: "9l",
     name: "Amaze Duo Plus Artificial Leather Seat Covers",
     price: {
-      twoRow: 11999,
-      threeRow: 14999
+      twoRow: 14769,
+      threeRow: 18369
     },
     description: [
       "PU leather with a protective coating that is soft to the touch, water resistant, and durable",
@@ -6415,8 +6419,8 @@ Memory Foam from Autoformindia.`,
     id: "10l",
     name: "E1 Artificial Leather Seat Covers",
     price: {
-      twoRow: 11999,
-      threeRow: 14999
+      twoRow: 14769,
+      threeRow: 18369
     },
     description: [
       "PU leather with a protective coating that is soft to the touch, water resistant, and durable",
@@ -6458,8 +6462,8 @@ Memory Foam from Autoformindia.`,
     id: "11l",
     name: "E2 Artificial Leather Seat Covers",
     price: {
-      twoRow: 11999,
-      threeRow: 14999
+      twoRow: 14769,
+      threeRow: 18369
     },
     description: [
       "PU leather with a protective coating that is soft to the touch, water resistant, and durable",
@@ -6501,8 +6505,8 @@ Memory Foam from Autoformindia.`,
     id: "12l",
     name: "E4 Artificial Leather Seat Covers",
     price: {
-      twoRow: 11999,
-      threeRow: 14999
+      twoRow: 14769,
+      threeRow: 18369
     },
     description: [
       "PU leather with a protective coating that is soft to the touch, water resistant, and durable",
@@ -6544,8 +6548,8 @@ Memory Foam from Autoformindia.`,
     id: "13l",
     name: "E5 Artificial Leather Seat Covers",
     price: {
-      twoRow: 11999,
-      threeRow: 14999
+      twoRow: 14769,
+      threeRow: 18369
     },
     description: [
       "PU leather with a protective coating that is soft to the touch, water resistant, and durable",
@@ -6594,8 +6598,8 @@ Memory Foam from Autoformindia.`,
     id: "1s",
     name: "U-Ladder Artificial Leather Seat Covers",
     price: {
-      twoRow: 18999,
-      threeRow: 22999
+      twoRow: 20679,
+      threeRow: 25689
     },
     description: [
       "PU leather with a protective coating that is soft to the touch, water resistant, and durable.",
@@ -6638,8 +6642,8 @@ Memory Foam from Autoformindia.`,
     id: "2s",
     name: "U-BLADE Artificial Leather Seat Covers",
     price: {
-      twoRow: 18999,
-      threeRow: 22999
+      twoRow: 20679,
+      threeRow: 25689
     },
     description: [
       "PU leather with a protective coating that is soft to the touch, water resistant, and durable.",
@@ -6680,8 +6684,8 @@ Memory Foam from Autoformindia.`,
     id: "3s",
     name: "U-Volt Artificial Leather Seat Covers",
     price: {
-      twoRow: 18999,
-      threeRow: 22999
+      twoRow: 20679,
+      threeRow: 25689
     },
     description: [
       "PU leather with a protective coating that is soft to the touch, water resistant, and durable",
@@ -6716,8 +6720,8 @@ Memory Foam from Autoformindia.`,
     id: "4s",
     name: "H-Grand Artificial Leather Car Seat Covers",
     price: {
-      twoRow: 18999,
-      threeRow: 22999
+      twoRow: 20679,
+      threeRow: 25689
     },
     description: [
       "PU leather with a protective coating that is soft to the touch, water resistant, and durable",
@@ -6760,8 +6764,8 @@ Memory Foam from Autoformindia.`,
     id: "5s",
     name: "Navigation+ Artificial Leather Car Seat Covers",
     price: {
-      twoRow: 18999,
-      threeRow: 22999
+      twoRow: 20679,
+      threeRow: 25689
     },
     description: [
       "PU leather with a protective coating that is soft to the touch, water resistant, and durable",
@@ -6803,8 +6807,8 @@ Memory Foam from Autoformindia.`,
     id: "6s",
     name: "XCLUSIVE Artificial Leather Seat Covers",
     price: {
-      twoRow: 18999,
-      threeRow: 22999
+      twoRow: 20679,
+      threeRow: 25689
     },
     description: [
       "PU leather with a protective coating that is soft to the touch, water resistant, and durable",
@@ -6846,8 +6850,8 @@ Memory Foam from Autoformindia.`,
     id: "7s",
     name: "XCLUSIVE Plus Artificial Leather Seat Covers",
     price: {
-      twoRow: 18999,
-      threeRow: 22999
+      twoRow: 20679,
+      threeRow: 25689
     },
     description: [
       "PU leather with a protective coating that is soft to the touch, water resistant, and durable",
@@ -6889,8 +6893,8 @@ Memory Foam from Autoformindia.`,
     id: "8s",
     name: "U-Impress Artificial Leather Car Seat Covers",
     price: {
-      twoRow: 18999,
-      threeRow: 22999
+      twoRow: 20679,
+      threeRow: 25689
     },
     description: [
       "PU leather with a protective coating that is soft to the touch, water resistant, and durable",
@@ -6932,8 +6936,8 @@ Memory Foam from Autoformindia.`,
     id: "9s",
     name: "Polo Artificial Leather Seat Covers",
     price: {
-      twoRow: 18999,
-      threeRow: 22999
+      twoRow: 20679,
+      threeRow: 25689
     },
     description: [
       "PU leather with a protective coating that is soft to the touch, water resistant, and durable",
@@ -6975,8 +6979,8 @@ Memory Foam from Autoformindia.`,
     id: "10s",
     name: "X-Cross Artificial Leather Seat Covers",
     price: {
-      twoRow: 18999,
-      threeRow: 22999
+      twoRow: 20679,
+      threeRow: 25689
     },
     description: [
       "PU leather with a protective coating that is soft to the touch, water resistant, and durable",
@@ -7024,8 +7028,8 @@ Memory Foam from Autoformindia.`,
     id: "1e",
     name: "D3 Artificial Leather Seat Covers",
     price: {
-      twoRow: 21499,
-      threeRow: 30999
+      twoRow: 24459,
+      threeRow: 34679
     },
     description: [
       "PU leather with a protective coating that is soft to the touch, water resistant, and durable",
@@ -7068,8 +7072,8 @@ Memory Foam from Autoformindia.`,
     id: "2e",
     name: "D5 Artificial Leather Seat Covers",
     price: {
-      twoRow: 21499,
-      threeRow: 30999
+      twoRow: 24459,
+      threeRow: 34679
     },
     description: [
       "PU leather with a protective coating that is soft to the touch, water resistant, and durable",
@@ -7112,8 +7116,8 @@ Memory Foam from Autoformindia.`,
     id: "3e",
     name: "Q2 Artificial Leather Seat Covers",
     price: {
-      twoRow: 21499,
-      threeRow: 30999
+      twoRow: 24459,
+      threeRow: 34679
     }, description: [
       "PU leather with a protective coating that is soft to the touch, water resistant, and durable",
       "High-density foam padding for comfort and durability",
@@ -7148,8 +7152,8 @@ Memory Foam from Autoformindia.`,
     id: "4e",
     name: "H Cross Artificial Leather Seat Covers",
     price: {
-      twoRow: 21499,
-      threeRow: 30999
+      twoRow: 24459,
+      threeRow: 34679
     }, description: [
       "PU leather with a protective coating that is soft to the touch, water resistant, and durable",
       "High-density foam padding for comfort and durability",
@@ -7191,8 +7195,8 @@ Memory Foam from Autoformindia.`,
     id: "5e",
     name: "U Focus Artificial Leather Seat Covers",
     price: {
-      twoRow: 21499,
-      threeRow: 30999
+      twoRow: 24459,
+      threeRow: 34679
     }, description: [
       "PU leather with a protective coating that is soft to the touch, water resistant, and durable",
       "High-density foam padding for comfort and durability",
@@ -7234,8 +7238,8 @@ Memory Foam from Autoformindia.`,
     id: "6e",
     name: "U Highway Artificial Leather Seat Covers",
     price: {
-      twoRow: 21499,
-      threeRow: 30999
+      twoRow: 24459,
+      threeRow: 34679
     }, description: [
       "PU leather with a protective coating that is soft to the touch, water resistant, and durable",
       "High-density foam padding for comfort and durability",
@@ -7276,8 +7280,8 @@ Memory Foam from Autoformindia.`,
     id: "7e",
     name: "U-Arrow Artificial Leather Car Seat Covers",
     price: {
-      twoRow: 21499,
-      threeRow: 30999
+      twoRow: 24459,
+      threeRow: 34679
     }, description: [
       "PU leather with a protective coating that is soft to the touch, water resistant, and durable",
       "High-density foam padding for comfort and durability",
@@ -7319,8 +7323,8 @@ Memory Foam from Autoformindia.`,
     id: "8e",
     name: "U-Ladder Artificial Leather Seat Covers",
     price: {
-      twoRow: 21499,
-      threeRow: 30999
+      twoRow: 24459,
+      threeRow: 34679
     }, description: [
       "PU leather with a protective coating that is soft to the touch, water resistant, and durable.",
       "High-density foam padding for comfort and durability",
@@ -7363,8 +7367,8 @@ Memory Foam from Autoformindia.`,
     id: "9e",
     name: "U-BLADE Artificial Leather Seat Covers",
     price: {
-      twoRow: 21499,
-      threeRow: 30999
+      twoRow: 24459,
+      threeRow: 34679
     }, description: [
       "PU leather with a protective coating that is soft to the touch, water resistant, and durable.",
       "High-density foam padding for comfort and durability",
@@ -7404,8 +7408,8 @@ Memory Foam from Autoformindia.`,
     id: "10e",
     name: "U-Volt Artificial Leather Seat Covers",
     price: {
-      twoRow: 21499,
-      threeRow: 30999
+      twoRow: 24459,
+      threeRow: 34679
     }, description: [
       "PU leather with a protective coating that is soft to the touch, water resistant, and durable",
       "High-density foam padding for comfort and durability",
@@ -7439,8 +7443,8 @@ Memory Foam from Autoformindia.`,
     id: "11e",
     name: "H-Grand Artificial Leather Car Seat Covers",
     price: {
-      twoRow: 21499,
-      threeRow: 30999
+      twoRow: 24459,
+      threeRow: 34679
     }, description: [
       "PU leather with a protective coating that is soft to the touch, water resistant, and durable",
       "High-density foam padding for comfort and durability",
@@ -7482,8 +7486,8 @@ Memory Foam from Autoformindia.`,
     id: "12e",
     name: "Navigation+ Artificial Leather Car Seat Covers",
     price: {
-      twoRow: 21499,
-      threeRow: 30999
+      twoRow: 24459,
+      threeRow: 34679
     }, description: [
       "PU leather with a protective coating that is soft to the touch, water resistant, and durable",
       "High-density foam padding for comfort and durability",
@@ -7525,8 +7529,8 @@ Memory Foam from Autoformindia.`,
     id: "13e",
     name: "X-Cross Artificial Leather Seat Covers",
     price: {
-      twoRow: 21499,
-      threeRow: 30999
+      twoRow: 24459,
+      threeRow: 34679
     }, description: [
       "PU leather with a protective coating that is soft to the touch, water resistant, and durable",
       "High-density foam padding for comfort and durability",
@@ -7567,8 +7571,8 @@ Memory Foam from Autoformindia.`,
     id: "14e",
     name: "Polo Artificial Leather Seat Covers",
     price: {
-      twoRow: 21499,
-      threeRow: 30999
+      twoRow: 24459,
+      threeRow: 34679
     }, description: [
       "PU leather with a protective coating that is soft to the touch, water resistant, and durable",
       "High-density foam padding for comfort and durability",
@@ -7610,8 +7614,8 @@ Memory Foam from Autoformindia.`,
     id: "15e",
     name: "XCLUSIVE Artificial Leather Seat Covers",
     price: {
-      twoRow: 21499,
-      threeRow: 30999
+      twoRow: 24459,
+      threeRow: 34679
     },
     description: [
       "PU leather with a protective coating that is soft to the touch, water resistant, and durable",
@@ -7653,8 +7657,8 @@ Memory Foam from Autoformindia.`,
     id: "16e",
     name: "XCLUSIVE Plus Artificial Leather Seat Covers",
     price: {
-      twoRow: 21499,
-      threeRow: 30999
+      twoRow: 24459,
+      threeRow: 34679
     },
     description: [
       "PU leather with a protective coating that is soft to the touch, water resistant, and durable",
@@ -7696,8 +7700,8 @@ Memory Foam from Autoformindia.`,
     id: "17e",
     name: "U-Impress Artificial Leather Car Seat Covers",
     price: {
-      twoRow: 21499,
-      threeRow: 30999
+      twoRow: 24459,
+      threeRow: 34679
     },
     description: [
       "PU leather with a protective coating that is soft to the touch, water resistant, and durable",
@@ -7755,26 +7759,7 @@ Memory Foam from Autoformindia.`,
   // products for the Emporio ends------------------------------------------
 
 
-  {
-    id: "3",
-    name: "3D Premium Car Mat",
-    price: 149.99,
-    description: "Custom-fit 3D car mat with superior protection. These mats are designed with raised edges to contain spills and debris, keeping your vehicle's interior clean. The precise fit ensures complete floor coverage and protection.",
-    images: [
-      "https://images.unsplash.com/photo-1606028638131-29913d642c04?q=80&w=1972&auto=format&fit=crop",
-      "https://images.unsplash.com/photo-1597007466934-2cf33ac13db9?q=80&w=1974&auto=format&fit=crop",
-      "https://images.unsplash.com/photo-1603811478698-7e15b7d724b9?q=80&w=2070&auto=format&fit=crop",
-      "https://images.unsplash.com/photo-1618333258404-f509733839c4?q=80&w=1780&auto=format&fit=crop"
-    ],
-    categoryId: "3d-mat",
-    additionalInfo: "Waterproof. Anti-slip bottom. Heavy-duty material for maximum durability. Easy to clean with water and mild soap.",
-    inStock: true,
-    rating: 4.9,
-    reviews: reviews["3"]
-  },
-
-
-
+  
   {
     id: "android-e90",
     name: "Ultima Smart Multimedia Screen - Model E90",
@@ -7861,20 +7846,6 @@ export const getMainCategories = (): Category[] => {
 
 export const getSubcategories = (parentId: string): Category[] => {
   return categories.filter(category => category.parentId === parentId);
-};
-
-export const getAllCategoryIds = (parentId: string): string[] => {
-  const subcats = getSubcategories(parentId);
-  let ids = [parentId];
-  subcats.forEach(sub => {
-    ids = [...ids, ...getAllCategoryIds(sub.id)];
-  });
-  return ids;
-};
-
-export const getProductsByDeepCategory = (parentId: string): Product[] => {
-  const allIds = getAllCategoryIds(parentId);
-  return products.filter(product => allIds.includes(product.categoryId));
 };
 
 export const getRelatedProducts = (productId: string, limit: number = 4): Product[] => {

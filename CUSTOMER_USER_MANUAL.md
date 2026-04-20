@@ -81,7 +81,7 @@ If you are at a dealership, look for the Autoform QR Code.
 3.  **Jumpstart**: You skip searching for the dealer and go straight to product selection.
 
 ### 1.2 Direct Web Access
-If you are at home, visit [warranty.emporiobyautoformindia.in](https://warranty.emporiobyautoformindia.in). You will need to manually select your dealer from a list later.
+If you are at home, visit [warranty2.autoformindia.co.in](https://warranty2.autoformindia.co.in). You will need to manually select your dealer from a list later.
 
 ---
 

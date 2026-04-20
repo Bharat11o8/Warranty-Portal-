@@ -8,7 +8,7 @@ This API is used by the **External UID Generation System** to push newly generat
 
 | Parameter | Value |
 | :--- | :--- |
-| **API Endpoint** | `https://server-bharat-maheshwaris-projects.vercel.app/api/uid/sync` |
+| **API Endpoint** | `https://warranty2.autoformindia.co.in/api/uid/sync` |
 | **Method** | `POST` |
 | **Content-Type** | `application/json` |
 
@@ -101,7 +101,7 @@ The system returns a high-level summary and detailed info for **every** UID in t
 ## 💻 5. Sample Request (cURL)
 
 ```bash
-curl -X POST https://server-bharat-maheshwaris-projects.vercel.app/api/uid/sync \
+curl -X POST https://warranty2.autoformindia.co.in/api/uid/sync \
   -H "Content-Type: application/json" \
   -H "x-api-key: <YOUR_SECRET_API_KEY>" \
   -d '{

@@ -99,7 +99,7 @@ export const AdminVendorDetails = ({ vendor: initialVendor, onBack }: AdminVendo
     // QR Code State
     const [storeCodeInput, setStoreCodeInput] = useState("");
     const [savingStoreCode, setSavingStoreCode] = useState(false);
-    const QR_BASE_URL = 'https://warranty.emporiobyautoform.in';
+    const QR_BASE_URL = 'https://warranty2.autoformindia.co.in';
 
     const handleSaveStoreCode = async () => {
         if (!storeCodeInput.trim()) {

@@ -13,7 +13,7 @@ import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { QRCodeSVG } from "qrcode.react";
 
-const QR_BASE_URL = "https://warranty.emporiobyautoform.in";
+const QR_BASE_URL = "https://warranty2.autoformindia.co.in";
 
 const Profile = ({ embedded }: { embedded?: boolean }) => {
     const { user, loading, refreshUser } = useAuth();

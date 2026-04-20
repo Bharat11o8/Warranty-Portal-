@@ -169,7 +169,7 @@ const CategoryPage: React.FC<CategoryPageProps> = ({ categoryId: propCategoryId,
               <h2 className="text-lg md:text-xl font-black text-slate-900 tracking-tight">Browse Categories</h2>
               <div className="h-px bg-slate-100 flex-1" />
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
               {subcategories.map(subcategory => (
                 <CategoryCard key={subcategory.id} category={subcategory} />
               ))}
@@ -180,7 +180,7 @@ const CategoryPage: React.FC<CategoryPageProps> = ({ categoryId: propCategoryId,
         {/* Products Section */}
         <section>
           {products.length > 0 ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
               {products.map(product => (
                 <ProductCard key={product.id} product={product} />
               ))}

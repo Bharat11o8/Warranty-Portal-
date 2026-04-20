@@ -1,4 +1,4 @@
-import db, { getISTTimestamp } from '../config/database.js';
+import db from '../config/database.js';
 import jwt from 'jsonwebtoken';
 import { EmailService } from '../services/email.service.js';
 import bcrypt from 'bcryptjs';
@@ -168,7 +168,14 @@ export class PublicController {
                 });
             }
             // Also check if it's already in warranty_registrations (belt and suspenders)
-            const [existingWarranty] = await db.execute('SELECT uid FROM warranty_registrations WHERE uid = ?', [uid]);
+            const { excludeId } = req.query;
+            let query = 'SELECT uid FROM warranty_registrations WHERE uid = ?';
+            const params = [uid];
+            if (excludeId) {
+                query += ' AND id != ? AND uid != ?';
+                params.push(excludeId, excludeId);
+            }
+            const [existingWarranty] = await db.execute(query, params);
             if (existingWarranty.length > 0) {
                 return res.json({
                     success: true,
@@ -543,11 +550,7 @@ export class PublicController {
                 warrantyData.productDetails?.photos?.seatCover || null,
                 warrantyData.productDetails?.photos?.carOuter || null
             ]);
-            // ===== Mark UID as used in the pre_generated_uids table =====
-            if (warrantyData.productType === 'seat-cover' && uid) {
-                const usedTimestamp = getISTTimestamp();
-                await db.execute('UPDATE pre_generated_uids SET is_used = TRUE, used_at = ? WHERE uid = ?', [usedTimestamp, uid]);
-            }
+            // UID is checked but NOT marked as used until Admin approves it.
             // Step 4: Send vendor confirmation email
             if (warrantyData.installerContact) {
                 const token = jwt.sign({ warrantyId: warrantyId, vendorEmail: warrantyData.installerContact }, process.env.JWT_SECRET, { expiresIn: '7d' });

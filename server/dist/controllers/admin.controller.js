@@ -559,6 +559,16 @@ export class AdminController {
             }
             console.log(`Updating warranty: uid=${uid}, resolved_uid=${warrantyData.uid}, new_status=${status}`);
             await db.execute('UPDATE warranty_registrations SET status = ?, rejection_reason = ? WHERE uid = ?', [status, status === 'rejected' ? rejectionReason : null, warrantyData.uid]);
+            // Mark UID as used ONLY when validated, and free it up if rejected
+            if (warrantyData.product_type === 'seat-cover') {
+                if (status === 'validated') {
+                    const usedTimestamp = getISTTimestamp();
+                    await db.execute('UPDATE pre_generated_uids SET is_used = TRUE, used_at = ? WHERE uid = ?', [usedTimestamp, warrantyData.uid]);
+                }
+                else if (status === 'rejected') {
+                    await db.execute('UPDATE pre_generated_uids SET is_used = FALSE, used_at = NULL WHERE uid = ?', [warrantyData.uid]);
+                }
+            }
             // Send email notification to customer only if email is provided
             if (warrantyData.customer_email && warrantyData.customer_email.trim()) {
                 try {

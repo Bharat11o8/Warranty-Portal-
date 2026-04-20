@@ -31,39 +31,14 @@ import { getISTTimestamp } from './utils/dateUtils.js';
 import { getDbRetryStats, pingDatabase } from './config/database.js';
 // Start background services
 AssignmentSchedulerService.start();
-// ===========================================
-// PROCESS PROTECTION (SBP-001)
-// ===========================================
-process.on('unhandledRejection', (reason, promise) => {
-    console.error('CRITICAL: Unhandled Rejection at:', promise, 'reason:', reason);
-    // Optional: Send to error tracking service (Sentry, etc.)
-});
-process.on('uncaughtException', (error) => {
-    console.error('CRITICAL: Uncaught Exception:', error);
-    // Give time for logs to flush then exit
-    setTimeout(() => process.exit(1), 1000);
-});
 // Get current directory for ES modules
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 // Load .env from server directory
 dotenv.config({ path: join(__dirname, '../.env') });
-// ===========================================
-// STARTUP AUDIT (SBP-004)
-// ===========================================
-const REQUIRED_ENV_VARS = [
-    'JWT_SECRET',
-    'DB_HOST',
-    'DB_USER',
-    'DB_PASSWORD',
-    'DB_NAME',
-    'EMAIL_USER',
-    'EMAIL_PASS'
-];
-const missingVars = REQUIRED_ENV_VARS.filter(key => !process.env[key]);
-if (missingVars.length > 0) {
-    console.error(`FATAL: Missing required environment variables: ${missingVars.join(', ')}`);
-    console.error('Server cannot start securely without these configurations.');
+// SBP-004: Validate required secrets at startup — crash fast if missing
+if (!process.env.JWT_SECRET) {
+    console.error('FATAL: JWT_SECRET environment variable is not set. Server cannot start securely.');
     process.exit(1);
 }
 const app = express();
@@ -97,7 +72,7 @@ const allowedOrigins = process.env.ALLOWED_ORIGINS
         'http://localhost:8081',
         'http://127.0.0.1:8080',
         'https://server-bharat-maheshwaris-projects.vercel.app',
-        'https://warranty.emporiobyautoform.in'
+        'https://warranty.autoformindia.co.in'
     ];
 app.use(cors({
     origin: (origin, callback) => {

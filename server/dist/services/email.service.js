@@ -34,10 +34,10 @@ export class EmailService {
         // Priority 2: Use known production domain if in production mode
         const isProduction = process.env.NODE_ENV === 'production' || process.env.VERCEL === '1';
         if (isProduction) {
-            return 'https://warranty.emporiobyautoform.in';
+            return 'https://warranty.autoformindia.co.in';
         }
         // Default to APP_URL from env or Production URL (fallback for when env var is missing in prod)
-        return (process.env.APP_URL || 'https://warranty.emporiobyautoform.in').replace(/\/$/, '');
+        return (process.env.APP_URL || 'https://warranty.autoformindia.co.in').replace(/\/$/, '');
     }
     /**
      * Helper to get the correct API/Backend URL for email action links
@@ -662,7 +662,7 @@ export class EmailService {
         });
     }
     static async sendAdminInvitation(adminEmail, adminName, invitedByName) {
-        const loginUrl = process.env.FRONTEND_URL || 'https://warranty.emporiobyautoform.in/login?role=admin';
+        const loginUrl = process.env.FRONTEND_URL || 'https://warranty.autoformindia.co.in/login?role=admin';
         const htmlContent = `
       <h2 style="color: #333; margin-top: 0;">Hello ${adminName},</h2>
       
