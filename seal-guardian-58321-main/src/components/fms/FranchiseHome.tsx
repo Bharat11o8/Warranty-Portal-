@@ -192,9 +192,13 @@ export const FranchiseHome = ({ stats, recentActivity = [], onNavigate, newProdu
                                     <span className="flex-1 text-center md:flex-none">{banner.cta}</span>
                                     <ChevronRight className="ml-2 h-4 w-4 md:h-5 md:w-5 group-hover:translate-x-1 transition-transform" />
                                 </Button>
-                                <Button variant="outline" className="h-11 md:h-14 px-5 md:px-8 rounded-2xl border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-black uppercase tracking-widest shadow-sm text-[10px] md:text-xs w-full md:w-auto">
-                                    <span className="flex-1 text-center md:flex-none">Watch Tutorial</span>
-                                    <Play className="ml-2 h-3 w-3 md:h-4 md:w-4 fill-slate-700" />
+                                <Button 
+                                    variant="outline" 
+                                    onClick={() => window.open('https://autoformindia.com/', '_blank')}
+                                    className="h-11 md:h-14 px-5 md:px-8 rounded-2xl border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-black uppercase tracking-widest shadow-sm text-[10px] md:text-xs w-full md:w-auto"
+                                >
+                                    <span className="flex-1 text-center md:flex-none">Visit Website</span>
+                                    <ArrowUpRight className="ml-2 h-3 w-3 md:h-4 md:w-4 text-slate-700" />
                                 </Button>
                             </div>
                         </div>

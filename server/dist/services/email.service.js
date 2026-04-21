@@ -1105,6 +1105,88 @@ export class EmailService {
             })
         });
     }
+    static async sendFranchiseWelcomeEmail(vendorEmail, vendorName) {
+        const loginLink = `${this.getAppUrl()}/login?mode=franchise`;
+        // Completely custom Light Mode HTML specifically for the Launch Welcome Email.
+        // It purposefully avoids the standard wrapper template to provide a unique, premium design.
+        const htmlContent = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; line-height: 1.6; color: #334155; margin: 0; padding: 0; background-color: #f8fafc;">
+  <div style="background-color: #f8fafc; padding: 40px 10px;">
+    <div style="max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 10px 25px rgba(0, 0, 0, 0.05); border: 1px solid #e2e8f0;">
+      <div style="background: linear-gradient(135deg, #FFB400 0%, #f59e0b 100%); padding: 50px 30px; text-align: center; position: relative;">
+        <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1765531503/warranty-portal/autoform-logo.png" alt="Autoform India" style="max-width: 180px; margin-bottom: 25px; filter: drop-shadow(0px 4px 6px rgba(0,0,0,0.15)); position: relative; z-index: 2;">
+        <h1 style="margin: 0; font-size: 32px; font-weight: 800; color: #ffffff; letter-spacing: -0.5px; position: relative; z-index: 2; text-shadow: 0 2px 4px rgba(0,0,0,0.1);">The All-New FMS is Here</h1>
+        <p style="color: rgba(255, 255, 255, 0.95); font-size: 18px; margin-top: 10px; margin-bottom: 0; font-weight: 500; position: relative; z-index: 2;">A completely upgraded portal</p>
+      </div>
+      
+      <div style="padding: 40px 30px;">
+        <h2 style="font-size: 22px; color: #0f172a; margin-top: 0; margin-bottom: 15px; font-weight: 700;">Hello ${vendorName},</h2>
+        <p style="color: #475569; font-size: 16px; margin-bottom: 24px;">Welcome to the new <strong>Autoform Franchise Management System</strong>! We have built this brand new portal to make your daily work much faster, easier, and better.</p>
+        
+        <div style="margin: 35px 0; background: #f8fafc; border-radius: 12px; padding: 25px; border: 1px solid #e2e8f0;">
+          <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom: 20px;">
+            <tr>
+              <td width="45" valign="top" style="font-size: 24px;">✨</td>
+              <td valign="top">
+                <div style="font-weight: 700; color: #0f172a; margin-bottom: 4px; font-size: 16px;">Effortless Warranties</div>
+                <div style="color: #64748b; font-size: 14px; line-height: 1.5;">Register warranties in seconds with our optimized new flow.</div>
+              </td>
+            </tr>
+          </table>
+          
+          <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom: 20px;">
+            <tr>
+              <td width="45" valign="top" style="font-size: 24px;">🛡️</td>
+              <td valign="top">
+                <div style="font-weight: 700; color: #0f172a; margin-bottom: 4px; font-size: 16px;">Digital Support Tracking</div>
+                <div style="color: #64748b; font-size: 14px; line-height: 1.5;">Raise grievances and track resolutions in real-time, right from your dashboard.</div>
+              </td>
+            </tr>
+          </table>
+
+          <table width="100%" cellpadding="0" cellspacing="0">
+            <tr>
+              <td width="45" valign="top" style="font-size: 24px;">📦</td>
+              <td valign="top">
+                <div style="font-weight: 700; color: #0f172a; margin-bottom: 4px; font-size: 16px;">POSM Ordering</div>
+                <div style="color: #64748b; font-size: 14px; line-height: 1.5;">Browse marketing catalogs and request promotional materials with just a few clicks.</div>
+              </td>
+            </tr>
+          </table>
+        </div>
+
+        <div style="background: #ffffff; border: 1px solid #e2e8f0; border-left: 4px solid #f59e0b; padding: 20px; border-radius: 8px; margin-top: 30px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);">
+          <p style="margin: 0 0 8px 0; font-size: 14px;"><strong>Login Details:</strong></p>
+          <p style="margin: 0; font-size: 14px;">Your account is already active. Just use your registered email address:<br>
+          <strong style="color: #ea580c; font-size: 16px; display: inline-block; margin-top: 5px;">${vendorEmail}</strong></p>
+          <p style="margin: 10px 0 0 0; font-size: 13px; color: #64748b;">(You won't need a password; we use secure OTPs sent directly to your inbox.)</p>
+        </div>
+
+        <div style="text-align: center; margin: 40px 0 20px;">
+          <a href="${loginLink}" style="display: inline-block; background: linear-gradient(135deg, #f59e0b 0%, #ea580c 100%); color: #ffffff !important; text-decoration: none; padding: 16px 36px; border-radius: 8px; font-weight: 700; font-size: 18px; box-shadow: 0 10px 15px -3px rgba(234, 88, 12, 0.3); text-transform: uppercase; letter-spacing: 0.5px;">Access Dashboard</a>
+        </div>
+      </div>
+      
+      <div style="text-align: center; padding: 30px; border-top: 1px solid #e2e8f0; background: #f1f5f9;">
+        <p style="font-size: 13px; color: #64748b; margin: 0;">© ${getISTYear()} Autoform India. All rights reserved.</p>
+        <p style="font-size: 11px; color: #64748b; margin: 8px 0 0 0;">You are receiving this because you are an active Autoform Franchise.</p>
+      </div>
+    </div>
+  </div>
+</body>
+</html>`;
+        await transporter.sendMail({
+            from: process.env.EMAIL_FROM,
+            to: vendorEmail,
+            subject: 'Welcome to the New Autoform Franchise Portal! 🚀',
+            html: htmlContent
+        });
+    }
     /**
      * Helper to get display text for category
      */

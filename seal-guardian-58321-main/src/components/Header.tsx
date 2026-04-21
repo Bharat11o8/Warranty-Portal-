@@ -68,15 +68,7 @@ const Header = ({ className }: { className?: string }) => {
                               <span className="font-bold text-sm">Dashboard</span>
                             </div>
                           </Link>
-                          <Link to="/grievance" onClick={() => setIsOpen(false)}>
-                            <div className={cn(
-                              "flex items-center gap-4 px-4 py-3.5 rounded-2xl transition-all duration-300",
-                              isActive("/grievance") ? "bg-orange-50 text-orange-600 border border-orange-100 shadow-sm" : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
-                            )}>
-                              <MessageSquareWarning className={cn("h-5 w-5", isActive("/grievance") ? "text-orange-500" : "text-slate-400")} />
-                              <span className="font-bold text-sm">Grievance</span>
-                            </div>
-                          </Link>
+
                         </>
                       )}
 
@@ -194,19 +186,7 @@ const Header = ({ className }: { className?: string }) => {
                 </Button>
               </Link>
 
-              {/* Customer-only: Grievance link */}
-              {user.role === 'customer' && (
-                <Link to="/grievance">
-                  <Button
-                    variant={isActive("/grievance") ? "secondary" : "ghost"}
-                    size="sm"
-                    className="flex items-center gap-1"
-                  >
-                    <MessageSquareWarning className="h-4 w-4" />
-                    Grievance
-                  </Button>
-                </Link>
-              )}
+
 
               {user.role === 'admin' && (
                 <>
