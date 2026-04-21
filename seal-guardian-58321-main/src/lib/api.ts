@@ -7,7 +7,7 @@ const isProd = import.meta.env.PROD;
 const isDev = import.meta.env.DEV;
 
 const envUrl = (import.meta.env.VITE_API_URL as string | undefined)?.trim() || '';
-const BACKEND_URL = 'https://server-bharat-maheshwaris-projects.vercel.app/api';
+const BACKEND_URL = 'https://api.autoformindia.co.in/api';
 
 const resolveBase = () => {
   if (envUrl) return envUrl.endsWith('/api') ? envUrl : `${envUrl}/api`;
