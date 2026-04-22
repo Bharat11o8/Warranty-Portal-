@@ -121,18 +121,26 @@ export class AdminController {
                     (SELECT COUNT(*) FROM manpower WHERE vendor_id = vd.id) as manpower_count,
                     (SELECT GROUP_CONCAT(name SEPARATOR ', ') FROM manpower WHERE vendor_id = vd.id) as manpower_names,
                     (SELECT COUNT(*) FROM warranty_registrations wr 
-                     WHERE wr.manpower_id IN (SELECT id FROM manpower WHERE vendor_id = vd.id)
+                     WHERE (wr.manpower_id IN (SELECT id FROM manpower WHERE vendor_id = vd.id)
+                        OR wr.installer_name = vd.store_name
+                        OR wr.user_id = p.id)
                     ) as total_warranties,
                     (SELECT COUNT(*) FROM warranty_registrations wr 
-                     WHERE wr.manpower_id IN (SELECT id FROM manpower WHERE vendor_id = vd.id)
+                     WHERE (wr.manpower_id IN (SELECT id FROM manpower WHERE vendor_id = vd.id)
+                        OR wr.installer_name = vd.store_name
+                        OR wr.user_id = p.id)
                      AND wr.status = 'validated'
                     ) as validated_warranties,
                      (SELECT COUNT(*) FROM warranty_registrations wr 
-                      WHERE wr.manpower_id IN (SELECT id FROM manpower WHERE vendor_id = vd.id)
+                      WHERE (wr.manpower_id IN (SELECT id FROM manpower WHERE vendor_id = vd.id)
+                        OR wr.installer_name = vd.store_name
+                        OR wr.user_id = p.id)
                       AND wr.status IN ('pending', 'pending_vendor')
                      ) as pending_warranties,
                     (SELECT COUNT(*) FROM warranty_registrations wr 
-                     WHERE wr.manpower_id IN (SELECT id FROM manpower WHERE vendor_id = vd.id)
+                     WHERE (wr.manpower_id IN (SELECT id FROM manpower WHERE vendor_id = vd.id)
+                        OR wr.installer_name = vd.store_name
+                        OR wr.user_id = p.id)
                      AND wr.status = 'rejected'
                     ) as rejected_warranties
                 FROM profiles p
@@ -214,9 +222,36 @@ export class AdminController {
                     ORDER BY points DESC, m.name ASC
                 `, [vendorData.vendor_details_id]);
                 manpower = manpowerResult;
+
+                // Check for "Store Owner" (Default) submissions
+                const [ownerStats]: any = await db.execute(`
+                    SELECT 
+                        COUNT(*) as total_applications,
+                        SUM(CASE WHEN status = 'validated' THEN 1 ELSE 0 END) as points,
+                        SUM(CASE WHEN status IN ('pending', 'pending_vendor') THEN 1 ELSE 0 END) as pending_points,
+                        SUM(CASE WHEN status = 'rejected' THEN 1 ELSE 0 END) as rejected_points
+                    FROM warranty_registrations
+                    WHERE (manpower_id = 'owner' OR manpower_id IS NULL OR manpower_id = '')
+                      AND (installer_name = ? OR user_id = ?)
+                `, [vendorData.store_name, vendorData.user_id]);
+
+                if (ownerStats[0].total_applications > 0) {
+                    manpower.push({
+                        id: 'owner',
+                        vendor_id: vendorData.vendor_details_id,
+                        name: `${vendorData.contact_name} (Store Owner)`,
+                        phone: vendorData.phone_number,
+                        is_active: 1,
+                        total_applications: ownerStats[0].total_applications,
+                        points: ownerStats[0].points || 0,
+                        pending_points: ownerStats[0].pending_points || 0,
+                        rejected_points: ownerStats[0].rejected_points || 0,
+                        is_virtual: true
+                    });
+                }
             }
 
-            // Get warranties based on vendor's manpower (not user_id)
+            // Get warranties based on vendor's manpower, store name, or user_id
             const [warrantyList]: any = await db.execute(`
                 SELECT wr.*, 
                        p.name as submitted_by_name, 
@@ -227,9 +262,11 @@ export class AdminController {
                 FROM warranty_registrations wr
                 LEFT JOIN profiles p ON wr.user_id = p.id
                 LEFT JOIN manpower m ON wr.manpower_id = m.id
-                WHERE wr.manpower_id IN (SELECT id FROM manpower WHERE vendor_id = ?)
+                WHERE (wr.manpower_id IN (SELECT id FROM manpower WHERE vendor_id = ?)
+                   OR wr.installer_name = ?
+                   OR wr.user_id = ?)
                 ORDER BY wr.created_at DESC
-            `, [vendorData.vendor_details_id, vendorData.vendor_details_id, vendorData.vendor_details_id]);
+            `, [vendorData.vendor_details_id, vendorData.vendor_details_id, vendorData.vendor_details_id, vendorData.store_name, vendorData.user_id]);
 
             res.json({
                 success: true,
@@ -1062,26 +1099,74 @@ export class AdminController {
 
     static async getCustomers(_req: Request, res: Response) {
         try {
-            // Get all registered customers (from profiles) with their warranty statistics
+            // Get both registered customers (from profiles) and guests (from registrations)
             const [customers]: any = await db.execute(`
                 SELECT 
-                    p.name as customer_name,
-                    p.email as customer_email,
-                    p.phone_number as customer_phone,
-                    NULL as customer_address, -- Profile doesn't have address, usually in product_details
-                    COUNT(wr.uid) as total_warranties,
-                    SUM(CASE WHEN wr.status = 'validated' THEN 1 ELSE 0 END) as validated_warranties,
-                    SUM(CASE WHEN wr.status IN ('pending', 'pending_vendor') THEN 1 ELSE 0 END) as pending_warranties,
-                    SUM(CASE WHEN wr.status = 'rejected' THEN 1 ELSE 0 END) as rejected_warranties,
-                    MIN(wr.created_at) as first_warranty_date,
-                    MAX(wr.created_at) as last_warranty_date,
-                    p.created_at as registered_at
-                FROM profiles p
-                JOIN user_roles ur ON p.id = ur.user_id
-                LEFT JOIN warranty_registrations wr ON p.email = wr.customer_email
-                WHERE ur.role = 'customer'
-                GROUP BY p.id
-                ORDER BY p.created_at DESC
+                    customer_name,
+                    customer_email,
+                    customer_phone,
+                    NULL as customer_address,
+                    total_warranties,
+                    validated_warranties,
+                    pending_warranties,
+                    rejected_warranties,
+                    first_warranty_date,
+                    last_warranty_date,
+                    registered_at
+                FROM (
+                    -- 1. Registered Customers (from profiles)
+                    SELECT 
+                        p.name as customer_name,
+                        p.email as customer_email,
+                        p.phone_number as customer_phone,
+                        COUNT(wr.uid) as total_warranties,
+                        SUM(CASE WHEN wr.status = 'validated' THEN 1 ELSE 0 END) as validated_warranties,
+                        SUM(CASE WHEN wr.status IN ('pending', 'pending_vendor') THEN 1 ELSE 0 END) as pending_warranties,
+                        SUM(CASE WHEN wr.status = 'rejected' THEN 1 ELSE 0 END) as rejected_warranties,
+                        MIN(wr.created_at) as first_warranty_date,
+                        MAX(wr.created_at) as last_warranty_date,
+                        p.created_at as registered_at
+                    FROM profiles p
+                    JOIN user_roles ur ON p.id = ur.user_id
+                    LEFT JOIN warranty_registrations wr ON p.email = wr.customer_email
+                    WHERE ur.role = 'customer'
+                    GROUP BY p.id
+
+                    UNION ALL
+
+                    -- 2. Guest Customers (only in registrations, no matching 'customer' profile)
+                    SELECT 
+                        wr_guest.customer_name as customer_name,
+                        wr_guest.customer_email as customer_email,
+                        wr_guest.customer_phone as customer_phone,
+                        sub.total_warranties,
+                        sub.validated_warranties,
+                        sub.pending_warranties,
+                        sub.rejected_warranties,
+                        sub.first_warranty_date,
+                        sub.last_warranty_date,
+                        sub.first_warranty_date as registered_at
+                    FROM (
+                        SELECT 
+                            customer_email,
+                            MAX(customer_name) as customer_name,
+                            MAX(customer_phone) as customer_phone,
+                            COUNT(uid) as total_warranties,
+                            SUM(CASE WHEN status = 'validated' THEN 1 ELSE 0 END) as validated_warranties,
+                            SUM(CASE WHEN status IN ('pending', 'pending_vendor') THEN 1 ELSE 0 END) as pending_warranties,
+                            SUM(CASE WHEN status = 'rejected' THEN 1 ELSE 0 END) as rejected_warranties,
+                            MIN(created_at) as first_warranty_date,
+                            MAX(created_at) as last_warranty_date
+                        FROM warranty_registrations
+                        GROUP BY customer_email
+                    ) sub
+                    JOIN warranty_registrations wr_guest ON sub.customer_email = wr_guest.customer_email
+                    LEFT JOIN profiles p ON wr_guest.customer_email = p.email
+                    LEFT JOIN user_roles ur ON p.id = ur.user_id AND ur.role = 'customer'
+                    WHERE ur.id IS NULL
+                    GROUP BY wr_guest.customer_email
+                ) combined
+                ORDER BY registered_at DESC
             `);
 
             res.json({
@@ -1098,18 +1183,37 @@ export class AdminController {
         try {
             const { email } = req.params;
 
-            // Get customer basic info from profiles
+            // Get customer basic info from profiles OR guest info from registrations
             const [customerInfo]: any = await db.execute(`
                 SELECT 
-                    p.name as customer_name,
-                    p.email as customer_email,
-                    p.phone_number as customer_phone,
-                    NULL as customer_address -- Profile doesn't store address directly
-                FROM profiles p
-                JOIN user_roles ur ON p.id = ur.user_id
-                WHERE p.email = ? AND ur.role = 'customer'
+                    customer_name,
+                    customer_email,
+                    customer_phone,
+                    NULL as customer_address
+                FROM (
+                    -- Try profiles first
+                    SELECT 
+                        p.name as customer_name,
+                        p.email as customer_email,
+                        p.phone_number as customer_phone
+                    FROM profiles p
+                    JOIN user_roles ur ON p.id = ur.user_id
+                    WHERE p.email = ? AND ur.role = 'customer'
+                    
+                    UNION ALL
+                    
+                    -- Fallback to guests from registrations
+                    SELECT 
+                        wr.customer_name as customer_name,
+                        wr.customer_email as customer_email,
+                        wr.customer_phone as customer_phone
+                    FROM warranty_registrations wr
+                    LEFT JOIN profiles p INNER JOIN user_roles ur ON p.id = ur.user_id AND ur.role = 'customer' ON wr.customer_email = p.email
+                    WHERE wr.customer_email = ? AND ur.id IS NULL
+                    LIMIT 1
+                ) combined
                 LIMIT 1
-            `, [email]);
+            `, [email, email]);
 
             if (customerInfo.length === 0) {
                 return res.status(404).json({ error: 'Customer not found' });

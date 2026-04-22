@@ -299,7 +299,7 @@ export const AdminWarrantyList = ({
 
                                 {warranty.product_type === 'seat-cover' && (
                                     <div>
-                                        <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-1">Serial Number</p>
+                                        <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-1">UID</p>
                                         <p className="font-mono text-sm font-semibold">{warranty.uid || productDetails.uid || 'N/A'}</p>
                                     </div>
                                 )}

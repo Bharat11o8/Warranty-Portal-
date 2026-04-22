@@ -258,6 +258,52 @@ export class WarrantyController {
         console.warn('[FraudDetection] Fraud scoring failed:', err);
       }
 
+      // Determine user_id: If vendor/admin is submitting, we ensure a customer profile exists
+      let finalUserId = req.user.id;
+      
+      // For vendor/admin submissions with a customer email, auto-create customer profile
+      if (req.user.role !== 'customer' && warrantyData.customerEmail) {
+        try {
+          const customerEmail = warrantyData.customerEmail.toLowerCase().trim();
+          const [existingUsers]: any = await db.execute(
+            'SELECT id FROM profiles WHERE email = ?',
+            [customerEmail]
+          );
+
+          if (existingUsers.length > 0) {
+            finalUserId = existingUsers[0].id;
+            
+            // Ensure they have the 'customer' role
+            const [roles]: any = await db.execute(
+              'SELECT role FROM user_roles WHERE user_id = ? AND role = "customer"',
+              [finalUserId]
+            );
+            if (roles.length === 0) {
+              await db.execute(
+                'INSERT INTO user_roles (id, user_id, role) VALUES (?, ?, "customer")',
+                [uuidv4(), finalUserId]
+              );
+            }
+          } else {
+            // Create new customer profile 
+            // Note: We don't set a password, user will use OTP login
+            const newCustomerId = uuidv4();
+            await db.execute(
+              'INSERT INTO profiles (id, name, email, phone_number) VALUES (?, ?, ?, ?)',
+              [newCustomerId, warrantyData.customerName, customerEmail, warrantyData.customerPhone]
+            );
+            await db.execute(
+              'INSERT INTO user_roles (id, user_id, role) VALUES (?, ?, "customer")',
+              [uuidv4(), newCustomerId]
+            );
+            finalUserId = newCustomerId;
+          }
+        } catch (profileError) {
+          console.error('Error auto-creating customer profile:', profileError);
+          // Continue with original user_id if profile creation fails to avoid blocking the submission
+        }
+      }
+
       await db.execute(
         `INSERT INTO warranty_registrations 
         (uid, user_id, product_type, customer_name, customer_email, customer_phone, 
@@ -268,7 +314,7 @@ export class WarrantyController {
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           warrantyId,
-          req.user.id,
+          finalUserId,
           warrantyData.productType,
           warrantyData.customerName,
           warrantyData.customerEmail,

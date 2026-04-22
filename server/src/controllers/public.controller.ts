@@ -269,6 +269,35 @@ export class PublicController {
                 [decoded.warrantyId]
             );
 
+            // Auto-create/assign customer role so they appear in Admin Panel and can login
+            try {
+                const [warranties]: any = await db.execute(
+                    'SELECT user_id FROM warranty_registrations WHERE uid = ?',
+                    [decoded.warrantyId]
+                );
+
+                if (warranties.length > 0) {
+                    const userId = warranties[0].user_id;
+                    if (userId) {
+                        // Check if they already have the role
+                        const [roles]: any = await db.execute(
+                            'SELECT role FROM user_roles WHERE user_id = ? AND role = "customer"',
+                            [userId]
+                        );
+
+                        if (roles.length === 0) {
+                            await db.execute(
+                                'INSERT INTO user_roles (id, user_id, role) VALUES (?, ?, "customer")',
+                                [uuidv4(), userId]
+                            );
+                            console.log(`✓ Assigned 'customer' role to user ${userId} after vendor confirmation`);
+                        }
+                    }
+                }
+            } catch (roleError) {
+                console.error('Error assigning customer role during verification:', roleError);
+            }
+
             // Optional: Send success email to Admin or Customer here if needed
             // For now, just show success page
 
