@@ -1239,14 +1239,14 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
                 </div>
               </div>
 
-              {/* Number Plate Photo — Camera Only */}
+              {/* Number Plate Photo */}
               <CameraCapture
                 id="vehicleFile"
                 label="Number Plate Image"
-                description="Capture a clear image of the vehicle number plate"
+                description="Capture or upload a clear image of the vehicle number plate"
                 required={!warrantyId}
                 disabled={loading}
-                cameraOnly={true}
+                cameraOnly={false}
                 value={formData.vehicleFile}
                 onChange={(file) => handleCameraCapture(file, 'vehicleFile')}
                 accept="image/jpeg,image/png,image/heic,image/heif"
@@ -1254,14 +1254,14 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
                 sampleImageUrl="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776227240/Car-Number-Plate-Image_cmbu0u.png"
               />
 
-              {/* Fitted Seat Cover Photo — Camera Only */}
+              {/* Fitted Seat Cover Photo */}
               <CameraCapture
                 id="seatCoverPhoto"
                 label="Fitted Seat Cover Image"
-                description="Capture a image of the seat cover after installation"
+                description="Capture or upload an image of the seat cover after installation"
                 required={!warrantyId}
                 disabled={loading}
-                cameraOnly={true}
+                cameraOnly={false}
                 value={formData.seatCoverPhoto}
                 onChange={(file) => handleCameraCapture(file, 'seatCoverPhoto')}
                 accept="image/jpeg,image/png,image/heic,image/heif"
@@ -1269,14 +1269,14 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
                 sampleImageUrl="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1775217073/Seat_Cover_Fitted_jfgizq.jpg"
               />
 
-              {/* Car Outer Image — Camera Only */}
+              {/* Car Outer Image */}
               <CameraCapture
                 id="carOuterPhoto"
                 label="Car Exterior Image"
-                description="Capture a image of the car exterior"
+                description="Capture or upload an image of the car exterior"
                 required={!warrantyId}
                 disabled={loading}
-                cameraOnly={true}
+                cameraOnly={false}
                 value={formData.carOuterPhoto}
                 onChange={(file) => handleCameraCapture(file, 'carOuterPhoto')}
                 accept="image/jpeg,image/png,image/heic,image/heif"
