@@ -1249,7 +1249,7 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
                 cameraOnly={false}
                 value={formData.vehicleFile}
                 onChange={(file) => handleCameraCapture(file, 'vehicleFile')}
-                accept="image/jpeg,image/png,image/heic,image/heif,application/pdf"
+                accept="image/jpeg,image/heic,image/heif"
                 selectedIcon={<Car className="h-6 w-6" />}
                 sampleImageUrl="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776227240/Car-Number-Plate-Image_cmbu0u.png"
               />
@@ -1264,7 +1264,7 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
                 cameraOnly={false}
                 value={formData.seatCoverPhoto}
                 onChange={(file) => handleCameraCapture(file, 'seatCoverPhoto')}
-                accept="image/jpeg,image/png,image/heic,image/heif,application/pdf"
+                accept="image/jpeg,image/heic,image/heif"
                 selectedIcon={<Armchair className="h-6 w-6" />}
                 sampleImageUrl="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1775217073/Seat_Cover_Fitted_jfgizq.jpg"
               />
@@ -1279,7 +1279,7 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
                 cameraOnly={false}
                 value={formData.carOuterPhoto}
                 onChange={(file) => handleCameraCapture(file, 'carOuterPhoto')}
-                accept="image/jpeg,image/png,image/heic,image/heif,application/pdf"
+                accept="image/jpeg,image/heic,image/heif"
                 selectedIcon={<ImageIcon className="h-6 w-6" />}
                 sampleImageUrl="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776228125/Car_Exterior_Image_New_vvjoqa.jpg"
               />
