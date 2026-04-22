@@ -1303,7 +1303,7 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
                     ) : (
                       <div className="space-y-1">
                         <p className="text-sm font-medium text-slate-700">Click to upload or drag and drop</p>
-                        <p className="text-xs text-muted-foreground">(Max 5MB)</p>
+                        <p className="text-xs text-muted-foreground">(Max 2MB)</p>
                       </div>
                     )}
                   </div>
