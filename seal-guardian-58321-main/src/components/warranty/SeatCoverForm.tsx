@@ -1243,7 +1243,7 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
               <CameraCapture
                 id="vehicleFile"
                 label="Number Plate Image"
-                description="Capture or upload a clear image of the vehicle number plate"
+                description="Take a photo or upload from gallery"
                 required={!warrantyId}
                 disabled={loading}
                 cameraOnly={false}
@@ -1258,7 +1258,7 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
               <CameraCapture
                 id="seatCoverPhoto"
                 label="Fitted Seat Cover Image"
-                description="Capture or upload an image of the seat cover after installation"
+                description="Take a photo or upload from gallery"
                 required={!warrantyId}
                 disabled={loading}
                 cameraOnly={false}
@@ -1273,7 +1273,7 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
               <CameraCapture
                 id="carOuterPhoto"
                 label="Car Exterior Image"
-                description="Capture or upload an image of the car exterior"
+                description="Take a photo or upload from gallery"
                 required={!warrantyId}
                 disabled={loading}
                 cameraOnly={false}
