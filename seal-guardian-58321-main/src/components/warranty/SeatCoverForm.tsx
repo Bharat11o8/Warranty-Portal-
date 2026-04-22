@@ -1310,7 +1310,7 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
                   <Input
                     id="invoiceFile"
                     type="file"
-                    accept="image/jpeg,image/png,image/heic,image/heif,application/pdf"
+                    accept="image/jpeg,image/heic,image/heif"
                     onChange={(e) => handleFileChange(e, 'invoiceFile')}
                     required={!warrantyId}
                     disabled={loading}
