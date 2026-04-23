@@ -160,6 +160,7 @@ export const AdminWarrantyList = ({
                                             {isExpired ? "Expired" : `${daysLeft} days left`}
                                         </span>
                                     )}
+
                                     <Badge variant={
                                         warranty.status === 'validated' ? 'default' :
                                             warranty.status === 'rejected' ? 'destructive' : 'secondary'
@@ -260,7 +261,7 @@ export const AdminWarrantyList = ({
                                                         <Store className="h-4 w-4 text-purple-600" />
                                                         {warranty.vendor_store_name || productDetails.storeName || 'N/A'}
                                                     </p>
-                                                    <span className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium mt-1 bg-purple-100 text-purple-800">
+                                                    <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium mt-1 bg-purple-100 text-purple-800">
                                                         Franchise
                                                     </span>
                                                 </div>
@@ -281,8 +282,8 @@ export const AdminWarrantyList = ({
                                                             </span>
                                                         </div>
                                                         <div className="flex items-center gap-2">
-                                                            <Store className="h-3 w-3 text-muted-foreground" />
-                                                            <span>{warranty.vendor_store_name || productDetails.storeName || 'N/A'}</span>
+                                                            <MapPin className="h-3 w-3 text-muted-foreground" />
+                                                            <span>{warranty.vendor_city || productDetails.storeCity || warranty.ip_city || 'City not available'}</span>
                                                         </div>
                                                         {(productDetails.storeEmail || warranty.installer_contact) && (
                                                             <div className="flex items-center gap-2">
@@ -518,6 +519,9 @@ export const AdminWarrantyList = ({
                                                 </div>
                                                 <p className="text-xs font-semibold capitalize text-slate-700">
                                                     Platform: {flags.device_category || 'Unknown'}
+                                                </p>
+                                                <p className="text-[10px] text-muted-foreground font-medium mt-0.5">
+                                                    Source: {productDetails.submissionSource || (warranty.manpower_id ? 'Franchise Dashboard' : 'Customer / QR')}
                                                 </p>
                                                 {flags.is_missing_data && (
                                                     <p className="text-[10px] text-red-600 mt-1 font-medium italic">

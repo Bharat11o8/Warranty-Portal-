@@ -23,6 +23,7 @@ interface StoreLocation {
 }
 
 interface SubmissionData {
+    source: 'franchise' | 'customer';
     exif_lat: number | null;
     exif_lng: number | null;
     exif_timestamp: Date | null;
@@ -59,7 +60,7 @@ function toRad(deg: number): number {
 
 /**
  * Calculate fraud trust score (0.0 - 1.0) using 100-point weighted deduction.
- * Uses a dual-track model to handle platform-specific data limitations.
+ * Uses a source-based model to handle Franchise vs Customer registrations.
  */
 export function calculateFraudScore(
     submission: SubmissionData,
@@ -67,7 +68,7 @@ export function calculateFraudScore(
 ): FraudScoreResult {
     let deductions = 0;
     
-    // 1. Determine Device Category
+    // 1. Determine Device Category (kept for logging)
     const ua = submission.userAgent || '';
     let deviceCategory: 'ios' | 'android' | 'desktop' | 'unknown' = 'unknown';
     if (/iPhone|iPad|iPod/i.test(ua)) deviceCategory = 'ios';
@@ -91,109 +92,83 @@ export function calculateFraudScore(
     const storeState = (store.state || '').toLowerCase().trim();
 
     const cityMatch = ipCity && storeCity && (ipCity.includes(storeCity) || storeCity.includes(ipCity));
-    const stateMatch = storeState && (ipRegion.includes(storeState) || storeState.includes(ipRegion));
+    const stateMatch = ipRegion && storeState && (ipRegion.includes(storeState) || storeState.includes(ipRegion));
     
     // NCR check to prevent Noida/Delhi/Gurgaon false positives
     const isStoreInNCR = ncrCities.some(c => storeCity.includes(c) || storeState.includes(c));
     const isIpInNCR = ncrCities.some(c => ipCity.includes(c) || ipRegion.includes(c));
     const ncrMatch = isStoreInNCR && isIpInNCR;
-    const isIpValid = cityMatch || stateMatch || ncrMatch;
+    
+    const isIpCityValid = cityMatch || ncrMatch;
+    const isIpStateValid = stateMatch || ncrMatch;
 
-
-    // --- TRACK 2: iOS-SPECIFIC MECHANISM ("Benefit of the Doubt") ---
-    if (deviceCategory === 'ios') {
-        // A. IP Penalty (-50 pts for mismatch)
-        if (submission.ip_city !== null && store.city !== null) {
-            if (!isIpValid) {
-                flags.ip_penalty = 50;
-            }
-        } else {
-            flags.ip_penalty = 10; // VPN/Missing IP data
+    // --- MULTI-IMAGE CONSISTENCY CHECK ---
+    if (submission.all_exif_data && Object.keys(submission.all_exif_data).length > 1) {
+        const exifEntries = Object.values(submission.all_exif_data);
+        const validDevices = exifEntries
+            .map((e: any) => `${e.deviceMake || ''}-${e.deviceModel || ''}`.toLowerCase().trim())
+            .filter(d => d !== '-' && d !== '');
+            
+        const devices = new Set(validDevices);
+        if (devices.size > 1) {
+            flags.multi_device_detected = true;
+            flags.consistency_penalty += 40;
         }
-        deductions += flags.ip_penalty;
 
-        // B. Distance Penalty (Standard buckets, but 0 if missing)
+        const coords = exifEntries.filter((e: any) => e.lat && e.lng);
+        if (coords.length > 1) {
+            let maxDist = 0;
+            for (let i = 0; i < coords.length; i++) {
+                for (let j = i + 1; j < coords.length; j++) {
+                    const d = haversineDistance(coords[i].lat, coords[i].lng, coords[j].lat, coords[j].lng);
+                    maxDist = Math.max(maxDist, d);
+                }
+            }
+            if (maxDist > 0.5) { // more than 500m apart
+                flags.location_mismatch = true;
+                flags.consistency_penalty += 50;
+            }
+        }
+    }
+    deductions += flags.consistency_penalty;
+
+    // --- SOURCE-BASED SCORING ---
+    if (submission.source === 'franchise') {
+        // CASE 1: Franchise Dashboard
         if (submission.exif_lat !== null && submission.exif_lng !== null && store.lat !== null && store.lng !== null) {
+            // Has GPS Data -> Distance check
             const distance = haversineDistance(submission.exif_lat, submission.exif_lng, store.lat, store.lng);
             if (distance > 50) flags.distance_penalty = 100;
             else if (distance > 15) flags.distance_penalty = 85;
             else if (distance > 5) flags.distance_penalty = 50;
             else if (distance > 2) flags.distance_penalty = 20;
             else flags.distance_penalty = 0;
-            deductions += flags.distance_penalty;
         } else {
+            // No GPS Data -> IP Fallback
             flags.is_missing_data = true;
-            // No penalty for missing metadata on iOS per user request
-            flags.distance_penalty = 0;
-        }
+            flags.distance_penalty = 0; // No penalty for missing GPS itself
 
-        // C. Time/Consistency: Ignored for iOS track
-    } 
-    
-    // --- TRACK 1: STANDARD MECHANISM (Android / Desktop / Other) ---
-    else {
-        // A. Multi-Image Consistency Check
-        if (submission.all_exif_data && Object.keys(submission.all_exif_data).length > 1) {
-            const exifEntries = Object.values(submission.all_exif_data);
-            const devices = new Set(exifEntries.map(e => `${e.deviceMake || ''}-${e.deviceModel || ''}`.toLowerCase()));
-            if (devices.size > 1) {
-                flags.multi_device_detected = true;
-                flags.consistency_penalty += 40;
-            }
-
-            const coords = exifEntries.filter((e: any) => e.lat && e.lng);
-            if (coords.length > 1) {
-                let maxDist = 0;
-                for (let i = 0; i < coords.length; i++) {
-                    for (let j = i + 1; j < coords.length; j++) {
-                        const d = haversineDistance(coords[i].lat, coords[i].lng, coords[j].lat, coords[j].lng);
-                        maxDist = Math.max(maxDist, d);
-                    }
-                }
-                if (maxDist > 0.5) {
-                    flags.location_mismatch = true;
-                    flags.consistency_penalty += 50;
-                }
+            if (submission.ip_city !== null && store.city !== null) {
+                if (isIpCityValid) flags.ip_penalty = 0;
+                else if (isIpStateValid) flags.ip_penalty = 60;
+                else flags.ip_penalty = 100;
+            } else {
+                flags.ip_penalty = 10; // VPN/Missing IP data
             }
         }
-        deductions += flags.consistency_penalty;
-
-        // B. Store Distance Penalty
-        if (submission.exif_lat === null || submission.exif_lng === null) {
-            flags.is_missing_data = true;
-            flags.distance_penalty = (deviceCategory === 'desktop') ? 100 : 40;
-        } else if (store.lat !== null && store.lng !== null) {
-            const distance = haversineDistance(submission.exif_lat, submission.exif_lng, store.lat, store.lng);
-            if (distance > 50) flags.distance_penalty = 100;
-            else if (distance > 15) flags.distance_penalty = 85;
-            else if (distance > 5) flags.distance_penalty = 50;
-            else if (distance > 2) flags.distance_penalty = 20;
-        }
-        deductions += flags.distance_penalty;
-
-        // C. Time Penalty (Strict Minute-Based Buckets)
-        if (submission.exif_timestamp === null) {
-            flags.is_missing_data = true;
-            flags.time_penalty = 10;
-        } else {
-            const minutesDiff = Math.max(0, (submission.submission_time.getTime() - new Date(submission.exif_timestamp).getTime()) / (1000 * 60));
-            if (minutesDiff > 30) flags.time_penalty = 95;
-            else if (minutesDiff > 15) flags.time_penalty = 70;
-            else if (minutesDiff > 5) flags.time_penalty = 40;
-            else if (minutesDiff > 2) flags.time_penalty = 10;
-        }
-        deductions += flags.time_penalty;
-
-        // D. IP Penalty (-15 pts for mismatch)
+    } else {
+        // CASE 2: Customer Dashboard / QR Scan
+        // Ignore GPS completely
         if (submission.ip_city !== null && store.city !== null) {
-            if (!isIpValid) {
-                flags.ip_penalty = 15;
-            }
+            if (isIpCityValid) flags.ip_penalty = 0;
+            else if (isIpStateValid) flags.ip_penalty = 60;
+            else flags.ip_penalty = 100;
         } else {
-            flags.ip_penalty = 10;
+            flags.ip_penalty = 10; // VPN/Missing IP data
         }
-        deductions += flags.ip_penalty;
     }
+
+    deductions += flags.distance_penalty + flags.ip_penalty;
 
     // Calculate Final Scores (Cap deductions at 100)
     const trust_percentage = Math.max(0, 100 - deductions);

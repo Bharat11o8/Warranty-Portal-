@@ -13,6 +13,21 @@ const storage = new CloudinaryStorage({
     params: {
         folder: 'warranty-portal',
         allowed_formats: ['jpg', 'jpeg', 'png'],
+        public_id: (req: any, file: any) => {
+            let uid = 'UNKNOWN';
+            try {
+                if (req.body && req.body.productDetails) {
+                    const pd = JSON.parse(req.body.productDetails);
+                    uid = pd.uid || pd.serialNumber || 'NO_UID';
+                }
+            } catch (e) {
+                console.warn('Could not parse productDetails for Cloudinary naming');
+            }
+            const fieldName = file.fieldname || 'upload';
+            const originalName = file.originalname.split('.')[0].replace(/[^a-zA-Z0-9]/g, '_').substring(0, 20);
+            const timestamp = Date.now();
+            return `${uid}_${fieldName}_${originalName}_${timestamp}`;
+        }
     } as any,
 });
 

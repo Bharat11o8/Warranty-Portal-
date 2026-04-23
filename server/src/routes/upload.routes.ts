@@ -13,6 +13,11 @@ const storage = new CloudinaryStorage({
         folder: 'broadcasts',
         allowed_formats: ['jpg', 'jpeg', 'png', 'mp4', 'mov', 'webm'],
         resource_type: 'auto', // Important for video support
+        public_id: (req: any, file: any) => {
+            const originalName = file.originalname.split('.')[0].replace(/[^a-zA-Z0-9]/g, '_').substring(0, 30);
+            const timestamp = Date.now();
+            return `broadcast_${originalName}_${timestamp}`;
+        }
     } as any,
 });
 

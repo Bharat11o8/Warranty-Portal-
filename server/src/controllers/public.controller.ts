@@ -634,6 +634,7 @@ export class PublicController {
             try {
                 const result = calculateFraudScore(
                     {
+                        source: 'customer',
                         exif_lat: exifData.lat,
                         exif_lng: exifData.lng,
                         exif_timestamp: exifData.timestamp,
@@ -653,6 +654,9 @@ export class PublicController {
             } catch (err) {
                 console.warn('[FraudDetection] Fraud scoring failed:', err);
             }
+            
+            // Inject submission source for UI display
+            warrantyData.productDetails.submissionSource = 'QR Scan';
 
             await db.execute(
                 `INSERT INTO warranty_registrations 

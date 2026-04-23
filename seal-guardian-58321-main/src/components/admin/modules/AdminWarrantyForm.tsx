@@ -2,7 +2,6 @@ import { useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import SeatCoverForm from "@/components/warranty/SeatCoverForm";
 import EVProductsForm from "@/components/warranty/EVProductsForm";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 
 export const AdminWarrantyForm = () => {
     const [activeTab, setActiveTab] = useState("seat-cover");

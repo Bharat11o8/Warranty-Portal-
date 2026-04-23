@@ -122,15 +122,16 @@ export const submitWarranty = async (data: WarrantyData) => {
     pd.photos = photos;
   }
 
+  // Append productDetails as JSON first so backend Multer can parse it before files
+  formData.append('productDetails', JSON.stringify(pd));
+  console.log('[DEBUG warrantyApi] productDetails JSON:', JSON.stringify(pd));
+
   // Append files
   console.log('[DEBUG warrantyApi] Files to append:', Object.keys(filesToAppend));
   Object.keys(filesToAppend).forEach(key => {
     formData.append(key, filesToAppend[key]);
     hasFiles = true;
   });
-
-  // Append productDetails as JSON
-  formData.append('productDetails', JSON.stringify(pd));
   console.log('[DEBUG warrantyApi] productDetails JSON:', JSON.stringify(pd));
 
   console.log('[DEBUG warrantyApi] hasFiles:', hasFiles, '- making API call...');
@@ -190,12 +191,12 @@ export const updateWarranty = async (id: string, data: WarrantyData) => {
     pd.photos = photos;
   }
 
+  formData.append('productDetails', JSON.stringify(pd));
+
   Object.keys(filesToAppend).forEach(key => {
     formData.append(key, filesToAppend[key]);
     hasFiles = true;
   });
-
-  formData.append('productDetails', JSON.stringify(pd));
 
   if (hasFiles) {
     const response = await api.put(`/warranty/${id}`, formData, {

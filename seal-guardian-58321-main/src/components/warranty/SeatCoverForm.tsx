@@ -5,8 +5,7 @@ import {
   validateEmail,
   getPhoneError,
   getVehicleRegError,
-  formatVehicleRegLive,
-  validateVehicleReg
+  formatVehicleRegLive
 } from "@/lib/validation";
 import { getISTTodayISO } from "@/lib/utils";
 import { Button } from "@/components/ui/button";

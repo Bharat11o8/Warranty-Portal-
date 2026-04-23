@@ -239,6 +239,7 @@ export class WarrantyController {
       try {
         const result = calculateFraudScore(
           { 
+            source: req.user.role === 'customer' ? 'customer' : 'franchise',
             exif_lat: exifData.lat, 
             exif_lng: exifData.lng, 
             exif_timestamp: exifData.timestamp, 
@@ -303,6 +304,9 @@ export class WarrantyController {
           // Continue with original user_id if profile creation fails to avoid blocking the submission
         }
       }
+      
+      // Inject submission source for UI display
+      warrantyData.productDetails.submissionSource = req.user.role === 'customer' ? 'Customer Dashboard' : 'Franchise Dashboard';
 
       await db.execute(
         `INSERT INTO warranty_registrations 
@@ -601,7 +605,9 @@ export class WarrantyController {
         SELECT 
             w.*, 
             m.name as manpower_name_from_db,
-            vp.phone_number as vendor_phone_number
+            vp.phone_number as vendor_phone_number,
+            vd.city as vendor_city,
+            vd.store_name as vendor_store_name
         FROM warranty_registrations w 
         LEFT JOIN manpower m ON w.manpower_id = m.id
         LEFT JOIN vendor_details vd ON m.vendor_id = vd.id
