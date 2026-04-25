@@ -222,6 +222,24 @@ export class PublicController {
             }
             // Update warranty status
             await db.execute("UPDATE warranty_registrations SET status = 'pending' WHERE uid = ? AND status = 'pending_vendor'", [decoded.warrantyId]);
+            // Auto-create/assign customer role so they appear in Admin Panel and can login
+            try {
+                const [warranties] = await db.execute('SELECT user_id FROM warranty_registrations WHERE uid = ?', [decoded.warrantyId]);
+                if (warranties.length > 0) {
+                    const userId = warranties[0].user_id;
+                    if (userId) {
+                        // Check if they already have the role
+                        const [roles] = await db.execute('SELECT role FROM user_roles WHERE user_id = ? AND role = "customer"', [userId]);
+                        if (roles.length === 0) {
+                            await db.execute('INSERT INTO user_roles (id, user_id, role) VALUES (?, ?, "customer")', [uuidv4(), userId]);
+                            console.log(`✓ Assigned 'customer' role to user ${userId} after vendor confirmation`);
+                        }
+                    }
+                }
+            }
+            catch (roleError) {
+                console.error('Error assigning customer role during verification:', roleError);
+            }
             // Optional: Send success email to Admin or Customer here if needed
             // For now, just show success page
             // Return simple success HTML
@@ -492,6 +510,7 @@ export class PublicController {
             }
             try {
                 const result = calculateFraudScore({
+                    source: 'customer',
                     exif_lat: exifData.lat,
                     exif_lng: exifData.lng,
                     exif_timestamp: exifData.timestamp,
@@ -510,6 +529,8 @@ export class PublicController {
             catch (err) {
                 console.warn('[FraudDetection] Fraud scoring failed:', err);
             }
+            // Inject submission source for UI display
+            warrantyData.productDetails.submissionSource = 'QR Scan';
             await db.execute(`INSERT INTO warranty_registrations 
                 (uid, user_id, product_type, customer_name, customer_email, customer_phone, 
                  customer_address, registration_number, car_make, car_model, car_year, 

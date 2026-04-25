@@ -250,14 +250,19 @@ export const AdminCustomers = () => {
     return (
         <div className="space-y-6">
             <div className="flex flex-col md:flex-row gap-4 justify-between items-center">
-                <div className="relative flex-1 md:max-w-md w-full">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-                    <Input
-                        placeholder="Search customers..."
-                        className="pl-10 border-orange-100 h-11 md:h-10"
-                        value={search}
-                        onChange={(e) => setSearch(e.target.value)}
-                    />
+                <div className="relative flex-1 md:max-w-md w-full flex items-center gap-3">
+                    <div className="relative flex-1">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                        <Input
+                            placeholder="Search customers..."
+                            className="pl-10 border-orange-100 h-11 md:h-10 w-full"
+                            value={search}
+                            onChange={(e) => setSearch(e.target.value)}
+                        />
+                    </div>
+                    <Badge variant="outline" className="h-10 md:h-10 px-4 border-orange-200 bg-orange-50 text-orange-700 font-bold whitespace-nowrap rounded-xl shadow-sm border-2">
+                        Total: {customers.length}
+                    </Badge>
                 </div>
                 <div className="flex gap-2 w-full md:w-auto">
                     <DropdownMenu>

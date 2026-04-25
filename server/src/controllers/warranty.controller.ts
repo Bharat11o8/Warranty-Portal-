@@ -875,20 +875,34 @@ export class WarrantyController {
           }
         });
       } else {
-        // Seat cover invoice
+        // Seat cover
+        if (!warrantyData.productDetails.photos) warrantyData.productDetails.photos = {};
+          
         if (!warrantyData.productDetails.invoiceFileName && existingProductDetails.invoiceFileName) {
           warrantyData.productDetails.invoiceFileName = existingProductDetails.invoiceFileName;
         }
+        
+        // Ensure seat-cover internal photos are preserved! This caused the UI corruption earlier!
+        const seatCoverKeys = ['vehicle', 'seatCover', 'carOuter'];
+        seatCoverKeys.forEach(key => {
+          if (!(warrantyData.productDetails.photos as any)[key] && existingProductDetails.photos?.[key]) {
+             (warrantyData.productDetails.photos as any)[key] = existingProductDetails.photos[key];
+          }
+        });
       }
 
       // Update warranty details
-      // Determine status based on who is updating
-      // For customer updates, set status to 'pending_vendor' (needs franchise verification)
-      // For vendor/admin updates, go directly to 'pending' (admin review)
-      const updatedStatus = req.user.role === 'customer' ? 'pending_vendor' : 'pending';
+      // Determine status based on who is updating and current status
+      // If it's already pending or validated, preserve the status. 
+      // Only transition to pending if it was previously rejected.
+      let updatedStatus = warranty.status;
+      let clearRejectionReason = false;
 
-      // Update warranty details
-      // Reset status and clear rejection_reason
+      if (warranty.status === 'rejected') {
+        updatedStatus = req.user.role === 'customer' ? 'pending_vendor' : 'pending';
+        clearRejectionReason = true;
+      }
+
       // Use the warranty's actual id from the found record for update
       const warrantyRecordId = warranty.id;
       await db.execute(
@@ -897,7 +911,7 @@ export class WarrantyController {
          customer_address = ?, registration_number = ?, car_make = ?, car_model = ?, car_year = ?,
          purchase_date = ?, installer_name = ?,
          installer_contact = ?, product_details = ?, manpower_id = ?, warranty_type = ?,
-         status = ?, rejection_reason = NULL
+         status = ?, rejection_reason = ${clearRejectionReason ? 'NULL' : 'rejection_reason'}
          WHERE id = ?`,
         [
           warrantyData.productType,

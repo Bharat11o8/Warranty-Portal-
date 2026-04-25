@@ -15,8 +15,40 @@ export class AdminController {
             const [vendors]: any = await db.execute("SELECT COUNT(*) as count FROM user_roles WHERE role = 'vendor'");
             const totalVendors = vendors[0].count;
 
-            // 3. Total Customers
-            const [customers]: any = await db.execute("SELECT COUNT(*) as count FROM user_roles WHERE role = 'customer'");
+            // 3. Total Customers (Registered + Guests, excluding Vendors)
+            const [customers]: any = await db.execute(`
+                SELECT COUNT(*) as count FROM (
+                    -- 1. Registered Customers (from profiles)
+                    SELECT p.name as customer_name, p.email, p.phone_number
+                    FROM profiles p
+                    JOIN user_roles ur ON p.id = ur.user_id
+                    WHERE ur.role = 'customer'
+                    AND p.email NOT IN (SELECT email FROM profiles p2 JOIN user_roles ur2 ON p2.id = ur2.user_id WHERE ur2.role = 'vendor')
+
+                    UNION
+
+                    -- 2. Guest Customers (from warranty_registrations)
+                    SELECT sub.customer_name, sub.customer_email, sub.customer_phone
+                    FROM (
+                        SELECT customer_name, customer_email, customer_phone 
+                        FROM warranty_registrations 
+                        GROUP BY customer_name, customer_email, customer_phone
+                    ) sub
+                    LEFT JOIN (
+                        SELECT p.email, p.phone_number, p.id FROM profiles p 
+                        JOIN user_roles ur ON p.id = ur.user_id WHERE ur.role = 'customer'
+                    ) reg_cust ON (sub.customer_email = reg_cust.email OR sub.customer_phone = reg_cust.phone_number)
+                    LEFT JOIN (
+                        SELECT p.email, p.name FROM profiles p 
+                        JOIN user_roles ur ON p.id = ur.user_id WHERE ur.role = 'vendor'
+                    ) vendor_match ON sub.customer_email = vendor_match.email AND sub.customer_name = vendor_match.name
+                    WHERE reg_cust.id IS NULL AND vendor_match.name IS NULL
+                    AND (
+                        (sub.customer_email IS NOT NULL AND sub.customer_email != '' AND sub.customer_email != 'N/A')
+                        OR 
+                        (sub.customer_phone IS NOT NULL AND sub.customer_phone != '' AND sub.customer_phone != 'N/A')
+                    )
+                ) combined`);
             const totalCustomers = customers[0].count;
 
             // 4. Pending Approvals (Pending Warranties - Second Stage)
@@ -1130,15 +1162,17 @@ export class AdminController {
                     JOIN user_roles ur ON p.id = ur.user_id
                     LEFT JOIN warranty_registrations wr ON p.email = wr.customer_email
                     WHERE ur.role = 'customer'
+                    -- Exclude exact vendor profile matches
+                    AND p.email NOT IN (SELECT email FROM profiles p2 JOIN user_roles ur2 ON p2.id = ur2.user_id WHERE ur2.role = 'vendor')
                     GROUP BY p.id
 
                     UNION ALL
 
-                    -- 2. Guest Customers (only in registrations, no matching 'customer' profile)
+                    -- 2. Guest Customers (identified by Name + Phone + Email combo)
                     SELECT 
-                        wr_guest.customer_name as customer_name,
-                        wr_guest.customer_email as customer_email,
-                        wr_guest.customer_phone as customer_phone,
+                        sub.customer_name,
+                        sub.customer_email,
+                        sub.customer_phone,
                         sub.total_warranties,
                         sub.validated_warranties,
                         sub.pending_warranties,
@@ -1148,9 +1182,9 @@ export class AdminController {
                         sub.first_warranty_date as registered_at
                     FROM (
                         SELECT 
+                            customer_name,
                             customer_email,
-                            MAX(customer_name) as customer_name,
-                            MAX(customer_phone) as customer_phone,
+                            customer_phone,
                             COUNT(uid) as total_warranties,
                             SUM(CASE WHEN status = 'validated' THEN 1 ELSE 0 END) as validated_warranties,
                             SUM(CASE WHEN status IN ('pending', 'pending_vendor') THEN 1 ELSE 0 END) as pending_warranties,
@@ -1158,13 +1192,28 @@ export class AdminController {
                             MIN(created_at) as first_warranty_date,
                             MAX(created_at) as last_warranty_date
                         FROM warranty_registrations
-                        GROUP BY customer_email
+                        GROUP BY customer_name, customer_email, customer_phone
                     ) sub
-                    JOIN warranty_registrations wr_guest ON sub.customer_email = wr_guest.customer_email
-                    LEFT JOIN profiles p ON wr_guest.customer_email = p.email
-                    LEFT JOIN user_roles ur ON p.id = ur.user_id AND ur.role = 'customer'
-                    WHERE ur.id IS NULL
-                    GROUP BY wr_guest.customer_email
+                    -- Exclude if they are already in the "Registered Customers" list
+                    LEFT JOIN (
+                        SELECT p.email, p.phone_number, p.id FROM profiles p 
+                        JOIN user_roles ur ON p.id = ur.user_id WHERE ur.role = 'customer'
+                    ) reg_cust ON (sub.customer_email = reg_cust.email OR sub.customer_phone = reg_cust.phone_number)
+                    -- SMARTS: Exclude if the customer name EXACTLY matches a vendor name using that email
+                    -- This allows "Jignesh" to show up even if he used "Ishan's" email.
+                    LEFT JOIN (
+                        SELECT p.email, p.name FROM profiles p 
+                        JOIN user_roles ur ON p.id = ur.user_id WHERE ur.role = 'vendor'
+                    ) vendor_match ON sub.customer_email = vendor_match.email AND sub.customer_name = vendor_match.name
+                    
+                    WHERE reg_cust.id IS NULL      -- Not a registered customer
+                    AND vendor_match.name IS NULL  -- Name doesn't match the vendor profile
+                    -- Basic sanity: must have either a valid email OR a valid phone
+                    AND (
+                        (sub.customer_email IS NOT NULL AND sub.customer_email != '' AND sub.customer_email != 'N/A')
+                        OR 
+                        (sub.customer_phone IS NOT NULL AND sub.customer_phone != '' AND sub.customer_phone != 'N/A')
+                    )
                 ) combined
                 ORDER BY registered_at DESC
             `);

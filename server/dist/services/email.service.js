@@ -383,13 +383,26 @@ export class EmailService {
       <h2 style="color: #333; margin-top: 0;">Hello ${customerName},</h2>
       
       <div class="success-box">
-        <div style="font-size: 48px; margin-bottom: 10px;"></div>
+        <div style="font-size: 48px; margin-bottom: 10px;">✅</div>
         <h3>Your warranty has been approved!</h3>
         <p style="color: #155724; margin: 5px 0 0 0;">Your product is now covered under warranty</p>
       </div>
       
       <p>Great news! We're pleased to inform you that your warranty registration has been reviewed and approved by our team.</p>
       
+      <div class="info-box" style="background: #e3f2fd; border-left: 4px solid #2196f3; padding: 20px;">
+        <h3 style="margin-top: 0; color: #0d47a1; font-size: 18px;">How to Manage Your Warranty:</h3>
+        <p style="margin-bottom: 10px;">You can now view, manage, and download your digital warranty certificates directly from our portal. Follow these simple steps:</p>
+        <ol style="margin: 0; padding-left: 20px;">
+          <li style="margin-bottom: 8px;"><strong>Visit the Portal:</strong> Click the button below to go to the Autoform Warranty Portal.</li>
+          <li style="margin-bottom: 8px;"><strong>Secure Login:</strong> Use your registered email (${customerEmail}) to log in via OTP.</li>
+          <li style="margin-bottom: 8px;"><strong>Download Certificates:</strong> Access your dashboard to view and download your active warranty certificates anytime.</li>
+        </ol>
+        <div style="text-align: center; margin-top: 25px;">
+          <a href="https://warranty2.autoformindia.co.in/login?mode=warranty" class="button" style="background: linear-gradient(135deg, #2196f3 0%, #0d47a1 100%); min-width: 250px;">Login to Your Portal</a>
+        </div>
+      </div>
+
       <div class="info-box" style="border-left-color: #00f2fe;">
         <p style="margin: 0 0 10px 0; font-weight: bold; color: #0088cc;">Warranty Details:</p>
         ${productType === 'seat-cover' ? `<p><strong>UID:</strong> ${uid}</p>` : ''}
@@ -410,7 +423,7 @@ export class EmailService {
         <p style="margin: 0 0 10px 0; font-weight: bold; color: #667eea;">Store Details:</p>
         <p><strong>Store Name:</strong> ${storeName}</p>
         ${storeAddress ? `<p><strong>Address:</strong> ${storeAddress}</p>` : ''}
-        ${storePhone ? `<p><strong>Email:</strong> ${storePhone}</p>` : ''}
+        ${storePhone ? `<p><strong>Contact Email:</strong> ${storePhone}</p>` : ''}
         ${applicatorName ? `<p><strong>Applicator:</strong> ${applicatorName}</p>` : ''}
       </div>
       ` : ''}
@@ -419,8 +432,8 @@ export class EmailService {
         <p style="margin: 0 0 5px 0;"><strong>Important Information:</strong></p>
         <ul style="margin: 0; padding-left: 20px;">
           <li>Keep this email for your records</li>
+          <li>Your digital warranty certificate is only accessible via the portal</li>
           <li>Your warranty is now active and valid</li>
-          <li>Use your ${productType === 'seat-cover' ? 'UID' : productType === 'ev-products' ? 'serial number and vehicle registration' : 'warranty details'} for any warranty claims</li>
         </ul>
       </div>
       
@@ -445,21 +458,39 @@ export class EmailService {
       <h2 style="color: #333; margin-top: 0;">Hello ${customerName},</h2>
       
       <div class="warning-box">
+        <div style="font-size: 48px; margin-bottom: 15px;">🔍</div>
         <h3 style="color: #856404; margin: 0 0 5px 0;">Application Status Update</h3>
-        <p style="margin: 0;">We've reviewed your warranty application and need to inform you of an important update.</p>
+        <p style="margin: 0;">We've reviewed your warranty application and need to inform you that some details require your attention.</p>
       </div>
       
-      <p>After careful review of your warranty registration, we regret to inform you that we are unable to approve your warranty application at this time.</p>
+      <p>After careful review of your warranty registration, we are unable to approve your application in its current state. However, you can easily correct the information and resubmit for approval.</p>
       
-      <div class="info-box" style="border-left-color: #ee5a6f;">
-        <p style="margin: 0 0 10px 0; font-weight: bold; color: #ee5a6f;">Application Details:</p>
+      <div class="error-box" style="border-left: 4px solid #ff6b6b; background: #fff5f5; padding: 20px; margin-bottom: 25px;">
+        <h4 style="margin: 0 0 10px 0; color: #d32f2f; font-size: 16px;">Reason for Rejection:</h4>
+        <p style="margin: 0; color: #b71c1c; font-weight: 500; font-size: 15px;">${rejectionReason}</p>
+      </div>
+
+      <div class="info-box" style="background: #e3f2fd; border-left: 4px solid #2196f3; padding: 20px;">
+        <h3 style="margin-top: 0; color: #0d47a1; font-size: 18px;">How to Fix & Resubmit:</h3>
+        <p style="margin-bottom: 10px;">To activate your warranty, please follow these steps to correct and resubmit your application:</p>
+        <ol style="margin: 0; padding-left: 20px;">
+          <li style="margin-bottom: 8px;"><strong>Login to Portal:</strong> Click the button below to access your dashboard.</li>
+          <li style="margin-bottom: 8px;"><strong>Edit Application:</strong> Find your rejected warranty and click "Edit & Resubmit".</li>
+          <li style="margin-bottom: 8px;"><strong>Update Details:</strong> Correct the information based on the reason provided above.</li>
+        </ol>
+        <div style="text-align: center; margin-top: 25px;">
+          <a href="https://warranty2.autoformindia.co.in/login?mode=warranty" class="button" style="background: linear-gradient(135deg, #2196f3 0%, #0d47a1 100%); min-width: 250px;">Fix & Resubmit Now</a>
+        </div>
+      </div>
+
+      <div class="info-box" style="border-left-color: #ee5a6f; margin-top: 30px;">
+        <p style="margin: 0 0 10px 0; font-weight: bold; color: #ee5a6f;">Original Application Details:</p>
         <p><strong>Product:</strong> ${String(productName).replace(/-/g, ' ').toUpperCase()}</p>
         ${productType === 'seat-cover' ? `<p><strong>UID:</strong> ${uid}</p>` : ''}
         ${productType === 'ev-products' ? `
           <p><strong>Serial Number:</strong> ${productDetails?.serialNumber || 'N/A'}</p>
         ` : ''}
         <p><strong>Product Type:</strong> ${productType}</p>
-        <p><strong>Warranty Type:</strong> ${warrantyType || '1 Year'}</p>
         <p><strong>Vehicle Registration:</strong> ${registrationNumber || productDetails?.carRegistration || 'N/A'}</p>
         ${(productType !== 'seat-cover' && ((carMake && String(carMake).toLowerCase() !== 'null') || (carModel && String(carModel).toLowerCase() !== 'null'))) ? `<p><strong>Vehicle:</strong> ${carMake || ''} ${carModel || ''}</p>` : ''}
         <p><strong>Review Date:</strong> ${formatDateIST()}</p>
@@ -470,26 +501,11 @@ export class EmailService {
         <p style="margin: 0 0 10px 0; font-weight: bold; color: #667eea;">Store Details:</p>
         <p><strong>Store Name:</strong> ${storeName}</p>
         ${storeAddress ? `<p><strong>Address:</strong> ${storeAddress}</p>` : ''}
+        ${storePhone ? `<p><strong>Contact Email:</strong> ${storePhone}</p>` : ''}
       </div>
       ` : ''}
 
-      <div class="error-box" style="border-color: #ff6b6b;">
-        <h4 style="margin: 0 0 10px 0; color: #d32f2f;">🔍 Reason for Decision:</h4>
-        <p style="margin: 0; color: #d32f2f;">${rejectionReason}</p>
-      </div>
-
-      <div class="info-box" style="background: #e3f2fd; border-left-color: #2196f3;">
-        <h4 style="margin: 0 0 10px 0; color: #1976d2;">What You Can Do:</h4>
-        <ul style="margin: 0; padding-left: 20px;">
-          <li>Review the reason provided above</li>
-          <li>Address the mentioned concerns</li>
-          <li>Resubmit your warranty application with corrected information</li>
-          <li>Contact our support team if you need clarification</li>
-        </ul>
-      </div>
-
-      <p style="margin-top: 30px;">If you believe this decision was made in error, please contact our support team at <a href="mailto:${process.env.EMAIL_FROM}">${process.env.EMAIL_FROM}</a>.</p>
-      
+      <p style="margin-top: 30px;">If you believe this decision was made in error or have any questions, please contact our support team at <a href="mailto:${process.env.EMAIL_FROM}">${process.env.EMAIL_FROM}</a>.</p>
       <p>Best regards,<br><strong>Autoform India Team</strong></p>
     `;
         await transporter.sendMail({

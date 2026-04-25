@@ -1,0 +1,130 @@
+[
+  {
+    "uid": "25082902371655",
+    "customer_name": "Parag Agarwal",
+    "registration_number": "UP-21-DS-1432",
+    "photos": [],
+    "isDubious": false,
+    "date": "2026-04-21T09:49:51.000Z"
+  },
+  {
+    "uid": "25100402380610",
+    "customer_name": "Shubhas bhai",
+    "registration_number": "GJ-03-PR-6818",
+    "photos": [],
+    "isDubious": false,
+    "date": "2026-04-21T11:07:42.000Z"
+  },
+  {
+    "uid": "25102302384412",
+    "customer_name": "Jalubhai",
+    "registration_number": "GJ-37-AB-9968",
+    "photos": [],
+    "isDubious": false,
+    "date": "2026-04-21T11:50:35.000Z"
+  },
+  {
+    "uid": "26030202421275",
+    "customer_name": "Jignesh Rathwa",
+    "registration_number": "GJ-06-RF-6064",
+    "photos": [],
+    "isDubious": false,
+    "date": "2026-04-21T13:37:48.000Z"
+  },
+  {
+    "uid": "25081602368091",
+    "customer_name": "Huzfa sir",
+    "registration_number": "MP-09-C-0128",
+    "photos": [],
+    "isDubious": false,
+    "date": "2026-04-21T16:01:03.000Z"
+  },
+  {
+    "uid": "26031602424705",
+    "customer_name": "Rohit Patil",
+    "registration_number": "MH-12-ZC-1617",
+    "photos": [],
+    "isDubious": false,
+    "date": "2026-04-22T05:40:15.000Z"
+  },
+  {
+    "uid": "26031602424404",
+    "customer_name": "NIRAJ MEHTA",
+    "registration_number": "GJ-15-CS-0093",
+    "photos": [],
+    "isDubious": false,
+    "date": "2026-04-22T07:19:33.000Z"
+  },
+  {
+    "uid": "25122902403812",
+    "customer_name": "Aman ji",
+    "registration_number": "RJ-31-CD-0611",
+    "photos": [],
+    "isDubious": false,
+    "date": "2026-04-22T07:51:19.000Z"
+  },
+  {
+    "uid": "26010302405294",
+    "customer_name": "Lakhwinder singh",
+    "registration_number": "PB-03-A-0023",
+    "photos": [],
+    "isDubious": false,
+    "date": "2026-04-22T08:00:04.000Z"
+  },
+  {
+    "uid": "26031902425824",
+    "customer_name": "Bilal Ahmed dar",
+    "registration_number": "JK-03-P-2612",
+    "photos": [],
+    "isDubious": false,
+    "date": "2026-04-22T09:29:21.000Z"
+  },
+  {
+    "uid": "261480004540587",
+    "customer_name": "Mukesh bhai",
+    "registration_number": "GJ-24-AF-1576",
+    "photos": [],
+    "isDubious": false,
+    "date": "2026-04-22T09:44:05.000Z"
+  },
+  {
+    "uid": "26041302432606",
+    "customer_name": "Mr Amit",
+    "registration_number": "UP-16-FN-8700",
+    "photos": [],
+    "isDubious": false,
+    "date": "2026-04-22T09:47:06.000Z"
+  },
+  {
+    "uid": "25122302402392",
+    "customer_name": "Mittal trading co",
+    "registration_number": "HR-32-P-2330",
+    "photos": [],
+    "isDubious": false,
+    "date": "2026-04-22T09:54:59.000Z"
+  },
+  {
+    "uid": "26032502427391",
+    "customer_name": "Mr  Saurabh",
+    "registration_number": "UP-16-FN-7325",
+    "photos": [],
+    "isDubious": false,
+    "date": "2026-04-22T09:56:13.000Z"
+  },
+  {
+    "uid": "26041302432620",
+    "customer_name": "Harshal Nigade",
+    "registration_number": "MH-12-ZC-2349",
+    "photos": [],
+    "isDubious": false,
+    "date": "2026-04-22T10:09:47.000Z"
+  },
+  {
+    "uid": "26032302426664",
+    "customer_name": "ASHOK JAIN",
+    "registration_number": "RJ-13-CG-0157",
+    "photos": [],
+    "isDubious": false,
+    "date": "2026-04-22T10:51:07.000Z"
+  }
+]

@@ -199,6 +199,7 @@ export class WarrantyController {
             }
             try {
                 const result = calculateFraudScore({
+                    source: req.user.role === 'customer' ? 'customer' : 'franchise',
                     exif_lat: exifData.lat,
                     exif_lng: exifData.lng,
                     exif_timestamp: exifData.timestamp,
@@ -216,6 +217,37 @@ export class WarrantyController {
             catch (err) {
                 console.warn('[FraudDetection] Fraud scoring failed:', err);
             }
+            // Determine user_id: If vendor/admin is submitting, we ensure a customer profile exists
+            let finalUserId = req.user.id;
+            // For vendor/admin submissions with a customer email, auto-create customer profile
+            if (req.user.role !== 'customer' && warrantyData.customerEmail) {
+                try {
+                    const customerEmail = warrantyData.customerEmail.toLowerCase().trim();
+                    const [existingUsers] = await db.execute('SELECT id FROM profiles WHERE email = ?', [customerEmail]);
+                    if (existingUsers.length > 0) {
+                        finalUserId = existingUsers[0].id;
+                        // Ensure they have the 'customer' role
+                        const [roles] = await db.execute('SELECT role FROM user_roles WHERE user_id = ? AND role = "customer"', [finalUserId]);
+                        if (roles.length === 0) {
+                            await db.execute('INSERT INTO user_roles (id, user_id, role) VALUES (?, ?, "customer")', [uuidv4(), finalUserId]);
+                        }
+                    }
+                    else {
+                        // Create new customer profile 
+                        // Note: We don't set a password, user will use OTP login
+                        const newCustomerId = uuidv4();
+                        await db.execute('INSERT INTO profiles (id, name, email, phone_number) VALUES (?, ?, ?, ?)', [newCustomerId, warrantyData.customerName, customerEmail, warrantyData.customerPhone]);
+                        await db.execute('INSERT INTO user_roles (id, user_id, role) VALUES (?, ?, "customer")', [uuidv4(), newCustomerId]);
+                        finalUserId = newCustomerId;
+                    }
+                }
+                catch (profileError) {
+                    console.error('Error auto-creating customer profile:', profileError);
+                    // Continue with original user_id if profile creation fails to avoid blocking the submission
+                }
+            }
+            // Inject submission source for UI display
+            warrantyData.productDetails.submissionSource = req.user.role === 'customer' ? 'Customer Dashboard' : 'Franchise Dashboard';
             await db.execute(`INSERT INTO warranty_registrations 
         (uid, user_id, product_type, customer_name, customer_email, customer_phone, 
          customer_address, registration_number, car_make, car_model, car_year, 
@@ -224,7 +256,7 @@ export class WarrantyController {
          seat_cover_photo_url, car_outer_photo_url) 
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [
                 warrantyId,
-                req.user.id,
+                finalUserId,
                 warrantyData.productType,
                 warrantyData.customerName,
                 warrantyData.customerEmail,
@@ -454,7 +486,9 @@ export class WarrantyController {
         SELECT 
             w.*, 
             m.name as manpower_name_from_db,
-            vp.phone_number as vendor_phone_number
+            vp.phone_number as vendor_phone_number,
+            vd.city as vendor_city,
+            vd.store_name as vendor_store_name
         FROM warranty_registrations w 
         LEFT JOIN manpower m ON w.manpower_id = m.id
         LEFT JOIN vendor_details vd ON m.vendor_id = vd.id
@@ -686,18 +720,30 @@ export class WarrantyController {
                 });
             }
             else {
-                // Seat cover invoice
+                // Seat cover
+                if (!warrantyData.productDetails.photos)
+                    warrantyData.productDetails.photos = {};
                 if (!warrantyData.productDetails.invoiceFileName && existingProductDetails.invoiceFileName) {
                     warrantyData.productDetails.invoiceFileName = existingProductDetails.invoiceFileName;
                 }
+                // Ensure seat-cover internal photos are preserved! This caused the UI corruption earlier!
+                const seatCoverKeys = ['vehicle', 'seatCover', 'carOuter'];
+                seatCoverKeys.forEach(key => {
+                    if (!warrantyData.productDetails.photos[key] && existingProductDetails.photos?.[key]) {
+                        warrantyData.productDetails.photos[key] = existingProductDetails.photos[key];
+                    }
+                });
             }
             // Update warranty details
-            // Determine status based on who is updating
-            // For customer updates, set status to 'pending_vendor' (needs franchise verification)
-            // For vendor/admin updates, go directly to 'pending' (admin review)
-            const updatedStatus = req.user.role === 'customer' ? 'pending_vendor' : 'pending';
-            // Update warranty details
-            // Reset status and clear rejection_reason
+            // Determine status based on who is updating and current status
+            // If it's already pending or validated, preserve the status. 
+            // Only transition to pending if it was previously rejected.
+            let updatedStatus = warranty.status;
+            let clearRejectionReason = false;
+            if (warranty.status === 'rejected') {
+                updatedStatus = req.user.role === 'customer' ? 'pending_vendor' : 'pending';
+                clearRejectionReason = true;
+            }
             // Use the warranty's actual id from the found record for update
             const warrantyRecordId = warranty.id;
             await db.execute(`UPDATE warranty_registrations SET
@@ -705,7 +751,7 @@ export class WarrantyController {
          customer_address = ?, registration_number = ?, car_make = ?, car_model = ?, car_year = ?,
          purchase_date = ?, installer_name = ?,
          installer_contact = ?, product_details = ?, manpower_id = ?, warranty_type = ?,
-         status = ?, rejection_reason = NULL
+         status = ?, rejection_reason = ${clearRejectionReason ? 'NULL' : 'rejection_reason'}
          WHERE id = ?`, [
                 warrantyData.productType,
                 warrantyData.customerName,

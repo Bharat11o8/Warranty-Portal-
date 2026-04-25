@@ -1,0 +1,222 @@
+[
+  {
+    "uid": "1111111111111",
+    "registrationNumber": "DL-12-AB-9000",
+    "carDetails": "N/A",
+    "product": "E5",
+    "images": [
+      "https://res.cloudinary.com/dmwt4rg4m/image/upload/v1765531503/warranty-portal/autoform-logo.png"
+    ],
+    "date": "2026-04-20T18:24:51.000Z"
+  },
+  {
+    "uid": "2222222222222",
+    "registrationNumber": "DH-7-HS-6777",
+    "carDetails": "N/A",
+    "product": "EXCLUSIVE+",
+    "images": [
+      "https://res.cloudinary.com/dmwt4rg4m/image/upload/v1765531503/warranty-portal/autoform-logo.png"
+    ],
+    "date": "2026-04-20T19:14:31.000Z"
+  },
+  {
+    "uid": "25082902371655",
+    "registrationNumber": "UP-21-DS-1432",
+    "carDetails": "N/A",
+    "product": "U FOCUS",
+    "images": [
+      "https://res.cloudinary.com/dmwt4rg4m/image/upload/v1765531503/warranty-portal/autoform-logo.png"
+    ],
+    "date": "2026-04-21T09:49:51.000Z"
+  },
+  {
+    "uid": "25100402380610",
+    "registrationNumber": "GJ-03-PR-6818",
+    "carDetails": "N/A",
+    "product": "Q2",
+    "images": [
+      "https://res.cloudinary.com/dmwt4rg4m/image/upload/v1765531503/warranty-portal/autoform-logo.png"
+    ],
+    "date": "2026-04-21T11:07:42.000Z"
+  },
+  {
+    "uid": "25102302384412",
+    "registrationNumber": "GJ-37-AB-9968",
+    "carDetails": "N/A",
+    "product": "U FOCUS",
+    "images": [
+      "https://res.cloudinary.com/dmwt4rg4m/image/upload/v1765531503/warranty-portal/autoform-logo.png"
+    ],
+    "date": "2026-04-21T11:50:35.000Z"
+  },
+  {
+    "uid": "26030202421275",
+    "registrationNumber": "GJ-06-RF-6064",
+    "carDetails": "N/A",
+    "product": "D3",
+    "images": [
+      "https://res.cloudinary.com/dmwt4rg4m/image/upload/v1765531503/warranty-portal/autoform-logo.png"
+    ],
+    "date": "2026-04-21T13:37:48.000Z"
+  },
+  {
+    "uid": "25081602368091",
+    "registrationNumber": "MP-09-C-0128",
+    "carDetails": "N/A",
+    "product": "U SPORTS (SERIES)",
+    "images": [
+      "https://res.cloudinary.com/dmwt4rg4m/image/upload/v1765531503/warranty-portal/autoform-logo.png"
+    ],
+    "date": "2026-04-21T16:01:03.000Z"
+  },
+  {
+    "uid": "26031602424705",
+    "registrationNumber": "MH-12-ZC-1617",
+    "carDetails": "N/A",
+    "product": "AMAZE+",
+    "images": [
+      "https://res.cloudinary.com/dmwt4rg4m/image/upload/v1765531503/warranty-portal/autoform-logo.png"
+    ],
+    "date": "2026-04-22T05:40:15.000Z"
+  },
+  {
+    "uid": "26031602424404",
+    "registrationNumber": "GJ-15-CS-0093",
+    "carDetails": "N/A",
+    "product": "U SPORTS (SIGNATURE)",
+    "images": [
+      "https://res.cloudinary.com/dmwt4rg4m/image/upload/v1765531503/warranty-portal/autoform-logo.png"
+    ],
+    "date": "2026-04-22T07:19:33.000Z"
+  },
+  {
+    "uid": "25122902403812",
+    "registrationNumber": "RJ-31-CD-0611",
+    "carDetails": "N/A",
+    "product": "D3",
+    "images": [
+      "https://res.cloudinary.com/dmwt4rg4m/image/upload/v1765531503/warranty-portal/autoform-logo.png"
+    ],
+    "date": "2026-04-22T07:51:19.000Z"
+  },
+  {
+    "uid": "26010302405294",
+    "registrationNumber": "PB-03-A-0023",
+    "carDetails": "N/A",
+    "product": "D3",
+    "images": [
+      "https://res.cloudinary.com/dmwt4rg4m/image/upload/v1765531503/warranty-portal/autoform-logo.png"
+    ],
+    "date": "2026-04-22T08:00:04.000Z"
+  },
+  {
+    "uid": "26021602417718",
+    "registrationNumber": "RJ-13-CG-0138",
+    "carDetails": "N/A",
+    "product": "U SPORTS (EMPORIO)",
+    "images": [
+      "https://res.cloudinary.com/dmwt4rg4m/image/upload/v1765531503/warranty-portal/autoform-logo.png"
+    ],
+    "date": "2026-04-22T09:21:10.000Z"
+  },
+  {
+    "uid": "26031902425824",
+    "registrationNumber": "JK-03-P-2612",
+    "carDetails": "N/A",
+    "product": "U SPORTS (EMPORIO)",
+    "images": [
+      "https://res.cloudinary.com/dmwt4rg4m/image/upload/v1765531503/warranty-portal/autoform-logo.png"
+    ],
+    "date": "2026-04-22T09:29:21.000Z"
+  },
+  {
+    "uid": "261480004540587",
+    "registrationNumber": "GJ-24-AF-1576",
+    "carDetails": "N/A",
+    "product": "Q2",
+    "images": [
+      "https://res.cloudinary.com/dmwt4rg4m/image/upload/v1765531503/warranty-portal/autoform-logo.png"
+    ],
+    "date": "2026-04-22T09:44:05.000Z"
+  },
+  {
+    "uid": "26041302432606",
+    "registrationNumber": "UP-16-FN-8700",
+    "carDetails": "N/A",
+    "product": "U SPORTS (SIGNATURE)",
+    "images": [
+      "https://res.cloudinary.com/dmwt4rg4m/image/upload/v1765531503/warranty-portal/autoform-logo.png"
+    ],
+    "date": "2026-04-22T09:47:06.000Z"
+  },
+  {
+    "uid": "26010802406519",
+    "registrationNumber": "CH-01-CU-4572",
+    "carDetails": "N/A",
+    "product": "H CROSS",
+    "images": [
+      "https://res.cloudinary.com/dmwt4rg4m/image/upload/v1765531503/warranty-portal/autoform-logo.png"
+    ],
+    "date": "2026-04-22T09:47:41.000Z"
+  },
+  {
+    "uid": "25122302402392",
+    "registrationNumber": "HR-32-P-2330",
+    "carDetails": "N/A",
+    "product": "U SPORTS (SERIES)",
+    "images": [
+      "https://res.cloudinary.com/dmwt4rg4m/image/upload/v1765531503/warranty-portal/autoform-logo.png"
+    ],
+    "date": "2026-04-22T09:54:59.000Z"
+  },
+  {
+    "uid": "26032502427391",
+    "registrationNumber": "UP-16-FN-7325",
+    "carDetails": "N/A",
+    "product": "U SPORTS (SIGNATURE)",
+    "images": [
+      "https://res.cloudinary.com/dmwt4rg4m/image/upload/v1765531503/warranty-portal/autoform-logo.png"
+    ],
+    "date": "2026-04-22T09:56:13.000Z"
+  },
+  {
+    "uid": "26041302432620",
+    "registrationNumber": "MH-12-ZC-2349",
+    "carDetails": "N/A",
+    "product": "D3",
+    "images": [
+      "https://res.cloudinary.com/dmwt4rg4m/image/upload/v1765531503/warranty-portal/autoform-logo.png"
+    ],
+    "date": "2026-04-22T10:09:47.000Z"
+  },
+  {
+    "uid": "26032302426664",
+    "registrationNumber": "RJ-13-CG-0157",
+    "carDetails": "N/A",
+    "product": "U SPORTS (SIGNATURE)",
+    "images": [
+      "https://res.cloudinary.com/dmwt4rg4m/image/upload/v1765531503/warranty-portal/autoform-logo.png"
+    ],
+    "date": "2026-04-22T10:51:07.000Z"
+  },
+  {
+    "uid": "25101502383419",
+    "registrationNumber": "HR-31-X-2033",
+    "carDetails": "N/A",
+    "product": "RIVIERA (SERIES)",
+    "images": [
+      "https://res.cloudinary.com/dmwt4rg4m/image/upload/v1765531503/warranty-portal/autoform-logo.png"
+    ],
+    "date": "2026-04-22T11:11:11.000Z"
+  },
+  {
+    "uid": "2203210281154",
+    "registrationNumber": "HR-20-W-0129",
+    "carDetails": "N/A",
+    "product": "U SPORTS (SERIES)",
+    "images": [
+      "https://res.cloudinary.com/dmwt4rg4m/image/upload/v1765531503/warranty-portal/autoform-logo.png"
+    ],
+    "date": "2026-04-22T11:15:21.000Z"
+  }
+]
