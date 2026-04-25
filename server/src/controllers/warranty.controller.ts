@@ -601,6 +601,8 @@ export class WarrantyController {
       const totalPages = Math.ceil(totalCount / limit);
 
       // Data Query (Matches Filters + Pagination)
+      // We join vendor_details directly on installer_name (store_name) to get the real store city.
+      // This avoids the manpower chain which breaks for QR/customer submissions where manpower_id is null.
       const baseQuery = `
         SELECT 
             w.*, 
@@ -610,7 +612,7 @@ export class WarrantyController {
             vd.store_name as vendor_store_name
         FROM warranty_registrations w 
         LEFT JOIN manpower m ON w.manpower_id = m.id
-        LEFT JOIN vendor_details vd ON m.vendor_id = vd.id
+        LEFT JOIN vendor_details vd ON w.installer_name = vd.store_name
         LEFT JOIN profiles vp ON vd.user_id = vp.id
         ${whereClause}
         ORDER BY w.created_at DESC 

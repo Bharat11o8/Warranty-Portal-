@@ -1038,6 +1038,7 @@ export class AdminController {
                     m.name as manpower_name_from_db,
                     vd.store_name as vendor_store_name,
                     vd.store_email as vendor_store_email,
+                    vd.city as vendor_city,
                     vd.latitude as store_lat,
                     vd.longitude as store_lng,
                     vp.phone_number as vendor_phone_number
@@ -1045,7 +1046,7 @@ export class AdminController {
                 LEFT JOIN profiles p ON wr.user_id = p.id
                 LEFT JOIN user_roles ur ON p.id = ur.user_id
                 LEFT JOIN manpower m ON wr.manpower_id = m.id
-                LEFT JOIN vendor_details vd ON m.vendor_id = vd.id
+                LEFT JOIN vendor_details vd ON wr.installer_name = vd.store_name
                 LEFT JOIN profiles vp ON vd.user_id = vp.id
                 ${whereClause}
                 ORDER BY wr.created_at DESC
@@ -1093,12 +1094,13 @@ export class AdminController {
                     m.name as manpower_name_from_db,
                     vd.store_name as vendor_store_name,
                     vd.store_email as vendor_store_email,
+                    vd.city as vendor_city,
                     vp.phone_number as vendor_phone_number
                 FROM warranty_registrations wr
                 LEFT JOIN profiles p ON wr.user_id = p.id
                 LEFT JOIN user_roles ur ON p.id = ur.user_id
                 LEFT JOIN manpower m ON wr.manpower_id = m.id
-                LEFT JOIN vendor_details vd ON m.vendor_id = vd.id
+                LEFT JOIN vendor_details vd ON wr.installer_name = vd.store_name
                 LEFT JOIN profiles vp ON vd.user_id = vp.id
                 WHERE wr.uid = ? OR wr.id = ?
                 LIMIT 1
@@ -1275,11 +1277,12 @@ export class AdminController {
                     p.name as submitted_by_name,
                     p.email as submitted_by_email,
                     m.name as manpower_name_from_db,
-                    vd.store_name as vendor_store_name
+                    vd.store_name as vendor_store_name,
+                    vd.city as vendor_city
                 FROM warranty_registrations wr
                 LEFT JOIN profiles p ON wr.user_id = p.id
                 LEFT JOIN manpower m ON wr.manpower_id = m.id
-                LEFT JOIN vendor_details vd ON m.vendor_id = vd.id
+                LEFT JOIN vendor_details vd ON wr.installer_name = vd.store_name
                 WHERE wr.customer_email = ?
                 ORDER BY wr.created_at DESC
             `, [email]);
