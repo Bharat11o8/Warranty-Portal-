@@ -1,0 +1,568 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Edit Manual Cloudinary Mapping</title>
+    <style>
+        body { font-family: Arial, sans-serif; background: #222; color: #fff; padding: 20px; max-width: 1300px; margin: 0 auto; }
+        .record { background: #333; margin-bottom: 20px; padding: 20px; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.3); }
+        .record h2 { margin-top: 0; color: #4CAF50; border-bottom: 1px solid #555; padding-bottom: 10px; }
+        
+        .row-container { display: flex; gap: 20px; align-items: flex-start; }
+        .inputs { flex: 1; }
+        .preview { display: flex; gap: 10px; flex-wrap: wrap; flex: 1; background: #111; padding: 10px; border-radius: 6px; min-height: 100px; border: 1px solid #444; }
+        
+        .input-group { margin-bottom: 15px; display: flex; align-items: center; }
+        .input-group label { width: 180px; font-weight: bold; color: #aaa; }
+        .input-group input { flex: 1; padding: 10px; border-radius: 4px; border: 1px solid #555; background: #111; color: #0f0; font-family: monospace; }
+        .input-group input:focus { outline: none; border-color: #4CAF50; }
+
+        .img-thumb { width: auto; height: 120px; object-fit: contain; background: #000; border: 1px solid #666; border-radius: 4px; }
+        .thumb-wrap { text-align: center; font-size: 11px; color: #888; }
+
+        #result-box { margin-top: 30px; background: #111; padding: 20px; border-radius: 8px; display: none; }
+        button.generate { background: #008CBA; color: white; border: none; padding: 15px 30px; font-size: 18px; border-radius: 8px; cursor: pointer; display: block; margin: 30px auto; width: 100%; font-weight: bold; }
+        button.generate:hover { background: #007399; }
+        
+        .clear-btn { background: #E91E63; border: none; color: white; padding: 8px 12px; margin-left: 10px; border-radius: 4px; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <h1 style="text-align:center;">Fix Mapping Mistakes</h1>
+    <p style="text-align:center; color: #ccc;">I have pre-filled this with the exact links you provided. I also added a visual preview to the right so you can instantly see if the image is correct. Just fix the wrong ones and generate again!</p>
+    
+    <div id="records-container">
+
+        <div class="record" id="record-26041302432606">
+            <h2>1. UID: 26041302432606</h2>
+            <div class="row-container">
+                <div class="inputs">
+                    <div class="input-group">
+                        <label>Invoice (1):</label>
+                        <input type="text" class="input-invoice" value="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851223/warranty-portal/bw6skwrdto9frjeghb5l.jpg" oninput="updatePreview('26041302432606')" />
+                        <button class="clear-btn" onclick="this.previousElementSibling.value=''; updatePreview('26041302432606')">X</button>
+                    </div>
+                    <div class="input-group">
+                        <label>Num Plate (2):</label>
+                        <input type="text" class="input-vehicle" value="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851223/warranty-portal/pijthtupakcvxq34zfuc.jpg" oninput="updatePreview('26041302432606')" />
+                        <button class="clear-btn" onclick="this.previousElementSibling.value=''; updatePreview('26041302432606')">X</button>
+                    </div>
+                    <div class="input-group">
+                        <label>Seat Cover (3):</label>
+                        <input type="text" class="input-seat" value="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851224/warranty-portal/p58w1lmpnjyp0ta1tldx.jpg" oninput="updatePreview('26041302432606')" />
+                        <button class="clear-btn" onclick="this.previousElementSibling.value=''; updatePreview('26041302432606')">X</button>
+                    </div>
+                    <div class="input-group">
+                        <label>Exterior (4):</label>
+                        <input type="text" class="input-outer" value="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851224/warranty-portal/y75krr2mkwb9x2o7035v.jpg" oninput="updatePreview('26041302432606')" />
+                        <button class="clear-btn" onclick="this.previousElementSibling.value=''; updatePreview('26041302432606')">X</button>
+                    </div>
+                </div>
+                <div class="preview" id="preview-26041302432606">
+                    <!-- Image previews injected here -->
+                </div>
+            </div>
+        </div>
+    
+        <div class="record" id="record-26041302432620">
+            <h2>2. UID: 26041302432620</h2>
+            <div class="row-container">
+                <div class="inputs">
+                    <div class="input-group">
+                        <label>Invoice (1):</label>
+                        <input type="text" class="input-invoice" value="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776852584/warranty-portal/nzlog2nsbqazdagkapzp.jpg" oninput="updatePreview('26041302432620')" />
+                        <button class="clear-btn" onclick="this.previousElementSibling.value=''; updatePreview('26041302432620')">X</button>
+                    </div>
+                    <div class="input-group">
+                        <label>Num Plate (2):</label>
+                        <input type="text" class="input-vehicle" value="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776852584/warranty-portal/zk3kwkp44c4k6mhg7lxl.jpg" oninput="updatePreview('26041302432620')" />
+                        <button class="clear-btn" onclick="this.previousElementSibling.value=''; updatePreview('26041302432620')">X</button>
+                    </div>
+                    <div class="input-group">
+                        <label>Seat Cover (3):</label>
+                        <input type="text" class="input-seat" value="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776852585/warranty-portal/pvt8mh1lwhpbo39k7qgd.jpg" oninput="updatePreview('26041302432620')" />
+                        <button class="clear-btn" onclick="this.previousElementSibling.value=''; updatePreview('26041302432620')">X</button>
+                    </div>
+                    <div class="input-group">
+                        <label>Exterior (4):</label>
+                        <input type="text" class="input-outer" value="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776852585/warranty-portal/xatfskttactmcoz2b0u1.jpg" oninput="updatePreview('26041302432620')" />
+                        <button class="clear-btn" onclick="this.previousElementSibling.value=''; updatePreview('26041302432620')">X</button>
+                    </div>
+                </div>
+                <div class="preview" id="preview-26041302432620">
+                    <!-- Image previews injected here -->
+                </div>
+            </div>
+        </div>
+    
+        <div class="record" id="record-26032502427391">
+            <h2>3. UID: 26032502427391</h2>
+            <div class="row-container">
+                <div class="inputs">
+                    <div class="input-group">
+                        <label>Invoice (1):</label>
+                        <input type="text" class="input-invoice" value="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851772/warranty-portal/ijbaeom6ihcvg2jlxtqn.jpg" oninput="updatePreview('26032502427391')" />
+                        <button class="clear-btn" onclick="this.previousElementSibling.value=''; updatePreview('26032502427391')">X</button>
+                    </div>
+                    <div class="input-group">
+                        <label>Num Plate (2):</label>
+                        <input type="text" class="input-vehicle" value="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851772/warranty-portal/eaa8pnwdbje8iysc6y7n.jpg" oninput="updatePreview('26032502427391')" />
+                        <button class="clear-btn" onclick="this.previousElementSibling.value=''; updatePreview('26032502427391')">X</button>
+                    </div>
+                    <div class="input-group">
+                        <label>Seat Cover (3):</label>
+                        <input type="text" class="input-seat" value="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851771/warranty-portal/jouxi2etyybkvnili7cw.jpg" oninput="updatePreview('26032502427391')" />
+                        <button class="clear-btn" onclick="this.previousElementSibling.value=''; updatePreview('26032502427391')">X</button>
+                    </div>
+                    <div class="input-group">
+                        <label>Exterior (4):</label>
+                        <input type="text" class="input-outer" value="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851772/warranty-portal/taycpzrq3lfixtfshhyd.jpg" oninput="updatePreview('26032502427391')" />
+                        <button class="clear-btn" onclick="this.previousElementSibling.value=''; updatePreview('26032502427391')">X</button>
+                    </div>
+                </div>
+                <div class="preview" id="preview-26032502427391">
+                    <!-- Image previews injected here -->
+                </div>
+            </div>
+        </div>
+    
+        <div class="record" id="record-26032302426664">
+            <h2>4. UID: 26032302426664</h2>
+            <div class="row-container">
+                <div class="inputs">
+                    <div class="input-group">
+                        <label>Invoice (1):</label>
+                        <input type="text" class="input-invoice" value="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776855065/warranty-portal/v339spqcceq5hfiztgpr.jpg" oninput="updatePreview('26032302426664')" />
+                        <button class="clear-btn" onclick="this.previousElementSibling.value=''; updatePreview('26032302426664')">X</button>
+                    </div>
+                    <div class="input-group">
+                        <label>Num Plate (2):</label>
+                        <input type="text" class="input-vehicle" value="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776855065/warranty-portal/r2cwfzb9naojwhpzrtar.jpg" oninput="updatePreview('26032302426664')" />
+                        <button class="clear-btn" onclick="this.previousElementSibling.value=''; updatePreview('26032302426664')">X</button>
+                    </div>
+                    <div class="input-group">
+                        <label>Seat Cover (3):</label>
+                        <input type="text" class="input-seat" value="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776855065/warranty-portal/h8x9qx1o2o0kuc5q1sc4.jpg" oninput="updatePreview('26032302426664')" />
+                        <button class="clear-btn" onclick="this.previousElementSibling.value=''; updatePreview('26032302426664')">X</button>
+                    </div>
+                    <div class="input-group">
+                        <label>Exterior (4):</label>
+                        <input type="text" class="input-outer" value="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776855065/warranty-portal/spbfigngel2j02fkqveo.jpg" oninput="updatePreview('26032302426664')" />
+                        <button class="clear-btn" onclick="this.previousElementSibling.value=''; updatePreview('26032302426664')">X</button>
+                    </div>
+                </div>
+                <div class="preview" id="preview-26032302426664">
+                    <!-- Image previews injected here -->
+                </div>
+            </div>
+        </div>
+    
+        <div class="record" id="record-26031902425824">
+            <h2>5. UID: 26031902425824</h2>
+            <div class="row-container">
+                <div class="inputs">
+                    <div class="input-group">
+                        <label>Invoice (1):</label>
+                        <input type="text" class="input-invoice" value="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776850157/warranty-portal/zrbiwldeagkgakpax6wn.jpg" oninput="updatePreview('26031902425824')" />
+                        <button class="clear-btn" onclick="this.previousElementSibling.value=''; updatePreview('26031902425824')">X</button>
+                    </div>
+                    <div class="input-group">
+                        <label>Num Plate (2):</label>
+                        <input type="text" class="input-vehicle" value="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776850158/warranty-portal/tfytf3ncxjmhkbtiuovs.jpg" oninput="updatePreview('26031902425824')" />
+                        <button class="clear-btn" onclick="this.previousElementSibling.value=''; updatePreview('26031902425824')">X</button>
+                    </div>
+                    <div class="input-group">
+                        <label>Seat Cover (3):</label>
+                        <input type="text" class="input-seat" value="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776850159/warranty-portal/yb70lefnf6hgvhksr8qe.jpg" oninput="updatePreview('26031902425824')" />
+                        <button class="clear-btn" onclick="this.previousElementSibling.value=''; updatePreview('26031902425824')">X</button>
+                    </div>
+                    <div class="input-group">
+                        <label>Exterior (4):</label>
+                        <input type="text" class="input-outer" value="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776850159/warranty-portal/h7to4lwkq16d3xds11o4.jpg" oninput="updatePreview('26031902425824')" />
+                        <button class="clear-btn" onclick="this.previousElementSibling.value=''; updatePreview('26031902425824')">X</button>
+                    </div>
+                </div>
+                <div class="preview" id="preview-26031902425824">
+                    <!-- Image previews injected here -->
+                </div>
+            </div>
+        </div>
+    
+        <div class="record" id="record-26031602424705">
+            <h2>6. UID: 26031602424705</h2>
+            <div class="row-container">
+                <div class="inputs">
+                    <div class="input-group">
+                        <label>Invoice (1):</label>
+                        <input type="text" class="input-invoice" value="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776836413/warranty-portal/wuj3twcja04fzm3pmpiu.jpg" oninput="updatePreview('26031602424705')" />
+                        <button class="clear-btn" onclick="this.previousElementSibling.value=''; updatePreview('26031602424705')">X</button>
+                    </div>
+                    <div class="input-group">
+                        <label>Num Plate (2):</label>
+                        <input type="text" class="input-vehicle" value="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776836413/warranty-portal/dnkmq3dshw646lad1atn.jpg" oninput="updatePreview('26031602424705')" />
+                        <button class="clear-btn" onclick="this.previousElementSibling.value=''; updatePreview('26031602424705')">X</button>
+                    </div>
+                    <div class="input-group">
+                        <label>Seat Cover (3):</label>
+                        <input type="text" class="input-seat" value="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776836413/warranty-portal/gvwzxaxzgu8fkabvlek7.jpg" oninput="updatePreview('26031602424705')" />
+                        <button class="clear-btn" onclick="this.previousElementSibling.value=''; updatePreview('26031602424705')">X</button>
+                    </div>
+                    <div class="input-group">
+                        <label>Exterior (4):</label>
+                        <input type="text" class="input-outer" value="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776836413/warranty-portal/a5pgoaipfrpyqurwz9gq.jpg" oninput="updatePreview('26031602424705')" />
+                        <button class="clear-btn" onclick="this.previousElementSibling.value=''; updatePreview('26031602424705')">X</button>
+                    </div>
+                </div>
+                <div class="preview" id="preview-26031602424705">
+                    <!-- Image previews injected here -->
+                </div>
+            </div>
+        </div>
+    
+        <div class="record" id="record-26031602424404">
+            <h2>7. UID: 26031602424404</h2>
+            <div class="row-container">
+                <div class="inputs">
+                    <div class="input-group">
+                        <label>Invoice (1):</label>
+                        <input type="text" class="input-invoice" value="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776842370/warranty-portal/mjakflh9wyabhw1sivum.jpg" oninput="updatePreview('26031602424404')" />
+                        <button class="clear-btn" onclick="this.previousElementSibling.value=''; updatePreview('26031602424404')">X</button>
+                    </div>
+                    <div class="input-group">
+                        <label>Num Plate (2):</label>
+                        <input type="text" class="input-vehicle" value="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776842370/warranty-portal/xjvrgsdgetij0xyflapi.jpg" oninput="updatePreview('26031602424404')" />
+                        <button class="clear-btn" onclick="this.previousElementSibling.value=''; updatePreview('26031602424404')">X</button>
+                    </div>
+                    <div class="input-group">
+                        <label>Seat Cover (3):</label>
+                        <input type="text" class="input-seat" value="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776842371/warranty-portal/dsix91csmb0oz2cwwaov.jpg" oninput="updatePreview('26031602424404')" />
+                        <button class="clear-btn" onclick="this.previousElementSibling.value=''; updatePreview('26031602424404')">X</button>
+                    </div>
+                    <div class="input-group">
+                        <label>Exterior (4):</label>
+                        <input type="text" class="input-outer" value="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776842371/warranty-portal/llwrggrocss921fjl5ws.jpg" oninput="updatePreview('26031602424404')" />
+                        <button class="clear-btn" onclick="this.previousElementSibling.value=''; updatePreview('26031602424404')">X</button>
+                    </div>
+                </div>
+                <div class="preview" id="preview-26031602424404">
+                    <!-- Image previews injected here -->
+                </div>
+            </div>
+        </div>
+    
+        <div class="record" id="record-25122902403812">
+            <h2>8. UID: 25122902403812</h2>
+            <div class="row-container">
+                <div class="inputs">
+                    <div class="input-group">
+                        <label>Invoice (1):</label>
+                        <input type="text" class="input-invoice" value="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776844277/warranty-portal/dvkao5jsuxzwgtgvkqtw.jpg" oninput="updatePreview('25122902403812')" />
+                        <button class="clear-btn" onclick="this.previousElementSibling.value=''; updatePreview('25122902403812')">X</button>
+                    </div>
+                    <div class="input-group">
+                        <label>Num Plate (2):</label>
+                        <input type="text" class="input-vehicle" value="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776844277/warranty-portal/zktipw6bcamabprgjzwl.jpg" oninput="updatePreview('25122902403812')" />
+                        <button class="clear-btn" onclick="this.previousElementSibling.value=''; updatePreview('25122902403812')">X</button>
+                    </div>
+                    <div class="input-group">
+                        <label>Seat Cover (3):</label>
+                        <input type="text" class="input-seat" value="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776844277/warranty-portal/xjbbitq0zkryxupg2qrm.jpg" oninput="updatePreview('25122902403812')" />
+                        <button class="clear-btn" onclick="this.previousElementSibling.value=''; updatePreview('25122902403812')">X</button>
+                    </div>
+                    <div class="input-group">
+                        <label>Exterior (4):</label>
+                        <input type="text" class="input-outer" value="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776844278/warranty-portal/etdflsqa4hbu0dlwxlr9.jpg" oninput="updatePreview('25122902403812')" />
+                        <button class="clear-btn" onclick="this.previousElementSibling.value=''; updatePreview('25122902403812')">X</button>
+                    </div>
+                </div>
+                <div class="preview" id="preview-25122902403812">
+                    <!-- Image previews injected here -->
+                </div>
+            </div>
+        </div>
+    
+        <div class="record" id="record-261480004540587">
+            <h2>9. UID: 261480004540587</h2>
+            <div class="row-container">
+                <div class="inputs">
+                    <div class="input-group">
+                        <label>Invoice (1):</label>
+                        <input type="text" class="input-invoice" value="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851041/warranty-portal/rllwqclclnx5o5oxjiqx.jpg" oninput="updatePreview('261480004540587')" />
+                        <button class="clear-btn" onclick="this.previousElementSibling.value=''; updatePreview('261480004540587')">X</button>
+                    </div>
+                    <div class="input-group">
+                        <label>Num Plate (2):</label>
+                        <input type="text" class="input-vehicle" value="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851043/warranty-portal/u5pfkcffeimpk90hjnas.jpg" oninput="updatePreview('261480004540587')" />
+                        <button class="clear-btn" onclick="this.previousElementSibling.value=''; updatePreview('261480004540587')">X</button>
+                    </div>
+                    <div class="input-group">
+                        <label>Seat Cover (3):</label>
+                        <input type="text" class="input-seat" value="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851043/warranty-portal/q7rfln3nmpoo1cbai1gs.jpg" oninput="updatePreview('261480004540587')" />
+                        <button class="clear-btn" onclick="this.previousElementSibling.value=''; updatePreview('261480004540587')">X</button>
+                    </div>
+                    <div class="input-group">
+                        <label>Exterior (4):</label>
+                        <input type="text" class="input-outer" value="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851042/warranty-portal/w4apmpuh2j3ke9edeaql.jpg" oninput="updatePreview('261480004540587')" />
+                        <button class="clear-btn" onclick="this.previousElementSibling.value=''; updatePreview('261480004540587')">X</button>
+                    </div>
+                </div>
+                <div class="preview" id="preview-261480004540587">
+                    <!-- Image previews injected here -->
+                </div>
+            </div>
+        </div>
+    
+        <div class="record" id="record-26030202421275">
+            <h2>10. UID: 26030202421275</h2>
+            <div class="row-container">
+                <div class="inputs">
+                    <div class="input-group">
+                        <label>Invoice (1):</label>
+                        <input type="text" class="input-invoice" value="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776778664/warranty-portal/g4wljgv8g7jgwow1iwtk.jpg" oninput="updatePreview('26030202421275')" />
+                        <button class="clear-btn" onclick="this.previousElementSibling.value=''; updatePreview('26030202421275')">X</button>
+                    </div>
+                    <div class="input-group">
+                        <label>Num Plate (2):</label>
+                        <input type="text" class="input-vehicle" value="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776778665/warranty-portal/h5qqtx6doofmerdzen22.jpg" oninput="updatePreview('26030202421275')" />
+                        <button class="clear-btn" onclick="this.previousElementSibling.value=''; updatePreview('26030202421275')">X</button>
+                    </div>
+                    <div class="input-group">
+                        <label>Seat Cover (3):</label>
+                        <input type="text" class="input-seat" value="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776778665/warranty-portal/qhdgackasqvxj8swj8iy.jpg" oninput="updatePreview('26030202421275')" />
+                        <button class="clear-btn" onclick="this.previousElementSibling.value=''; updatePreview('26030202421275')">X</button>
+                    </div>
+                    <div class="input-group">
+                        <label>Exterior (4):</label>
+                        <input type="text" class="input-outer" value="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776778667/warranty-portal/i5yrwueqp1vm7lmzfvei.jpg" oninput="updatePreview('26030202421275')" />
+                        <button class="clear-btn" onclick="this.previousElementSibling.value=''; updatePreview('26030202421275')">X</button>
+                    </div>
+                </div>
+                <div class="preview" id="preview-26030202421275">
+                    <!-- Image previews injected here -->
+                </div>
+            </div>
+        </div>
+    
+        <div class="record" id="record-25122302402392">
+            <h2>11. UID: 25122302402392</h2>
+            <div class="row-container">
+                <div class="inputs">
+                    <div class="input-group">
+                        <label>Invoice (1):</label>
+                        <input type="text" class="input-invoice" value="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851696/warranty-portal/almz82oinmm6wfsseeiw.jpg" oninput="updatePreview('25122302402392')" />
+                        <button class="clear-btn" onclick="this.previousElementSibling.value=''; updatePreview('25122302402392')">X</button>
+                    </div>
+                    <div class="input-group">
+                        <label>Num Plate (2):</label>
+                        <input type="text" class="input-vehicle" value="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851697/warranty-portal/v3wcvhl5hg9w77n1l5if.jpg" oninput="updatePreview('25122302402392')" />
+                        <button class="clear-btn" onclick="this.previousElementSibling.value=''; updatePreview('25122302402392')">X</button>
+                    </div>
+                    <div class="input-group">
+                        <label>Seat Cover (3):</label>
+                        <input type="text" class="input-seat" value="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851697/warranty-portal/ja3e3azccnl4r1ul6mwo.jpg" oninput="updatePreview('25122302402392')" />
+                        <button class="clear-btn" onclick="this.previousElementSibling.value=''; updatePreview('25122302402392')">X</button>
+                    </div>
+                    <div class="input-group">
+                        <label>Exterior (4):</label>
+                        <input type="text" class="input-outer" value="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851697/warranty-portal/hywslyr7sdooitunhkq8.jpg" oninput="updatePreview('25122302402392')" />
+                        <button class="clear-btn" onclick="this.previousElementSibling.value=''; updatePreview('25122302402392')">X</button>
+                    </div>
+                </div>
+                <div class="preview" id="preview-25122302402392">
+                    <!-- Image previews injected here -->
+                </div>
+            </div>
+        </div>
+    
+        <div class="record" id="record-25102302384412">
+            <h2>12. UID: 25102302384412</h2>
+            <div class="row-container">
+                <div class="inputs">
+                    <div class="input-group">
+                        <label>Invoice (1):</label>
+                        <input type="text" class="input-invoice" value="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776772232/warranty-portal/nmxjzsivlsy78ano0w6f.jpg" oninput="updatePreview('25102302384412')" />
+                        <button class="clear-btn" onclick="this.previousElementSibling.value=''; updatePreview('25102302384412')">X</button>
+                    </div>
+                    <div class="input-group">
+                        <label>Num Plate (2):</label>
+                        <input type="text" class="input-vehicle" value="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776772232/warranty-portal/ebcbeidrg4myktdlcbf1.jpg" oninput="updatePreview('25102302384412')" />
+                        <button class="clear-btn" onclick="this.previousElementSibling.value=''; updatePreview('25102302384412')">X</button>
+                    </div>
+                    <div class="input-group">
+                        <label>Seat Cover (3):</label>
+                        <input type="text" class="input-seat" value="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776772233/warranty-portal/dbwdjymklu2uvqojafjh.jpg" oninput="updatePreview('25102302384412')" />
+                        <button class="clear-btn" onclick="this.previousElementSibling.value=''; updatePreview('25102302384412')">X</button>
+                    </div>
+                    <div class="input-group">
+                        <label>Exterior (4):</label>
+                        <input type="text" class="input-outer" value="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776772233/warranty-portal/f4biwas3pent6eawf4lo.jpg" oninput="updatePreview('25102302384412')" />
+                        <button class="clear-btn" onclick="this.previousElementSibling.value=''; updatePreview('25102302384412')">X</button>
+                    </div>
+                </div>
+                <div class="preview" id="preview-25102302384412">
+                    <!-- Image previews injected here -->
+                </div>
+            </div>
+        </div>
+    
+        <div class="record" id="record-25100402380610">
+            <h2>13. UID: 25100402380610</h2>
+            <div class="row-container">
+                <div class="inputs">
+                    <div class="input-group">
+                        <label>Invoice (1):</label>
+                        <input type="text" class="input-invoice" value="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776769661/warranty-portal/o3kpbbtwfw0j3tjryfhm.jpg" oninput="updatePreview('25100402380610')" />
+                        <button class="clear-btn" onclick="this.previousElementSibling.value=''; updatePreview('25100402380610')">X</button>
+                    </div>
+                    <div class="input-group">
+                        <label>Num Plate (2):</label>
+                        <input type="text" class="input-vehicle" value="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776769661/warranty-portal/foxfity8lfwmrwlz4vbo.jpg" oninput="updatePreview('25100402380610')" />
+                        <button class="clear-btn" onclick="this.previousElementSibling.value=''; updatePreview('25100402380610')">X</button>
+                    </div>
+                    <div class="input-group">
+                        <label>Seat Cover (3):</label>
+                        <input type="text" class="input-seat" value="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776769661/warranty-portal/mv0noem7sxq2jip9igcm.jpg" oninput="updatePreview('25100402380610')" />
+                        <button class="clear-btn" onclick="this.previousElementSibling.value=''; updatePreview('25100402380610')">X</button>
+                    </div>
+                    <div class="input-group">
+                        <label>Exterior (4):</label>
+                        <input type="text" class="input-outer" value="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776769661/warranty-portal/bsmr9vfe7pg1pggce1vi.jpg" oninput="updatePreview('25100402380610')" />
+                        <button class="clear-btn" onclick="this.previousElementSibling.value=''; updatePreview('25100402380610')">X</button>
+                    </div>
+                </div>
+                <div class="preview" id="preview-25100402380610">
+                    <!-- Image previews injected here -->
+                </div>
+            </div>
+        </div>
+    
+        <div class="record" id="record-25081602368091">
+            <h2>14. UID: 25081602368091</h2>
+            <div class="row-container">
+                <div class="inputs">
+                    <div class="input-group">
+                        <label>Invoice (1):</label>
+                        <input type="text" class="input-invoice" value="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776787261/warranty-portal/x6quje5cm1cgdpaaxc31.jpg" oninput="updatePreview('25081602368091')" />
+                        <button class="clear-btn" onclick="this.previousElementSibling.value=''; updatePreview('25081602368091')">X</button>
+                    </div>
+                    <div class="input-group">
+                        <label>Num Plate (2):</label>
+                        <input type="text" class="input-vehicle" value="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776787261/warranty-portal/ce4ydowzlhf3ihxkfrfd.jpg" oninput="updatePreview('25081602368091')" />
+                        <button class="clear-btn" onclick="this.previousElementSibling.value=''; updatePreview('25081602368091')">X</button>
+                    </div>
+                    <div class="input-group">
+                        <label>Seat Cover (3):</label>
+                        <input type="text" class="input-seat" value="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776787261/warranty-portal/fkwrnlvfjkrfmq6rgr67.jpg" oninput="updatePreview('25081602368091')" />
+                        <button class="clear-btn" onclick="this.previousElementSibling.value=''; updatePreview('25081602368091')">X</button>
+                    </div>
+                    <div class="input-group">
+                        <label>Exterior (4):</label>
+                        <input type="text" class="input-outer" value="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776787261/warranty-portal/pbmjrifeqntllwteutvs.jpg" oninput="updatePreview('25081602368091')" />
+                        <button class="clear-btn" onclick="this.previousElementSibling.value=''; updatePreview('25081602368091')">X</button>
+                    </div>
+                </div>
+                <div class="preview" id="preview-25081602368091">
+                    <!-- Image previews injected here -->
+                </div>
+            </div>
+        </div>
+    
+        <div class="record" id="record-26010302405294">
+            <h2>15. UID: 26010302405294</h2>
+            <div class="row-container">
+                <div class="inputs">
+                    <div class="input-group">
+                        <label>Invoice (1):</label>
+                        <input type="text" class="input-invoice" value="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776844800/warranty-portal/vi3vh6nl38pruo0bhrh9.jpg" oninput="updatePreview('26010302405294')" />
+                        <button class="clear-btn" onclick="this.previousElementSibling.value=''; updatePreview('26010302405294')">X</button>
+                    </div>
+                    <div class="input-group">
+                        <label>Num Plate (2):</label>
+                        <input type="text" class="input-vehicle" value="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776844801/warranty-portal/zhbkgmy1xr673oz3qsn2.jpg" oninput="updatePreview('26010302405294')" />
+                        <button class="clear-btn" onclick="this.previousElementSibling.value=''; updatePreview('26010302405294')">X</button>
+                    </div>
+                    <div class="input-group">
+                        <label>Seat Cover (3):</label>
+                        <input type="text" class="input-seat" value="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776844801/warranty-portal/vcgvt705ccuq0mbljddf.jpg" oninput="updatePreview('26010302405294')" />
+                        <button class="clear-btn" onclick="this.previousElementSibling.value=''; updatePreview('26010302405294')">X</button>
+                    </div>
+                    <div class="input-group">
+                        <label>Exterior (4):</label>
+                        <input type="text" class="input-outer" value="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776844802/warranty-portal/i97xx5gauik8d4jptazd.jpg" oninput="updatePreview('26010302405294')" />
+                        <button class="clear-btn" onclick="this.previousElementSibling.value=''; updatePreview('26010302405294')">X</button>
+                    </div>
+                </div>
+                <div class="preview" id="preview-26010302405294">
+                    <!-- Image previews injected here -->
+                </div>
+            </div>
+        </div>
+    
+    </div>
+
+    <button class="generate" onclick="generateJSON()">Generate Perfect Database JSON</button>
+
+    <div id="result-box">
+        <h3 style="color: #4CAF50;">Success! Copy this JSON and send it to the AI Assistant:</h3>
+        <textarea id="result-text" style="width: 100%; min-height: 400px; background: #000; color: #0f0; border: 1px solid #333; padding: 10px; font-family: monospace;"></textarea>
+    </div>
+
+    <script>
+        const UIDS = ["26041302432606","26041302432620","26032502427391","26032302426664","26031902425824","26031602424705","26031602424404","25122902403812","261480004540587","26030202421275","25122302402392","25102302384412","25100402380610","25081602368091","26010302405294"];
+
+        function updatePreview(uid) {
+            const record = document.getElementById('record-' + uid);
+            const previewContainer = document.getElementById('preview-' + uid);
+            
+            const inv = record.querySelector('.input-invoice').value.trim();
+            const veh = record.querySelector('.input-vehicle').value.trim();
+            const seat = record.querySelector('.input-seat').value.trim();
+            const out = record.querySelector('.input-outer').value.trim();
+
+            let html = '';
+            if(inv) html += '<div class="thumb-wrap"><img src="'+inv+'" class="img-thumb" onerror="this.style.display=\'none\'"><br/>1. Invoice</div>';
+            if(veh) html += '<div class="thumb-wrap"><img src="'+veh+'" class="img-thumb" onerror="this.style.display=\'none\'"><br/>2. Plate</div>';
+            if(seat) html += '<div class="thumb-wrap"><img src="'+seat+'" class="img-thumb" onerror="this.style.display=\'none\'"><br/>3. Seat</div>';
+            if(out) html += '<div class="thumb-wrap"><img src="'+out+'" class="img-thumb" onerror="this.style.display=\'none\'"><br/>4. Outer</div>';
+            
+            previewContainer.innerHTML = html;
+        }
+
+        // Initialize previews on load
+        window.onload = () => { UIDS.forEach(uid => updatePreview(uid)); };
+
+        function generateJSON() {
+            const result = [];
+            
+            UIDS.forEach(uid => {
+                const record = document.getElementById('record-' + uid);
+                
+                const getVal = (className) => {
+                    let val = record.querySelector('.' + className).value.trim();
+                    return val === '' ? null : val;
+                };
+
+                const invoice = getVal('input-invoice');
+                const vehicle = getVal('input-vehicle');
+                const seatCover = getVal('input-seat');
+                const carOuter = getVal('input-outer');
+
+                if(invoice || vehicle || seatCover || carOuter) {
+                    result.push({
+                        uid: uid,
+                        invoiceFileName: invoice,
+                        photos: {
+                            vehicle: vehicle,
+                            seatCover: seatCover,
+                            carOuter: carOuter
+                        }
+                    });
+                }
+            });
+
+            document.getElementById('result-box').style.display = 'block';
+            document.getElementById('result-text').value = JSON.stringify(result, null, 2);
+            window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+        }
+    </script>
+</body>
+</html>

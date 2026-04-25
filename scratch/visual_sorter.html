@@ -1,0 +1,614 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Visual Image Sorter for Corrupted Warranties</title>
+    <style>
+        body { font-family: Arial, sans-serif; background: #f0f0f0; padding: 20px; }
+        .record { background: white; margin-bottom: 30px; padding: 20px; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
+        .record h2 { margin-top: 0; color: #333; border-bottom: 2px solid #eee; padding-bottom: 10px; }
+        
+        .images-container { display: flex; gap: 20px; margin-top: 15px; overflow-x: auto; padding-bottom: 15px; }
+        .source-images, .target-boxes { display: flex; flex-wrap: wrap; gap: 15px; width: 100%; }
+        
+        .image-wrapper { width: 180px; text-align: center; background: #fafafa; border: 1px solid #ddd; padding: 5px; border-radius: 4px; cursor: grab; }
+        .image-wrapper img { width: 100%; height: 180px; object-fit: contain; pointer-events: none; }
+        .image-wrapper .url { display: none; }
+        
+        .drop-box { width: 220px; min-height: 220px; border: 3px dashed #ccc; border-radius: 8px; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; padding: 10px; background: #fff; transition: background 0.2s; position: relative; }
+        .drop-box h3 { margin: 0 0 10px 0; font-size: 14px; text-transform: uppercase; color: #555; pointer-events: none; }
+        .drop-box.drag-over { background: #e3f2fd; border-color: #2196F3; }
+        
+        .box-invoice { border-color: orange; }
+        .box-vehicle { border-color: blue; }
+        .box-seat { border-color: green; }
+        .box-outer { border-color: purple; }
+
+        #result-box { position: fixed; bottom: 0; left: 0; right: 0; background: #222; color: #0f0; padding: 20px; max-height: 300px; overflow-y: auto; display: none; z-index: 1000; box-shadow: 0 -5px 15px rgba(0,0,0,0.3); }
+        button.generate { background: #E91E63; color: white; border: none; padding: 15px 30px; font-size: 18px; border-radius: 8px; cursor: pointer; display: block; margin: 40px auto; font-weight: bold; }
+        button.generate:hover { background: #C2185B; }
+    </style>
+</head>
+<body>
+    <h1>Correct the Misplaced Photos</h1>
+    <p>We have isolated the exact 16 registries using strict IMAP timestamps! The crossover/duplicates are gone. Drag the images to their correct boxes, then Generate JSON.</p>
+    <div class="record" id="26041302432606" data-uid="26041302432606">
+        <h2>UID: 26041302432606 | Mr Amit</h2>
+        <div class="source-images" ondragover="allowDrop(event)" ondrop="drop(event, this)">
+            <h3 style="width: 100%; color: #666; margin-bottom: 5px;">Unsorted Images (Drag these):</h3>
+            <div class="image-wrapper" id="img_26041302432606_0" draggable="true" ondragstart="drag(event)">
+                <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851041/warranty-portal/rllwqclclnx5o5oxjiqx.jpg" />
+                <div class="url">https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851041/warranty-portal/rllwqclclnx5o5oxjiqx.jpg</div>
+            </div>
+            <div class="image-wrapper" id="img_26041302432606_1" draggable="true" ondragstart="drag(event)">
+                <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851042/warranty-portal/w4apmpuh2j3ke9edeaql.jpg" />
+                <div class="url">https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851042/warranty-portal/w4apmpuh2j3ke9edeaql.jpg</div>
+            </div>
+            <div class="image-wrapper" id="img_26041302432606_2" draggable="true" ondragstart="drag(event)">
+                <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851043/warranty-portal/q7rfln3nmpoo1cbai1gs.jpg" />
+                <div class="url">https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851043/warranty-portal/q7rfln3nmpoo1cbai1gs.jpg</div>
+            </div>
+            <div class="image-wrapper" id="img_26041302432606_3" draggable="true" ondragstart="drag(event)">
+                <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851043/warranty-portal/u5pfkcffeimpk90hjnas.jpg" />
+                <div class="url">https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851043/warranty-portal/u5pfkcffeimpk90hjnas.jpg</div>
+            </div>
+            <div class="image-wrapper" id="img_26041302432606_4" draggable="true" ondragstart="drag(event)">
+                <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851223/warranty-portal/bw6skwrdto9frjeghb5l.jpg" />
+                <div class="url">https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851223/warranty-portal/bw6skwrdto9frjeghb5l.jpg</div>
+            </div>
+            <div class="image-wrapper" id="img_26041302432606_5" draggable="true" ondragstart="drag(event)">
+                <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851223/warranty-portal/pijthtupakcvxq34zfuc.jpg" />
+                <div class="url">https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851223/warranty-portal/pijthtupakcvxq34zfuc.jpg</div>
+            </div>
+            <div class="image-wrapper" id="img_26041302432606_6" draggable="true" ondragstart="drag(event)">
+                <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851224/warranty-portal/p58w1lmpnjyp0ta1tldx.jpg" />
+                <div class="url">https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851224/warranty-portal/p58w1lmpnjyp0ta1tldx.jpg</div>
+            </div>
+            <div class="image-wrapper" id="img_26041302432606_7" draggable="true" ondragstart="drag(event)">
+                <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851224/warranty-portal/y75krr2mkwb9x2o7035v.jpg" />
+                <div class="url">https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851224/warranty-portal/y75krr2mkwb9x2o7035v.jpg</div>
+            </div>
+            <div class="image-wrapper" id="img_26041302432606_8" draggable="true" ondragstart="drag(event)">
+                <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851258/warranty-portal/jeiyg3ozapjaeay25gb9.jpg" />
+                <div class="url">https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851258/warranty-portal/jeiyg3ozapjaeay25gb9.jpg</div>
+            </div>
+            <div class="image-wrapper" id="img_26041302432606_9" draggable="true" ondragstart="drag(event)">
+                <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851259/warranty-portal/c12vzgxhswg5ub9y7lpq.jpg" />
+                <div class="url">https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851259/warranty-portal/c12vzgxhswg5ub9y7lpq.jpg</div>
+            </div>
+            <div class="image-wrapper" id="img_26041302432606_10" draggable="true" ondragstart="drag(event)">
+                <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851259/warranty-portal/jh99urnprsckddjshn8m.jpg" />
+                <div class="url">https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851259/warranty-portal/jh99urnprsckddjshn8m.jpg</div>
+            </div>
+            <div class="image-wrapper" id="img_26041302432606_11" draggable="true" ondragstart="drag(event)">
+                <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851260/warranty-portal/lkq07rkvwdpqvsgnygtj.jpg" />
+                <div class="url">https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851260/warranty-portal/lkq07rkvwdpqvsgnygtj.jpg</div>
+            </div>
+        </div>
+        <hr style="margin: 20px 0; border: none; border-top: 1px solid #eee;"/>
+        <div class="target-boxes">
+            <div class="drop-box box-invoice" data-cat="invoiceFileName" ondragover="allowDrop(event)" ondrop="drop(event, this)"><h3>1. Invoice / Sticker</h3></div>
+            <div class="drop-box box-vehicle" data-cat="vehicle" ondragover="allowDrop(event)" ondrop="drop(event, this)"><h3>2. Number Plate</h3></div>
+            <div class="drop-box box-seat" data-cat="seatCover" ondragover="allowDrop(event)" ondrop="drop(event, this)"><h3>3. Fitted Seat Cover</h3></div>
+            <div class="drop-box box-outer" data-cat="carOuter" ondragover="allowDrop(event)" ondrop="drop(event, this)"><h3>4. Car Exterior</h3></div>
+        </div>
+    </div>
+    <div class="record" id="26041302432620" data-uid="26041302432620">
+        <h2>UID: 26041302432620 | Harshal Nigade</h2>
+        <div class="source-images" ondragover="allowDrop(event)" ondrop="drop(event, this)">
+            <h3 style="width: 100%; color: #666; margin-bottom: 5px;">Unsorted Images (Drag these):</h3>
+            <div class="image-wrapper" id="img_26041302432620_0" draggable="true" ondragstart="drag(event)">
+                <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776852584/warranty-portal/nzlog2nsbqazdagkapzp.jpg" />
+                <div class="url">https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776852584/warranty-portal/nzlog2nsbqazdagkapzp.jpg</div>
+            </div>
+            <div class="image-wrapper" id="img_26041302432620_1" draggable="true" ondragstart="drag(event)">
+                <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776852584/warranty-portal/zk3kwkp44c4k6mhg7lxl.jpg" />
+                <div class="url">https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776852584/warranty-portal/zk3kwkp44c4k6mhg7lxl.jpg</div>
+            </div>
+            <div class="image-wrapper" id="img_26041302432620_2" draggable="true" ondragstart="drag(event)">
+                <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776852585/warranty-portal/pvt8mh1lwhpbo39k7qgd.jpg" />
+                <div class="url">https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776852585/warranty-portal/pvt8mh1lwhpbo39k7qgd.jpg</div>
+            </div>
+            <div class="image-wrapper" id="img_26041302432620_3" draggable="true" ondragstart="drag(event)">
+                <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776852585/warranty-portal/xatfskttactmcoz2b0u1.jpg" />
+                <div class="url">https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776852585/warranty-portal/xatfskttactmcoz2b0u1.jpg</div>
+            </div>
+        </div>
+        <hr style="margin: 20px 0; border: none; border-top: 1px solid #eee;"/>
+        <div class="target-boxes">
+            <div class="drop-box box-invoice" data-cat="invoiceFileName" ondragover="allowDrop(event)" ondrop="drop(event, this)"><h3>1. Invoice / Sticker</h3></div>
+            <div class="drop-box box-vehicle" data-cat="vehicle" ondragover="allowDrop(event)" ondrop="drop(event, this)"><h3>2. Number Plate</h3></div>
+            <div class="drop-box box-seat" data-cat="seatCover" ondragover="allowDrop(event)" ondrop="drop(event, this)"><h3>3. Fitted Seat Cover</h3></div>
+            <div class="drop-box box-outer" data-cat="carOuter" ondragover="allowDrop(event)" ondrop="drop(event, this)"><h3>4. Car Exterior</h3></div>
+        </div>
+    </div>
+    <div class="record" id="26032502427391" data-uid="26032502427391">
+        <h2>UID: 26032502427391 | Mr  Saurabh</h2>
+        <div class="source-images" ondragover="allowDrop(event)" ondrop="drop(event, this)">
+            <h3 style="width: 100%; color: #666; margin-bottom: 5px;">Unsorted Images (Drag these):</h3>
+            <div class="image-wrapper" id="img_26032502427391_0" draggable="true" ondragstart="drag(event)">
+                <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851696/warranty-portal/almz82oinmm6wfsseeiw.jpg" />
+                <div class="url">https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851696/warranty-portal/almz82oinmm6wfsseeiw.jpg</div>
+            </div>
+            <div class="image-wrapper" id="img_26032502427391_1" draggable="true" ondragstart="drag(event)">
+                <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851697/warranty-portal/hywslyr7sdooitunhkq8.jpg" />
+                <div class="url">https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851697/warranty-portal/hywslyr7sdooitunhkq8.jpg</div>
+            </div>
+            <div class="image-wrapper" id="img_26032502427391_2" draggable="true" ondragstart="drag(event)">
+                <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851697/warranty-portal/ja3e3azccnl4r1ul6mwo.jpg" />
+                <div class="url">https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851697/warranty-portal/ja3e3azccnl4r1ul6mwo.jpg</div>
+            </div>
+            <div class="image-wrapper" id="img_26032502427391_3" draggable="true" ondragstart="drag(event)">
+                <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851697/warranty-portal/v3wcvhl5hg9w77n1l5if.jpg" />
+                <div class="url">https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851697/warranty-portal/v3wcvhl5hg9w77n1l5if.jpg</div>
+            </div>
+            <div class="image-wrapper" id="img_26032502427391_4" draggable="true" ondragstart="drag(event)">
+                <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851771/warranty-portal/jouxi2etyybkvnili7cw.jpg" />
+                <div class="url">https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851771/warranty-portal/jouxi2etyybkvnili7cw.jpg</div>
+            </div>
+            <div class="image-wrapper" id="img_26032502427391_5" draggable="true" ondragstart="drag(event)">
+                <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851772/warranty-portal/eaa8pnwdbje8iysc6y7n.jpg" />
+                <div class="url">https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851772/warranty-portal/eaa8pnwdbje8iysc6y7n.jpg</div>
+            </div>
+            <div class="image-wrapper" id="img_26032502427391_6" draggable="true" ondragstart="drag(event)">
+                <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851772/warranty-portal/ijbaeom6ihcvg2jlxtqn.jpg" />
+                <div class="url">https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851772/warranty-portal/ijbaeom6ihcvg2jlxtqn.jpg</div>
+            </div>
+            <div class="image-wrapper" id="img_26032502427391_7" draggable="true" ondragstart="drag(event)">
+                <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851772/warranty-portal/taycpzrq3lfixtfshhyd.jpg" />
+                <div class="url">https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851772/warranty-portal/taycpzrq3lfixtfshhyd.jpg</div>
+            </div>
+        </div>
+        <hr style="margin: 20px 0; border: none; border-top: 1px solid #eee;"/>
+        <div class="target-boxes">
+            <div class="drop-box box-invoice" data-cat="invoiceFileName" ondragover="allowDrop(event)" ondrop="drop(event, this)"><h3>1. Invoice / Sticker</h3></div>
+            <div class="drop-box box-vehicle" data-cat="vehicle" ondragover="allowDrop(event)" ondrop="drop(event, this)"><h3>2. Number Plate</h3></div>
+            <div class="drop-box box-seat" data-cat="seatCover" ondragover="allowDrop(event)" ondrop="drop(event, this)"><h3>3. Fitted Seat Cover</h3></div>
+            <div class="drop-box box-outer" data-cat="carOuter" ondragover="allowDrop(event)" ondrop="drop(event, this)"><h3>4. Car Exterior</h3></div>
+        </div>
+    </div>
+    <div class="record" id="26032302426664" data-uid="26032302426664">
+        <h2>UID: 26032302426664 | ASHOK JAIN</h2>
+        <div class="source-images" ondragover="allowDrop(event)" ondrop="drop(event, this)">
+            <h3 style="width: 100%; color: #666; margin-bottom: 5px;">Unsorted Images (Drag these):</h3>
+            <div class="image-wrapper" id="img_26032302426664_0" draggable="true" ondragstart="drag(event)">
+                <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776855065/warranty-portal/h8x9qx1o2o0kuc5q1sc4.jpg" />
+                <div class="url">https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776855065/warranty-portal/h8x9qx1o2o0kuc5q1sc4.jpg</div>
+            </div>
+            <div class="image-wrapper" id="img_26032302426664_1" draggable="true" ondragstart="drag(event)">
+                <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776855065/warranty-portal/r2cwfzb9naojwhpzrtar.jpg" />
+                <div class="url">https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776855065/warranty-portal/r2cwfzb9naojwhpzrtar.jpg</div>
+            </div>
+            <div class="image-wrapper" id="img_26032302426664_2" draggable="true" ondragstart="drag(event)">
+                <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776855065/warranty-portal/spbfigngel2j02fkqveo.jpg" />
+                <div class="url">https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776855065/warranty-portal/spbfigngel2j02fkqveo.jpg</div>
+            </div>
+            <div class="image-wrapper" id="img_26032302426664_3" draggable="true" ondragstart="drag(event)">
+                <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776855065/warranty-portal/v339spqcceq5hfiztgpr.jpg" />
+                <div class="url">https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776855065/warranty-portal/v339spqcceq5hfiztgpr.jpg</div>
+            </div>
+        </div>
+        <hr style="margin: 20px 0; border: none; border-top: 1px solid #eee;"/>
+        <div class="target-boxes">
+            <div class="drop-box box-invoice" data-cat="invoiceFileName" ondragover="allowDrop(event)" ondrop="drop(event, this)"><h3>1. Invoice / Sticker</h3></div>
+            <div class="drop-box box-vehicle" data-cat="vehicle" ondragover="allowDrop(event)" ondrop="drop(event, this)"><h3>2. Number Plate</h3></div>
+            <div class="drop-box box-seat" data-cat="seatCover" ondragover="allowDrop(event)" ondrop="drop(event, this)"><h3>3. Fitted Seat Cover</h3></div>
+            <div class="drop-box box-outer" data-cat="carOuter" ondragover="allowDrop(event)" ondrop="drop(event, this)"><h3>4. Car Exterior</h3></div>
+        </div>
+    </div>
+    <div class="record" id="26031902425824" data-uid="26031902425824">
+        <h2>UID: 26031902425824 | Bilal Ahmed dar</h2>
+        <div class="source-images" ondragover="allowDrop(event)" ondrop="drop(event, this)">
+            <h3 style="width: 100%; color: #666; margin-bottom: 5px;">Unsorted Images (Drag these):</h3>
+            <div class="image-wrapper" id="img_26031902425824_0" draggable="true" ondragstart="drag(event)">
+                <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776850157/warranty-portal/zrbiwldeagkgakpax6wn.jpg" />
+                <div class="url">https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776850157/warranty-portal/zrbiwldeagkgakpax6wn.jpg</div>
+            </div>
+            <div class="image-wrapper" id="img_26031902425824_1" draggable="true" ondragstart="drag(event)">
+                <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776850158/warranty-portal/tfytf3ncxjmhkbtiuovs.jpg" />
+                <div class="url">https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776850158/warranty-portal/tfytf3ncxjmhkbtiuovs.jpg</div>
+            </div>
+            <div class="image-wrapper" id="img_26031902425824_2" draggable="true" ondragstart="drag(event)">
+                <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776850159/warranty-portal/h7to4lwkq16d3xds11o4.jpg" />
+                <div class="url">https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776850159/warranty-portal/h7to4lwkq16d3xds11o4.jpg</div>
+            </div>
+            <div class="image-wrapper" id="img_26031902425824_3" draggable="true" ondragstart="drag(event)">
+                <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776850159/warranty-portal/yb70lefnf6hgvhksr8qe.jpg" />
+                <div class="url">https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776850159/warranty-portal/yb70lefnf6hgvhksr8qe.jpg</div>
+            </div>
+        </div>
+        <hr style="margin: 20px 0; border: none; border-top: 1px solid #eee;"/>
+        <div class="target-boxes">
+            <div class="drop-box box-invoice" data-cat="invoiceFileName" ondragover="allowDrop(event)" ondrop="drop(event, this)"><h3>1. Invoice / Sticker</h3></div>
+            <div class="drop-box box-vehicle" data-cat="vehicle" ondragover="allowDrop(event)" ondrop="drop(event, this)"><h3>2. Number Plate</h3></div>
+            <div class="drop-box box-seat" data-cat="seatCover" ondragover="allowDrop(event)" ondrop="drop(event, this)"><h3>3. Fitted Seat Cover</h3></div>
+            <div class="drop-box box-outer" data-cat="carOuter" ondragover="allowDrop(event)" ondrop="drop(event, this)"><h3>4. Car Exterior</h3></div>
+        </div>
+    </div>
+    <div class="record" id="26031602424705" data-uid="26031602424705">
+        <h2>UID: 26031602424705 | Rohit Patil</h2>
+        <div class="source-images" ondragover="allowDrop(event)" ondrop="drop(event, this)">
+            <h3 style="width: 100%; color: #666; margin-bottom: 5px;">Unsorted Images (Drag these):</h3>
+            <div class="image-wrapper" id="img_26031602424705_0" draggable="true" ondragstart="drag(event)">
+                <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776836413/warranty-portal/a5pgoaipfrpyqurwz9gq.jpg" />
+                <div class="url">https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776836413/warranty-portal/a5pgoaipfrpyqurwz9gq.jpg</div>
+            </div>
+            <div class="image-wrapper" id="img_26031602424705_1" draggable="true" ondragstart="drag(event)">
+                <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776836413/warranty-portal/dnkmq3dshw646lad1atn.jpg" />
+                <div class="url">https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776836413/warranty-portal/dnkmq3dshw646lad1atn.jpg</div>
+            </div>
+            <div class="image-wrapper" id="img_26031602424705_2" draggable="true" ondragstart="drag(event)">
+                <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776836413/warranty-portal/gvwzxaxzgu8fkabvlek7.jpg" />
+                <div class="url">https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776836413/warranty-portal/gvwzxaxzgu8fkabvlek7.jpg</div>
+            </div>
+            <div class="image-wrapper" id="img_26031602424705_3" draggable="true" ondragstart="drag(event)">
+                <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776836413/warranty-portal/wuj3twcja04fzm3pmpiu.jpg" />
+                <div class="url">https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776836413/warranty-portal/wuj3twcja04fzm3pmpiu.jpg</div>
+            </div>
+        </div>
+        <hr style="margin: 20px 0; border: none; border-top: 1px solid #eee;"/>
+        <div class="target-boxes">
+            <div class="drop-box box-invoice" data-cat="invoiceFileName" ondragover="allowDrop(event)" ondrop="drop(event, this)"><h3>1. Invoice / Sticker</h3></div>
+            <div class="drop-box box-vehicle" data-cat="vehicle" ondragover="allowDrop(event)" ondrop="drop(event, this)"><h3>2. Number Plate</h3></div>
+            <div class="drop-box box-seat" data-cat="seatCover" ondragover="allowDrop(event)" ondrop="drop(event, this)"><h3>3. Fitted Seat Cover</h3></div>
+            <div class="drop-box box-outer" data-cat="carOuter" ondragover="allowDrop(event)" ondrop="drop(event, this)"><h3>4. Car Exterior</h3></div>
+        </div>
+    </div>
+    <div class="record" id="26031602424404" data-uid="26031602424404">
+        <h2>UID: 26031602424404 | NIRAJ MEHTA</h2>
+        <div class="source-images" ondragover="allowDrop(event)" ondrop="drop(event, this)">
+            <h3 style="width: 100%; color: #666; margin-bottom: 5px;">Unsorted Images (Drag these):</h3>
+            <div class="image-wrapper" id="img_26031602424404_0" draggable="true" ondragstart="drag(event)">
+                <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776842370/warranty-portal/mjakflh9wyabhw1sivum.jpg" />
+                <div class="url">https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776842370/warranty-portal/mjakflh9wyabhw1sivum.jpg</div>
+            </div>
+            <div class="image-wrapper" id="img_26031602424404_1" draggable="true" ondragstart="drag(event)">
+                <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776842370/warranty-portal/xjvrgsdgetij0xyflapi.jpg" />
+                <div class="url">https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776842370/warranty-portal/xjvrgsdgetij0xyflapi.jpg</div>
+            </div>
+            <div class="image-wrapper" id="img_26031602424404_2" draggable="true" ondragstart="drag(event)">
+                <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776842371/warranty-portal/dsix91csmb0oz2cwwaov.jpg" />
+                <div class="url">https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776842371/warranty-portal/dsix91csmb0oz2cwwaov.jpg</div>
+            </div>
+            <div class="image-wrapper" id="img_26031602424404_3" draggable="true" ondragstart="drag(event)">
+                <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776842371/warranty-portal/llwrggrocss921fjl5ws.jpg" />
+                <div class="url">https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776842371/warranty-portal/llwrggrocss921fjl5ws.jpg</div>
+            </div>
+        </div>
+        <hr style="margin: 20px 0; border: none; border-top: 1px solid #eee;"/>
+        <div class="target-boxes">
+            <div class="drop-box box-invoice" data-cat="invoiceFileName" ondragover="allowDrop(event)" ondrop="drop(event, this)"><h3>1. Invoice / Sticker</h3></div>
+            <div class="drop-box box-vehicle" data-cat="vehicle" ondragover="allowDrop(event)" ondrop="drop(event, this)"><h3>2. Number Plate</h3></div>
+            <div class="drop-box box-seat" data-cat="seatCover" ondragover="allowDrop(event)" ondrop="drop(event, this)"><h3>3. Fitted Seat Cover</h3></div>
+            <div class="drop-box box-outer" data-cat="carOuter" ondragover="allowDrop(event)" ondrop="drop(event, this)"><h3>4. Car Exterior</h3></div>
+        </div>
+    </div>
+    <div class="record" id="25122902403812" data-uid="25122902403812">
+        <h2>UID: 25122902403812 | Aman ji</h2>
+        <div class="source-images" ondragover="allowDrop(event)" ondrop="drop(event, this)">
+            <h3 style="width: 100%; color: #666; margin-bottom: 5px;">Unsorted Images (Drag these):</h3>
+            <div class="image-wrapper" id="img_25122902403812_0" draggable="true" ondragstart="drag(event)">
+                <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776844277/warranty-portal/dvkao5jsuxzwgtgvkqtw.jpg" />
+                <div class="url">https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776844277/warranty-portal/dvkao5jsuxzwgtgvkqtw.jpg</div>
+            </div>
+            <div class="image-wrapper" id="img_25122902403812_1" draggable="true" ondragstart="drag(event)">
+                <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776844277/warranty-portal/xjbbitq0zkryxupg2qrm.jpg" />
+                <div class="url">https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776844277/warranty-portal/xjbbitq0zkryxupg2qrm.jpg</div>
+            </div>
+            <div class="image-wrapper" id="img_25122902403812_2" draggable="true" ondragstart="drag(event)">
+                <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776844277/warranty-portal/zktipw6bcamabprgjzwl.jpg" />
+                <div class="url">https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776844277/warranty-portal/zktipw6bcamabprgjzwl.jpg</div>
+            </div>
+            <div class="image-wrapper" id="img_25122902403812_3" draggable="true" ondragstart="drag(event)">
+                <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776844278/warranty-portal/etdflsqa4hbu0dlwxlr9.jpg" />
+                <div class="url">https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776844278/warranty-portal/etdflsqa4hbu0dlwxlr9.jpg</div>
+            </div>
+        </div>
+        <hr style="margin: 20px 0; border: none; border-top: 1px solid #eee;"/>
+        <div class="target-boxes">
+            <div class="drop-box box-invoice" data-cat="invoiceFileName" ondragover="allowDrop(event)" ondrop="drop(event, this)"><h3>1. Invoice / Sticker</h3></div>
+            <div class="drop-box box-vehicle" data-cat="vehicle" ondragover="allowDrop(event)" ondrop="drop(event, this)"><h3>2. Number Plate</h3></div>
+            <div class="drop-box box-seat" data-cat="seatCover" ondragover="allowDrop(event)" ondrop="drop(event, this)"><h3>3. Fitted Seat Cover</h3></div>
+            <div class="drop-box box-outer" data-cat="carOuter" ondragover="allowDrop(event)" ondrop="drop(event, this)"><h3>4. Car Exterior</h3></div>
+        </div>
+    </div>
+    <div class="record" id="261480004540587" data-uid="261480004540587">
+        <h2>UID: 261480004540587 | Mukesh bhai</h2>
+        <div class="source-images" ondragover="allowDrop(event)" ondrop="drop(event, this)">
+            <h3 style="width: 100%; color: #666; margin-bottom: 5px;">Unsorted Images (Drag these):</h3>
+            <div class="image-wrapper" id="img_261480004540587_0" draggable="true" ondragstart="drag(event)">
+                <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851041/warranty-portal/rllwqclclnx5o5oxjiqx.jpg" />
+                <div class="url">https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851041/warranty-portal/rllwqclclnx5o5oxjiqx.jpg</div>
+            </div>
+            <div class="image-wrapper" id="img_261480004540587_1" draggable="true" ondragstart="drag(event)">
+                <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851042/warranty-portal/w4apmpuh2j3ke9edeaql.jpg" />
+                <div class="url">https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851042/warranty-portal/w4apmpuh2j3ke9edeaql.jpg</div>
+            </div>
+            <div class="image-wrapper" id="img_261480004540587_2" draggable="true" ondragstart="drag(event)">
+                <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851043/warranty-portal/q7rfln3nmpoo1cbai1gs.jpg" />
+                <div class="url">https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851043/warranty-portal/q7rfln3nmpoo1cbai1gs.jpg</div>
+            </div>
+            <div class="image-wrapper" id="img_261480004540587_3" draggable="true" ondragstart="drag(event)">
+                <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851043/warranty-portal/u5pfkcffeimpk90hjnas.jpg" />
+                <div class="url">https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851043/warranty-portal/u5pfkcffeimpk90hjnas.jpg</div>
+            </div>
+        </div>
+        <hr style="margin: 20px 0; border: none; border-top: 1px solid #eee;"/>
+        <div class="target-boxes">
+            <div class="drop-box box-invoice" data-cat="invoiceFileName" ondragover="allowDrop(event)" ondrop="drop(event, this)"><h3>1. Invoice / Sticker</h3></div>
+            <div class="drop-box box-vehicle" data-cat="vehicle" ondragover="allowDrop(event)" ondrop="drop(event, this)"><h3>2. Number Plate</h3></div>
+            <div class="drop-box box-seat" data-cat="seatCover" ondragover="allowDrop(event)" ondrop="drop(event, this)"><h3>3. Fitted Seat Cover</h3></div>
+            <div class="drop-box box-outer" data-cat="carOuter" ondragover="allowDrop(event)" ondrop="drop(event, this)"><h3>4. Car Exterior</h3></div>
+        </div>
+    </div>
+    <div class="record" id="26030202421275" data-uid="26030202421275">
+        <h2>UID: 26030202421275 | Jignesh Rathwa</h2>
+        <div class="source-images" ondragover="allowDrop(event)" ondrop="drop(event, this)">
+            <h3 style="width: 100%; color: #666; margin-bottom: 5px;">Unsorted Images (Drag these):</h3>
+            <div class="image-wrapper" id="img_26030202421275_0" draggable="true" ondragstart="drag(event)">
+                <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776778664/warranty-portal/g4wljgv8g7jgwow1iwtk.jpg" />
+                <div class="url">https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776778664/warranty-portal/g4wljgv8g7jgwow1iwtk.jpg</div>
+            </div>
+            <div class="image-wrapper" id="img_26030202421275_1" draggable="true" ondragstart="drag(event)">
+                <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776778665/warranty-portal/h5qqtx6doofmerdzen22.jpg" />
+                <div class="url">https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776778665/warranty-portal/h5qqtx6doofmerdzen22.jpg</div>
+            </div>
+            <div class="image-wrapper" id="img_26030202421275_2" draggable="true" ondragstart="drag(event)">
+                <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776778665/warranty-portal/qhdgackasqvxj8swj8iy.jpg" />
+                <div class="url">https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776778665/warranty-portal/qhdgackasqvxj8swj8iy.jpg</div>
+            </div>
+            <div class="image-wrapper" id="img_26030202421275_3" draggable="true" ondragstart="drag(event)">
+                <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776778667/warranty-portal/i5yrwueqp1vm7lmzfvei.jpg" />
+                <div class="url">https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776778667/warranty-portal/i5yrwueqp1vm7lmzfvei.jpg</div>
+            </div>
+        </div>
+        <hr style="margin: 20px 0; border: none; border-top: 1px solid #eee;"/>
+        <div class="target-boxes">
+            <div class="drop-box box-invoice" data-cat="invoiceFileName" ondragover="allowDrop(event)" ondrop="drop(event, this)"><h3>1. Invoice / Sticker</h3></div>
+            <div class="drop-box box-vehicle" data-cat="vehicle" ondragover="allowDrop(event)" ondrop="drop(event, this)"><h3>2. Number Plate</h3></div>
+            <div class="drop-box box-seat" data-cat="seatCover" ondragover="allowDrop(event)" ondrop="drop(event, this)"><h3>3. Fitted Seat Cover</h3></div>
+            <div class="drop-box box-outer" data-cat="carOuter" ondragover="allowDrop(event)" ondrop="drop(event, this)"><h3>4. Car Exterior</h3></div>
+        </div>
+    </div>
+    <div class="record" id="25122302402392" data-uid="25122302402392">
+        <h2>UID: 25122302402392 | Mittal trading co</h2>
+        <div class="source-images" ondragover="allowDrop(event)" ondrop="drop(event, this)">
+            <h3 style="width: 100%; color: #666; margin-bottom: 5px;">Unsorted Images (Drag these):</h3>
+            <div class="image-wrapper" id="img_25122302402392_0" draggable="true" ondragstart="drag(event)">
+                <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851696/warranty-portal/almz82oinmm6wfsseeiw.jpg" />
+                <div class="url">https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851696/warranty-portal/almz82oinmm6wfsseeiw.jpg</div>
+            </div>
+            <div class="image-wrapper" id="img_25122302402392_1" draggable="true" ondragstart="drag(event)">
+                <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851697/warranty-portal/hywslyr7sdooitunhkq8.jpg" />
+                <div class="url">https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851697/warranty-portal/hywslyr7sdooitunhkq8.jpg</div>
+            </div>
+            <div class="image-wrapper" id="img_25122302402392_2" draggable="true" ondragstart="drag(event)">
+                <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851697/warranty-portal/ja3e3azccnl4r1ul6mwo.jpg" />
+                <div class="url">https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851697/warranty-portal/ja3e3azccnl4r1ul6mwo.jpg</div>
+            </div>
+            <div class="image-wrapper" id="img_25122302402392_3" draggable="true" ondragstart="drag(event)">
+                <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851697/warranty-portal/v3wcvhl5hg9w77n1l5if.jpg" />
+                <div class="url">https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851697/warranty-portal/v3wcvhl5hg9w77n1l5if.jpg</div>
+            </div>
+        </div>
+        <hr style="margin: 20px 0; border: none; border-top: 1px solid #eee;"/>
+        <div class="target-boxes">
+            <div class="drop-box box-invoice" data-cat="invoiceFileName" ondragover="allowDrop(event)" ondrop="drop(event, this)"><h3>1. Invoice / Sticker</h3></div>
+            <div class="drop-box box-vehicle" data-cat="vehicle" ondragover="allowDrop(event)" ondrop="drop(event, this)"><h3>2. Number Plate</h3></div>
+            <div class="drop-box box-seat" data-cat="seatCover" ondragover="allowDrop(event)" ondrop="drop(event, this)"><h3>3. Fitted Seat Cover</h3></div>
+            <div class="drop-box box-outer" data-cat="carOuter" ondragover="allowDrop(event)" ondrop="drop(event, this)"><h3>4. Car Exterior</h3></div>
+        </div>
+    </div>
+    <div class="record" id="25102302384412" data-uid="25102302384412">
+        <h2>UID: 25102302384412 | Jalubhai</h2>
+        <div class="source-images" ondragover="allowDrop(event)" ondrop="drop(event, this)">
+            <h3 style="width: 100%; color: #666; margin-bottom: 5px;">Unsorted Images (Drag these):</h3>
+            <div class="image-wrapper" id="img_25102302384412_0" draggable="true" ondragstart="drag(event)">
+                <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776772232/warranty-portal/ebcbeidrg4myktdlcbf1.jpg" />
+                <div class="url">https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776772232/warranty-portal/ebcbeidrg4myktdlcbf1.jpg</div>
+            </div>
+            <div class="image-wrapper" id="img_25102302384412_1" draggable="true" ondragstart="drag(event)">
+                <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776772232/warranty-portal/nmxjzsivlsy78ano0w6f.jpg" />
+                <div class="url">https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776772232/warranty-portal/nmxjzsivlsy78ano0w6f.jpg</div>
+            </div>
+            <div class="image-wrapper" id="img_25102302384412_2" draggable="true" ondragstart="drag(event)">
+                <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776772233/warranty-portal/dbwdjymklu2uvqojafjh.jpg" />
+                <div class="url">https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776772233/warranty-portal/dbwdjymklu2uvqojafjh.jpg</div>
+            </div>
+            <div class="image-wrapper" id="img_25102302384412_3" draggable="true" ondragstart="drag(event)">
+                <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776772233/warranty-portal/f4biwas3pent6eawf4lo.jpg" />
+                <div class="url">https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776772233/warranty-portal/f4biwas3pent6eawf4lo.jpg</div>
+            </div>
+        </div>
+        <hr style="margin: 20px 0; border: none; border-top: 1px solid #eee;"/>
+        <div class="target-boxes">
+            <div class="drop-box box-invoice" data-cat="invoiceFileName" ondragover="allowDrop(event)" ondrop="drop(event, this)"><h3>1. Invoice / Sticker</h3></div>
+            <div class="drop-box box-vehicle" data-cat="vehicle" ondragover="allowDrop(event)" ondrop="drop(event, this)"><h3>2. Number Plate</h3></div>
+            <div class="drop-box box-seat" data-cat="seatCover" ondragover="allowDrop(event)" ondrop="drop(event, this)"><h3>3. Fitted Seat Cover</h3></div>
+            <div class="drop-box box-outer" data-cat="carOuter" ondragover="allowDrop(event)" ondrop="drop(event, this)"><h3>4. Car Exterior</h3></div>
+        </div>
+    </div>
+    <div class="record" id="25100402380610" data-uid="25100402380610">
+        <h2>UID: 25100402380610 | Shubhas bhai</h2>
+        <div class="source-images" ondragover="allowDrop(event)" ondrop="drop(event, this)">
+            <h3 style="width: 100%; color: #666; margin-bottom: 5px;">Unsorted Images (Drag these):</h3>
+            <div class="image-wrapper" id="img_25100402380610_0" draggable="true" ondragstart="drag(event)">
+                <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776769661/warranty-portal/bsmr9vfe7pg1pggce1vi.jpg" />
+                <div class="url">https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776769661/warranty-portal/bsmr9vfe7pg1pggce1vi.jpg</div>
+            </div>
+            <div class="image-wrapper" id="img_25100402380610_1" draggable="true" ondragstart="drag(event)">
+                <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776769661/warranty-portal/foxfity8lfwmrwlz4vbo.jpg" />
+                <div class="url">https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776769661/warranty-portal/foxfity8lfwmrwlz4vbo.jpg</div>
+            </div>
+            <div class="image-wrapper" id="img_25100402380610_2" draggable="true" ondragstart="drag(event)">
+                <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776769661/warranty-portal/mv0noem7sxq2jip9igcm.jpg" />
+                <div class="url">https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776769661/warranty-portal/mv0noem7sxq2jip9igcm.jpg</div>
+            </div>
+            <div class="image-wrapper" id="img_25100402380610_3" draggable="true" ondragstart="drag(event)">
+                <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776769661/warranty-portal/o3kpbbtwfw0j3tjryfhm.jpg" />
+                <div class="url">https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776769661/warranty-portal/o3kpbbtwfw0j3tjryfhm.jpg</div>
+            </div>
+        </div>
+        <hr style="margin: 20px 0; border: none; border-top: 1px solid #eee;"/>
+        <div class="target-boxes">
+            <div class="drop-box box-invoice" data-cat="invoiceFileName" ondragover="allowDrop(event)" ondrop="drop(event, this)"><h3>1. Invoice / Sticker</h3></div>
+            <div class="drop-box box-vehicle" data-cat="vehicle" ondragover="allowDrop(event)" ondrop="drop(event, this)"><h3>2. Number Plate</h3></div>
+            <div class="drop-box box-seat" data-cat="seatCover" ondragover="allowDrop(event)" ondrop="drop(event, this)"><h3>3. Fitted Seat Cover</h3></div>
+            <div class="drop-box box-outer" data-cat="carOuter" ondragover="allowDrop(event)" ondrop="drop(event, this)"><h3>4. Car Exterior</h3></div>
+        </div>
+    </div>
+    <div class="record" id="25082902371655" data-uid="25082902371655">
+        <h2>UID: 25082902371655 | Parag Agarwal</h2>
+        <div class="source-images" ondragover="allowDrop(event)" ondrop="drop(event, this)">
+            <h3 style="width: 100%; color: #666; margin-bottom: 5px;">Unsorted Images (Drag these):</h3>
+            <div class="image-wrapper" id="img_25082902371655_0" draggable="true" ondragstart="drag(event)">
+                <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776764987/warranty-portal/fosnpnpbikksxfdd0rtq.jpg" />
+                <div class="url">https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776764987/warranty-portal/fosnpnpbikksxfdd0rtq.jpg</div>
+            </div>
+            <div class="image-wrapper" id="img_25082902371655_1" draggable="true" ondragstart="drag(event)">
+                <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776764987/warranty-portal/uyeotpptfubc8vhruw5b.jpg" />
+                <div class="url">https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776764987/warranty-portal/uyeotpptfubc8vhruw5b.jpg</div>
+            </div>
+            <div class="image-wrapper" id="img_25082902371655_2" draggable="true" ondragstart="drag(event)">
+                <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776764989/warranty-portal/laswtsh3n4rodx2urvul.jpg" />
+                <div class="url">https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776764989/warranty-portal/laswtsh3n4rodx2urvul.jpg</div>
+            </div>
+            <div class="image-wrapper" id="img_25082902371655_3" draggable="true" ondragstart="drag(event)">
+                <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776764990/warranty-portal/tjvdslpclqziit8omplf.jpg" />
+                <div class="url">https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776764990/warranty-portal/tjvdslpclqziit8omplf.jpg</div>
+            </div>
+        </div>
+        <hr style="margin: 20px 0; border: none; border-top: 1px solid #eee;"/>
+        <div class="target-boxes">
+            <div class="drop-box box-invoice" data-cat="invoiceFileName" ondragover="allowDrop(event)" ondrop="drop(event, this)"><h3>1. Invoice / Sticker</h3></div>
+            <div class="drop-box box-vehicle" data-cat="vehicle" ondragover="allowDrop(event)" ondrop="drop(event, this)"><h3>2. Number Plate</h3></div>
+            <div class="drop-box box-seat" data-cat="seatCover" ondragover="allowDrop(event)" ondrop="drop(event, this)"><h3>3. Fitted Seat Cover</h3></div>
+            <div class="drop-box box-outer" data-cat="carOuter" ondragover="allowDrop(event)" ondrop="drop(event, this)"><h3>4. Car Exterior</h3></div>
+        </div>
+    </div>
+    <div class="record" id="25081602368091" data-uid="25081602368091">
+        <h2>UID: 25081602368091 | Huzfa sir</h2>
+        <div class="source-images" ondragover="allowDrop(event)" ondrop="drop(event, this)">
+            <h3 style="width: 100%; color: #666; margin-bottom: 5px;">Unsorted Images (Drag these):</h3>
+            <div class="image-wrapper" id="img_25081602368091_0" draggable="true" ondragstart="drag(event)">
+                <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776787261/warranty-portal/ce4ydowzlhf3ihxkfrfd.jpg" />
+                <div class="url">https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776787261/warranty-portal/ce4ydowzlhf3ihxkfrfd.jpg</div>
+            </div>
+            <div class="image-wrapper" id="img_25081602368091_1" draggable="true" ondragstart="drag(event)">
+                <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776787261/warranty-portal/fkwrnlvfjkrfmq6rgr67.jpg" />
+                <div class="url">https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776787261/warranty-portal/fkwrnlvfjkrfmq6rgr67.jpg</div>
+            </div>
+            <div class="image-wrapper" id="img_25081602368091_2" draggable="true" ondragstart="drag(event)">
+                <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776787261/warranty-portal/pbmjrifeqntllwteutvs.jpg" />
+                <div class="url">https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776787261/warranty-portal/pbmjrifeqntllwteutvs.jpg</div>
+            </div>
+            <div class="image-wrapper" id="img_25081602368091_3" draggable="true" ondragstart="drag(event)">
+                <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776787261/warranty-portal/x6quje5cm1cgdpaaxc31.jpg" />
+                <div class="url">https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776787261/warranty-portal/x6quje5cm1cgdpaaxc31.jpg</div>
+            </div>
+        </div>
+        <hr style="margin: 20px 0; border: none; border-top: 1px solid #eee;"/>
+        <div class="target-boxes">
+            <div class="drop-box box-invoice" data-cat="invoiceFileName" ondragover="allowDrop(event)" ondrop="drop(event, this)"><h3>1. Invoice / Sticker</h3></div>
+            <div class="drop-box box-vehicle" data-cat="vehicle" ondragover="allowDrop(event)" ondrop="drop(event, this)"><h3>2. Number Plate</h3></div>
+            <div class="drop-box box-seat" data-cat="seatCover" ondragover="allowDrop(event)" ondrop="drop(event, this)"><h3>3. Fitted Seat Cover</h3></div>
+            <div class="drop-box box-outer" data-cat="carOuter" ondragover="allowDrop(event)" ondrop="drop(event, this)"><h3>4. Car Exterior</h3></div>
+        </div>
+    </div>
+    <div class="record" id="26010302405294" data-uid="26010302405294">
+        <h2>UID: 26010302405294 | Lakhwinder singh</h2>
+        <div class="source-images" ondragover="allowDrop(event)" ondrop="drop(event, this)">
+            <h3 style="width: 100%; color: #666; margin-bottom: 5px;">Unsorted Images (Drag these):</h3>
+            <div class="image-wrapper" id="img_26010302405294_0" draggable="true" ondragstart="drag(event)">
+                <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776844800/warranty-portal/vi3vh6nl38pruo0bhrh9.jpg" />
+                <div class="url">https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776844800/warranty-portal/vi3vh6nl38pruo0bhrh9.jpg</div>
+            </div>
+            <div class="image-wrapper" id="img_26010302405294_1" draggable="true" ondragstart="drag(event)">
+                <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776844801/warranty-portal/vcgvt705ccuq0mbljddf.jpg" />
+                <div class="url">https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776844801/warranty-portal/vcgvt705ccuq0mbljddf.jpg</div>
+            </div>
+            <div class="image-wrapper" id="img_26010302405294_2" draggable="true" ondragstart="drag(event)">
+                <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776844801/warranty-portal/zhbkgmy1xr673oz3qsn2.jpg" />
+                <div class="url">https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776844801/warranty-portal/zhbkgmy1xr673oz3qsn2.jpg</div>
+            </div>
+            <div class="image-wrapper" id="img_26010302405294_3" draggable="true" ondragstart="drag(event)">
+                <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776844802/warranty-portal/i97xx5gauik8d4jptazd.jpg" />
+                <div class="url">https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776844802/warranty-portal/i97xx5gauik8d4jptazd.jpg</div>
+            </div>
+        </div>
+        <hr style="margin: 20px 0; border: none; border-top: 1px solid #eee;"/>
+        <div class="target-boxes">
+            <div class="drop-box box-invoice" data-cat="invoiceFileName" ondragover="allowDrop(event)" ondrop="drop(event, this)"><h3>1. Invoice / Sticker</h3></div>
+            <div class="drop-box box-vehicle" data-cat="vehicle" ondragover="allowDrop(event)" ondrop="drop(event, this)"><h3>2. Number Plate</h3></div>
+            <div class="drop-box box-seat" data-cat="seatCover" ondragover="allowDrop(event)" ondrop="drop(event, this)"><h3>3. Fitted Seat Cover</h3></div>
+            <div class="drop-box box-outer" data-cat="carOuter" ondragover="allowDrop(event)" ondrop="drop(event, this)"><h3>4. Car Exterior</h3></div>
+        </div>
+    </div>
+
+    <button class="generate" onclick="generateJSON()">Generate Final JSON Mapping</button>
+
+    <div id="result-box">
+        <h3>Copy this text and paste it to the AI Assistant:</h3>
+        <textarea id="result-text" style="width: 100%; height: 200px; background: #111; color: #0f0; border: 1px solid #333; padding: 10px; font-family: monospace;"></textarea>
+    </div>
+
+    <script>
+        function allowDrop(ev) {
+            ev.preventDefault();
+            if(ev.target.classList.contains('drop-box') || ev.target.classList.contains('source-images')) {
+                ev.target.classList.add('drag-over');
+            }
+        }
+        
+        function getParentBox(el) {
+            if(el.classList.contains('drop-box') || el.classList.contains('source-images')) return el;
+            return el.closest('.drop-box') || el.closest('.source-images');
+        }
+
+        document.addEventListener('dragleave', function(ev) {
+            let box = getParentBox(ev.target);
+            if(box) box.classList.remove('drag-over');
+        });
+
+        function drag(ev) {
+            ev.dataTransfer.setData("text", ev.target.id);
+        }
+
+        function drop(ev, targetElement) {
+            ev.preventDefault();
+            let box = getParentBox(targetElement);
+            if(box) {
+                box.classList.remove('drag-over');
+                var data = ev.dataTransfer.getData("text");
+                box.appendChild(document.getElementById(data));
+            }
+        }
+
+        function generateJSON() {
+            let result = {};
+            document.querySelectorAll('.record').forEach(recordDiv => {
+                let uid = recordDiv.getAttribute('data-uid');
+                let entry = { uid: uid, invoiceFileName: null, photos: { vehicle: null, seatCover: null, carOuter: null } };
+                
+                let invoiceBox = recordDiv.querySelector('.box-invoice .image-wrapper');
+                if(invoiceBox) entry.invoiceFileName = invoiceBox.querySelector('.url').innerText;
+                
+                let vehicleBox = recordDiv.querySelector('.box-vehicle .image-wrapper');
+                if(vehicleBox) entry.photos.vehicle = vehicleBox.querySelector('.url').innerText;
+                
+                let seatBox = recordDiv.querySelector('.box-seat .image-wrapper');
+                if(seatBox) entry.photos.seatCover = seatBox.querySelector('.url').innerText;
+                
+                let outerBox = recordDiv.querySelector('.box-outer .image-wrapper');
+                if(outerBox) entry.photos.carOuter = outerBox.querySelector('.url').innerText;
+                
+                result[uid] = entry;
+            });
+            
+            document.getElementById('result-box').style.display = 'block';
+            document.getElementById('result-text').value = JSON.stringify(Object.values(result), null, 2);
+            document.getElementById('result-text').select();
+        }
+    </script>
+</body>
+</html>

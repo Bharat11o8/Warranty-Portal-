@@ -1,0 +1,146 @@
+[
+  {
+    "id": 1,
+    "uid": "25100402380610",
+    "customerName": "Satish Bhai",
+    "storeName": "CAR WORLD",
+    "storeEmail": "satishvekariya888@gmail.com",
+    "manpowerName": null,
+    "source": "vendor_details (direct)"
+  },
+  {
+    "id": 2,
+    "uid": "25102302384412",
+    "customerName": "Satish Bhai",
+    "storeName": "CAR WORLD",
+    "storeEmail": "satishvekariya888@gmail.com",
+    "manpowerName": null,
+    "source": "vendor_details (direct)"
+  },
+  {
+    "id": 3,
+    "uid": "26030202421275",
+    "customerName": "Ishan Panchal",
+    "storeName": "AUTOCRAFT CAR ACCESSORIES",
+    "storeEmail": "ishanpanchal.200@gmail.com",
+    "manpowerName": null,
+    "source": "vendor_details (direct)"
+  },
+  {
+    "id": 4,
+    "uid": "25081602368091",
+    "customerName": "Nitin Dwivedi",
+    "storeName": "Avs Motors ",
+    "storeEmail": "avsmotorsindoreautoform@gmail.com",
+    "manpowerName": null,
+    "source": "vendor_details (direct)"
+  },
+  {
+    "id": 5,
+    "uid": "26031602424705",
+    "customerName": "Aniruddha Gawade",
+    "storeName": "CAR DYNAMIC PVT LTD",
+    "storeEmail": "cardynamic@outlook.com",
+    "manpowerName": null,
+    "source": "vendor_details (direct)"
+  },
+  {
+    "id": 6,
+    "uid": "26031602424404",
+    "customerName": "NIRAJ MEHTA",
+    "storeName": "UNKNOWN",
+    "storeEmail": "UNKNOWN",
+    "manpowerName": null,
+    "source": "NOT FOUND"
+  },
+  {
+    "id": 7,
+    "uid": "25122902403812",
+    "customerName": "Aishwarya Chaamaria",
+    "storeName": "BHARAT MOTOR",
+    "storeEmail": "narendra10007@gmail.com",
+    "manpowerName": null,
+    "source": "vendor_details (direct)"
+  },
+  {
+    "id": 8,
+    "uid": "26010302405294",
+    "customerName": "Lakhwinder singh",
+    "storeName": "UNKNOWN",
+    "storeEmail": "UNKNOWN",
+    "manpowerName": null,
+    "source": "NOT FOUND"
+  },
+  {
+    "id": 9,
+    "uid": "26021602417718",
+    "customerName": "AMANDEEP SINGH",
+    "storeName": "UNKNOWN",
+    "storeEmail": "UNKNOWN",
+    "manpowerName": null,
+    "source": "NOT FOUND"
+  },
+  {
+    "id": 10,
+    "uid": "26031902425824",
+    "customerName": "Bilal Ahmed dar ",
+    "storeName": "UNKNOWN",
+    "storeEmail": "UNKNOWN",
+    "manpowerName": null,
+    "source": "NOT FOUND"
+  },
+  {
+    "id": 11,
+    "uid": "261480004540587",
+    "customerName": "Mukesh bhai",
+    "storeName": "UNKNOWN",
+    "storeEmail": "UNKNOWN",
+    "manpowerName": null,
+    "source": "NOT FOUND"
+  },
+  {
+    "id": 12,
+    "uid": "26041302432606",
+    "customerName": "Mr Amit ",
+    "storeName": "UNKNOWN",
+    "storeEmail": "UNKNOWN",
+    "manpowerName": null,
+    "source": "NOT FOUND"
+  },
+  {
+    "id": 13,
+    "uid": "26010802406519",
+    "customerName": "Abhishek Gumber",
+    "storeName": "UNKNOWN",
+    "storeEmail": "UNKNOWN",
+    "manpowerName": null,
+    "source": "NOT FOUND"
+  },
+  {
+    "id": 14,
+    "uid": "25122302402392",
+    "customerName": "Mittal trading co",
+    "storeName": "UNKNOWN",
+    "storeEmail": "UNKNOWN",
+    "manpowerName": null,
+    "source": "NOT FOUND"
+  },
+  {
+    "id": 15,
+    "uid": "26032502427391",
+    "customerName": "Mr  Saurabh ",
+    "storeName": "UNKNOWN",
+    "storeEmail": "UNKNOWN",
+    "manpowerName": null,
+    "source": "NOT FOUND"
+  },
+  {
+    "id": 16,
+    "uid": "26041302432620",
+    "customerName": "Harshal Nigade ",
+    "storeName": "UNKNOWN",
+    "storeEmail": "UNKNOWN",
+    "manpowerName": null,
+    "source": "NOT FOUND"
+  }
+]

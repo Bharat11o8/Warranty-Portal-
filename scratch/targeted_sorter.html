@@ -1,0 +1,1237 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Genius Timestamp Sorter</title>
+    <style>
+        body { font-family: 'Inter', system-ui, sans-serif; background: #010409; color: #e6edf3; padding: 30px; }
+        .uid-block { background: #0d1117; border: 1px solid #30363d; border-radius: 16px; margin-bottom: 40px; padding: 25px; box-shadow: 0 8px 24px rgba(0,0,0,0.5); }
+        .uid-header { border-bottom: 1px solid #30363d; padding-bottom: 15px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: flex-start; }
+        .uid-header h2 { margin: 0; color: #58a6ff; font-size: 24px; }
+        .meta-info { color: #8b949e; font-size: 14px; margin-top: 5px; }
+        
+        .section-title { font-size: 12px; font-weight: 600; text-transform: uppercase; color: #8b949e; letter-spacing: 1px; margin-bottom: 15px; display: block; }
+        
+        .image-cluster { display: flex; gap: 15px; overflow-x: auto; padding: 15px 0; background: #161b22; border-radius: 12px; padding: 20px; border: 1px inset #010409; }
+        .img-container { position: relative; flex-shrink: 0; width: 180px; text-align: center; cursor: pointer; }
+        .img-container img { width: 100%; height: 130px; object-fit: cover; border-radius: 8px; border: 3px solid transparent; transition: all 0.2s; }
+        .img-container:hover img { transform: scale(1.05); border-color: #1f6feb; }
+        .img-container.selected img { border-color: #238636; box-shadow: 0 0 15px rgba(35,134,54,0.5); }
+        
+        .img-time { font-size: 11px; color: #8b949e; margin-top: 8px; font-family: monospace; }
+        .diff-tag { display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: bold; margin-top: 4px; }
+        .diff-tag.near { background: rgba(35,134,54,0.2); color: #3fb950; }
+        .diff-tag.far { background: rgba(187,128,9,0.2); color: #d29922; }
+
+        .form-slots { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; margin-top: 30px; }
+        .slot { background: #010409; border: 2px dashed #30363d; border-radius: 12px; min-height: 180px; display: flex; align-items: center; justify-content: center; position: relative; cursor: pointer; transition: all 0.2s; }
+        .slot:hover { border-color: #58a6ff; background: #161b22; }
+        .slot img { max-width: 90%; max-height: 160px; border-radius: 6px; }
+        .slot-label { position: absolute; top: -12px; left: 15px; background: #0d1117; padding: 0 8px; color: #8b949e; font-size: 12px; font-weight: bold; }
+        
+        .pool-section { margin-top: 60px; border-top: 2px solid #30363d; padding-top: 40px; }
+        
+        .btn-panel { position: fixed; bottom: 30px; right: 30px; z-index: 1000; }
+        button { background: #238636; color: white; border: none; padding: 16px 32px; border-radius: 8px; cursor: pointer; font-size: 18px; font-weight: 600; box-shadow: 0 4px 12px rgba(0,0,0,0.5); transition: all 0.2s; }
+        button:hover { background: #2ea043; transform: translateY(-2px); }
+        
+        textarea { width: 100%; height: 300px; background: #010409; color: #7ee787; font-family: 'Fira Code', monospace; border: 1px solid #30363d; padding: 20px; border-radius: 12px; margin-top: 15px; font-size: 13px; display: none; }
+    </style>
+</head>
+<body>
+    <h1 style="text-align:center; font-size: 32px; margin-bottom: 10px;">Smart Timeline Reconciliation</h1>
+    <p style="text-align:center; color: #8b949e; margin-bottom: 50px;">Using Email and DB timestamps to perfectly match images for April 21-22 entries.</p>
+
+    <div id="blocks">
+    
+        <div class="uid-block" data-uid="26041002431893">
+            <div class="uid-header">
+                <div>
+                    <h2>sunil kumar  <span style="color:#8b949e; font-weight:normal; font-size:18px;">| HR-51-CW-7706</span></h2>
+                    <div class="meta-info">UID: 26041002431893 • Reference Time: 22/4/2026, 10:21:40 am</div>
+                </div>
+            </div>
+
+            <span class="section-title">📦 Smart Pick Cluster (0 images)</span>
+            <div class="image-cluster">
+                
+                <div style="color:#f85149; font-size:14px;">No images found in this time window. Explore the pool at the bottom.</div>
+            </div>
+
+            <div class="form-slots">
+                <div class="slot" onclick="placeImg(this)" data-type="invoice"><span class="slot-label">1. INVOICE</span> Click to place</div>
+                <div class="slot" onclick="placeImg(this)" data-type="vehicle"><span class="slot-label">2. PLATE / VEHICLE</span> Click to place</div>
+                <div class="slot" onclick="placeImg(this)" data-type="seatCover"><span class="slot-label">3. SEAT COVER</span> Click to place</div>
+                <div class="slot" onclick="placeImg(this)" data-type="carOuter"><span class="slot-label">4. EXTERIOR</span> Click to place</div>
+            </div>
+        </div>
+        <div class="uid-block" data-uid="2203210281154">
+            <div class="uid-header">
+                <div>
+                    <h2>Rajesh lamba <span style="color:#8b949e; font-weight:normal; font-size:18px;">| HR-20-W-0129</span></h2>
+                    <div class="meta-info">UID: 2203210281154 • Reference Time: 22/4/2026, 11:15:21 am</div>
+                </div>
+            </div>
+
+            <span class="section-title">📦 Smart Pick Cluster (4 images)</span>
+            <div class="image-cluster">
+                
+                    <div class="img-container" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776836413/warranty-portal/a5pgoaipfrpyqurwz9gq.jpg')">
+                        <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776836413/warranty-portal/a5pgoaipfrpyqurwz9gq.jpg">
+                        <div class="img-time">05:40:13Z</div>
+                        <div class="diff-tag far">-308s from peak</div>
+                    </div>
+                    <div class="img-container" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776836413/warranty-portal/dnkmq3dshw646lad1atn.jpg')">
+                        <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776836413/warranty-portal/dnkmq3dshw646lad1atn.jpg">
+                        <div class="img-time">05:40:13Z</div>
+                        <div class="diff-tag far">-308s from peak</div>
+                    </div>
+                    <div class="img-container" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776836413/warranty-portal/gvwzxaxzgu8fkabvlek7.jpg')">
+                        <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776836413/warranty-portal/gvwzxaxzgu8fkabvlek7.jpg">
+                        <div class="img-time">05:40:13Z</div>
+                        <div class="diff-tag far">-308s from peak</div>
+                    </div>
+                    <div class="img-container" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776836413/warranty-portal/wuj3twcja04fzm3pmpiu.jpg')">
+                        <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776836413/warranty-portal/wuj3twcja04fzm3pmpiu.jpg">
+                        <div class="img-time">05:40:13Z</div>
+                        <div class="diff-tag far">-308s from peak</div>
+                    </div>
+                
+            </div>
+
+            <div class="form-slots">
+                <div class="slot" onclick="placeImg(this)" data-type="invoice"><span class="slot-label">1. INVOICE</span> Click to place</div>
+                <div class="slot" onclick="placeImg(this)" data-type="vehicle"><span class="slot-label">2. PLATE / VEHICLE</span> Click to place</div>
+                <div class="slot" onclick="placeImg(this)" data-type="seatCover"><span class="slot-label">3. SEAT COVER</span> Click to place</div>
+                <div class="slot" onclick="placeImg(this)" data-type="carOuter"><span class="slot-label">4. EXTERIOR</span> Click to place</div>
+            </div>
+        </div>
+        <div class="uid-block" data-uid="26032502427391">
+            <div class="uid-header">
+                <div>
+                    <h2>Mayur more <span style="color:#8b949e; font-weight:normal; font-size:18px;">| UP-16-FN-7325</span></h2>
+                    <div class="meta-info">UID: 26032502427391 • Reference Time: 22/4/2026, 3:26:13 pm</div>
+                </div>
+            </div>
+
+            <span class="section-title">📦 Smart Pick Cluster (20 images)</span>
+            <div class="image-cluster">
+                
+                    <div class="img-container" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851223/warranty-portal/bw6skwrdto9frjeghb5l.jpg')">
+                        <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851223/warranty-portal/bw6skwrdto9frjeghb5l.jpg">
+                        <div class="img-time">09:47:03Z</div>
+                        <div class="diff-tag far">-550s from peak</div>
+                    </div>
+                    <div class="img-container" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851223/warranty-portal/pijthtupakcvxq34zfuc.jpg')">
+                        <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851223/warranty-portal/pijthtupakcvxq34zfuc.jpg">
+                        <div class="img-time">09:47:03Z</div>
+                        <div class="diff-tag far">-550s from peak</div>
+                    </div>
+                    <div class="img-container" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851224/warranty-portal/p58w1lmpnjyp0ta1tldx.jpg')">
+                        <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851224/warranty-portal/p58w1lmpnjyp0ta1tldx.jpg">
+                        <div class="img-time">09:47:04Z</div>
+                        <div class="diff-tag far">-549s from peak</div>
+                    </div>
+                    <div class="img-container" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851224/warranty-portal/y75krr2mkwb9x2o7035v.jpg')">
+                        <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851224/warranty-portal/y75krr2mkwb9x2o7035v.jpg">
+                        <div class="img-time">09:47:04Z</div>
+                        <div class="diff-tag far">-549s from peak</div>
+                    </div>
+                    <div class="img-container" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851258/warranty-portal/jeiyg3ozapjaeay25gb9.jpg')">
+                        <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851258/warranty-portal/jeiyg3ozapjaeay25gb9.jpg">
+                        <div class="img-time">09:47:38Z</div>
+                        <div class="diff-tag far">-515s from peak</div>
+                    </div>
+                    <div class="img-container" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851259/warranty-portal/c12vzgxhswg5ub9y7lpq.jpg')">
+                        <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851259/warranty-portal/c12vzgxhswg5ub9y7lpq.jpg">
+                        <div class="img-time">09:47:39Z</div>
+                        <div class="diff-tag far">-514s from peak</div>
+                    </div>
+                    <div class="img-container" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851259/warranty-portal/jh99urnprsckddjshn8m.jpg')">
+                        <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851259/warranty-portal/jh99urnprsckddjshn8m.jpg">
+                        <div class="img-time">09:47:39Z</div>
+                        <div class="diff-tag far">-514s from peak</div>
+                    </div>
+                    <div class="img-container" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851260/warranty-portal/lkq07rkvwdpqvsgnygtj.jpg')">
+                        <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851260/warranty-portal/lkq07rkvwdpqvsgnygtj.jpg">
+                        <div class="img-time">09:47:40Z</div>
+                        <div class="diff-tag far">-513s from peak</div>
+                    </div>
+                    <div class="img-container" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851696/warranty-portal/almz82oinmm6wfsseeiw.jpg')">
+                        <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851696/warranty-portal/almz82oinmm6wfsseeiw.jpg">
+                        <div class="img-time">09:54:56Z</div>
+                        <div class="diff-tag near">-77s from peak</div>
+                    </div>
+                    <div class="img-container" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851697/warranty-portal/hywslyr7sdooitunhkq8.jpg')">
+                        <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851697/warranty-portal/hywslyr7sdooitunhkq8.jpg">
+                        <div class="img-time">09:54:57Z</div>
+                        <div class="diff-tag near">-76s from peak</div>
+                    </div>
+                    <div class="img-container" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851697/warranty-portal/ja3e3azccnl4r1ul6mwo.jpg')">
+                        <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851697/warranty-portal/ja3e3azccnl4r1ul6mwo.jpg">
+                        <div class="img-time">09:54:57Z</div>
+                        <div class="diff-tag near">-76s from peak</div>
+                    </div>
+                    <div class="img-container" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851697/warranty-portal/v3wcvhl5hg9w77n1l5if.jpg')">
+                        <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851697/warranty-portal/v3wcvhl5hg9w77n1l5if.jpg">
+                        <div class="img-time">09:54:57Z</div>
+                        <div class="diff-tag near">-76s from peak</div>
+                    </div>
+                    <div class="img-container" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851771/warranty-portal/jouxi2etyybkvnili7cw.jpg')">
+                        <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851771/warranty-portal/jouxi2etyybkvnili7cw.jpg">
+                        <div class="img-time">09:56:11Z</div>
+                        <div class="diff-tag near">-2s from peak</div>
+                    </div>
+                    <div class="img-container" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851772/warranty-portal/eaa8pnwdbje8iysc6y7n.jpg')">
+                        <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851772/warranty-portal/eaa8pnwdbje8iysc6y7n.jpg">
+                        <div class="img-time">09:56:12Z</div>
+                        <div class="diff-tag near">-1s from peak</div>
+                    </div>
+                    <div class="img-container" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851772/warranty-portal/ijbaeom6ihcvg2jlxtqn.jpg')">
+                        <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851772/warranty-portal/ijbaeom6ihcvg2jlxtqn.jpg">
+                        <div class="img-time">09:56:12Z</div>
+                        <div class="diff-tag near">-1s from peak</div>
+                    </div>
+                    <div class="img-container" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851772/warranty-portal/taycpzrq3lfixtfshhyd.jpg')">
+                        <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851772/warranty-portal/taycpzrq3lfixtfshhyd.jpg">
+                        <div class="img-time">09:56:12Z</div>
+                        <div class="diff-tag near">-1s from peak</div>
+                    </div>
+                    <div class="img-container" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851986/warranty-portal/giastbrjgxeub7ngjit4.jpg')">
+                        <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851986/warranty-portal/giastbrjgxeub7ngjit4.jpg">
+                        <div class="img-time">09:59:46Z</div>
+                        <div class="diff-tag far">+213s from peak</div>
+                    </div>
+                    <div class="img-container" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851986/warranty-portal/tsgwsybbqnj0pnaoi1sd.jpg')">
+                        <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851986/warranty-portal/tsgwsybbqnj0pnaoi1sd.jpg">
+                        <div class="img-time">09:59:46Z</div>
+                        <div class="diff-tag far">+213s from peak</div>
+                    </div>
+                    <div class="img-container" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851987/warranty-portal/yvz7jopf2ypr2o0evurk.jpg')">
+                        <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851987/warranty-portal/yvz7jopf2ypr2o0evurk.jpg">
+                        <div class="img-time">09:59:47Z</div>
+                        <div class="diff-tag far">+214s from peak</div>
+                    </div>
+                    <div class="img-container" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851988/warranty-portal/ho4hasr4gsadpxwni2x3.jpg')">
+                        <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851988/warranty-portal/ho4hasr4gsadpxwni2x3.jpg">
+                        <div class="img-time">09:59:48Z</div>
+                        <div class="diff-tag far">+215s from peak</div>
+                    </div>
+                
+            </div>
+
+            <div class="form-slots">
+                <div class="slot" onclick="placeImg(this)" data-type="invoice"><span class="slot-label">1. INVOICE</span> Click to place</div>
+                <div class="slot" onclick="placeImg(this)" data-type="vehicle"><span class="slot-label">2. PLATE / VEHICLE</span> Click to place</div>
+                <div class="slot" onclick="placeImg(this)" data-type="seatCover"><span class="slot-label">3. SEAT COVER</span> Click to place</div>
+                <div class="slot" onclick="placeImg(this)" data-type="carOuter"><span class="slot-label">4. EXTERIOR</span> Click to place</div>
+            </div>
+        </div>
+        <div class="uid-block" data-uid="26010802406519">
+            <div class="uid-header">
+                <div>
+                    <h2>Abhishek Gumber <span style="color:#8b949e; font-weight:normal; font-size:18px;">| CH-01-CU-4572</span></h2>
+                    <div class="meta-info">UID: 26010802406519 • Reference Time: 22/4/2026, 9:47:41 am</div>
+                </div>
+            </div>
+
+            <span class="section-title">📦 Smart Pick Cluster (0 images)</span>
+            <div class="image-cluster">
+                
+                <div style="color:#f85149; font-size:14px;">No images found in this time window. Explore the pool at the bottom.</div>
+            </div>
+
+            <div class="form-slots">
+                <div class="slot" onclick="placeImg(this)" data-type="invoice"><span class="slot-label">1. INVOICE</span> Click to place</div>
+                <div class="slot" onclick="placeImg(this)" data-type="vehicle"><span class="slot-label">2. PLATE / VEHICLE</span> Click to place</div>
+                <div class="slot" onclick="placeImg(this)" data-type="seatCover"><span class="slot-label">3. SEAT COVER</span> Click to place</div>
+                <div class="slot" onclick="placeImg(this)" data-type="carOuter"><span class="slot-label">4. EXTERIOR</span> Click to place</div>
+            </div>
+        </div>
+        <div class="uid-block" data-uid="26041302432606">
+            <div class="uid-header">
+                <div>
+                    <h2>Mr Amit <span style="color:#8b949e; font-weight:normal; font-size:18px;">| UP-16-FN-8700</span></h2>
+                    <div class="meta-info">UID: 26041302432606 • Reference Time: 22/4/2026, 3:17:06 pm</div>
+                </div>
+            </div>
+
+            <span class="section-title">📦 Smart Pick Cluster (20 images)</span>
+            <div class="image-cluster">
+                
+                    <div class="img-container" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851041/warranty-portal/rllwqclclnx5o5oxjiqx.jpg')">
+                        <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851041/warranty-portal/rllwqclclnx5o5oxjiqx.jpg">
+                        <div class="img-time">09:44:01Z</div>
+                        <div class="diff-tag far">-185s from peak</div>
+                    </div>
+                    <div class="img-container" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851042/warranty-portal/w4apmpuh2j3ke9edeaql.jpg')">
+                        <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851042/warranty-portal/w4apmpuh2j3ke9edeaql.jpg">
+                        <div class="img-time">09:44:02Z</div>
+                        <div class="diff-tag far">-184s from peak</div>
+                    </div>
+                    <div class="img-container" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851043/warranty-portal/q7rfln3nmpoo1cbai1gs.jpg')">
+                        <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851043/warranty-portal/q7rfln3nmpoo1cbai1gs.jpg">
+                        <div class="img-time">09:44:03Z</div>
+                        <div class="diff-tag far">-183s from peak</div>
+                    </div>
+                    <div class="img-container" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851043/warranty-portal/u5pfkcffeimpk90hjnas.jpg')">
+                        <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851043/warranty-portal/u5pfkcffeimpk90hjnas.jpg">
+                        <div class="img-time">09:44:03Z</div>
+                        <div class="diff-tag far">-183s from peak</div>
+                    </div>
+                    <div class="img-container" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851223/warranty-portal/bw6skwrdto9frjeghb5l.jpg')">
+                        <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851223/warranty-portal/bw6skwrdto9frjeghb5l.jpg">
+                        <div class="img-time">09:47:03Z</div>
+                        <div class="diff-tag near">-3s from peak</div>
+                    </div>
+                    <div class="img-container" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851223/warranty-portal/pijthtupakcvxq34zfuc.jpg')">
+                        <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851223/warranty-portal/pijthtupakcvxq34zfuc.jpg">
+                        <div class="img-time">09:47:03Z</div>
+                        <div class="diff-tag near">-3s from peak</div>
+                    </div>
+                    <div class="img-container" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851224/warranty-portal/p58w1lmpnjyp0ta1tldx.jpg')">
+                        <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851224/warranty-portal/p58w1lmpnjyp0ta1tldx.jpg">
+                        <div class="img-time">09:47:04Z</div>
+                        <div class="diff-tag near">-2s from peak</div>
+                    </div>
+                    <div class="img-container" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851224/warranty-portal/y75krr2mkwb9x2o7035v.jpg')">
+                        <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851224/warranty-portal/y75krr2mkwb9x2o7035v.jpg">
+                        <div class="img-time">09:47:04Z</div>
+                        <div class="diff-tag near">-2s from peak</div>
+                    </div>
+                    <div class="img-container" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851258/warranty-portal/jeiyg3ozapjaeay25gb9.jpg')">
+                        <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851258/warranty-portal/jeiyg3ozapjaeay25gb9.jpg">
+                        <div class="img-time">09:47:38Z</div>
+                        <div class="diff-tag near">+32s from peak</div>
+                    </div>
+                    <div class="img-container" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851259/warranty-portal/c12vzgxhswg5ub9y7lpq.jpg')">
+                        <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851259/warranty-portal/c12vzgxhswg5ub9y7lpq.jpg">
+                        <div class="img-time">09:47:39Z</div>
+                        <div class="diff-tag near">+33s from peak</div>
+                    </div>
+                    <div class="img-container" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851259/warranty-portal/jh99urnprsckddjshn8m.jpg')">
+                        <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851259/warranty-portal/jh99urnprsckddjshn8m.jpg">
+                        <div class="img-time">09:47:39Z</div>
+                        <div class="diff-tag near">+33s from peak</div>
+                    </div>
+                    <div class="img-container" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851260/warranty-portal/lkq07rkvwdpqvsgnygtj.jpg')">
+                        <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851260/warranty-portal/lkq07rkvwdpqvsgnygtj.jpg">
+                        <div class="img-time">09:47:40Z</div>
+                        <div class="diff-tag near">+34s from peak</div>
+                    </div>
+                    <div class="img-container" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851696/warranty-portal/almz82oinmm6wfsseeiw.jpg')">
+                        <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851696/warranty-portal/almz82oinmm6wfsseeiw.jpg">
+                        <div class="img-time">09:54:56Z</div>
+                        <div class="diff-tag far">+470s from peak</div>
+                    </div>
+                    <div class="img-container" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851697/warranty-portal/hywslyr7sdooitunhkq8.jpg')">
+                        <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851697/warranty-portal/hywslyr7sdooitunhkq8.jpg">
+                        <div class="img-time">09:54:57Z</div>
+                        <div class="diff-tag far">+471s from peak</div>
+                    </div>
+                    <div class="img-container" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851697/warranty-portal/ja3e3azccnl4r1ul6mwo.jpg')">
+                        <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851697/warranty-portal/ja3e3azccnl4r1ul6mwo.jpg">
+                        <div class="img-time">09:54:57Z</div>
+                        <div class="diff-tag far">+471s from peak</div>
+                    </div>
+                    <div class="img-container" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851697/warranty-portal/v3wcvhl5hg9w77n1l5if.jpg')">
+                        <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851697/warranty-portal/v3wcvhl5hg9w77n1l5if.jpg">
+                        <div class="img-time">09:54:57Z</div>
+                        <div class="diff-tag far">+471s from peak</div>
+                    </div>
+                    <div class="img-container" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851771/warranty-portal/jouxi2etyybkvnili7cw.jpg')">
+                        <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851771/warranty-portal/jouxi2etyybkvnili7cw.jpg">
+                        <div class="img-time">09:56:11Z</div>
+                        <div class="diff-tag far">+545s from peak</div>
+                    </div>
+                    <div class="img-container" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851772/warranty-portal/eaa8pnwdbje8iysc6y7n.jpg')">
+                        <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851772/warranty-portal/eaa8pnwdbje8iysc6y7n.jpg">
+                        <div class="img-time">09:56:12Z</div>
+                        <div class="diff-tag far">+546s from peak</div>
+                    </div>
+                    <div class="img-container" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851772/warranty-portal/ijbaeom6ihcvg2jlxtqn.jpg')">
+                        <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851772/warranty-portal/ijbaeom6ihcvg2jlxtqn.jpg">
+                        <div class="img-time">09:56:12Z</div>
+                        <div class="diff-tag far">+546s from peak</div>
+                    </div>
+                    <div class="img-container" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851772/warranty-portal/taycpzrq3lfixtfshhyd.jpg')">
+                        <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851772/warranty-portal/taycpzrq3lfixtfshhyd.jpg">
+                        <div class="img-time">09:56:12Z</div>
+                        <div class="diff-tag far">+546s from peak</div>
+                    </div>
+                
+            </div>
+
+            <div class="form-slots">
+                <div class="slot" onclick="placeImg(this)" data-type="invoice"><span class="slot-label">1. INVOICE</span> Click to place</div>
+                <div class="slot" onclick="placeImg(this)" data-type="vehicle"><span class="slot-label">2. PLATE / VEHICLE</span> Click to place</div>
+                <div class="slot" onclick="placeImg(this)" data-type="seatCover"><span class="slot-label">3. SEAT COVER</span> Click to place</div>
+                <div class="slot" onclick="placeImg(this)" data-type="carOuter"><span class="slot-label">4. EXTERIOR</span> Click to place</div>
+            </div>
+        </div>
+        <div class="uid-block" data-uid="261480004540587">
+            <div class="uid-header">
+                <div>
+                    <h2>Mukesh bhai <span style="color:#8b949e; font-weight:normal; font-size:18px;">| GJ-24-AF-1576</span></h2>
+                    <div class="meta-info">UID: 261480004540587 • Reference Time: 22/4/2026, 3:14:05 pm</div>
+                </div>
+            </div>
+
+            <span class="section-title">📦 Smart Pick Cluster (12 images)</span>
+            <div class="image-cluster">
+                
+                    <div class="img-container" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851041/warranty-portal/rllwqclclnx5o5oxjiqx.jpg')">
+                        <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851041/warranty-portal/rllwqclclnx5o5oxjiqx.jpg">
+                        <div class="img-time">09:44:01Z</div>
+                        <div class="diff-tag near">-4s from peak</div>
+                    </div>
+                    <div class="img-container" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851042/warranty-portal/w4apmpuh2j3ke9edeaql.jpg')">
+                        <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851042/warranty-portal/w4apmpuh2j3ke9edeaql.jpg">
+                        <div class="img-time">09:44:02Z</div>
+                        <div class="diff-tag near">-3s from peak</div>
+                    </div>
+                    <div class="img-container" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851043/warranty-portal/q7rfln3nmpoo1cbai1gs.jpg')">
+                        <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851043/warranty-portal/q7rfln3nmpoo1cbai1gs.jpg">
+                        <div class="img-time">09:44:03Z</div>
+                        <div class="diff-tag near">-2s from peak</div>
+                    </div>
+                    <div class="img-container" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851043/warranty-portal/u5pfkcffeimpk90hjnas.jpg')">
+                        <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851043/warranty-portal/u5pfkcffeimpk90hjnas.jpg">
+                        <div class="img-time">09:44:03Z</div>
+                        <div class="diff-tag near">-2s from peak</div>
+                    </div>
+                    <div class="img-container" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851223/warranty-portal/bw6skwrdto9frjeghb5l.jpg')">
+                        <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851223/warranty-portal/bw6skwrdto9frjeghb5l.jpg">
+                        <div class="img-time">09:47:03Z</div>
+                        <div class="diff-tag far">+178s from peak</div>
+                    </div>
+                    <div class="img-container" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851223/warranty-portal/pijthtupakcvxq34zfuc.jpg')">
+                        <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851223/warranty-portal/pijthtupakcvxq34zfuc.jpg">
+                        <div class="img-time">09:47:03Z</div>
+                        <div class="diff-tag far">+178s from peak</div>
+                    </div>
+                    <div class="img-container" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851224/warranty-portal/p58w1lmpnjyp0ta1tldx.jpg')">
+                        <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851224/warranty-portal/p58w1lmpnjyp0ta1tldx.jpg">
+                        <div class="img-time">09:47:04Z</div>
+                        <div class="diff-tag far">+179s from peak</div>
+                    </div>
+                    <div class="img-container" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851224/warranty-portal/y75krr2mkwb9x2o7035v.jpg')">
+                        <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851224/warranty-portal/y75krr2mkwb9x2o7035v.jpg">
+                        <div class="img-time">09:47:04Z</div>
+                        <div class="diff-tag far">+179s from peak</div>
+                    </div>
+                    <div class="img-container" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851258/warranty-portal/jeiyg3ozapjaeay25gb9.jpg')">
+                        <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851258/warranty-portal/jeiyg3ozapjaeay25gb9.jpg">
+                        <div class="img-time">09:47:38Z</div>
+                        <div class="diff-tag far">+213s from peak</div>
+                    </div>
+                    <div class="img-container" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851259/warranty-portal/c12vzgxhswg5ub9y7lpq.jpg')">
+                        <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851259/warranty-portal/c12vzgxhswg5ub9y7lpq.jpg">
+                        <div class="img-time">09:47:39Z</div>
+                        <div class="diff-tag far">+214s from peak</div>
+                    </div>
+                    <div class="img-container" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851259/warranty-portal/jh99urnprsckddjshn8m.jpg')">
+                        <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851259/warranty-portal/jh99urnprsckddjshn8m.jpg">
+                        <div class="img-time">09:47:39Z</div>
+                        <div class="diff-tag far">+214s from peak</div>
+                    </div>
+                    <div class="img-container" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851260/warranty-portal/lkq07rkvwdpqvsgnygtj.jpg')">
+                        <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851260/warranty-portal/lkq07rkvwdpqvsgnygtj.jpg">
+                        <div class="img-time">09:47:40Z</div>
+                        <div class="diff-tag far">+215s from peak</div>
+                    </div>
+                
+            </div>
+
+            <div class="form-slots">
+                <div class="slot" onclick="placeImg(this)" data-type="invoice"><span class="slot-label">1. INVOICE</span> Click to place</div>
+                <div class="slot" onclick="placeImg(this)" data-type="vehicle"><span class="slot-label">2. PLATE / VEHICLE</span> Click to place</div>
+                <div class="slot" onclick="placeImg(this)" data-type="seatCover"><span class="slot-label">3. SEAT COVER</span> Click to place</div>
+                <div class="slot" onclick="placeImg(this)" data-type="carOuter"><span class="slot-label">4. EXTERIOR</span> Click to place</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="pool-section">
+        <h2 style="text-align:center">🔍 Universal Discovery Pool (April 21-22)</h2>
+        <div class="image-cluster" style="max-height: 400px; overflow-y: auto; flex-wrap: wrap; justify-content: center;">
+            
+                <div class="img-container" style="width:140px; margin-bottom:20px;" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776862326/warranty-portal/a5js88onxftyhxajnob6.jpg')">
+                    <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776862326/warranty-portal/a5js88onxftyhxajnob6.jpg" style="height:100px;">
+                    <div class="img-time">2026-04-22T12:52:06Z</div>
+                </div>
+            
+                <div class="img-container" style="width:140px; margin-bottom:20px;" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776836413/warranty-portal/a5pgoaipfrpyqurwz9gq.jpg')">
+                    <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776836413/warranty-portal/a5pgoaipfrpyqurwz9gq.jpg" style="height:100px;">
+                    <div class="img-time">2026-04-22T05:40:13Z</div>
+                </div>
+            
+                <div class="img-container" style="width:140px; margin-bottom:20px;" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776866460/warranty-portal/a8mkd93snvkrm06gyfrg.jpg')">
+                    <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776866460/warranty-portal/a8mkd93snvkrm06gyfrg.jpg" style="height:100px;">
+                    <div class="img-time">2026-04-22T14:01:00Z</div>
+                </div>
+            
+                <div class="img-container" style="width:140px; margin-bottom:20px;" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776861080/warranty-portal/a9zeddlrvwgqfbp3mqap.jpg')">
+                    <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776861080/warranty-portal/a9zeddlrvwgqfbp3mqap.jpg" style="height:100px;">
+                    <div class="img-time">2026-04-22T12:31:20Z</div>
+                </div>
+            
+                <div class="img-container" style="width:140px; margin-bottom:20px;" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776849668/warranty-portal/aclr8getu4smvdcwxpmc.jpg')">
+                    <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776849668/warranty-portal/aclr8getu4smvdcwxpmc.jpg" style="height:100px;">
+                    <div class="img-time">2026-04-22T09:21:08Z</div>
+                </div>
+            
+                <div class="img-container" style="width:140px; margin-bottom:20px;" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776856519/warranty-portal/aeahs0aeeuu0li8iza7u.jpg')">
+                    <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776856519/warranty-portal/aeahs0aeeuu0li8iza7u.jpg" style="height:100px;">
+                    <div class="img-time">2026-04-22T11:15:19Z</div>
+                </div>
+            
+                <div class="img-container" style="width:140px; margin-bottom:20px;" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851696/warranty-portal/almz82oinmm6wfsseeiw.jpg')">
+                    <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851696/warranty-portal/almz82oinmm6wfsseeiw.jpg" style="height:100px;">
+                    <div class="img-time">2026-04-22T09:54:56Z</div>
+                </div>
+            
+                <div class="img-container" style="width:140px; margin-bottom:20px;" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776862171/warranty-portal/ax4c1avvlhhlb8fr6ynu.jpg')">
+                    <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776862171/warranty-portal/ax4c1avvlhhlb8fr6ynu.jpg" style="height:100px;">
+                    <div class="img-time">2026-04-22T12:49:31Z</div>
+                </div>
+            
+                <div class="img-container" style="width:140px; margin-bottom:20px;" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776853298/warranty-portal/bdb5t3up1g6y5rpbhzq7.jpg')">
+                    <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776853298/warranty-portal/bdb5t3up1g6y5rpbhzq7.jpg" style="height:100px;">
+                    <div class="img-time">2026-04-22T10:21:39Z</div>
+                </div>
+            
+                <div class="img-container" style="width:140px; margin-bottom:20px;" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776857107/warranty-portal/bgdasbwm9gz6megz3w4x.jpg')">
+                    <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776857107/warranty-portal/bgdasbwm9gz6megz3w4x.jpg" style="height:100px;">
+                    <div class="img-time">2026-04-22T11:25:07Z</div>
+                </div>
+            
+                <div class="img-container" style="width:140px; margin-bottom:20px;" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776769661/warranty-portal/bsmr9vfe7pg1pggce1vi.jpg')">
+                    <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776769661/warranty-portal/bsmr9vfe7pg1pggce1vi.jpg" style="height:100px;">
+                    <div class="img-time">2026-04-21T11:07:41Z</div>
+                </div>
+            
+                <div class="img-container" style="width:140px; margin-bottom:20px;" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851223/warranty-portal/bw6skwrdto9frjeghb5l.jpg')">
+                    <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851223/warranty-portal/bw6skwrdto9frjeghb5l.jpg" style="height:100px;">
+                    <div class="img-time">2026-04-22T09:47:03Z</div>
+                </div>
+            
+                <div class="img-container" style="width:140px; margin-bottom:20px;" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851259/warranty-portal/c12vzgxhswg5ub9y7lpq.jpg')">
+                    <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851259/warranty-portal/c12vzgxhswg5ub9y7lpq.jpg" style="height:100px;">
+                    <div class="img-time">2026-04-22T09:47:39Z</div>
+                </div>
+            
+                <div class="img-container" style="width:140px; margin-bottom:20px;" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776853299/warranty-portal/ccmvyngkctl4jsk2j2ck.jpg')">
+                    <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776853299/warranty-portal/ccmvyngkctl4jsk2j2ck.jpg" style="height:100px;">
+                    <div class="img-time">2026-04-22T10:21:39Z</div>
+                </div>
+            
+                <div class="img-container" style="width:140px; margin-bottom:20px;" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776787261/warranty-portal/ce4ydowzlhf3ihxkfrfd.jpg')">
+                    <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776787261/warranty-portal/ce4ydowzlhf3ihxkfrfd.jpg" style="height:100px;">
+                    <div class="img-time">2026-04-21T16:01:01Z</div>
+                </div>
+            
+                <div class="img-container" style="width:140px; margin-bottom:20px;" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776849667/warranty-portal/cgavjmsbykfhl5ooohia.jpg')">
+                    <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776849667/warranty-portal/cgavjmsbykfhl5ooohia.jpg" style="height:100px;">
+                    <div class="img-time">2026-04-22T09:21:07Z</div>
+                </div>
+            
+                <div class="img-container" style="width:140px; margin-bottom:20px;" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776859107/warranty-portal/ctsuvdbjo0z607trs3o0.jpg')">
+                    <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776859107/warranty-portal/ctsuvdbjo0z607trs3o0.jpg" style="height:100px;">
+                    <div class="img-time">2026-04-22T11:58:27Z</div>
+                </div>
+            
+                <div class="img-container" style="width:140px; margin-bottom:20px;" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776856633/warranty-portal/cvtjuvah6t8zqxcfkgms.jpg')">
+                    <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776856633/warranty-portal/cvtjuvah6t8zqxcfkgms.jpg" style="height:100px;">
+                    <div class="img-time">2026-04-22T11:17:13Z</div>
+                </div>
+            
+                <div class="img-container" style="width:140px; margin-bottom:20px;" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776856268/warranty-portal/d1iif55fa3htib5jbw2t.jpg')">
+                    <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776856268/warranty-portal/d1iif55fa3htib5jbw2t.jpg" style="height:100px;">
+                    <div class="img-time">2026-04-22T11:11:08Z</div>
+                </div>
+            
+                <div class="img-container" style="width:140px; margin-bottom:20px;" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776869852/warranty-portal/d4tifslxefh3bcflxljl.jpg')">
+                    <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776869852/warranty-portal/d4tifslxefh3bcflxljl.jpg" style="height:100px;">
+                    <div class="img-time">2026-04-22T14:57:32Z</div>
+                </div>
+            
+                <div class="img-container" style="width:140px; margin-bottom:20px;" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776772233/warranty-portal/dbwdjymklu2uvqojafjh.jpg')">
+                    <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776772233/warranty-portal/dbwdjymklu2uvqojafjh.jpg" style="height:100px;">
+                    <div class="img-time">2026-04-21T11:50:33Z</div>
+                </div>
+            
+                <div class="img-container" style="width:140px; margin-bottom:20px;" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776866684/warranty-portal/dezdfnorgsb8pcgvizhz.jpg')">
+                    <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776866684/warranty-portal/dezdfnorgsb8pcgvizhz.jpg" style="height:100px;">
+                    <div class="img-time">2026-04-22T14:04:44Z</div>
+                </div>
+            
+                <div class="img-container" style="width:140px; margin-bottom:20px;" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776862173/warranty-portal/dlcyfhxerohk2td8bm3l.jpg')">
+                    <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776862173/warranty-portal/dlcyfhxerohk2td8bm3l.jpg" style="height:100px;">
+                    <div class="img-time">2026-04-22T12:49:33Z</div>
+                </div>
+            
+                <div class="img-container" style="width:140px; margin-bottom:20px;" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776836413/warranty-portal/dnkmq3dshw646lad1atn.jpg')">
+                    <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776836413/warranty-portal/dnkmq3dshw646lad1atn.jpg" style="height:100px;">
+                    <div class="img-time">2026-04-22T05:40:13Z</div>
+                </div>
+            
+                <div class="img-container" style="width:140px; margin-bottom:20px;" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776842371/warranty-portal/dsix91csmb0oz2cwwaov.jpg')">
+                    <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776842371/warranty-portal/dsix91csmb0oz2cwwaov.jpg" style="height:100px;">
+                    <div class="img-time">2026-04-22T07:19:31Z</div>
+                </div>
+            
+                <div class="img-container" style="width:140px; margin-bottom:20px;" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776844277/warranty-portal/dvkao5jsuxzwgtgvkqtw.jpg')">
+                    <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776844277/warranty-portal/dvkao5jsuxzwgtgvkqtw.jpg" style="height:100px;">
+                    <div class="img-time">2026-04-22T07:51:17Z</div>
+                </div>
+            
+                <div class="img-container" style="width:140px; margin-bottom:20px;" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851772/warranty-portal/eaa8pnwdbje8iysc6y7n.jpg')">
+                    <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851772/warranty-portal/eaa8pnwdbje8iysc6y7n.jpg" style="height:100px;">
+                    <div class="img-time">2026-04-22T09:56:12Z</div>
+                </div>
+            
+                <div class="img-container" style="width:140px; margin-bottom:20px;" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776772232/warranty-portal/ebcbeidrg4myktdlcbf1.jpg')">
+                    <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776772232/warranty-portal/ebcbeidrg4myktdlcbf1.jpg" style="height:100px;">
+                    <div class="img-time">2026-04-21T11:50:32Z</div>
+                </div>
+            
+                <div class="img-container" style="width:140px; margin-bottom:20px;" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776863167/warranty-portal/ef4v3ujceiltbg0wkin7.jpg')">
+                    <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776863167/warranty-portal/ef4v3ujceiltbg0wkin7.jpg" style="height:100px;">
+                    <div class="img-time">2026-04-22T13:06:07Z</div>
+                </div>
+            
+                <div class="img-container" style="width:140px; margin-bottom:20px;" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776844278/warranty-portal/etdflsqa4hbu0dlwxlr9.jpg')">
+                    <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776844278/warranty-portal/etdflsqa4hbu0dlwxlr9.jpg" style="height:100px;">
+                    <div class="img-time">2026-04-22T07:51:18Z</div>
+                </div>
+            
+                <div class="img-container" style="width:140px; margin-bottom:20px;" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776856519/warranty-portal/etnwknk42232ouzgz3gl.jpg')">
+                    <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776856519/warranty-portal/etnwknk42232ouzgz3gl.jpg" style="height:100px;">
+                    <div class="img-time">2026-04-22T11:15:19Z</div>
+                </div>
+            
+                <div class="img-container" style="width:140px; margin-bottom:20px;" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776772233/warranty-portal/f4biwas3pent6eawf4lo.jpg')">
+                    <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776772233/warranty-portal/f4biwas3pent6eawf4lo.jpg" style="height:100px;">
+                    <div class="img-time">2026-04-21T11:50:33Z</div>
+                </div>
+            
+                <div class="img-container" style="width:140px; margin-bottom:20px;" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776866685/warranty-portal/fepfyc4ay0ratzqp0wbl.jpg')">
+                    <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776866685/warranty-portal/fepfyc4ay0ratzqp0wbl.jpg" style="height:100px;">
+                    <div class="img-time">2026-04-22T14:04:45Z</div>
+                </div>
+            
+                <div class="img-container" style="width:140px; margin-bottom:20px;" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776861754/warranty-portal/fistxvjzedvgb9x3cd29.jpg')">
+                    <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776861754/warranty-portal/fistxvjzedvgb9x3cd29.jpg" style="height:100px;">
+                    <div class="img-time">2026-04-22T12:42:34Z</div>
+                </div>
+            
+                <div class="img-container" style="width:140px; margin-bottom:20px;" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776787261/warranty-portal/fkwrnlvfjkrfmq6rgr67.jpg')">
+                    <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776787261/warranty-portal/fkwrnlvfjkrfmq6rgr67.jpg" style="height:100px;">
+                    <div class="img-time">2026-04-21T16:01:01Z</div>
+                </div>
+            
+                <div class="img-container" style="width:140px; margin-bottom:20px;" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776764987/warranty-portal/fosnpnpbikksxfdd0rtq.jpg')">
+                    <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776764987/warranty-portal/fosnpnpbikksxfdd0rtq.jpg" style="height:100px;">
+                    <div class="img-time">2026-04-21T09:49:47Z</div>
+                </div>
+            
+                <div class="img-container" style="width:140px; margin-bottom:20px;" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776769661/warranty-portal/foxfity8lfwmrwlz4vbo.jpg')">
+                    <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776769661/warranty-portal/foxfity8lfwmrwlz4vbo.jpg" style="height:100px;">
+                    <div class="img-time">2026-04-21T11:07:41Z</div>
+                </div>
+            
+                <div class="img-container" style="width:140px; margin-bottom:20px;" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776856269/warranty-portal/furou7qrtlpgb2rnwcxy.jpg')">
+                    <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776856269/warranty-portal/furou7qrtlpgb2rnwcxy.jpg" style="height:100px;">
+                    <div class="img-time">2026-04-22T11:11:09Z</div>
+                </div>
+            
+                <div class="img-container" style="width:140px; margin-bottom:20px;" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776778664/warranty-portal/g4wljgv8g7jgwow1iwtk.jpg')">
+                    <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776778664/warranty-portal/g4wljgv8g7jgwow1iwtk.jpg" style="height:100px;">
+                    <div class="img-time">2026-04-21T13:37:44Z</div>
+                </div>
+            
+                <div class="img-container" style="width:140px; margin-bottom:20px;" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776863165/warranty-portal/g5gdofbum20creqj1db5.jpg')">
+                    <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776863165/warranty-portal/g5gdofbum20creqj1db5.jpg" style="height:100px;">
+                    <div class="img-time">2026-04-22T13:06:05Z</div>
+                </div>
+            
+                <div class="img-container" style="width:140px; margin-bottom:20px;" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851986/warranty-portal/giastbrjgxeub7ngjit4.jpg')">
+                    <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851986/warranty-portal/giastbrjgxeub7ngjit4.jpg" style="height:100px;">
+                    <div class="img-time">2026-04-22T09:59:46Z</div>
+                </div>
+            
+                <div class="img-container" style="width:140px; margin-bottom:20px;" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776864789/warranty-portal/gjsdpdvsghuctruhnzea.jpg')">
+                    <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776864789/warranty-portal/gjsdpdvsghuctruhnzea.jpg" style="height:100px;">
+                    <div class="img-time">2026-04-22T13:33:09Z</div>
+                </div>
+            
+                <div class="img-container" style="width:140px; margin-bottom:20px;" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776853297/warranty-portal/gkyxrsxdqqabpo6isttb.jpg')">
+                    <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776853297/warranty-portal/gkyxrsxdqqabpo6isttb.jpg" style="height:100px;">
+                    <div class="img-time">2026-04-22T10:21:37Z</div>
+                </div>
+            
+                <div class="img-container" style="width:140px; margin-bottom:20px;" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776857106/warranty-portal/gte5wqvtvsmxfmbwnfvw.jpg')">
+                    <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776857106/warranty-portal/gte5wqvtvsmxfmbwnfvw.jpg" style="height:100px;">
+                    <div class="img-time">2026-04-22T11:25:06Z</div>
+                </div>
+            
+                <div class="img-container" style="width:140px; margin-bottom:20px;" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776836413/warranty-portal/gvwzxaxzgu8fkabvlek7.jpg')">
+                    <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776836413/warranty-portal/gvwzxaxzgu8fkabvlek7.jpg" style="height:100px;">
+                    <div class="img-time">2026-04-22T05:40:13Z</div>
+                </div>
+            
+                <div class="img-container" style="width:140px; margin-bottom:20px;" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776856520/warranty-portal/gwiqlklsntwvmeit9dde.jpg')">
+                    <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776856520/warranty-portal/gwiqlklsntwvmeit9dde.jpg" style="height:100px;">
+                    <div class="img-time">2026-04-22T11:15:20Z</div>
+                </div>
+            
+                <div class="img-container" style="width:140px; margin-bottom:20px;" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776778665/warranty-portal/h5qqtx6doofmerdzen22.jpg')">
+                    <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776778665/warranty-portal/h5qqtx6doofmerdzen22.jpg" style="height:100px;">
+                    <div class="img-time">2026-04-21T13:37:45Z</div>
+                </div>
+            
+                <div class="img-container" style="width:140px; margin-bottom:20px;" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776850159/warranty-portal/h7to4lwkq16d3xds11o4.jpg')">
+                    <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776850159/warranty-portal/h7to4lwkq16d3xds11o4.jpg" style="height:100px;">
+                    <div class="img-time">2026-04-22T09:29:19Z</div>
+                </div>
+            
+                <div class="img-container" style="width:140px; margin-bottom:20px;" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776855065/warranty-portal/h8x9qx1o2o0kuc5q1sc4.jpg')">
+                    <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776855065/warranty-portal/h8x9qx1o2o0kuc5q1sc4.jpg" style="height:100px;">
+                    <div class="img-time">2026-04-22T10:51:05Z</div>
+                </div>
+            
+                <div class="img-container" style="width:140px; margin-bottom:20px;" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776861757/warranty-portal/habrxy29po6bo9nj58nh.jpg')">
+                    <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776861757/warranty-portal/habrxy29po6bo9nj58nh.jpg" style="height:100px;">
+                    <div class="img-time">2026-04-22T12:42:37Z</div>
+                </div>
+            
+                <div class="img-container" style="width:140px; margin-bottom:20px;" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776865276/warranty-portal/hhrczl5yiobrvdepa2sm.jpg')">
+                    <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776865276/warranty-portal/hhrczl5yiobrvdepa2sm.jpg" style="height:100px;">
+                    <div class="img-time">2026-04-22T13:41:16Z</div>
+                </div>
+            
+                <div class="img-container" style="width:140px; margin-bottom:20px;" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776865278/warranty-portal/higsmlwaxkqumo9akxdh.jpg')">
+                    <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776865278/warranty-portal/higsmlwaxkqumo9akxdh.jpg" style="height:100px;">
+                    <div class="img-time">2026-04-22T13:41:18Z</div>
+                </div>
+            
+                <div class="img-container" style="width:140px; margin-bottom:20px;" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851988/warranty-portal/ho4hasr4gsadpxwni2x3.jpg')">
+                    <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851988/warranty-portal/ho4hasr4gsadpxwni2x3.jpg" style="height:100px;">
+                    <div class="img-time">2026-04-22T09:59:48Z</div>
+                </div>
+            
+                <div class="img-container" style="width:140px; margin-bottom:20px;" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851697/warranty-portal/hywslyr7sdooitunhkq8.jpg')">
+                    <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851697/warranty-portal/hywslyr7sdooitunhkq8.jpg" style="height:100px;">
+                    <div class="img-time">2026-04-22T09:54:57Z</div>
+                </div>
+            
+                <div class="img-container" style="width:140px; margin-bottom:20px;" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776778667/warranty-portal/i5yrwueqp1vm7lmzfvei.jpg')">
+                    <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776778667/warranty-portal/i5yrwueqp1vm7lmzfvei.jpg" style="height:100px;">
+                    <div class="img-time">2026-04-21T13:37:47Z</div>
+                </div>
+            
+                <div class="img-container" style="width:140px; margin-bottom:20px;" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776844802/warranty-portal/i97xx5gauik8d4jptazd.jpg')">
+                    <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776844802/warranty-portal/i97xx5gauik8d4jptazd.jpg" style="height:100px;">
+                    <div class="img-time">2026-04-22T08:00:02Z</div>
+                </div>
+            
+                <div class="img-container" style="width:140px; margin-bottom:20px;" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851772/warranty-portal/ijbaeom6ihcvg2jlxtqn.jpg')">
+                    <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851772/warranty-portal/ijbaeom6ihcvg2jlxtqn.jpg" style="height:100px;">
+                    <div class="img-time">2026-04-22T09:56:12Z</div>
+                </div>
+            
+                <div class="img-container" style="width:140px; margin-bottom:20px;" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776849668/warranty-portal/isvpm12ljxghif4ckybf.jpg')">
+                    <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776849668/warranty-portal/isvpm12ljxghif4ckybf.jpg" style="height:100px;">
+                    <div class="img-time">2026-04-22T09:21:08Z</div>
+                </div>
+            
+                <div class="img-container" style="width:140px; margin-bottom:20px;" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776853298/warranty-portal/iud1qbazqnlsydau5uq2.jpg')">
+                    <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776853298/warranty-portal/iud1qbazqnlsydau5uq2.jpg" style="height:100px;">
+                    <div class="img-time">2026-04-22T10:21:38Z</div>
+                </div>
+            
+                <div class="img-container" style="width:140px; margin-bottom:20px;" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851697/warranty-portal/ja3e3azccnl4r1ul6mwo.jpg')">
+                    <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851697/warranty-portal/ja3e3azccnl4r1ul6mwo.jpg" style="height:100px;">
+                    <div class="img-time">2026-04-22T09:54:57Z</div>
+                </div>
+            
+                <div class="img-container" style="width:140px; margin-bottom:20px;" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851258/warranty-portal/jeiyg3ozapjaeay25gb9.jpg')">
+                    <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851258/warranty-portal/jeiyg3ozapjaeay25gb9.jpg" style="height:100px;">
+                    <div class="img-time">2026-04-22T09:47:38Z</div>
+                </div>
+            
+                <div class="img-container" style="width:140px; margin-bottom:20px;" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851259/warranty-portal/jh99urnprsckddjshn8m.jpg')">
+                    <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851259/warranty-portal/jh99urnprsckddjshn8m.jpg" style="height:100px;">
+                    <div class="img-time">2026-04-22T09:47:39Z</div>
+                </div>
+            
+                <div class="img-container" style="width:140px; margin-bottom:20px;" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776861080/warranty-portal/jkwobgdyx3vrg8xuv7ii.jpg')">
+                    <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776861080/warranty-portal/jkwobgdyx3vrg8xuv7ii.jpg" style="height:100px;">
+                    <div class="img-time">2026-04-22T12:31:20Z</div>
+                </div>
+            
+                <div class="img-container" style="width:140px; margin-bottom:20px;" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776860893/warranty-portal/jlgb8ccrsbjaif7uiumz.jpg')">
+                    <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776860893/warranty-portal/jlgb8ccrsbjaif7uiumz.jpg" style="height:100px;">
+                    <div class="img-time">2026-04-22T12:28:13Z</div>
+                </div>
+            
+                <div class="img-container" style="width:140px; margin-bottom:20px;" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776856633/warranty-portal/jlmrqwoevlrnef7l9yl2.jpg')">
+                    <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776856633/warranty-portal/jlmrqwoevlrnef7l9yl2.jpg" style="height:100px;">
+                    <div class="img-time">2026-04-22T11:17:13Z</div>
+                </div>
+            
+                <div class="img-container" style="width:140px; margin-bottom:20px;" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851771/warranty-portal/jouxi2etyybkvnili7cw.jpg')">
+                    <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851771/warranty-portal/jouxi2etyybkvnili7cw.jpg" style="height:100px;">
+                    <div class="img-time">2026-04-22T09:56:11Z</div>
+                </div>
+            
+                <div class="img-container" style="width:140px; margin-bottom:20px;" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776869852/warranty-portal/jrqyqkeuquqbouxeener.jpg')">
+                    <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776869852/warranty-portal/jrqyqkeuquqbouxeener.jpg" style="height:100px;">
+                    <div class="img-time">2026-04-22T14:57:32Z</div>
+                </div>
+            
+                <div class="img-container" style="width:140px; margin-bottom:20px;" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776863166/warranty-portal/kkb2p9hnioaxif5dcjy2.jpg')">
+                    <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776863166/warranty-portal/kkb2p9hnioaxif5dcjy2.jpg" style="height:100px;">
+                    <div class="img-time">2026-04-22T13:06:06Z</div>
+                </div>
+            
+                <div class="img-container" style="width:140px; margin-bottom:20px;" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776857107/warranty-portal/kugjllnrxdedlrvcagzq.jpg')">
+                    <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776857107/warranty-portal/kugjllnrxdedlrvcagzq.jpg" style="height:100px;">
+                    <div class="img-time">2026-04-22T11:25:07Z</div>
+                </div>
+            
+                <div class="img-container" style="width:140px; margin-bottom:20px;" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776856634/warranty-portal/kxjz2vzzlnmoarnrk933.jpg')">
+                    <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776856634/warranty-portal/kxjz2vzzlnmoarnrk933.jpg" style="height:100px;">
+                    <div class="img-time">2026-04-22T11:17:14Z</div>
+                </div>
+            
+                <div class="img-container" style="width:140px; margin-bottom:20px;" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776764989/warranty-portal/laswtsh3n4rodx2urvul.jpg')">
+                    <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776764989/warranty-portal/laswtsh3n4rodx2urvul.jpg" style="height:100px;">
+                    <div class="img-time">2026-04-21T09:49:49Z</div>
+                </div>
+            
+                <div class="img-container" style="width:140px; margin-bottom:20px;" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776861079/warranty-portal/lbghqqdl44qd4paiingu.jpg')">
+                    <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776861079/warranty-portal/lbghqqdl44qd4paiingu.jpg" style="height:100px;">
+                    <div class="img-time">2026-04-22T12:31:19Z</div>
+                </div>
+            
+                <div class="img-container" style="width:140px; margin-bottom:20px;" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776866685/warranty-portal/ldwglqbvxbrzg9jfupcj.jpg')">
+                    <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776866685/warranty-portal/ldwglqbvxbrzg9jfupcj.jpg" style="height:100px;">
+                    <div class="img-time">2026-04-22T14:04:45Z</div>
+                </div>
+            
+                <div class="img-container" style="width:140px; margin-bottom:20px;" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776861757/warranty-portal/lffxcvs7vmmbkpq6zm9m.jpg')">
+                    <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776861757/warranty-portal/lffxcvs7vmmbkpq6zm9m.jpg" style="height:100px;">
+                    <div class="img-time">2026-04-22T12:42:37Z</div>
+                </div>
+            
+                <div class="img-container" style="width:140px; margin-bottom:20px;" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851260/warranty-portal/lkq07rkvwdpqvsgnygtj.jpg')">
+                    <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851260/warranty-portal/lkq07rkvwdpqvsgnygtj.jpg" style="height:100px;">
+                    <div class="img-time">2026-04-22T09:47:40Z</div>
+                </div>
+            
+                <div class="img-container" style="width:140px; margin-bottom:20px;" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776862326/warranty-portal/llp3zqrpgxiaybsjnqzt.jpg')">
+                    <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776862326/warranty-portal/llp3zqrpgxiaybsjnqzt.jpg" style="height:100px;">
+                    <div class="img-time">2026-04-22T12:52:06Z</div>
+                </div>
+            
+                <div class="img-container" style="width:140px; margin-bottom:20px;" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776842371/warranty-portal/llwrggrocss921fjl5ws.jpg')">
+                    <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776842371/warranty-portal/llwrggrocss921fjl5ws.jpg" style="height:100px;">
+                    <div class="img-time">2026-04-22T07:19:31Z</div>
+                </div>
+            
+                <div class="img-container" style="width:140px; margin-bottom:20px;" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776842370/warranty-portal/mjakflh9wyabhw1sivum.jpg')">
+                    <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776842370/warranty-portal/mjakflh9wyabhw1sivum.jpg" style="height:100px;">
+                    <div class="img-time">2026-04-22T07:19:30Z</div>
+                </div>
+            
+                <div class="img-container" style="width:140px; margin-bottom:20px;" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776769661/warranty-portal/mv0noem7sxq2jip9igcm.jpg')">
+                    <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776769661/warranty-portal/mv0noem7sxq2jip9igcm.jpg" style="height:100px;">
+                    <div class="img-time">2026-04-21T11:07:41Z</div>
+                </div>
+            
+                <div class="img-container" style="width:140px; margin-bottom:20px;" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776849668/warranty-portal/mwegcou9hsmhzbuyazu0.jpg')">
+                    <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776849668/warranty-portal/mwegcou9hsmhzbuyazu0.jpg" style="height:100px;">
+                    <div class="img-time">2026-04-22T09:21:08Z</div>
+                </div>
+            
+                <div class="img-container" style="width:140px; margin-bottom:20px;" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776865278/warranty-portal/ne5hqs8drztgtticaya2.jpg')">
+                    <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776865278/warranty-portal/ne5hqs8drztgtticaya2.jpg" style="height:100px;">
+                    <div class="img-time">2026-04-22T13:41:18Z</div>
+                </div>
+            
+                <div class="img-container" style="width:140px; margin-bottom:20px;" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776862173/warranty-portal/nmu5eo6wl3pdeihfhgse.jpg')">
+                    <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776862173/warranty-portal/nmu5eo6wl3pdeihfhgse.jpg" style="height:100px;">
+                    <div class="img-time">2026-04-22T12:49:33Z</div>
+                </div>
+            
+                <div class="img-container" style="width:140px; margin-bottom:20px;" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776772232/warranty-portal/nmxjzsivlsy78ano0w6f.jpg')">
+                    <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776772232/warranty-portal/nmxjzsivlsy78ano0w6f.jpg" style="height:100px;">
+                    <div class="img-time">2026-04-21T11:50:32Z</div>
+                </div>
+            
+                <div class="img-container" style="width:140px; margin-bottom:20px;" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776852584/warranty-portal/nzlog2nsbqazdagkapzp.jpg')">
+                    <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776852584/warranty-portal/nzlog2nsbqazdagkapzp.jpg" style="height:100px;">
+                    <div class="img-time">2026-04-22T10:09:44Z</div>
+                </div>
+            
+                <div class="img-container" style="width:140px; margin-bottom:20px;" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776769661/warranty-portal/o3kpbbtwfw0j3tjryfhm.jpg')">
+                    <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776769661/warranty-portal/o3kpbbtwfw0j3tjryfhm.jpg" style="height:100px;">
+                    <div class="img-time">2026-04-21T11:07:41Z</div>
+                </div>
+            
+                <div class="img-container" style="width:140px; margin-bottom:20px;" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776856519/warranty-portal/ofmbw9ui4g1wnsesnf5w.jpg')">
+                    <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776856519/warranty-portal/ofmbw9ui4g1wnsesnf5w.jpg" style="height:100px;">
+                    <div class="img-time">2026-04-22T11:15:19Z</div>
+                </div>
+            
+                <div class="img-container" style="width:140px; margin-bottom:20px;" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776869853/warranty-portal/ogt3va2gf0ancrpifunk.jpg')">
+                    <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776869853/warranty-portal/ogt3va2gf0ancrpifunk.jpg" style="height:100px;">
+                    <div class="img-time">2026-04-22T14:57:33Z</div>
+                </div>
+            
+                <div class="img-container" style="width:140px; margin-bottom:20px;" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776859108/warranty-portal/ooreoprp8vl6jtzcmkvc.jpg')">
+                    <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776859108/warranty-portal/ooreoprp8vl6jtzcmkvc.jpg" style="height:100px;">
+                    <div class="img-time">2026-04-22T11:58:28Z</div>
+                </div>
+            
+                <div class="img-container" style="width:140px; margin-bottom:20px;" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776861755/warranty-portal/owauhshnwaa6kqsixwbl.jpg')">
+                    <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776861755/warranty-portal/owauhshnwaa6kqsixwbl.jpg" style="height:100px;">
+                    <div class="img-time">2026-04-22T12:42:35Z</div>
+                </div>
+            
+                <div class="img-container" style="width:140px; margin-bottom:20px;" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851224/warranty-portal/p58w1lmpnjyp0ta1tldx.jpg')">
+                    <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851224/warranty-portal/p58w1lmpnjyp0ta1tldx.jpg" style="height:100px;">
+                    <div class="img-time">2026-04-22T09:47:04Z</div>
+                </div>
+            
+                <div class="img-container" style="width:140px; margin-bottom:20px;" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776787261/warranty-portal/pbmjrifeqntllwteutvs.jpg')">
+                    <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776787261/warranty-portal/pbmjrifeqntllwteutvs.jpg" style="height:100px;">
+                    <div class="img-time">2026-04-21T16:01:01Z</div>
+                </div>
+            
+                <div class="img-container" style="width:140px; margin-bottom:20px;" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776864788/warranty-portal/peyp7lnr4kmfxeqovgvi.jpg')">
+                    <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776864788/warranty-portal/peyp7lnr4kmfxeqovgvi.jpg" style="height:100px;">
+                    <div class="img-time">2026-04-22T13:33:08Z</div>
+                </div>
+            
+                <div class="img-container" style="width:140px; margin-bottom:20px;" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851223/warranty-portal/pijthtupakcvxq34zfuc.jpg')">
+                    <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851223/warranty-portal/pijthtupakcvxq34zfuc.jpg" style="height:100px;">
+                    <div class="img-time">2026-04-22T09:47:03Z</div>
+                </div>
+            
+                <div class="img-container" style="width:140px; margin-bottom:20px;" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776852585/warranty-portal/pvt8mh1lwhpbo39k7qgd.jpg')">
+                    <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776852585/warranty-portal/pvt8mh1lwhpbo39k7qgd.jpg" style="height:100px;">
+                    <div class="img-time">2026-04-22T10:09:45Z</div>
+                </div>
+            
+                <div class="img-container" style="width:140px; margin-bottom:20px;" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776866460/warranty-portal/q1j2klgampgjltmpzba9.jpg')">
+                    <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776866460/warranty-portal/q1j2klgampgjltmpzba9.jpg" style="height:100px;">
+                    <div class="img-time">2026-04-22T14:01:00Z</div>
+                </div>
+            
+                <div class="img-container" style="width:140px; margin-bottom:20px;" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851043/warranty-portal/q7rfln3nmpoo1cbai1gs.jpg')">
+                    <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851043/warranty-portal/q7rfln3nmpoo1cbai1gs.jpg" style="height:100px;">
+                    <div class="img-time">2026-04-22T09:44:03Z</div>
+                </div>
+            
+                <div class="img-container" style="width:140px; margin-bottom:20px;" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776859108/warranty-portal/qdlbaofczh1dn58ayuhc.jpg')">
+                    <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776859108/warranty-portal/qdlbaofczh1dn58ayuhc.jpg" style="height:100px;">
+                    <div class="img-time">2026-04-22T11:58:28Z</div>
+                </div>
+            
+                <div class="img-container" style="width:140px; margin-bottom:20px;" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776860894/warranty-portal/qekbvjp1om30mdfmnucq.jpg')">
+                    <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776860894/warranty-portal/qekbvjp1om30mdfmnucq.jpg" style="height:100px;">
+                    <div class="img-time">2026-04-22T12:28:14Z</div>
+                </div>
+            
+                <div class="img-container" style="width:140px; margin-bottom:20px;" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776778665/warranty-portal/qhdgackasqvxj8swj8iy.jpg')">
+                    <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776778665/warranty-portal/qhdgackasqvxj8swj8iy.jpg" style="height:100px;">
+                    <div class="img-time">2026-04-21T13:37:45Z</div>
+                </div>
+            
+                <div class="img-container" style="width:140px; margin-bottom:20px;" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776866462/warranty-portal/qjfxdbezyggdnnxxenj0.jpg')">
+                    <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776866462/warranty-portal/qjfxdbezyggdnnxxenj0.jpg" style="height:100px;">
+                    <div class="img-time">2026-04-22T14:01:02Z</div>
+                </div>
+            
+                <div class="img-container" style="width:140px; margin-bottom:20px;" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776866459/warranty-portal/qwxiitsknakltetheik5.jpg')">
+                    <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776866459/warranty-portal/qwxiitsknakltetheik5.jpg" style="height:100px;">
+                    <div class="img-time">2026-04-22T14:00:59Z</div>
+                </div>
+            
+                <div class="img-container" style="width:140px; margin-bottom:20px;" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776855065/warranty-portal/r2cwfzb9naojwhpzrtar.jpg')">
+                    <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776855065/warranty-portal/r2cwfzb9naojwhpzrtar.jpg" style="height:100px;">
+                    <div class="img-time">2026-04-22T10:51:05Z</div>
+                </div>
+            
+                <div class="img-container" style="width:140px; margin-bottom:20px;" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776863164/warranty-portal/rj3z8bwpsvicby2wfar0.jpg')">
+                    <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776863164/warranty-portal/rj3z8bwpsvicby2wfar0.jpg" style="height:100px;">
+                    <div class="img-time">2026-04-22T13:06:04Z</div>
+                </div>
+            
+                <div class="img-container" style="width:140px; margin-bottom:20px;" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776861081/warranty-portal/rjrirlczdo5yrjokpnkj.jpg')">
+                    <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776861081/warranty-portal/rjrirlczdo5yrjokpnkj.jpg" style="height:100px;">
+                    <div class="img-time">2026-04-22T12:31:21Z</div>
+                </div>
+            
+                <div class="img-container" style="width:140px; margin-bottom:20px;" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851041/warranty-portal/rllwqclclnx5o5oxjiqx.jpg')">
+                    <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851041/warranty-portal/rllwqclclnx5o5oxjiqx.jpg" style="height:100px;">
+                    <div class="img-time">2026-04-22T09:44:01Z</div>
+                </div>
+            
+                <div class="img-container" style="width:140px; margin-bottom:20px;" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776862326/warranty-portal/ro6cfwws229iavofbsei.jpg')">
+                    <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776862326/warranty-portal/ro6cfwws229iavofbsei.jpg" style="height:100px;">
+                    <div class="img-time">2026-04-22T12:52:06Z</div>
+                </div>
+            
+                <div class="img-container" style="width:140px; margin-bottom:20px;" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776855065/warranty-portal/spbfigngel2j02fkqveo.jpg')">
+                    <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776855065/warranty-portal/spbfigngel2j02fkqveo.jpg" style="height:100px;">
+                    <div class="img-time">2026-04-22T10:51:05Z</div>
+                </div>
+            
+                <div class="img-container" style="width:140px; margin-bottom:20px;" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776862174/warranty-portal/sseje8lsomv5w3hneeo9.jpg')">
+                    <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776862174/warranty-portal/sseje8lsomv5w3hneeo9.jpg" style="height:100px;">
+                    <div class="img-time">2026-04-22T12:49:34Z</div>
+                </div>
+            
+                <div class="img-container" style="width:140px; margin-bottom:20px;" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776856634/warranty-portal/t0fm9tgirtqygh5e1m6k.jpg')">
+                    <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776856634/warranty-portal/t0fm9tgirtqygh5e1m6k.jpg" style="height:100px;">
+                    <div class="img-time">2026-04-22T11:17:14Z</div>
+                </div>
+            
+                <div class="img-container" style="width:140px; margin-bottom:20px;" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851772/warranty-portal/taycpzrq3lfixtfshhyd.jpg')">
+                    <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851772/warranty-portal/taycpzrq3lfixtfshhyd.jpg" style="height:100px;">
+                    <div class="img-time">2026-04-22T09:56:12Z</div>
+                </div>
+            
+                <div class="img-container" style="width:140px; margin-bottom:20px;" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776850158/warranty-portal/tfytf3ncxjmhkbtiuovs.jpg')">
+                    <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776850158/warranty-portal/tfytf3ncxjmhkbtiuovs.jpg" style="height:100px;">
+                    <div class="img-time">2026-04-22T09:29:18Z</div>
+                </div>
+            
+                <div class="img-container" style="width:140px; margin-bottom:20px;" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776764990/warranty-portal/tjvdslpclqziit8omplf.jpg')">
+                    <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776764990/warranty-portal/tjvdslpclqziit8omplf.jpg" style="height:100px;">
+                    <div class="img-time">2026-04-21T09:49:50Z</div>
+                </div>
+            
+                <div class="img-container" style="width:140px; margin-bottom:20px;" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776864789/warranty-portal/tp7esj5k8ynfry3icvxu.jpg')">
+                    <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776864789/warranty-portal/tp7esj5k8ynfry3icvxu.jpg" style="height:100px;">
+                    <div class="img-time">2026-04-22T13:33:09Z</div>
+                </div>
+            
+                <div class="img-container" style="width:140px; margin-bottom:20px;" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851986/warranty-portal/tsgwsybbqnj0pnaoi1sd.jpg')">
+                    <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851986/warranty-portal/tsgwsybbqnj0pnaoi1sd.jpg" style="height:100px;">
+                    <div class="img-time">2026-04-22T09:59:46Z</div>
+                </div>
+            
+                <div class="img-container" style="width:140px; margin-bottom:20px;" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776864788/warranty-portal/ttvhyouxmakox8pagrgg.jpg')">
+                    <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776864788/warranty-portal/ttvhyouxmakox8pagrgg.jpg" style="height:100px;">
+                    <div class="img-time">2026-04-22T13:33:08Z</div>
+                </div>
+            
+                <div class="img-container" style="width:140px; margin-bottom:20px;" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776865277/warranty-portal/txq3wlhkyeo66pskwqr2.jpg')">
+                    <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776865277/warranty-portal/txq3wlhkyeo66pskwqr2.jpg" style="height:100px;">
+                    <div class="img-time">2026-04-22T13:41:17Z</div>
+                </div>
+            
+                <div class="img-container" style="width:140px; margin-bottom:20px;" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776862326/warranty-portal/ty4irpgtyoiqycfl080x.jpg')">
+                    <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776862326/warranty-portal/ty4irpgtyoiqycfl080x.jpg" style="height:100px;">
+                    <div class="img-time">2026-04-22T12:52:06Z</div>
+                </div>
+            
+                <div class="img-container" style="width:140px; margin-bottom:20px;" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851043/warranty-portal/u5pfkcffeimpk90hjnas.jpg')">
+                    <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851043/warranty-portal/u5pfkcffeimpk90hjnas.jpg" style="height:100px;">
+                    <div class="img-time">2026-04-22T09:44:03Z</div>
+                </div>
+            
+                <div class="img-container" style="width:140px; margin-bottom:20px;" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776859108/warranty-portal/ubov4re13y7acjx2ljoa.jpg')">
+                    <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776859108/warranty-portal/ubov4re13y7acjx2ljoa.jpg" style="height:100px;">
+                    <div class="img-time">2026-04-22T11:58:28Z</div>
+                </div>
+            
+                <div class="img-container" style="width:140px; margin-bottom:20px;" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776764987/warranty-portal/uyeotpptfubc8vhruw5b.jpg')">
+                    <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776764987/warranty-portal/uyeotpptfubc8vhruw5b.jpg" style="height:100px;">
+                    <div class="img-time">2026-04-21T09:49:47Z</div>
+                </div>
+            
+                <div class="img-container" style="width:140px; margin-bottom:20px;" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776856269/warranty-portal/v1u92t9wd2kqpjygoh7f.jpg')">
+                    <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776856269/warranty-portal/v1u92t9wd2kqpjygoh7f.jpg" style="height:100px;">
+                    <div class="img-time">2026-04-22T11:11:09Z</div>
+                </div>
+            
+                <div class="img-container" style="width:140px; margin-bottom:20px;" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776855065/warranty-portal/v339spqcceq5hfiztgpr.jpg')">
+                    <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776855065/warranty-portal/v339spqcceq5hfiztgpr.jpg" style="height:100px;">
+                    <div class="img-time">2026-04-22T10:51:05Z</div>
+                </div>
+            
+                <div class="img-container" style="width:140px; margin-bottom:20px;" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851697/warranty-portal/v3wcvhl5hg9w77n1l5if.jpg')">
+                    <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851697/warranty-portal/v3wcvhl5hg9w77n1l5if.jpg" style="height:100px;">
+                    <div class="img-time">2026-04-22T09:54:57Z</div>
+                </div>
+            
+                <div class="img-container" style="width:140px; margin-bottom:20px;" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776844801/warranty-portal/vcgvt705ccuq0mbljddf.jpg')">
+                    <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776844801/warranty-portal/vcgvt705ccuq0mbljddf.jpg" style="height:100px;">
+                    <div class="img-time">2026-04-22T08:00:01Z</div>
+                </div>
+            
+                <div class="img-container" style="width:140px; margin-bottom:20px;" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776844800/warranty-portal/vi3vh6nl38pruo0bhrh9.jpg')">
+                    <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776844800/warranty-portal/vi3vh6nl38pruo0bhrh9.jpg" style="height:100px;">
+                    <div class="img-time">2026-04-22T08:00:00Z</div>
+                </div>
+            
+                <div class="img-container" style="width:140px; margin-bottom:20px;" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776869851/warranty-portal/vniudkl9bjugoe3m1pnb.jpg')">
+                    <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776869851/warranty-portal/vniudkl9bjugoe3m1pnb.jpg" style="height:100px;">
+                    <div class="img-time">2026-04-22T14:57:31Z</div>
+                </div>
+            
+                <div class="img-container" style="width:140px; margin-bottom:20px;" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776860894/warranty-portal/w3szytmdullhhrtxp4xo.jpg')">
+                    <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776860894/warranty-portal/w3szytmdullhhrtxp4xo.jpg" style="height:100px;">
+                    <div class="img-time">2026-04-22T12:28:14Z</div>
+                </div>
+            
+                <div class="img-container" style="width:140px; margin-bottom:20px;" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851042/warranty-portal/w4apmpuh2j3ke9edeaql.jpg')">
+                    <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851042/warranty-portal/w4apmpuh2j3ke9edeaql.jpg" style="height:100px;">
+                    <div class="img-time">2026-04-22T09:44:02Z</div>
+                </div>
+            
+                <div class="img-container" style="width:140px; margin-bottom:20px;" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776857107/warranty-portal/w8p1bfqcebu759km7tjx.jpg')">
+                    <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776857107/warranty-portal/w8p1bfqcebu759km7tjx.jpg" style="height:100px;">
+                    <div class="img-time">2026-04-22T11:25:07Z</div>
+                </div>
+            
+                <div class="img-container" style="width:140px; margin-bottom:20px;" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776836413/warranty-portal/wuj3twcja04fzm3pmpiu.jpg')">
+                    <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776836413/warranty-portal/wuj3twcja04fzm3pmpiu.jpg" style="height:100px;">
+                    <div class="img-time">2026-04-22T05:40:13Z</div>
+                </div>
+            
+                <div class="img-container" style="width:140px; margin-bottom:20px;" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776856269/warranty-portal/wynfkxhbpkoo5wjjtsh6.jpg')">
+                    <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776856269/warranty-portal/wynfkxhbpkoo5wjjtsh6.jpg" style="height:100px;">
+                    <div class="img-time">2026-04-22T11:11:09Z</div>
+                </div>
+            
+                <div class="img-container" style="width:140px; margin-bottom:20px;" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776787261/warranty-portal/x6quje5cm1cgdpaaxc31.jpg')">
+                    <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776787261/warranty-portal/x6quje5cm1cgdpaaxc31.jpg" style="height:100px;">
+                    <div class="img-time">2026-04-21T16:01:01Z</div>
+                </div>
+            
+                <div class="img-container" style="width:140px; margin-bottom:20px;" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776852585/warranty-portal/xatfskttactmcoz2b0u1.jpg')">
+                    <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776852585/warranty-portal/xatfskttactmcoz2b0u1.jpg" style="height:100px;">
+                    <div class="img-time">2026-04-22T10:09:45Z</div>
+                </div>
+            
+                <div class="img-container" style="width:140px; margin-bottom:20px;" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776860893/warranty-portal/xe2xdagdvvz3hwkflitz.jpg')">
+                    <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776860893/warranty-portal/xe2xdagdvvz3hwkflitz.jpg" style="height:100px;">
+                    <div class="img-time">2026-04-22T12:28:13Z</div>
+                </div>
+            
+                <div class="img-container" style="width:140px; margin-bottom:20px;" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776844277/warranty-portal/xjbbitq0zkryxupg2qrm.jpg')">
+                    <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776844277/warranty-portal/xjbbitq0zkryxupg2qrm.jpg" style="height:100px;">
+                    <div class="img-time">2026-04-22T07:51:17Z</div>
+                </div>
+            
+                <div class="img-container" style="width:140px; margin-bottom:20px;" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776842370/warranty-portal/xjvrgsdgetij0xyflapi.jpg')">
+                    <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776842370/warranty-portal/xjvrgsdgetij0xyflapi.jpg" style="height:100px;">
+                    <div class="img-time">2026-04-22T07:19:30Z</div>
+                </div>
+            
+                <div class="img-container" style="width:140px; margin-bottom:20px;" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776866683/warranty-portal/xt2sfur8buot9exz5jui.jpg')">
+                    <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776866683/warranty-portal/xt2sfur8buot9exz5jui.jpg" style="height:100px;">
+                    <div class="img-time">2026-04-22T14:04:43Z</div>
+                </div>
+            
+                <div class="img-container" style="width:140px; margin-bottom:20px;" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851224/warranty-portal/y75krr2mkwb9x2o7035v.jpg')">
+                    <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851224/warranty-portal/y75krr2mkwb9x2o7035v.jpg" style="height:100px;">
+                    <div class="img-time">2026-04-22T09:47:04Z</div>
+                </div>
+            
+                <div class="img-container" style="width:140px; margin-bottom:20px;" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776850159/warranty-portal/yb70lefnf6hgvhksr8qe.jpg')">
+                    <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776850159/warranty-portal/yb70lefnf6hgvhksr8qe.jpg" style="height:100px;">
+                    <div class="img-time">2026-04-22T09:29:19Z</div>
+                </div>
+            
+                <div class="img-container" style="width:140px; margin-bottom:20px;" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851987/warranty-portal/yvz7jopf2ypr2o0evurk.jpg')">
+                    <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776851987/warranty-portal/yvz7jopf2ypr2o0evurk.jpg" style="height:100px;">
+                    <div class="img-time">2026-04-22T09:59:47Z</div>
+                </div>
+            
+                <div class="img-container" style="width:140px; margin-bottom:20px;" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776844801/warranty-portal/zhbkgmy1xr673oz3qsn2.jpg')">
+                    <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776844801/warranty-portal/zhbkgmy1xr673oz3qsn2.jpg" style="height:100px;">
+                    <div class="img-time">2026-04-22T08:00:01Z</div>
+                </div>
+            
+                <div class="img-container" style="width:140px; margin-bottom:20px;" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776852584/warranty-portal/zk3kwkp44c4k6mhg7lxl.jpg')">
+                    <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776852584/warranty-portal/zk3kwkp44c4k6mhg7lxl.jpg" style="height:100px;">
+                    <div class="img-time">2026-04-22T10:09:44Z</div>
+                </div>
+            
+                <div class="img-container" style="width:140px; margin-bottom:20px;" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776844277/warranty-portal/zktipw6bcamabprgjzwl.jpg')">
+                    <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776844277/warranty-portal/zktipw6bcamabprgjzwl.jpg" style="height:100px;">
+                    <div class="img-time">2026-04-22T07:51:17Z</div>
+                </div>
+            
+                <div class="img-container" style="width:140px; margin-bottom:20px;" onclick="selectImg(this, 'https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776850157/warranty-portal/zrbiwldeagkgakpax6wn.jpg')">
+                    <img src="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776850157/warranty-portal/zrbiwldeagkgakpax6wn.jpg" style="height:100px;">
+                    <div class="img-time">2026-04-22T09:29:17Z</div>
+                </div>
+            
+        </div>
+    </div>
+
+    <div class="btn-panel">
+        <button onclick="generateJSON()">✨ FINALIZE MAPPING JSON</button>
+    </div>
+    
+    <textarea id="output"></textarea>
+
+    <script>
+        let currentImg = null;
+
+        function selectImg(el, url) {
+            document.querySelectorAll('.img-container').forEach(c => c.classList.remove('selected'));
+            el.classList.add('selected');
+            currentImg = url;
+        }
+
+        function placeImg(slot) {
+            if (!currentImg) {
+                alert('Please select an image first by clicking it!');
+                return;
+            }
+            const label = slot.querySelector('.slot-label').innerText;
+            slot.innerHTML = '<span class="slot-label">' + label + '</span><img src="' + currentImg + '">';
+            // Clear selection after placing
+            currentImg = null;
+            document.querySelectorAll('.img-container').forEach(c => c.classList.remove('selected'));
+        }
+
+        function generateJSON() {
+            const results = [];
+            document.querySelectorAll('.uid-block[data-uid]').forEach(block => {
+                const uid = block.getAttribute('data-uid');
+                const slots = block.querySelectorAll('.slot');
+                
+                const getSrc = (index) => {
+                    const img = slots[index].querySelector('img');
+                    return img ? img.src : null;
+                };
+
+                results.push({
+                    uid: uid,
+                    invoiceFileName: getSrc(0),
+                    photos: {
+                        vehicle: getSrc(1),
+                        seatCover: getSrc(2),
+                        carOuter: getSrc(3)
+                    }
+                });
+            });
+            const out = document.getElementById('output');
+            out.value = JSON.stringify(results, null, 2);
+            out.style.display = 'block';
+            out.select();
+            window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+        }
+    </script>
+</body>
+</html>

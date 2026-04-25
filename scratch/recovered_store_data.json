@@ -1,0 +1,90 @@
+[
+  {
+    "uid": "2222222222222",
+    "storeName": "BM_TEST Store",
+    "storeEmail": "bharat@amatostore.com",
+    "customerName": "Test II",
+    "registrationNumber": "DH-7-HS-6777",
+    "carMake": "N/A",
+    "carModel": "N/A",
+    "product": "EXCLUSIVE+",
+    "date": "2026-04-20T19:14:31.000Z"
+  },
+  {
+    "uid": "26031602424404",
+    "storeName": "AASHARY CAR ACCESSORIES",
+    "storeEmail": "aashraycorp@gmail.com",
+    "customerName": "NIRAJ MEHTA",
+    "registrationNumber": "GJ-15-CS-0093",
+    "carMake": "null",
+    "carModel": "null",
+    "product": "U SPORTS (SIGNATURE)",
+    "date": "2026-04-22T07:19:33.000Z"
+  },
+  {
+    "uid": "26010302405294",
+    "storeName": "UNITED AUTO LUDHIANA",
+    "storeEmail": "unitedauto06@gmail.com",
+    "customerName": "Lakhwinder singh",
+    "registrationNumber": "PB-03-A-0023",
+    "carMake": "N/A",
+    "carModel": "N/A",
+    "product": "D3",
+    "date": "2026-04-22T08:00:04.000Z"
+  },
+  {
+    "uid": "261480004540587",
+    "storeName": "UMIYA CAR ACCESSORIES & SPA",
+    "storeEmail": "umiyacarspa1@gmail.com",
+    "customerName": "Mukesh bhai",
+    "registrationNumber": "GJ-24-AF-1576",
+    "carMake": "N/A",
+    "carModel": "N/A",
+    "product": "Q2",
+    "date": "2026-04-22T09:44:05.000Z"
+  },
+  {
+    "uid": "25122302402392",
+    "storeName": "GUPTA CAR ACCESSORIES",
+    "storeEmail": "guptacaraccessories2825@gmail.com",
+    "customerName": "Mittal trading co",
+    "registrationNumber": "HR-32-P-2330",
+    "carMake": "N/A",
+    "carModel": "N/A",
+    "product": "U SPORTS (SERIES)",
+    "date": "2026-04-22T09:54:59.000Z"
+  },
+  {
+    "uid": "2203210281154",
+    "storeName": "GUPTA CAR ACCESSORIES",
+    "storeEmail": "guptacaraccessories2825@gmail.com",
+    "customerName": "Rajesh lamba",
+    "registrationNumber": "HR-20-W-0129",
+    "carMake": "N/A",
+    "carModel": "N/A",
+    "product": "U SPORTS (SERIES)",
+    "date": "2026-04-22T11:15:21.000Z"
+  },
+  {
+    "uid": "261490004540588",
+    "storeName": "UGAM CAR ACCESSORIES",
+    "storeEmail": "gohilkamlesh41@gmail.com",
+    "customerName": "Anil bhai",
+    "registrationNumber": "GJ-21-CF-2289",
+    "carMake": "N/A",
+    "carModel": "N/A",
+    "product": "D3",
+    "date": "2026-04-22T11:17:16.000Z"
+  },
+  {
+    "uid": "26031602424663",
+    "storeName": "AASHARY CAR ACCESSORIES",
+    "storeEmail": "aashraycorp@gmail.com",
+    "customerName": "G Devaraj",
+    "registrationNumber": "GJ-06-RF-4758",
+    "carMake": "null",
+    "carModel": "null",
+    "product": "U ARROW",
+    "date": "2026-04-22T11:25:09.000Z"
+  }
+]

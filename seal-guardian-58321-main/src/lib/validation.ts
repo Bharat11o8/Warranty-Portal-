@@ -108,25 +108,25 @@ export const getPincodeError = (pincode: string): string => {
  */
 export const VEHICLE_REG_PATTERNS = {
     // Standard format: XX-00-X(X)-0000 (State-RTO-Series-Number)
-    // Covers: 4-wheelers (DL-01-AB-1234), 2-wheelers (MH-12-A-123)
-    // Also covers old format with 1-digit RTO and vehicles without series letters
+    // Covers: 4-wheelers (DL-01-AB-1234), 2-wheelers (MH-1-A-123)
+    // Updated: Allows 0-3 letters in series and 1-digit RTO codes
     STANDARD: /^[A-Z]{2}[0-9]{1,2}[A-Z]{0,3}[0-9]{1,4}$/,
 
     // BH (Bharat) Series: National portability format
-    // Example: BH-02-AA-1234
-    BH_SERIES: /^BH[0-9]{2}[A-Z]{2}[0-9]{4}$/,
+    // Example: BH-23-AA-1234
+    BH_SERIES: /^(BH|[0-9]{2}BH)[0-9]{2,4}[A-Z]{2}[0-9]{4}$/,
 
-    // Temporary Registration: TR followed by numbers
-    // Example: TR-0101-12345
-    TEMPORARY: /^TR[0-9]{4}[0-9]{4,5}$/,
+    // Temporary Registration: TR followed by numbers or state code
+    // Example: TR-MH-12-123456 or TR010112345
+    TEMPORARY: /^TR[A-Z0-9]{4,12}$/,
 
     // Diplomatic plates: CD (Corps Diplomatique), CC (Consular Corps), UN
-    // Example: CD-123, UN-1234
-    DIPLOMATIC: /^(CD|CC|UN)[0-9]{3,4}$/,
+    // Example: CD-1234, CC-0000
+    DIPLOMATIC: /^(CD|CC|UN)[0-9]{3,5}$/,
 
-    // Defense vehicles: 2 digits + 1 letter + 5 digits
-    // Example: 01A12345
-    DEFENSE: /^[0-9]{2}[A-Z]{1}[0-9]{5}$/
+    // Defense/Military vehicles: Broad Arrow prefix or specific Army format
+    // Example: ↑ 22 A 123456 B or 22A123456B
+    MILITARY: /^([↑\^A-Z]?[0-9]{2}[A-Z]{1,2}[0-9]{5,7}[A-Z]?)$/
 };
 
 /**
@@ -177,7 +177,7 @@ export const getVehicleRegType = (regNumber: string): string | null => {
     if (VEHICLE_REG_PATTERNS.BH_SERIES.test(normalized)) return 'BH_SERIES';
     if (VEHICLE_REG_PATTERNS.TEMPORARY.test(normalized)) return 'TEMPORARY';
     if (VEHICLE_REG_PATTERNS.DIPLOMATIC.test(normalized)) return 'DIPLOMATIC';
-    if (VEHICLE_REG_PATTERNS.DEFENSE.test(normalized)) return 'DEFENSE';
+    if (VEHICLE_REG_PATTERNS.MILITARY.test(normalized)) return 'MILITARY';
     if (VEHICLE_REG_PATTERNS.STANDARD.test(normalized)) return 'STANDARD';
 
     return null;
@@ -219,6 +219,11 @@ export const formatVehicleRegLive = (input: string): string => {
         return num ? `${prefix}-${num}` : prefix;
     }
 
+    // Military/Broad Arrow format management
+    if (/^[↑\^]/.test(cleaned) || (cleaned.length > 8 && /^[0-9]{2}[A-Z]/.test(cleaned))) {
+        return cleaned; // Keep military formatting as-is
+    }
+
     // Standard format: XX-00-XXX-0000
     if (cleaned.length <= 2) return cleaned;
 
@@ -232,17 +237,17 @@ export const formatVehicleRegLive = (input: string): string => {
         pos += rtoMatch[1].length;
     }
 
-    // Series letters (1-3 letters)
-    const seriesMatch = cleaned.slice(pos).match(/^([A-Z]{1,3})/);
-    if (seriesMatch) {
+    // Series letters (0-3 letters)
+    const seriesMatch = cleaned.slice(pos).match(/^([A-Z]{0,3})/);
+    if (seriesMatch && seriesMatch[1]) {
         result += '-' + seriesMatch[1];
         pos += seriesMatch[1].length;
     }
 
     // Registration number (1-4 digits)
-    const numMatch = cleaned.slice(pos).match(/^(\d{1,4})/);
-    if (numMatch) {
-        result += '-' + numMatch[1];
+    const numRemaining = cleaned.slice(pos);
+    if (numRemaining) {
+        result += '-' + numRemaining.slice(0, 4);
     }
 
     return result;
