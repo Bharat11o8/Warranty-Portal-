@@ -1784,11 +1784,15 @@ export class AdminController {
 
             // Send Email logic can be triggered here if needed, but keeping it simple for DB sync first
             
+            const admin = (req as any).user;
             await ActivityLogService.log({
-                adminId: req.user.id,
+                adminId: admin.id,
+                adminName: admin.name,
+                adminEmail: admin.email,
                 actionType: 'approve_resubmission',
-                entityType: 'warranty',
-                entityId: staging.original_uid,
+                targetType: 'WARRANTY',
+                targetId: staging.original_uid,
+                targetName: staging.original_uid,
                 details: { status: 'validated' }
             });
 
@@ -1815,11 +1819,15 @@ export class AdminController {
                 [notes || 'Rejected by admin', id]
             );
 
+            const admin = (req as any).user;
             await ActivityLogService.log({
-                adminId: req.user.id,
+                adminId: admin.id,
+                adminName: admin.name,
+                adminEmail: admin.email,
                 actionType: 'reject_resubmission',
-                entityType: 'warranty',
-                entityId: rows[0].original_uid,
+                targetType: 'WARRANTY',
+                targetId: rows[0].original_uid,
+                targetName: rows[0].original_uid,
                 details: { notes }
             });
 
