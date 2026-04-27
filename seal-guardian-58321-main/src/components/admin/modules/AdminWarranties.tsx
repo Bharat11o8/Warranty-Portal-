@@ -68,6 +68,7 @@ import { exportWarrantiesToCSV } from "@/lib/adminExports";
 export const AdminWarranties = () => {
     const { toast } = useToast();
     const [warranties, setWarranties] = useState<any[]>([]);
+    const [resubmissions, setResubmissions] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [refreshKey, setRefreshKey] = useState(0);
 
@@ -168,12 +169,16 @@ export const AdminWarranties = () => {
         }
 
         try {
-            const response = await api.get(`/admin/warranties?limit=1000&t=${Date.now()}`);
-            if (response.data.success) {
-                setWarranties(response.data.warranties);
-                if (isRefresh) {
-                    toast({ description: "Warranties refreshed" });
-                }
+            const [mainRes, resubRes] = await Promise.all([
+                api.get(`/admin/warranties?limit=1000&t=${Date.now()}`),
+                api.get(`/admin/warranties/resubmissions?limit=1000&t=${Date.now()}`)
+            ]);
+            
+            if (mainRes.data.success) setWarranties(mainRes.data.warranties);
+            if (resubRes.data.success) setResubmissions(resubRes.data.resubmissions);
+            
+            if (isRefresh) {
+                toast({ description: "Data refreshed" });
             }
         } catch (error) {
             console.error("Failed to fetch warranties", error);
@@ -186,11 +191,21 @@ export const AdminWarranties = () => {
     const handleUpdateStatus = async (id: string, status: 'validated' | 'rejected', reason?: string) => {
         setProcessingId(id);
         try {
-            const response = await api.put(`/admin/warranties/${id}/status`, { status, rejectionReason: reason });
-            if (response.data.success) {
-                toast({ title: status === 'validated' ? "Approved" : "Rejected", className: status === 'validated' ? "bg-green-600 text-white" : "bg-red-600 text-white" });
-                // Optimistic update
-                setWarranties(prev => prev.map(w => w.id === id || w.uid === id ? { ...w, status, rejection_reason: reason } : w));
+            if (statusFilter === 'resubmitted') {
+                const action = status === 'validated' ? 'approve' : 'reject';
+                const response = await api.post(`/admin/warranties/resubmissions/${id}/${action}`, { notes: reason });
+                if (response.data.success) {
+                    toast({ title: status === 'validated' ? "Resubmission Approved" : "Resubmission Rejected", className: status === 'validated' ? "bg-green-600 text-white" : "bg-red-600 text-white" });
+                    setResubmissions(prev => prev.filter(w => w.id !== id && w.original_uid !== id));
+                    fetchWarranties(false); // Reload main list slightly after
+                }
+            } else {
+                const response = await api.put(`/admin/warranties/${id}/status`, { status, rejectionReason: reason });
+                if (response.data.success) {
+                    toast({ title: status === 'validated' ? "Approved" : "Rejected", className: status === 'validated' ? "bg-green-600 text-white" : "bg-red-600 text-white" });
+                    // Optimistic update
+                    setWarranties(prev => prev.map(w => w.id === id || w.uid === id ? { ...w, status, rejection_reason: reason } : w));
+                }
             }
         } catch (error) {
             toast({ title: "Update Failed", variant: "destructive" });
@@ -201,8 +216,9 @@ export const AdminWarranties = () => {
 
     // Filter & Sort Logic
     const filteredWarranties = useMemo(() => {
-        let items = warranties.filter(w => {
-            if (statusFilter !== 'all' && w.status !== statusFilter) return false;
+        const sourceData = statusFilter === 'resubmitted' ? resubmissions : warranties;
+        let items = sourceData.filter(w => {
+            if (statusFilter !== 'all' && statusFilter !== 'resubmitted' && w.status !== statusFilter) return false;
 
             // Product Type Filter
             if (productTypeFilter !== 'all') {
@@ -274,7 +290,7 @@ export const AdminWarranties = () => {
             if (valA > valB) return sortConfig.order === 'asc' ? 1 : -1;
             return 0;
         });
-    }, [warranties, statusFilter, productTypeFilter, selectedMake, selectedModel, dateRange, search, sortConfig]);
+    }, [warranties, resubmissions, statusFilter, productTypeFilter, selectedMake, selectedModel, dateRange, search, sortConfig]);
 
     // Pagination Calculation
     const totalPages = Math.ceil(filteredWarranties.length / itemsPerPage);
@@ -345,13 +361,14 @@ export const AdminWarranties = () => {
                         <SelectItem value="pending">Pending Approval</SelectItem>
                         <SelectItem value="pending_vendor">Pending Vendor</SelectItem>
                         <SelectItem value="rejected">Rejected</SelectItem>
+                        <SelectItem value="resubmitted">Edits/Resubmissions</SelectItem>
                     </SelectContent>
                 </Select>
             </div>
 
             {/* Desktop Status Tabs */}
             <Tabs value={statusFilter} onValueChange={setStatusFilter} className="hidden md:block w-full xl:w-auto">
-                <TabsList className="grid w-full grid-cols-5 xl:inline-flex h-auto bg-white border border-orange-100 p-1">
+                <TabsList className="grid w-full grid-cols-6 xl:inline-flex h-auto bg-white border border-orange-100 p-1">
                     <TabsTrigger value="all" className="data-[state=active]:bg-orange-50 data-[state=active]:text-orange-700 gap-2">
                         All
                         <Badge variant="secondary" className="bg-slate-100 text-slate-600 border-none px-1.5 py-0 h-4 text-[10px] font-bold">
@@ -381,6 +398,14 @@ export const AdminWarranties = () => {
                         <Badge variant="secondary" className="bg-red-100/50 text-red-700 border-none px-1.5 py-0 h-4 text-[10px] font-bold">
                             {warranties.filter(w => w.status === 'rejected').length}
                         </Badge>
+                    </TabsTrigger>
+                    <TabsTrigger value="resubmitted" className="data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700 gap-2">
+                        Resubmitted
+                        {resubmissions.length > 0 && (
+                            <Badge variant="secondary" className="bg-blue-500 text-white border-none px-1.5 py-0 h-4 text-[10px] font-bold animate-pulse">
+                                {resubmissions.length}
+                            </Badge>
+                        )}
                     </TabsTrigger>
                 </TabsList>
             </Tabs>

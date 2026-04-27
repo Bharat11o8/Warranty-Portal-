@@ -1049,7 +1049,7 @@ export class AdminController {
                     wr.*,
                     p.name as submitted_by_name,
                     p.email as submitted_by_email,
-                    ur.role as submitted_by_role,
+                    (SELECT ur.role FROM user_roles ur WHERE ur.user_id = p.id LIMIT 1) as submitted_by_role,
                     m.name as manpower_name_from_db,
                     COALESCE(vd.store_name, vd_owner.store_name) as vendor_store_name,
                     COALESCE(vd.store_email, vd_owner.store_email) as vendor_store_email,
@@ -1060,7 +1060,6 @@ export class AdminController {
                     vp.phone_number as vendor_phone_number
                 FROM warranty_registrations wr
                 LEFT JOIN profiles p ON wr.user_id = p.id
-                LEFT JOIN user_roles ur ON p.id = ur.user_id
                 LEFT JOIN manpower m ON wr.manpower_id = m.id
                 LEFT JOIN vendor_details vd ON (wr.installer_name = vd.store_name AND wr.installer_contact = vd.store_email)
                 LEFT JOIN profiles vp ON vd.user_id = vp.id
@@ -1683,6 +1682,151 @@ export class AdminController {
         } catch (error: any) {
             console.error('Get activity logs error:', error);
             res.status(500).json({ error: 'Failed to fetch activity logs' });
+        }
+    }
+
+    // ── Resubmissions Staging Handlers ───────────────────────────────────────────────────
+
+    static async getResubmissions(req: Request, res: Response) {
+        try {
+            const page = parseInt(req.query.page as string) || 1;
+            const limit = parseInt(req.query.limit as string) || 50;
+            const offset = (page - 1) * limit;
+
+            const [countResult]: any = await db.execute('SELECT COUNT(*) as total FROM warranty_resubmissions WHERE status = "pending_review"');
+            const totalCount = countResult[0].total;
+            const totalPages = Math.ceil(totalCount / limit);
+
+            const [resubmissions]: any = await db.execute(`
+                SELECT 
+                    wr.*,
+                    p.name as submitted_by_name,
+                    p.email as submitted_by_email,
+                    m.name as manpower_name_from_db,
+                    vd.store_name as vendor_store_name,
+                    vd.store_email as vendor_store_email,
+                    vd.city as vendor_city
+                FROM warranty_resubmissions wr
+                LEFT JOIN profiles p ON wr.user_id = p.id
+                LEFT JOIN manpower m ON wr.manpower_id = m.id
+                LEFT JOIN vendor_details vd ON (m.vendor_id = vd.id OR (wr.installer_name = vd.store_name AND wr.installer_contact = vd.store_email))
+                WHERE wr.status = 'pending_review'
+                ORDER BY wr.created_at DESC
+                LIMIT ? OFFSET ?
+            `, [limit, offset]);
+
+            const formatted = resubmissions.map((r: any) => ({
+                ...r,
+                product_details: JSON.parse(r.product_details),
+                fraud_flags: r.fraud_flags ? JSON.parse(r.fraud_flags) : {},
+                uid: r.original_uid // For frontend compatibility
+            }));
+
+            res.json({
+                success: true,
+                resubmissions: formatted,
+                pagination: { currentPage: page, totalPages, totalCount, limit }
+            });
+        } catch (error) {
+            console.error('Get resubmissions error:', error);
+            res.status(500).json({ error: 'Failed to fetch resubmissions' });
+        }
+    }
+
+    static async approveResubmission(req: Request, res: Response) {
+        let connection;
+        try {
+            const { id } = req.params;
+            const sql = 'SELECT * FROM warranty_resubmissions WHERE id = ? AND status = "pending_review"';
+            const [rows]: any = await db.execute(sql, [id]);
+            
+            if (rows.length === 0) {
+                return res.status(404).json({ error: 'Resubmission not found or already processed' });
+            }
+            
+            const staging = rows[0];
+            
+            // Using a transaction to ensure atomic update of both tables
+            connection = await db.getConnection();
+            await connection.beginTransaction();
+
+            // 1. Overwrite the main table data with the staging data and set status to approved
+            await connection.execute(`
+                UPDATE warranty_registrations SET
+                    customer_name = ?, customer_email = ?, customer_phone = ?,
+                    customer_address = ?, car_make = ?, car_model = ?, car_year = ?,
+                    registration_number = ?, purchase_date = ?, installer_name = ?, 
+                    installer_contact = ?, product_details = ?, manpower_id = ?,
+                    status = 'validated', seat_cover_photo_url = ?, car_outer_photo_url = ?
+                WHERE uid = ?
+            `, [
+                staging.customer_name, staging.customer_email, staging.customer_phone,
+                staging.customer_address, staging.car_make, staging.car_model, staging.car_year,
+                staging.registration_number, staging.purchase_date, staging.installer_name,
+                staging.installer_contact, staging.product_details, staging.manpower_id,
+                staging.seat_cover_photo_url, staging.car_outer_photo_url,
+                staging.original_uid
+            ]);
+
+            // 2. Mark staging as approved
+            await connection.execute('UPDATE warranty_resubmissions SET status = "approved" WHERE id = ?', [id]);
+
+            // 3. Mark UID as used in pre_generated_uids if it's a seat cover
+            if (staging.product_type === 'seat-cover') {
+                const usedTimestamp = new Date().toISOString().slice(0, 19).replace('T', ' '); // Simple helper for YYYY-MM-DD HH:MM:SS
+                await connection.execute(
+                    'UPDATE pre_generated_uids SET is_used = TRUE, used_at = ? WHERE uid = ?',
+                    [usedTimestamp, staging.original_uid]
+                );
+            }
+
+            await connection.commit();
+
+            // Send Email logic can be triggered here if needed, but keeping it simple for DB sync first
+            
+            await ActivityLogService.log({
+                adminId: req.user.id,
+                actionType: 'approve_resubmission',
+                entityType: 'warranty',
+                entityId: staging.original_uid,
+                details: { status: 'validated' }
+            });
+
+            res.json({ success: true, message: 'Resubmission approved successfully' });
+        } catch (error) {
+            if (connection) await connection.rollback();
+            console.error('Approve resubmission error:', error);
+            res.status(500).json({ error: 'Failed to approve resubmission' });
+        } finally {
+            if (connection) connection.release();
+        }
+    }
+
+    static async rejectResubmission(req: Request, res: Response) {
+        try {
+            const { id } = req.params;
+            const { notes } = req.body;
+            
+            const [rows]: any = await db.execute('SELECT original_uid FROM warranty_resubmissions WHERE id = ?', [id]);
+            if (rows.length === 0) return res.status(404).json({ error: 'Resubmission not found' });
+            
+            await db.execute(
+                'UPDATE warranty_resubmissions SET status = "rejected", admin_notes = ? WHERE id = ?',
+                [notes || 'Rejected by admin', id]
+            );
+
+            await ActivityLogService.log({
+                adminId: req.user.id,
+                actionType: 'reject_resubmission',
+                entityType: 'warranty',
+                entityId: rows[0].original_uid,
+                details: { notes }
+            });
+
+            res.json({ success: true, message: 'Resubmission rejected' });
+        } catch (error) {
+            console.error('Reject resubmission error:', error);
+            res.status(500).json({ error: 'Failed to reject resubmission' });
         }
     }
 }
