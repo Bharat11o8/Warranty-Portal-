@@ -20,8 +20,11 @@ export const PINCODE_REGEX = /^\d{6}$/;
  * @returns true if valid, false otherwise
  */
 export const validateIndianMobile = (phone: string): boolean => {
-    // Remove any spaces, dashes, or country code prefix
-    const cleaned = phone.replace(/[\s\-+]/g, '').replace(/^91/, '').replace(/^0/, '');
+    // Remove spaces/dashes, then strip country code only if 12 digits (91XXXXXXXXXX)
+    const raw = phone.replace(/[\s\-+]/g, '');
+    const cleaned = raw.length === 12 && raw.startsWith('91') ? raw.slice(2)
+                  : raw.length === 11 && raw.startsWith('0') ? raw.slice(1)
+                  : raw;
     return INDIAN_MOBILE_REGEX.test(cleaned);
 };
 
@@ -60,7 +63,10 @@ export const formatPhoneNumber = (phone: string): string => {
  * @returns Cleaned 10-digit phone number
  */
 export const cleanPhoneNumber = (phone: string): string => {
-    return phone.replace(/\D/g, '').replace(/^91/, '').replace(/^0/, '').slice(0, 10);
+    const raw = phone.replace(/\D/g, '');
+    if (raw.length === 12 && raw.startsWith('91')) return raw.slice(2, 12);
+    if (raw.length === 11 && raw.startsWith('0')) return raw.slice(1, 11);
+    return raw.slice(0, 10);
 };
 
 /**
