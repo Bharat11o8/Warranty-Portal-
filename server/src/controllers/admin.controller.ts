@@ -154,24 +154,24 @@ export class AdminController {
                     (SELECT GROUP_CONCAT(name SEPARATOR ', ') FROM manpower WHERE vendor_id = vd.id) as manpower_names,
                     (SELECT COUNT(*) FROM warranty_registrations wr 
                      WHERE (wr.manpower_id IN (SELECT id FROM manpower WHERE vendor_id = vd.id)
-                        OR wr.installer_name = vd.store_name
+                        OR (wr.installer_name = vd.store_name AND wr.installer_contact = vd.store_email)
                         OR wr.user_id = p.id)
                     ) as total_warranties,
                     (SELECT COUNT(*) FROM warranty_registrations wr 
                      WHERE (wr.manpower_id IN (SELECT id FROM manpower WHERE vendor_id = vd.id)
-                        OR wr.installer_name = vd.store_name
+                        OR (wr.installer_name = vd.store_name AND wr.installer_contact = vd.store_email)
                         OR wr.user_id = p.id)
                      AND wr.status = 'validated'
                     ) as validated_warranties,
                      (SELECT COUNT(*) FROM warranty_registrations wr 
                       WHERE (wr.manpower_id IN (SELECT id FROM manpower WHERE vendor_id = vd.id)
-                        OR wr.installer_name = vd.store_name
+                        OR (wr.installer_name = vd.store_name AND wr.installer_contact = vd.store_email)
                         OR wr.user_id = p.id)
                       AND wr.status IN ('pending', 'pending_vendor')
                      ) as pending_warranties,
                     (SELECT COUNT(*) FROM warranty_registrations wr 
                      WHERE (wr.manpower_id IN (SELECT id FROM manpower WHERE vendor_id = vd.id)
-                        OR wr.installer_name = vd.store_name
+                        OR (wr.installer_name = vd.store_name AND wr.installer_contact = vd.store_email)
                         OR wr.user_id = p.id)
                      AND wr.status = 'rejected'
                     ) as rejected_warranties
@@ -705,7 +705,7 @@ export class AdminController {
                     m.name as applicator_name
                 FROM warranty_registrations wr
                 LEFT JOIN manpower m ON wr.manpower_id = m.id
-                LEFT JOIN vendor_details vd ON m.vendor_id = vd.id
+                LEFT JOIN vendor_details vd ON (wr.installer_name = vd.store_name AND wr.installer_contact = vd.store_email)
                 WHERE wr.uid = ? OR wr.id = ?`,
                 [uid, uid]
             );
@@ -845,9 +845,9 @@ export class AdminController {
                         `SELECT p.email as vendor_email, p.id as vendor_user_id, vd.store_name as vendor_name
                          FROM vendor_details vd
                          JOIN profiles p ON vd.user_id = p.id
-                         WHERE vd.store_name = ?
+                         WHERE vd.store_name = ? AND vd.store_email = ?
                          LIMIT 1`,
-                        [warrantyData.installer_name]
+                        [warrantyData.installer_name, warrantyData.installer_contact]
                     );
                     if (vendorByName.length > 0) {
                         vendorEmail = vendorByName[0].vendor_email;
@@ -1045,7 +1045,7 @@ export class AdminController {
                 LEFT JOIN profiles p ON wr.user_id = p.id
                 LEFT JOIN user_roles ur ON p.id = ur.user_id
                 LEFT JOIN manpower m ON wr.manpower_id = m.id
-                LEFT JOIN vendor_details vd ON m.vendor_id = vd.id
+                LEFT JOIN vendor_details vd ON (wr.installer_name = vd.store_name AND wr.installer_contact = vd.store_email)
                 LEFT JOIN profiles vp ON vd.user_id = vp.id
                 ${whereClause}
                 ORDER BY wr.created_at DESC
@@ -1098,7 +1098,7 @@ export class AdminController {
                 LEFT JOIN profiles p ON wr.user_id = p.id
                 LEFT JOIN user_roles ur ON p.id = ur.user_id
                 LEFT JOIN manpower m ON wr.manpower_id = m.id
-                LEFT JOIN vendor_details vd ON m.vendor_id = vd.id
+                LEFT JOIN vendor_details vd ON (wr.installer_name = vd.store_name AND wr.installer_contact = vd.store_email)
                 LEFT JOIN profiles vp ON vd.user_id = vp.id
                 WHERE wr.uid = ? OR wr.id = ?
                 LIMIT 1
@@ -1279,7 +1279,7 @@ export class AdminController {
                 FROM warranty_registrations wr
                 LEFT JOIN profiles p ON wr.user_id = p.id
                 LEFT JOIN manpower m ON wr.manpower_id = m.id
-                LEFT JOIN vendor_details vd ON m.vendor_id = vd.id
+                LEFT JOIN vendor_details vd ON (wr.installer_name = vd.store_name AND wr.installer_contact = vd.store_email)
                 WHERE wr.customer_email = ?
                 ORDER BY wr.created_at DESC
             `, [email]);
