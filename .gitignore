@@ -23,4 +23,12 @@ $Book1_geocoded.xlsx
 Book1_geocoded.xlsx
 Book1.xlsx
 Fixing Date Type Mismatch Warranty.md
-scratch
+scratch/
+server/src/audit_duplicates.ts
+server/src/check_data.ts
+server/src/check_emails.ts
+server/src/check_uid_mappings.ts
+server/src/scripts/audit_all_duplicates.ts
+server/src/scripts/debug_manpower.ts
+server/src/scripts/debug_mapping.ts
+server/src/scripts/verify_kota.ts
