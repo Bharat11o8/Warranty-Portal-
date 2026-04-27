@@ -283,7 +283,7 @@ export const AdminWarrantyList = ({
                                                         </div>
                                                         <div className="flex items-center gap-2">
                                                             <MapPin className="h-3 w-3 text-muted-foreground" />
-                                                            <span>{warranty.vendor_city || productDetails.storeCity || warranty.ip_city || 'City not available'}</span>
+                                                            <span>{warranty.vendor_city || productDetails.storeCity || 'City not available'}</span>
                                                         </div>
                                                         {(productDetails.storeEmail || warranty.installer_contact) && (
                                                             <div className="flex items-center gap-2">

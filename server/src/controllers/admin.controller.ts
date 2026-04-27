@@ -1008,9 +1008,14 @@ export class AdminController {
                     wr.uid LIKE ? OR 
                     wr.registration_number LIKE ? OR 
                     wr.car_make LIKE ? OR 
-                    wr.car_model LIKE ?
+                    wr.car_model LIKE ? OR
+                    wr.installer_name LIKE ? OR
+                    vd.store_name LIKE ? OR
+                    vd_owner.store_name LIKE ? OR
+                    vd.city LIKE ? OR
+                    vd_owner.city LIKE ?
                 )`);
-                params.push(searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm);
+                params.push(searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm);
             }
 
             // Date Range
@@ -1022,8 +1027,18 @@ export class AdminController {
             // 2. Build Query
             const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
-            // Count Query
-            const countQuery = `SELECT COUNT(*) as total FROM warranty_registrations wr ${whereClause}`;
+            // Count Query (must include the same JOINs used in search conditions)
+            const countQuery = `
+                SELECT COUNT(*) as total
+                FROM warranty_registrations wr
+                LEFT JOIN manpower m ON wr.manpower_id = m.id
+                LEFT JOIN vendor_details vd ON m.vendor_id = vd.id
+                LEFT JOIN vendor_details vd_owner ON (
+                    wr.manpower_id LIKE 'owner-%' AND
+                    vd_owner.id = REPLACE(wr.manpower_id, 'owner-', '')
+                )
+                ${whereClause}
+            `;
             const [countResult]: any = await db.execute(countQuery, params);
             const totalCount = countResult[0].total;
             const totalPages = Math.ceil(totalCount / limit);
@@ -1036,18 +1051,23 @@ export class AdminController {
                     p.email as submitted_by_email,
                     ur.role as submitted_by_role,
                     m.name as manpower_name_from_db,
-                    vd.store_name as vendor_store_name,
-                    vd.store_email as vendor_store_email,
-                    vd.city as vendor_city,
-                    vd.latitude as store_lat,
-                    vd.longitude as store_lng,
+                    COALESCE(vd.store_name, vd_owner.store_name) as vendor_store_name,
+                    COALESCE(vd.store_email, vd_owner.store_email) as vendor_store_email,
+                    COALESCE(vd.city, vd_owner.city) as vendor_city,
+                    COALESCE(vd.state, vd_owner.state) as vendor_state,
+                    COALESCE(vd.latitude, vd_owner.latitude) as store_lat,
+                    COALESCE(vd.longitude, vd_owner.longitude) as store_lng,
                     vp.phone_number as vendor_phone_number
                 FROM warranty_registrations wr
                 LEFT JOIN profiles p ON wr.user_id = p.id
                 LEFT JOIN user_roles ur ON p.id = ur.user_id
                 LEFT JOIN manpower m ON wr.manpower_id = m.id
-                LEFT JOIN vendor_details vd ON wr.installer_name = vd.store_name
+                LEFT JOIN vendor_details vd ON m.vendor_id = vd.id
                 LEFT JOIN profiles vp ON vd.user_id = vp.id
+                LEFT JOIN vendor_details vd_owner ON (
+                    wr.manpower_id LIKE 'owner-%' AND
+                    vd_owner.id = REPLACE(wr.manpower_id, 'owner-', '')
+                )
                 ${whereClause}
                 ORDER BY wr.created_at DESC
                 LIMIT ? OFFSET ?
@@ -1094,13 +1114,12 @@ export class AdminController {
                     m.name as manpower_name_from_db,
                     vd.store_name as vendor_store_name,
                     vd.store_email as vendor_store_email,
-                    vd.city as vendor_city,
                     vp.phone_number as vendor_phone_number
                 FROM warranty_registrations wr
                 LEFT JOIN profiles p ON wr.user_id = p.id
                 LEFT JOIN user_roles ur ON p.id = ur.user_id
                 LEFT JOIN manpower m ON wr.manpower_id = m.id
-                LEFT JOIN vendor_details vd ON wr.installer_name = vd.store_name
+                LEFT JOIN vendor_details vd ON m.vendor_id = vd.id
                 LEFT JOIN profiles vp ON vd.user_id = vp.id
                 WHERE wr.uid = ? OR wr.id = ?
                 LIMIT 1
@@ -1277,12 +1296,11 @@ export class AdminController {
                     p.name as submitted_by_name,
                     p.email as submitted_by_email,
                     m.name as manpower_name_from_db,
-                    vd.store_name as vendor_store_name,
-                    vd.city as vendor_city
+                    vd.store_name as vendor_store_name
                 FROM warranty_registrations wr
                 LEFT JOIN profiles p ON wr.user_id = p.id
                 LEFT JOIN manpower m ON wr.manpower_id = m.id
-                LEFT JOIN vendor_details vd ON wr.installer_name = vd.store_name
+                LEFT JOIN vendor_details vd ON m.vendor_id = vd.id
                 WHERE wr.customer_email = ?
                 ORDER BY wr.created_at DESC
             `, [email]);

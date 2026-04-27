@@ -251,7 +251,10 @@ export const AdminWarranties = () => {
                     w.uid?.toLowerCase().includes(s) ||
                     product?.toLowerCase().includes(s) ||
                     (w.car_make && w.car_make.toLowerCase().includes(s)) ||
-                    (w.car_model && w.car_model.toLowerCase().includes(s))
+                    (w.car_model && w.car_model.toLowerCase().includes(s)) ||
+                    (w.vendor_store_name && w.vendor_store_name.toLowerCase().includes(s)) ||
+                    (w.installer_name && w.installer_name.toLowerCase().includes(s)) ||
+                    (w.vendor_city && w.vendor_city.toLowerCase().includes(s))
                 );
             }
             return true;

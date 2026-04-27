@@ -601,19 +601,22 @@ export class WarrantyController {
       const totalPages = Math.ceil(totalCount / limit);
 
       // Data Query (Matches Filters + Pagination)
-      // We join vendor_details directly on installer_name (store_name) to get the real store city.
-      // This avoids the manpower chain which breaks for QR/customer submissions where manpower_id is null.
       const baseQuery = `
         SELECT 
             w.*, 
             m.name as manpower_name_from_db,
             vp.phone_number as vendor_phone_number,
-            vd.city as vendor_city,
-            vd.store_name as vendor_store_name
+            COALESCE(vd.city, vd_owner.city) as vendor_city,
+            COALESCE(vd.store_name, vd_owner.store_name) as vendor_store_name,
+            COALESCE(vd.state, vd_owner.state) as vendor_state
         FROM warranty_registrations w 
         LEFT JOIN manpower m ON w.manpower_id = m.id
-        LEFT JOIN vendor_details vd ON w.installer_name = vd.store_name
+        LEFT JOIN vendor_details vd ON m.vendor_id = vd.id
         LEFT JOIN profiles vp ON vd.user_id = vp.id
+        LEFT JOIN vendor_details vd_owner ON (
+            w.manpower_id LIKE 'owner-%' AND 
+            vd_owner.id = REPLACE(w.manpower_id, 'owner-', '')
+        )
         ${whereClause}
         ORDER BY w.created_at DESC 
         LIMIT ? OFFSET ?
