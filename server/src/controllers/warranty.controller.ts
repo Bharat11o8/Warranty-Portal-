@@ -309,52 +309,78 @@ export class WarrantyController {
       // Inject submission source for UI display
       warrantyData.productDetails.submissionSource = req.user.role === 'customer' ? 'Customer Dashboard' : 'Franchise Dashboard';
 
-      const tableName = isResubmission ? 'warranty_resubmissions' : 'warranty_registrations';
-      const uidColumn = isResubmission ? 'original_uid' : 'uid';
-
-      await db.execute(
-        `INSERT INTO ${tableName} 
-        (${uidColumn}, user_id, product_type, customer_name, customer_email, customer_phone, 
-         customer_address, registration_number, car_make, car_model, car_year, 
-         purchase_date, installer_name, installer_contact, product_details, manpower_id, warranty_type, status,
-         exif_lat, exif_lng, exif_timestamp, exif_device, device_fingerprint, submission_ip, ip_city, ip_region, ip_lat, ip_lng, fraud_score, fraud_flags,
-         seat_cover_photo_url, car_outer_photo_url) 
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [
-          warrantyId,
-          finalUserId,
-          warrantyData.productType,
-          warrantyData.customerName,
-          warrantyData.customerEmail,
-          warrantyData.customerPhone,
-          warrantyData.customerAddress,
-          warrantyData.registrationNumber,
-          warrantyData.carMake || null,
-          warrantyData.carModel || null,
-          warrantyData.carYear,
-          warrantyData.purchaseDate,
-          warrantyData.installerName || null,
-          warrantyData.installerContact || null,
-          JSON.stringify(warrantyData.productDetails),
-          (warrantyData.manpowerId && warrantyData.manpowerId !== 'owner') ? warrantyData.manpowerId : null,
-          warrantyData.warrantyType,
-          initialStatus,
-          exifData.lat,
-          exifData.lng,
-          exifData.timestamp,
-          exifData.deviceMake ? `${exifData.deviceMake} ${exifData.deviceModel || ''}`.trim() : null,
-          exifData.deviceFingerprint,
-          clientIP,
-          ipGeo.city,
-          ipGeo.region,
-          ipGeo.lat,
-          ipGeo.lng,
-          fraudScore,
-          JSON.stringify(fraudFlags),
-          (warrantyData.productDetails as any)?.photos?.seatCover || null,
-          (warrantyData.productDetails as any)?.photos?.carOuter || null
-        ]
-      );
+      if (isResubmission) {
+        // Use ON DUPLICATE KEY UPDATE for resubmissions to handle subsequent edits before approval
+        await db.execute(
+          `INSERT INTO warranty_resubmissions 
+          (original_uid, user_id, product_type, customer_name, customer_email, customer_phone, 
+           customer_address, registration_number, car_make, car_model, car_year, 
+           purchase_date, installer_name, installer_contact, product_details, manpower_id, warranty_type, status,
+           exif_lat, exif_lng, exif_timestamp, exif_device, device_fingerprint, submission_ip, ip_city, ip_region, ip_lat, ip_lng, fraud_score, fraud_flags,
+           seat_cover_photo_url, car_outer_photo_url) 
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          ON DUPLICATE KEY UPDATE
+            customer_name = VALUES(customer_name),
+            customer_email = VALUES(customer_email),
+            customer_phone = VALUES(customer_phone),
+            customer_address = VALUES(customer_address),
+            registration_number = VALUES(registration_number),
+            car_make = VALUES(car_make),
+            car_model = VALUES(car_model),
+            car_year = VALUES(car_year),
+            purchase_date = VALUES(purchase_date),
+            installer_name = VALUES(installer_name),
+            installer_contact = VALUES(installer_contact),
+            product_details = VALUES(product_details),
+            manpower_id = VALUES(manpower_id),
+            status = VALUES(status),
+            exif_lat = VALUES(exif_lat),
+            exif_lng = VALUES(exif_lng),
+            exif_timestamp = VALUES(exif_timestamp),
+            exif_device = VALUES(exif_device),
+            device_fingerprint = VALUES(device_fingerprint),
+            submission_ip = VALUES(submission_ip),
+            fraud_score = VALUES(fraud_score),
+            fraud_flags = VALUES(fraud_flags),
+            seat_cover_photo_url = VALUES(seat_cover_photo_url),
+            car_outer_photo_url = VALUES(car_outer_photo_url),
+            created_at = CURRENT_TIMESTAMP()`,
+          [
+            warrantyId, finalUserId, warrantyData.productType, warrantyData.customerName, warrantyData.customerEmail,
+            warrantyData.customerPhone, warrantyData.customerAddress, warrantyData.registrationNumber,
+            warrantyData.carMake || null, warrantyData.carModel || null, warrantyData.carYear, warrantyData.purchaseDate,
+            warrantyData.installerName || null, warrantyData.installerContact || null, JSON.stringify(warrantyData.productDetails),
+            (warrantyData.manpowerId && warrantyData.manpowerId !== 'owner') ? warrantyData.manpowerId : null,
+            warrantyData.warrantyType, initialStatus, exifData.lat, exifData.lng, exifData.timestamp,
+            exifData.deviceMake ? `${exifData.deviceMake} ${exifData.deviceModel || ''}`.trim() : null,
+            exifData.deviceFingerprint, clientIP, ipGeo.city, ipGeo.region, ipGeo.lat, ipGeo.lng, fraudScore,
+            JSON.stringify(fraudFlags), (warrantyData.productDetails as any)?.photos?.seatCover || null,
+            (warrantyData.productDetails as any)?.photos?.carOuter || null
+          ]
+        );
+      } else {
+        await db.execute(
+          `INSERT INTO warranty_registrations 
+          (uid, user_id, product_type, customer_name, customer_email, customer_phone, 
+           customer_address, registration_number, car_make, car_model, car_year, 
+           purchase_date, installer_name, installer_contact, product_details, manpower_id, warranty_type, status,
+           exif_lat, exif_lng, exif_timestamp, exif_device, device_fingerprint, submission_ip, ip_city, ip_region, ip_lat, ip_lng, fraud_score, fraud_flags,
+           seat_cover_photo_url, car_outer_photo_url) 
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            warrantyId, finalUserId, warrantyData.productType, warrantyData.customerName, warrantyData.customerEmail,
+            warrantyData.customerPhone, warrantyData.customerAddress, warrantyData.registrationNumber,
+            warrantyData.carMake || null, warrantyData.carModel || null, warrantyData.carYear, warrantyData.purchaseDate,
+            warrantyData.installerName || null, warrantyData.installerContact || null, JSON.stringify(warrantyData.productDetails),
+            (warrantyData.manpowerId && warrantyData.manpowerId !== 'owner') ? warrantyData.manpowerId : null,
+            warrantyData.warrantyType, initialStatus, exifData.lat, exifData.lng, exifData.timestamp,
+            exifData.deviceMake ? `${exifData.deviceMake} ${exifData.deviceModel || ''}`.trim() : null,
+            exifData.deviceFingerprint, clientIP, ipGeo.city, ipGeo.region, ipGeo.lat, ipGeo.lng, fraudScore,
+            JSON.stringify(fraudFlags), (warrantyData.productDetails as any)?.photos?.seatCover || null,
+            (warrantyData.productDetails as any)?.photos?.carOuter || null
+          ]
+        );
+      }
 
       // UID is checked but NOT marked as used until Admin approves it.
 
