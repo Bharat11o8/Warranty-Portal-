@@ -98,6 +98,16 @@ export async function executeWithRetry<T = any>(
         console.warn(`[DB] ⚠️ Slow Query (${duration}ms): ${sql.substring(0, 100)}...`);
       }
       
+      // Auto-reset stats if DB has been stable for 15 minutes
+      if (transientRetryCount > 0 && lastTransientRetryAt) {
+        const lastErrorTime = new Date(lastTransientRetryAt).getTime();
+        if (Date.now() - lastErrorTime > 15 * 60 * 1000) {
+          transientRetryCount = 0;
+          lastTransientRetryAt = null;
+          console.log('[DB] ℹ️ Connectivity stable. Resetting transient retry stats.');
+        }
+      }
+
       return result;
     } catch (error: any) {
       const duration = Date.now() - startTime;
