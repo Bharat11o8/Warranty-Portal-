@@ -41,10 +41,10 @@ const pool = mysql.createPool({
   timezone: '+05:30',
 
   // Connection Pool Settings
-  // Serverless (Vercel): keep pool small, connections are per-invocation
+  // Serverless (Vercel): keeping pool moderate to handle bursts
   waitForConnections: true,
-  connectionLimit: parseInt(process.env.DB_POOL_SIZE || '2'),
-  maxIdle: parseInt(process.env.DB_MAX_IDLE || '1'),
+  connectionLimit: parseInt(process.env.DB_POOL_SIZE || '10'),
+  maxIdle: parseInt(process.env.DB_MAX_IDLE || '2'),
   queueLimit: 0,
 
   // Keep-Alive DISABLED on serverless — Vercel freezes idle TCP sockets,
@@ -52,7 +52,7 @@ const pool = mysql.createPool({
   enableKeepAlive: false,
 
   // Timeout Settings — longer connect timeout for cold starts
-  connectTimeout: parseInt(process.env.DB_CONNECT_TIMEOUT || '15000'),
+  connectTimeout: parseInt(process.env.DB_CONNECT_TIMEOUT || '20000'),
   idleTimeout: parseInt(process.env.DB_IDLE_TIMEOUT || '30000'),
 });
 
@@ -62,7 +62,9 @@ const TRANSIENT_DB_ERROR_CODES = new Set([
   'EPIPE',
   'PROTOCOL_CONNECTION_LOST',
   'PROTOCOL_ENQUEUE_AFTER_FATAL_ERROR',
-  'PROTOCOL_ENQUEUE_AFTER_QUIT'
+  'PROTOCOL_ENQUEUE_AFTER_QUIT',
+  'ER_CON_COUNT_ERROR', // Too many connections
+  'ER_ACCESS_DENIED_ERROR'
 ]);
 
 let transientRetryCount = 0;
@@ -84,12 +86,29 @@ export async function executeWithRetry<T = any>(
 ): Promise<T> {
   const retries = options?.retries ?? 3;
   const baseDelayMs = options?.baseDelayMs ?? 300;
+  const startTime = Date.now();
 
   for (let attempt = 0; ; attempt++) {
     try {
-      return await pool.execute(sql, params) as T;
+      const result = await pool.execute(sql, params) as T;
+      const duration = Date.now() - startTime;
+      
+      // Log slow queries (> 2 seconds)
+      if (duration > 2000) {
+        console.warn(`[DB] ⚠️ Slow Query (${duration}ms): ${sql.substring(0, 100)}...`);
+      }
+      
+      return result;
     } catch (error: any) {
+      const duration = Date.now() - startTime;
       const shouldRetry = isTransientDbError(error) && attempt < retries;
+      
+      console.error(`[DB] ❌ Error on attempt ${attempt + 1} (${duration}ms):`, {
+        code: error.code,
+        message: error.message,
+        sql: sql.substring(0, 100)
+      });
+
       if (!shouldRetry) {
         throw error;
       }
@@ -97,7 +116,7 @@ export async function executeWithRetry<T = any>(
       transientRetryCount += 1;
       lastTransientRetryAt = new Date().toISOString();
       const delayMs = baseDelayMs * Math.pow(2, attempt);
-      console.warn(`[DB] transient error "${error.code}" on attempt ${attempt + 1}. Retrying in ${delayMs}ms.`);
+      console.warn(`[DB] 🔄 Transient error "${error.code}". Retrying in ${delayMs}ms...`);
       await sleep(delayMs);
     }
   }
