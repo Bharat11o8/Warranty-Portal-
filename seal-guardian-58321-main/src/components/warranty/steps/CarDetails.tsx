@@ -119,12 +119,30 @@ const CarDetails = ({ formData, updateFormData, onNext, onPrev }: CarDetailsProp
           <Input
             id="carReg"
             type="text"
-            placeholder="e.g., DL-01-AB-1234"
+            placeholder="e.g., DL-01-AB-1234 / 26-BH-6045-F"
             value={formData.carReg}
             onChange={handleRegChange}
             required
             maxLength={20}
+            className={formData.carReg
+              ? getVehicleRegError(formData.carReg)
+                ? 'border-red-400 focus-visible:ring-red-300'
+                : 'border-green-400 focus-visible:ring-green-300'
+              : ''
+            }
           />
+          {formData.carReg && (
+            <p className={`text-xs flex items-center gap-1 ${
+              getVehicleRegError(formData.carReg)
+                ? 'text-red-500'
+                : 'text-green-600'
+            }`}>
+              {getVehicleRegError(formData.carReg)
+                ? `⚠ ${getVehicleRegError(formData.carReg)}`
+                : '✓ Valid registration format'
+              }
+            </p>
+          )}
         </div>
 
         <div className="space-y-2">

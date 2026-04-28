@@ -1084,13 +1084,28 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
                 <Input
                   id="carReg"
                   type="text"
-                  placeholder="Format: DL-01-AB-1234 / DL01AB1234"
+                  placeholder="Format: DL-01-AB-1234 / 26-BH-6045-F"
                   value={formData.carReg}
                   onChange={(e) => handleChange("carReg", e.target.value)}
                   disabled={loading}
                   required
-                  className="bg-white border-slate-200"
+                  className={`bg-white ${formData.carReg
+                    ? getVehicleRegError(formData.carReg)
+                      ? 'border-red-400 focus-visible:ring-red-300'
+                      : 'border-green-400 focus-visible:ring-green-300'
+                    : 'border-slate-200'
+                  }`}
                 />
+                {formData.carReg && (
+                  <p className={`text-xs flex items-center gap-1 ${
+                    getVehicleRegError(formData.carReg) ? 'text-red-500' : 'text-green-600'
+                  }`}>
+                    {getVehicleRegError(formData.carReg)
+                      ? `⚠ ${getVehicleRegError(formData.carReg)}`
+                      : '✓ Valid registration format'
+                    }
+                  </p>
+                )}
               </div>
             </div>
           </CardContent>

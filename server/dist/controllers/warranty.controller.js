@@ -398,10 +398,11 @@ export class WarrantyController {
             }
             else if (req.user.role === 'vendor') {
                 // First, get vendor's vendor_details_id and store_name
-                const [vendorDetails] = await db.execute('SELECT id, store_name FROM vendor_details WHERE user_id = ?', [req.user.id]);
+                const [vendorDetails] = await db.execute('SELECT id, store_name, store_email FROM vendor_details WHERE user_id = ?', [req.user.id]);
                 if (vendorDetails.length > 0) {
                     const vendorDetailsId = vendorDetails[0].id;
                     const vendorStoreName = vendorDetails[0].store_name;
+                    const vendorStoreEmail = vendorDetails[0].store_email;
                     // Get all manpower IDs for this vendor
                     const [manpower] = await db.execute('SELECT id FROM manpower WHERE vendor_id = ?', [vendorDetailsId]);
                     if (manpower.length > 0) {
@@ -410,14 +411,14 @@ export class WarrantyController {
                         // Show warranties where:
                         // 1. manpower_id matches one of this vendor's manpower, OR
                         // 2. user_id matches (vendor submitted directly), OR
-                        // 3. installer_name matches store_name (catches QR/public submissions where user_id = customer's)
-                        conditions.push(`(w.manpower_id IN (${inClause}) OR w.user_id = ? OR w.installer_name = ?)`);
-                        params.push(...manpowerIds, req.user.id, vendorStoreName);
+                        // 3. installer_name AND installer_contact match this store (catches QR/public submissions)
+                        conditions.push(`(w.manpower_id IN (${inClause}) OR w.user_id = ? OR (w.installer_name = ? AND w.installer_contact = ?))`);
+                        params.push(...manpowerIds, req.user.id, vendorStoreName, vendorStoreEmail);
                     }
                     else {
-                        // No manpower — show warranties submitted by vendor OR linked via store name
-                        conditions.push('(w.user_id = ? OR w.installer_name = ?)');
-                        params.push(req.user.id, vendorStoreName);
+                        // No manpower — show warranties submitted by vendor OR linked via store name + email
+                        conditions.push('(w.user_id = ? OR (w.installer_name = ? AND w.installer_contact = ?))');
+                        params.push(req.user.id, vendorStoreName, vendorStoreEmail);
                     }
                 }
                 else {
@@ -487,12 +488,17 @@ export class WarrantyController {
             w.*, 
             m.name as manpower_name_from_db,
             vp.phone_number as vendor_phone_number,
-            vd.city as vendor_city,
-            vd.store_name as vendor_store_name
+            COALESCE(vd.city, vd_owner.city) as vendor_city,
+            COALESCE(vd.store_name, vd_owner.store_name) as vendor_store_name,
+            COALESCE(vd.state, vd_owner.state) as vendor_state
         FROM warranty_registrations w 
         LEFT JOIN manpower m ON w.manpower_id = m.id
-        LEFT JOIN vendor_details vd ON m.vendor_id = vd.id
+        LEFT JOIN vendor_details vd ON (w.installer_name = vd.store_name AND w.installer_contact = vd.store_email)
         LEFT JOIN profiles vp ON vd.user_id = vp.id
+        LEFT JOIN vendor_details vd_owner ON (
+            w.manpower_id LIKE 'owner-%' AND 
+            vd_owner.id = REPLACE(w.manpower_id, 'owner-', '')
+        )
         ${whereClause}
         ORDER BY w.created_at DESC 
         LIMIT ? OFFSET ?
@@ -535,7 +541,7 @@ export class WarrantyController {
                 params.push(req.user.id);
             }
             else if (req.user.role === 'vendor') {
-                const [vendorDetails] = await db.execute('SELECT id, store_name FROM vendor_details WHERE user_id = ?', [req.user.id]);
+                const [vendorDetails] = await db.execute('SELECT id, store_name, store_email FROM vendor_details WHERE user_id = ?', [req.user.id]);
                 if (vendorDetails.length > 0) {
                     const vendorDetailsId = vendorDetails[0].id;
                     const vendorStoreName = vendorDetails[0].store_name;
@@ -543,12 +549,14 @@ export class WarrantyController {
                     if (manpower.length > 0) {
                         const manpowerIds = manpower.map((m) => m.id);
                         const inClause = manpowerIds.map(() => '?').join(',');
-                        conditions.push(`(manpower_id IN (${inClause}) OR user_id = ? OR installer_name = ?)`);
-                        params.push(...manpowerIds, req.user.id, vendorStoreName);
+                        const vendorStoreEmail = vendorDetails[0].store_email;
+                        conditions.push(`(manpower_id IN (${inClause}) OR user_id = ? OR (installer_name = ? AND installer_contact = ?))`);
+                        params.push(...manpowerIds, req.user.id, vendorStoreName, vendorStoreEmail);
                     }
                     else {
-                        conditions.push('(user_id = ? OR installer_name = ?)');
-                        params.push(req.user.id, vendorStoreName);
+                        const vendorStoreEmail = vendorDetails[0].store_email;
+                        conditions.push('(user_id = ? OR (installer_name = ? AND installer_contact = ?))');
+                        params.push(req.user.id, vendorStoreName, vendorStoreEmail);
                     }
                 }
                 else {

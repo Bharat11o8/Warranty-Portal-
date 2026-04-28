@@ -142,24 +142,24 @@ export class AdminController {
                     (SELECT GROUP_CONCAT(name SEPARATOR ', ') FROM manpower WHERE vendor_id = vd.id) as manpower_names,
                     (SELECT COUNT(*) FROM warranty_registrations wr 
                      WHERE (wr.manpower_id IN (SELECT id FROM manpower WHERE vendor_id = vd.id)
-                        OR wr.installer_name = vd.store_name
+                        OR (wr.installer_name = vd.store_name AND wr.installer_contact = vd.store_email)
                         OR wr.user_id = p.id)
                     ) as total_warranties,
                     (SELECT COUNT(*) FROM warranty_registrations wr 
                      WHERE (wr.manpower_id IN (SELECT id FROM manpower WHERE vendor_id = vd.id)
-                        OR wr.installer_name = vd.store_name
+                        OR (wr.installer_name = vd.store_name AND wr.installer_contact = vd.store_email)
                         OR wr.user_id = p.id)
                      AND wr.status = 'validated'
                     ) as validated_warranties,
                      (SELECT COUNT(*) FROM warranty_registrations wr 
                       WHERE (wr.manpower_id IN (SELECT id FROM manpower WHERE vendor_id = vd.id)
-                        OR wr.installer_name = vd.store_name
+                        OR (wr.installer_name = vd.store_name AND wr.installer_contact = vd.store_email)
                         OR wr.user_id = p.id)
                       AND wr.status IN ('pending', 'pending_vendor')
                      ) as pending_warranties,
                     (SELECT COUNT(*) FROM warranty_registrations wr 
                      WHERE (wr.manpower_id IN (SELECT id FROM manpower WHERE vendor_id = vd.id)
-                        OR wr.installer_name = vd.store_name
+                        OR (wr.installer_name = vd.store_name AND wr.installer_contact = vd.store_email)
                         OR wr.user_id = p.id)
                      AND wr.status = 'rejected'
                     ) as rejected_warranties
@@ -602,7 +602,7 @@ export class AdminController {
                     m.name as applicator_name
                 FROM warranty_registrations wr
                 LEFT JOIN manpower m ON wr.manpower_id = m.id
-                LEFT JOIN vendor_details vd ON m.vendor_id = vd.id
+                LEFT JOIN vendor_details vd ON (wr.installer_name = vd.store_name AND wr.installer_contact = vd.store_email)
                 WHERE wr.uid = ? OR wr.id = ?`, [uid, uid]);
             if (warranty.length === 0) {
                 return res.status(404).json({ error: 'Warranty not found' });
@@ -692,8 +692,8 @@ export class AdminController {
                     const [vendorByName] = await db.execute(`SELECT p.email as vendor_email, p.id as vendor_user_id, vd.store_name as vendor_name
                          FROM vendor_details vd
                          JOIN profiles p ON vd.user_id = p.id
-                         WHERE vd.store_name = ?
-                         LIMIT 1`, [warrantyData.installer_name]);
+                         WHERE vd.store_name = ? AND vd.store_email = ?
+                         LIMIT 1`, [warrantyData.installer_name, warrantyData.installer_contact]);
                     if (vendorByName.length > 0) {
                         vendorEmail = vendorByName[0].vendor_email;
                         vendorName = vendorByName[0].vendor_name;
@@ -818,9 +818,14 @@ export class AdminController {
                     wr.uid LIKE ? OR 
                     wr.registration_number LIKE ? OR 
                     wr.car_make LIKE ? OR 
-                    wr.car_model LIKE ?
+                    wr.car_model LIKE ? OR
+                    wr.installer_name LIKE ? OR
+                    vd.store_name LIKE ? OR
+                    vd_owner.store_name LIKE ? OR
+                    vd.city LIKE ? OR
+                    vd_owner.city LIKE ?
                 )`);
-                params.push(searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm);
+                params.push(searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm);
             }
             // Date Range
             if (date_from && date_to) {
@@ -829,8 +834,18 @@ export class AdminController {
             }
             // 2. Build Query
             const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
-            // Count Query
-            const countQuery = `SELECT COUNT(*) as total FROM warranty_registrations wr ${whereClause}`;
+            // Count Query (must include the same JOINs used in search conditions)
+            const countQuery = `
+                SELECT COUNT(*) as total
+                FROM warranty_registrations wr
+                LEFT JOIN manpower m ON wr.manpower_id = m.id
+                LEFT JOIN vendor_details vd ON m.vendor_id = vd.id
+                LEFT JOIN vendor_details vd_owner ON (
+                    wr.manpower_id LIKE 'owner-%' AND
+                    vd_owner.id = REPLACE(wr.manpower_id, 'owner-', '')
+                )
+                ${whereClause}
+            `;
             const [countResult] = await db.execute(countQuery, params);
             const totalCount = countResult[0].total;
             const totalPages = Math.ceil(totalCount / limit);
@@ -842,17 +857,23 @@ export class AdminController {
                     p.email as submitted_by_email,
                     ur.role as submitted_by_role,
                     m.name as manpower_name_from_db,
-                    vd.store_name as vendor_store_name,
-                    vd.store_email as vendor_store_email,
-                    vd.latitude as store_lat,
-                    vd.longitude as store_lng,
+                    COALESCE(vd.store_name, vd_owner.store_name) as vendor_store_name,
+                    COALESCE(vd.store_email, vd_owner.store_email) as vendor_store_email,
+                    COALESCE(vd.city, vd_owner.city) as vendor_city,
+                    COALESCE(vd.state, vd_owner.state) as vendor_state,
+                    COALESCE(vd.latitude, vd_owner.latitude) as store_lat,
+                    COALESCE(vd.longitude, vd_owner.longitude) as store_lng,
                     vp.phone_number as vendor_phone_number
                 FROM warranty_registrations wr
                 LEFT JOIN profiles p ON wr.user_id = p.id
                 LEFT JOIN user_roles ur ON p.id = ur.user_id
                 LEFT JOIN manpower m ON wr.manpower_id = m.id
-                LEFT JOIN vendor_details vd ON m.vendor_id = vd.id
+                LEFT JOIN vendor_details vd ON (wr.installer_name = vd.store_name AND wr.installer_contact = vd.store_email)
                 LEFT JOIN profiles vp ON vd.user_id = vp.id
+                LEFT JOIN vendor_details vd_owner ON (
+                    wr.manpower_id LIKE 'owner-%' AND
+                    vd_owner.id = REPLACE(wr.manpower_id, 'owner-', '')
+                )
                 ${whereClause}
                 ORDER BY wr.created_at DESC
                 LIMIT ? OFFSET ?
@@ -900,7 +921,7 @@ export class AdminController {
                 LEFT JOIN profiles p ON wr.user_id = p.id
                 LEFT JOIN user_roles ur ON p.id = ur.user_id
                 LEFT JOIN manpower m ON wr.manpower_id = m.id
-                LEFT JOIN vendor_details vd ON m.vendor_id = vd.id
+                LEFT JOIN vendor_details vd ON (wr.installer_name = vd.store_name AND wr.installer_contact = vd.store_email)
                 LEFT JOIN profiles vp ON vd.user_id = vp.id
                 WHERE wr.uid = ? OR wr.id = ?
                 LIMIT 1
@@ -1073,7 +1094,7 @@ export class AdminController {
                 FROM warranty_registrations wr
                 LEFT JOIN profiles p ON wr.user_id = p.id
                 LEFT JOIN manpower m ON wr.manpower_id = m.id
-                LEFT JOIN vendor_details vd ON m.vendor_id = vd.id
+                LEFT JOIN vendor_details vd ON (wr.installer_name = vd.store_name AND wr.installer_contact = vd.store_email)
                 WHERE wr.customer_email = ?
                 ORDER BY wr.created_at DESC
             `, [email]);

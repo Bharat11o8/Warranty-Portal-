@@ -23,8 +23,8 @@ export const validateIndianMobile = (phone: string): boolean => {
     // Remove spaces/dashes, then strip country code only if 12 digits (91XXXXXXXXXX)
     const raw = phone.replace(/[\s\-+]/g, '');
     const cleaned = raw.length === 12 && raw.startsWith('91') ? raw.slice(2)
-                  : raw.length === 11 && raw.startsWith('0') ? raw.slice(1)
-                  : raw;
+        : raw.length === 11 && raw.startsWith('0') ? raw.slice(1)
+            : raw;
     return INDIAN_MOBILE_REGEX.test(cleaned);
 };
 
@@ -119,8 +119,9 @@ export const VEHICLE_REG_PATTERNS = {
     STANDARD: /^[A-Z]{2}[0-9]{1,2}[A-Z]{0,3}[0-9]{1,4}$/,
 
     // BH (Bharat) Series: National portability format
-    // Example: BH-23-AA-1234
-    BH_SERIES: /^(BH|[0-9]{2}BH)[0-9]{2,4}[A-Z]{2}[0-9]{4}$/,
+    // New format: 26-BH-6045-F  → {year}BH{4digits}{1-2letters}
+    // Old format: BH-23-AA-1234 → BH{year}{1-2letters}{4digits}
+    BH_SERIES: /^([0-9]{2}BH[0-9]{4}[A-Z]{1,2}|BH[0-9]{2,4}[A-Z]{1,2}[0-9]{4})$/,
 
     // Temporary Registration: TR followed by numbers or state code
     // Example: TR-MH-12-123456 or TR010112345
@@ -131,7 +132,7 @@ export const VEHICLE_REG_PATTERNS = {
     DIPLOMATIC: /^(CD|CC|UN)[0-9]{3,5}$/,
 
     // Defense/Military vehicles: Broad Arrow prefix or specific Army format
-    // Example: ↑ 22 A 123456 B or 22A123456B
+    // Example: ↑ 22 A 123456 B or 22A123456cdB
     MILITARY: /^([↑\^A-Z]?[0-9]{2}[A-Z]{1,2}[0-9]{5,7}[A-Z]?)$/
 };
 
@@ -208,7 +209,17 @@ export const formatVehicleRegLive = (input: string): string => {
     // Remove all non-alphanumeric, uppercase
     const cleaned = input.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
 
-    // BH series format: BH-00-XX-0000
+    // BH series — new format: 26-BH-6045-F (year first)
+    if (/^[0-9]{2}BH/.test(cleaned)) {
+        const year = cleaned.slice(0, 2);
+        const rest = cleaned.slice(4); // skip 'XXBH'
+        let result = `${year}-BH`;
+        if (rest.length > 0) result += '-' + rest.slice(0, 4); // 4-digit number
+        if (rest.length > 4) result += '-' + rest.slice(4, 6); // 1-2 letter suffix
+        return result;
+    }
+
+    // BH series — old format: BH-23-AA-1234 (BH first)
     if (cleaned.startsWith('BH') && cleaned.length > 2) {
         let result = 'BH';
         const rest = cleaned.slice(2);
