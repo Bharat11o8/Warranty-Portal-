@@ -287,7 +287,23 @@ const EVProductsForm = ({ initialData, warrantyId, onSuccess, isUniversal, isEdi
       return;
     }
 
+    // Email is required for public flow
+    if (isPublic && !formData.customerEmail) {
+      toast({ title: "Email Required", description: "Please enter your email address", variant: "destructive" });
+      return;
+    }
+
     // === Step 2: Customer Details Validation ===
+    // Prevent vendor from using their own email as the customer email
+    if (user?.role === 'vendor' && formData.customerEmail && user.email && formData.customerEmail.toLowerCase().trim() === user.email.toLowerCase().trim()) {
+      toast({
+        title: "Invalid Customer Email",
+        description: "You cannot use your franchise email address as the customer's email. Please use the actual customer's email.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     if (!formData.customerFname) {
       toast({ title: "Customer Name Required", description: "Please enter customer's first name", variant: "destructive" });
       return;
@@ -618,8 +634,8 @@ const EVProductsForm = ({ initialData, warrantyId, onSuccess, isUniversal, isEdi
                   updateFormData={updateFormData}
                   onNext={handleNext}
                   onPrev={handlePrev}
-                  isCustomer={user?.role === 'customer'}
-                  isVendor={user?.role === 'vendor'}
+                  isCustomer={!isPublic && user?.role === 'customer'}
+                  isVendor={!isPublic && user?.role === 'vendor'}
                 />
               </div>
             )}

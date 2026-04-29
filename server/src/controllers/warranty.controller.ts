@@ -267,6 +267,12 @@ export class WarrantyController {
       if (req.user.role !== 'customer' && warrantyData.customerEmail) {
         try {
           const customerEmail = warrantyData.customerEmail.toLowerCase().trim();
+          
+          // Prevent franchise from using their own email
+          if (customerEmail === req.user.email.toLowerCase().trim()) {
+            return res.status(400).json({ error: "You cannot use your franchise email address as the customer's email. Please use the actual customer's email address." });
+          }
+
           const [existingUsers]: any = await db.execute(
             'SELECT id FROM profiles WHERE email = ?',
             [customerEmail]
@@ -275,12 +281,21 @@ export class WarrantyController {
           if (existingUsers.length > 0) {
             finalUserId = existingUsers[0].id;
             
-            // Ensure they have the 'customer' role
+            // Fetch all roles for this user
             const [roles]: any = await db.execute(
-              'SELECT role FROM user_roles WHERE user_id = ? AND role = "customer"',
+              'SELECT role FROM user_roles WHERE user_id = ?',
               [finalUserId]
             );
-            if (roles.length === 0) {
+            
+            const userRoles = roles.map((r: any) => r.role);
+            
+            // If the user is an admin or vendor, prevent using this email as a customer
+            if (userRoles.includes('admin') || userRoles.includes('vendor')) {
+              return res.status(400).json({ error: "This email address is registered as a franchise or admin account and cannot be used as a customer email." });
+            }
+
+            // Ensure they have the 'customer' role
+            if (!userRoles.includes('customer')) {
               await db.execute(
                 'INSERT INTO user_roles (id, user_id, role) VALUES (?, ?, "customer")',
                 [uuidv4(), finalUserId]

@@ -206,12 +206,12 @@ export class PublicController {
             const { excludeId } = req.query;
             let query = 'SELECT uid FROM warranty_registrations WHERE uid = ?';
             const params: any[] = [uid];
-            
+
             if (excludeId) {
                 query += ' AND id != ? AND uid != ?';
                 params.push(excludeId, excludeId);
             }
-            
+
             const [existingWarranty]: any = await db.execute(query, params);
 
             if (existingWarranty.length > 0) {
@@ -482,9 +482,9 @@ export class PublicController {
                     deviceModel: feExif.deviceModel || null,
                     deviceFingerprint: feExif.deviceFingerprint || null
                 };
-             } else if (warrantyData.productDetails.deviceFingerprint) {
+            } else if (warrantyData.productDetails.deviceFingerprint) {
                 exifData.deviceFingerprint = (warrantyData.productDetails as any).deviceFingerprint;
-             }
+            }
             console.log('[FraudDetection] Received exifData from frontend:', warrantyData.productDetails.exifData || 'NONE', '-> parsed:', exifData);
 
             // --- FRAUD DETECTION: IP Geolocation ---
@@ -548,6 +548,19 @@ export class PublicController {
             if (existingUsers.length > 0) {
                 // Existing user
                 userId = existingUsers[0].id;
+
+                // Fetch all roles for this user
+                const [roles]: any = await db.execute(
+                    'SELECT role FROM user_roles WHERE user_id = ?',
+                    [userId]
+                );
+
+                const userRoles = roles.map((r: any) => r.role);
+
+                // If the user is an admin or vendor, prevent using this email as a customer
+                if (userRoles.includes('admin') || userRoles.includes('vendor')) {
+                    return res.status(400).json({ error: "This email address is registered to a franchise or admin and cannot be used for customer registration." });
+                }
             } else {
                 // Create new customer user
                 isNewUser = true;
@@ -654,7 +667,7 @@ export class PublicController {
             } catch (err) {
                 console.warn('[FraudDetection] Fraud scoring failed:', err);
             }
-            
+
             // Inject submission source for UI display
             warrantyData.productDetails.submissionSource = 'QR Scan';
 

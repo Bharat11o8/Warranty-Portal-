@@ -434,6 +434,17 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
         return;
       }
 
+      // Prevent vendor from using their own email as the customer email
+      if (user?.role === 'vendor' && formData.customerEmail && user.email && formData.customerEmail.toLowerCase().trim() === user.email.toLowerCase().trim()) {
+        toast({
+          title: "Invalid Customer Email",
+          description: "You cannot use your franchise email address as the customer's email. Please use the actual customer's email.",
+          variant: "destructive",
+        });
+        setLoading(false);
+        return;
+      }
+
       // Validate Purchase / Installation Date
       if (!formData.purchaseDate) {
         toast({
@@ -1020,7 +1031,7 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
 
               <div className="space-y-3">
                 <Label htmlFor="customerEmail" className="text-sm font-medium text-slate-700">
-                  Email {user?.role !== 'vendor' && <span className="text-destructive">*</span>}
+                  Email {(isPublic || user?.role !== 'vendor') && <span className="text-destructive">*</span>}
                 </Label>
                 <div className="relative">
                   <Mail className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
@@ -1030,13 +1041,13 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
                     placeholder="customer@example.com"
                     value={formData.customerEmail}
                     onChange={(e) => handleChange("customerEmail", e.target.value)}
-                    required={user?.role !== 'vendor'}
+                    required={isPublic || user?.role !== 'vendor'}
                     readOnly={user?.role === 'customer'}
                     disabled={loading}
                     className={`pl-9 border-slate-200 ${user?.role === 'customer' ? 'bg-slate-50 cursor-not-allowed' : 'bg-white'}`}
                   />
                 </div>
-                {user?.role === 'vendor' && (
+                {(!isPublic && user?.role === 'vendor') && (
                   <p className="text-xs text-muted-foreground">Optional for notification</p>
                 )}
               </div>
@@ -1094,12 +1105,11 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
                       ? 'border-red-400 focus-visible:ring-red-300'
                       : 'border-green-400 focus-visible:ring-green-300'
                     : 'border-slate-200'
-                  }`}
+                    }`}
                 />
                 {formData.carReg && (
-                  <p className={`text-xs flex items-center gap-1 ${
-                    getVehicleRegError(formData.carReg) ? 'text-red-500' : 'text-green-600'
-                  }`}>
+                  <p className={`text-xs flex items-center gap-1 ${getVehicleRegError(formData.carReg) ? 'text-red-500' : 'text-green-600'
+                    }`}>
                     {getVehicleRegError(formData.carReg)
                       ? `⚠ ${getVehicleRegError(formData.carReg)}`
                       : '✓ Valid registration format'

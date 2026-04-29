@@ -102,24 +102,10 @@ export class WarrantyController {
             }
             const uid = warrantyData.productDetails.uid || null;
             // ===== UID Pre-Validation for Seat Covers =====
-            // Check if the UID exists in the pre_generated_uids table and is available
-            if (warrantyData.productType === 'seat-cover' && uid) {
-                const [uidRows] = await db.execute('SELECT uid, is_used FROM pre_generated_uids WHERE uid = ?', [uid]);
-                if (uidRows.length === 0) {
-                    return res.status(400).json({
-                        error: 'Invalid UID. This UID does not exist in our system. Please check the UID on your product packaging.'
-                    });
-                }
-                if (uidRows[0].is_used) {
-                    return res.status(400).json({
-                        error: 'This UID has already been used for another warranty registration.'
-                    });
-                }
-            }
-            // Check if UID or Serial Number already exists
+            // --- RESUBMISSION DETECTION (must run BEFORE is_used check) ---
+            let isResubmission = false;
             const checkId = uid || warrantyData.productDetails.serialNumber;
             if (checkId) {
-                // Fetch product_details to check retry count
                 const [existingWarranty] = await db.execute('SELECT uid, user_id, status, product_details FROM warranty_registrations WHERE uid = ?', [checkId]);
                 if (existingWarranty.length > 0) {
                     const existing = existingWarranty[0];
@@ -127,7 +113,6 @@ export class WarrantyController {
                     // 1. The warranty was rejected AND
                     // 2. The user owns it (same user_id)
                     if (existing.status === 'rejected' && existing.user_id === req.user.id) {
-                        // Parse existing details to check retry count
                         let existingDetails = {};
                         try {
                             existingDetails = typeof existing.product_details === 'string'
@@ -145,14 +130,30 @@ export class WarrantyController {
                         }
                         // Increment retry count for the new submission
                         warrantyData.productDetails.retryCount = currentRetryCount + 1;
-                        // Delete the old rejected warranty so it can be resubmitted fresh
-                        await db.execute('DELETE FROM warranty_registrations WHERE uid = ?', [checkId]);
+                        // Mark as resubmission (do NOT delete original)
+                        isResubmission = true;
+                        console.log(`[Resubmission] Detected resubmission for UID: ${checkId}, routing to staging table.`);
                     }
                     else {
                         return res.status(400).json({
                             error: `This ${uid ? 'UID' : 'Serial Number'} is already registered.`
                         });
                     }
+                }
+            }
+            // Check if the UID exists in the pre_generated_uids table and is available
+            // SKIP this check for resubmissions (UID was already validated on original submission)
+            if (warrantyData.productType === 'seat-cover' && uid && !isResubmission) {
+                const [uidRows] = await db.execute('SELECT uid, is_used FROM pre_generated_uids WHERE uid = ?', [uid]);
+                if (uidRows.length === 0) {
+                    return res.status(400).json({
+                        error: 'Invalid UID. This UID does not exist in our system. Please check the UID on your product packaging.'
+                    });
+                }
+                if (uidRows[0].is_used) {
+                    return res.status(400).json({
+                        error: 'This UID has already been used for another warranty registration.'
+                    });
                 }
             }
             // Check if phone or registration number already exists for this product category
@@ -171,12 +172,14 @@ export class WarrantyController {
                 });
             }
             // For customer submissions, set status to 'pending_vendor' (needs franchise verification)
-            // For vendor/admin submissions, go directly to 'pending' (admin review)
-            // Status is determined by the authenticated user's role, NOT by client payload
-            const initialStatus = req.user.role === 'customer' ? 'pending_vendor' : 'pending';
-            // Use provided UID (for seat covers) or Serial Number (for EV products)
-            // or generate a new UUID (fallback)
-            const warrantyId = warrantyData.productDetails.uid || warrantyData.productDetails.serialNumber || uuidv4();
+            // For vendor/admin submissions, go directly to 'pending_review' (admin review) for resubmissions, otherwise 'pending'
+            const baseStatus = req.user.role === 'customer' ? 'pending_vendor' : 'pending';
+            // Resubmissions ALWAYS go to 'pending_review' in the staging table
+            // (the staging table enum only supports: pending_review, approved, rejected)
+            let initialStatus = isResubmission ? 'pending_review' : baseStatus;
+            // Use provided UID (for seat covers), Serial Number (for EV products), 
+            // original checkId (for edits), or generate a new UUID (fallback)
+            const warrantyId = isResubmission ? checkId : (warrantyData.productDetails.uid || warrantyData.productDetails.serialNumber || uuidv4());
             // --- FRAUD DETECTION: Calculate fraud score ---
             let fraudScore = 0;
             let fraudFlags = {};
@@ -223,12 +226,22 @@ export class WarrantyController {
             if (req.user.role !== 'customer' && warrantyData.customerEmail) {
                 try {
                     const customerEmail = warrantyData.customerEmail.toLowerCase().trim();
+                    // Prevent franchise from using their own email
+                    if (customerEmail === req.user.email.toLowerCase().trim()) {
+                        return res.status(400).json({ error: "You cannot use your franchise email address as the customer's email. Please use the actual customer's email address." });
+                    }
                     const [existingUsers] = await db.execute('SELECT id FROM profiles WHERE email = ?', [customerEmail]);
                     if (existingUsers.length > 0) {
                         finalUserId = existingUsers[0].id;
+                        // Fetch all roles for this user
+                        const [roles] = await db.execute('SELECT role FROM user_roles WHERE user_id = ?', [finalUserId]);
+                        const userRoles = roles.map((r) => r.role);
+                        // If the user is an admin or vendor, prevent using this email as a customer
+                        if (userRoles.includes('admin') || userRoles.includes('vendor')) {
+                            return res.status(400).json({ error: "This email address is registered as a franchise or admin account and cannot be used as a customer email." });
+                        }
                         // Ensure they have the 'customer' role
-                        const [roles] = await db.execute('SELECT role FROM user_roles WHERE user_id = ? AND role = "customer"', [finalUserId]);
-                        if (roles.length === 0) {
+                        if (!userRoles.includes('customer')) {
                             await db.execute('INSERT INTO user_roles (id, user_id, role) VALUES (?, ?, "customer")', [uuidv4(), finalUserId]);
                         }
                     }
@@ -248,46 +261,73 @@ export class WarrantyController {
             }
             // Inject submission source for UI display
             warrantyData.productDetails.submissionSource = req.user.role === 'customer' ? 'Customer Dashboard' : 'Franchise Dashboard';
-            await db.execute(`INSERT INTO warranty_registrations 
-        (uid, user_id, product_type, customer_name, customer_email, customer_phone, 
-         customer_address, registration_number, car_make, car_model, car_year, 
-         purchase_date, installer_name, installer_contact, product_details, manpower_id, warranty_type, status,
-         exif_lat, exif_lng, exif_timestamp, exif_device, device_fingerprint, submission_ip, ip_city, ip_region, ip_lat, ip_lng, fraud_score, fraud_flags,
-         seat_cover_photo_url, car_outer_photo_url) 
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [
-                warrantyId,
-                finalUserId,
-                warrantyData.productType,
-                warrantyData.customerName,
-                warrantyData.customerEmail,
-                warrantyData.customerPhone,
-                warrantyData.customerAddress,
-                warrantyData.registrationNumber,
-                warrantyData.carMake || null,
-                warrantyData.carModel || null,
-                warrantyData.carYear,
-                warrantyData.purchaseDate,
-                warrantyData.installerName || null,
-                warrantyData.installerContact || null,
-                JSON.stringify(warrantyData.productDetails),
-                (warrantyData.manpowerId && warrantyData.manpowerId !== 'owner') ? warrantyData.manpowerId : null,
-                warrantyData.warrantyType,
-                initialStatus,
-                exifData.lat,
-                exifData.lng,
-                exifData.timestamp,
-                exifData.deviceMake ? `${exifData.deviceMake} ${exifData.deviceModel || ''}`.trim() : null,
-                exifData.deviceFingerprint,
-                clientIP,
-                ipGeo.city,
-                ipGeo.region,
-                ipGeo.lat,
-                ipGeo.lng,
-                fraudScore,
-                JSON.stringify(fraudFlags),
-                warrantyData.productDetails?.photos?.seatCover || null,
-                warrantyData.productDetails?.photos?.carOuter || null
-            ]);
+            if (isResubmission) {
+                // Use ON DUPLICATE KEY UPDATE for resubmissions to handle subsequent edits before approval
+                await db.execute(`INSERT INTO warranty_resubmissions 
+          (original_uid, user_id, product_type, customer_name, customer_email, customer_phone, 
+           customer_address, registration_number, car_make, car_model, car_year, 
+           purchase_date, installer_name, installer_contact, product_details, manpower_id, warranty_type, status,
+           exif_lat, exif_lng, exif_timestamp, exif_device, device_fingerprint, submission_ip, ip_city, ip_region, ip_lat, ip_lng, fraud_score, fraud_flags,
+           seat_cover_photo_url, car_outer_photo_url) 
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          ON DUPLICATE KEY UPDATE
+            customer_name = VALUES(customer_name),
+            customer_email = VALUES(customer_email),
+            customer_phone = VALUES(customer_phone),
+            customer_address = VALUES(customer_address),
+            registration_number = VALUES(registration_number),
+            car_make = VALUES(car_make),
+            car_model = VALUES(car_model),
+            car_year = VALUES(car_year),
+            purchase_date = VALUES(purchase_date),
+            installer_name = VALUES(installer_name),
+            installer_contact = VALUES(installer_contact),
+            product_details = VALUES(product_details),
+            manpower_id = VALUES(manpower_id),
+            status = VALUES(status),
+            exif_lat = VALUES(exif_lat),
+            exif_lng = VALUES(exif_lng),
+            exif_timestamp = VALUES(exif_timestamp),
+            exif_device = VALUES(exif_device),
+            device_fingerprint = VALUES(device_fingerprint),
+            submission_ip = VALUES(submission_ip),
+            fraud_score = VALUES(fraud_score),
+            fraud_flags = VALUES(fraud_flags),
+            seat_cover_photo_url = VALUES(seat_cover_photo_url),
+            car_outer_photo_url = VALUES(car_outer_photo_url),
+            created_at = CURRENT_TIMESTAMP()`, [
+                    warrantyId, finalUserId, warrantyData.productType, warrantyData.customerName, warrantyData.customerEmail,
+                    warrantyData.customerPhone, warrantyData.customerAddress, warrantyData.registrationNumber,
+                    warrantyData.carMake || null, warrantyData.carModel || null, warrantyData.carYear, warrantyData.purchaseDate,
+                    warrantyData.installerName || null, warrantyData.installerContact || null, JSON.stringify(warrantyData.productDetails),
+                    (warrantyData.manpowerId && warrantyData.manpowerId !== 'owner') ? warrantyData.manpowerId : null,
+                    warrantyData.warrantyType, initialStatus, exifData.lat, exifData.lng, exifData.timestamp,
+                    exifData.deviceMake ? `${exifData.deviceMake} ${exifData.deviceModel || ''}`.trim() : null,
+                    exifData.deviceFingerprint, clientIP, ipGeo.city, ipGeo.region, ipGeo.lat, ipGeo.lng, fraudScore,
+                    JSON.stringify(fraudFlags), warrantyData.productDetails?.photos?.seatCover || null,
+                    warrantyData.productDetails?.photos?.carOuter || null
+                ]);
+            }
+            else {
+                await db.execute(`INSERT INTO warranty_registrations 
+          (uid, user_id, product_type, customer_name, customer_email, customer_phone, 
+           customer_address, registration_number, car_make, car_model, car_year, 
+           purchase_date, installer_name, installer_contact, product_details, manpower_id, warranty_type, status,
+           exif_lat, exif_lng, exif_timestamp, exif_device, device_fingerprint, submission_ip, ip_city, ip_region, ip_lat, ip_lng, fraud_score, fraud_flags,
+           seat_cover_photo_url, car_outer_photo_url) 
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [
+                    warrantyId, finalUserId, warrantyData.productType, warrantyData.customerName, warrantyData.customerEmail,
+                    warrantyData.customerPhone, warrantyData.customerAddress, warrantyData.registrationNumber,
+                    warrantyData.carMake || null, warrantyData.carModel || null, warrantyData.carYear, warrantyData.purchaseDate,
+                    warrantyData.installerName || null, warrantyData.installerContact || null, JSON.stringify(warrantyData.productDetails),
+                    (warrantyData.manpowerId && warrantyData.manpowerId !== 'owner') ? warrantyData.manpowerId : null,
+                    warrantyData.warrantyType, initialStatus, exifData.lat, exifData.lng, exifData.timestamp,
+                    exifData.deviceMake ? `${exifData.deviceMake} ${exifData.deviceModel || ''}`.trim() : null,
+                    exifData.deviceFingerprint, clientIP, ipGeo.city, ipGeo.region, ipGeo.lat, ipGeo.lng, fraudScore,
+                    JSON.stringify(fraudFlags), warrantyData.productDetails?.photos?.seatCover || null,
+                    warrantyData.productDetails?.photos?.carOuter || null
+                ]);
+            }
             // UID is checked but NOT marked as used until Admin approves it.
             // Handle Email Notifications
             if (initialStatus === 'pending_vendor' && warrantyData.installerContact) {

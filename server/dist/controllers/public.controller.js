@@ -448,6 +448,13 @@ export class PublicController {
             if (existingUsers.length > 0) {
                 // Existing user
                 userId = existingUsers[0].id;
+                // Fetch all roles for this user
+                const [roles] = await db.execute('SELECT role FROM user_roles WHERE user_id = ?', [userId]);
+                const userRoles = roles.map((r) => r.role);
+                // If the user is an admin or vendor, prevent using this email as a customer
+                if (userRoles.includes('admin') || userRoles.includes('vendor')) {
+                    return res.status(400).json({ error: "This email address is registered to a franchise or admin and cannot be used for customer registration." });
+                }
             }
             else {
                 // Create new customer user

@@ -92,12 +92,12 @@ export async function executeWithRetry<T = any>(
     try {
       const result = await pool.execute(sql, params) as T;
       const duration = Date.now() - startTime;
-      
+
       // Log slow queries (> 2 seconds)
       if (duration > 2000) {
         console.warn(`[DB] ⚠️ Slow Query (${duration}ms): ${sql.substring(0, 100)}...`);
       }
-      
+
       // Auto-reset stats if DB has been stable for 15 minutes
       if (transientRetryCount > 0 && lastTransientRetryAt) {
         const lastErrorTime = new Date(lastTransientRetryAt).getTime();
@@ -112,7 +112,7 @@ export async function executeWithRetry<T = any>(
     } catch (error: any) {
       const duration = Date.now() - startTime;
       const shouldRetry = isTransientDbError(error) && attempt < retries;
-      
+
       console.error(`[DB] ❌ Error on attempt ${attempt + 1} (${duration}ms):`, {
         code: error.code,
         message: error.message,

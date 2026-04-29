@@ -17,6 +17,9 @@ router.put('/vendors/:id/store-code', ...adminAuth, requirePermission('vendors',
 router.delete('/vendors/:id', ...adminAuth, requirePermission('vendors', 'write'), AdminController.deleteVendor);
 // ── Warranties ───────────────────────────────────────────────────────────────
 router.get('/warranties', ...adminAuth, requirePermission('warranties', 'read'), AdminController.getAllWarranties);
+router.get('/warranties/resubmissions', ...adminAuth, requirePermission('warranties', 'read'), AdminController.getResubmissions);
+router.post('/warranties/resubmissions/:id/approve', ...adminAuth, requirePermission('warranties', 'write'), AdminController.approveResubmission);
+router.post('/warranties/resubmissions/:id/reject', ...adminAuth, requirePermission('warranties', 'write'), AdminController.rejectResubmission);
 router.get('/warranties/:id', ...adminAuth, requirePermission('warranties', 'read'), AdminController.getWarrantyById);
 router.put('/warranties/:uid/status', ...adminAuth, requirePermission('warranties', 'write'), AdminController.updateWarrantyStatus);
 // ── Customers ────────────────────────────────────────────────────────────────
