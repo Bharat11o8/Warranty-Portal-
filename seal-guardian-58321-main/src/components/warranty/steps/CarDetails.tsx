@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -18,13 +19,15 @@ interface CarDetailsProps {
 const CarDetails = ({ formData, updateFormData, onNext, onPrev }: CarDetailsProps) => {
   const { toast } = useToast();
 
+  const [isBrandNew, setIsBrandNew] = useState(formData.carReg === 'APPLIED-FOR');
+
   // Handle vehicle registration input with auto-formatting
   const handleRegChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const formatted = formatVehicleRegLive(e.target.value);
     updateFormData({ carReg: formatted });
 
     // Conditional uniqueness check for vehicle registration
-    if (formatted.length >= 6) {
+    if (formatted.length >= 6 && formatted !== 'APPLIED-FOR') {
       import("@/lib/api").then((api) => {
         api.default.get(`/public/warranty/check-uniqueness?reg=${formatted}&type=ev-products`)
           .then(res => {
@@ -116,27 +119,49 @@ const CarDetails = ({ formData, updateFormData, onNext, onPrev }: CarDetailsProp
           <Label htmlFor="carReg">
             Vehicle Registration Number <span className="text-destructive">*</span>
           </Label>
-          <Input
-            id="carReg"
-            type="text"
-            placeholder="e.g., DL-01-AB-1234 / 26-BH-6045-F"
-            value={formData.carReg}
-            onChange={handleRegChange}
-            required
-            maxLength={20}
-            className={formData.carReg
-              ? getVehicleRegError(formData.carReg)
-                ? 'border-red-400 focus-visible:ring-red-300'
-                : 'border-green-400 focus-visible:ring-green-300'
-              : ''
-            }
-          />
-          {formData.carReg && (
-            <p className={`text-xs flex items-center gap-1 ${
-              getVehicleRegError(formData.carReg)
+
+          <div className="flex items-center space-x-2 pb-2">
+            <input
+              type="checkbox"
+              id="isBrandNewCar"
+              checked={isBrandNew}
+              onChange={(e) => {
+                setIsBrandNew(e.target.checked);
+                if (e.target.checked) {
+                  updateFormData({ carReg: 'APPLIED-FOR' });
+                } else {
+                  updateFormData({ carReg: '' });
+                }
+              }}
+              className="w-4 h-4 text-emerald-600 border-gray-300 rounded focus:ring-emerald-500"
+            />
+            <Label htmlFor="isBrandNewCar" className="text-sm font-normal text-slate-600 cursor-pointer">
+              Brand new car (No registration number yet)
+            </Label>
+          </div>
+
+          {!isBrandNew && (
+            <Input
+              id="carReg"
+              type="text"
+              placeholder="e.g., DL-01-AB-1234 / 26-BH-6045-F"
+              value={formData.carReg}
+              onChange={handleRegChange}
+              required
+              maxLength={20}
+              className={`${formData.carReg
+                ? getVehicleRegError(formData.carReg)
+                  ? 'border-red-400 focus-visible:ring-red-300'
+                  : 'border-green-400 focus-visible:ring-green-300'
+                : ''
+                }`}
+            />
+          )}
+          {!isBrandNew && formData.carReg && (
+            <p className={`text-xs flex items-center gap-1 ${getVehicleRegError(formData.carReg)
                 ? 'text-red-500'
                 : 'text-green-600'
-            }`}>
+              }`}>
               {getVehicleRegError(formData.carReg)
                 ? `⚠ ${getVehicleRegError(formData.carReg)}`
                 : '✓ Valid registration format'

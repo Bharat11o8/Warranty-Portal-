@@ -114,6 +114,9 @@ export class PublicController {
                 params.push(phone);
             }
             if (reg) {
+                if (reg === 'APPLIED-FOR') {
+                    return res.json({ success: true, unique: true });
+                }
                 conditions.push('registration_number = ?');
                 params.push(reg);
             }
@@ -484,11 +487,13 @@ export class PublicController {
                 });
             }
             // Check if vehicle registration is already registered for this product type
-            const [existingReg] = await db.execute('SELECT uid FROM warranty_registrations WHERE registration_number = ? AND product_type = ? AND status != "rejected"', [warrantyData.registrationNumber, warrantyData.productType]);
-            if (existingReg.length > 0) {
-                return res.status(400).json({
-                    error: `The vehicle ${warrantyData.registrationNumber} is already registered for a ${warrantyData.productType === 'seat-cover' ? 'Seat Cover' : 'Paint Protection Film (PPF)'} warranty.`
-                });
+            if (warrantyData.registrationNumber !== 'APPLIED-FOR') {
+                const [existingReg] = await db.execute('SELECT uid FROM warranty_registrations WHERE registration_number = ? AND product_type = ? AND status != "rejected"', [warrantyData.registrationNumber, warrantyData.productType]);
+                if (existingReg.length > 0) {
+                    return res.status(400).json({
+                        error: `The vehicle ${warrantyData.registrationNumber} is already registered for a ${warrantyData.productType === 'seat-cover' ? 'Seat Cover' : 'Paint Protection Film (PPF)'} warranty.`
+                    });
+                }
             }
             // Step 3: Insert warranty
             // For public submissions, it goes to pending_vendor (Franchise needs to verify)

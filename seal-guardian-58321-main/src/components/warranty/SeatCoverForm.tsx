@@ -62,6 +62,7 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
   const [uidMessage, setUidMessage] = useState('');
   const uidTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [deviceFingerprint, setDeviceFingerprint] = useState<string | null>(null);
+  const [isBrandNew, setIsBrandNew] = useState(initialData?.registration_number === 'APPLIED-FOR');
   const [formData, setFormData] = useState(initialData ? {
     uid: initialData.product_details?.uid || "",
     customerName: initialData.customer_name || "",
@@ -678,7 +679,7 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
     }
 
     // Real-time uniqueness check for Vehicle Registration
-    if (name === 'carReg' && processedValue.length >= 6) {
+    if (name === 'carReg' && processedValue.length >= 6 && processedValue !== 'APPLIED-FOR') {
       // Small delay to let user finish typing
       if (uidTimerRef.current) clearTimeout(uidTimerRef.current);
       uidTimerRef.current = setTimeout(() => {
@@ -1092,22 +1093,45 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
                 <Label htmlFor="carReg" className="text-sm font-medium text-slate-700">
                   Vehicle Registration Number <span className="text-destructive">*</span>
                 </Label>
-                <Input
-                  id="carReg"
-                  type="text"
-                  placeholder="Format: DL-01-AB-1234 / 26-BH-6045-F"
-                  value={formData.carReg}
-                  onChange={(e) => handleChange("carReg", e.target.value)}
-                  disabled={loading}
-                  required
-                  className={`bg-white ${formData.carReg
-                    ? getVehicleRegError(formData.carReg)
-                      ? 'border-red-400 focus-visible:ring-red-300'
-                      : 'border-green-400 focus-visible:ring-green-300'
-                    : 'border-slate-200'
-                    }`}
-                />
-                {formData.carReg && (
+                
+                <div className="flex items-center space-x-2 pb-2">
+                  <input
+                    type="checkbox"
+                    id="isBrandNew"
+                    checked={isBrandNew}
+                    onChange={(e) => {
+                      setIsBrandNew(e.target.checked);
+                      if (e.target.checked) {
+                        setFormData(prev => ({ ...prev, carReg: 'APPLIED-FOR' }));
+                      } else {
+                        setFormData(prev => ({ ...prev, carReg: '' }));
+                      }
+                    }}
+                    className="w-4 h-4 text-emerald-600 border-gray-300 rounded focus:ring-emerald-500"
+                  />
+                  <Label htmlFor="isBrandNew" className="text-sm font-normal text-slate-600 cursor-pointer">
+                    Brand new car (No registration number yet)
+                  </Label>
+                </div>
+
+                {!isBrandNew && (
+                  <Input
+                    id="carReg"
+                    type="text"
+                    placeholder="Format: DL-01-AB-1234 / 26-BH-6045-F"
+                    value={formData.carReg}
+                    onChange={(e) => handleChange("carReg", e.target.value)}
+                    disabled={loading}
+                    required
+                    className={`bg-white ${formData.carReg
+                      ? getVehicleRegError(formData.carReg)
+                        ? 'border-red-400 focus-visible:ring-red-300'
+                        : 'border-green-400 focus-visible:ring-green-300'
+                      : 'border-slate-200'
+                      }`}
+                  />
+                )}
+                {!isBrandNew && formData.carReg && (
                   <p className={`text-xs flex items-center gap-1 ${getVehicleRegError(formData.carReg) ? 'text-red-500' : 'text-green-600'
                     }`}>
                     {getVehicleRegError(formData.carReg)

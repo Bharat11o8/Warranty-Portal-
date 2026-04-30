@@ -169,6 +169,7 @@ export const normalizeVehicleReg = (regNumber: string): string => {
  */
 export const validateVehicleReg = (regNumber: string): boolean => {
     if (!regNumber) return false;
+    if (regNumber === 'APPLIED-FOR') return true;
     const normalized = normalizeVehicleReg(regNumber);
     return ALL_PATTERNS.some(pattern => pattern.test(normalized));
 };
@@ -206,6 +207,8 @@ export const isFancyNumber = (regNumber: string): boolean => {
  * @returns Formatted string with hyphens
  */
 export const formatVehicleRegLive = (input: string): string => {
+    if (input === 'APPLIED-FOR') return input;
+
     // Remove all non-alphanumeric, uppercase
     const cleaned = input.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
 
@@ -290,6 +293,7 @@ export const formatVehicleReg = (regNumber: string): string => {
  */
 export const getVehicleRegError = (regNumber: string): string => {
     if (!regNumber) return '';
+    if (regNumber === 'APPLIED-FOR') return '';
 
     if (!validateVehicleReg(regNumber)) {
         return 'Invalid format. Examples: DL-01-AB-1234, MH-12-A-123, BH-02-AA-1234';

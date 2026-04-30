@@ -185,14 +185,18 @@ export class WarrantyController {
       }
 
       // Check if phone or registration number already exists for this product category
-      const [existingCategoryData]: any = await db.execute(
-        `SELECT uid, customer_name FROM warranty_registrations 
-         WHERE (customer_phone = ? OR registration_number = ?) 
-         AND product_type = ? 
-         AND status != 'rejected'
-         AND uid != ?`,
-        [warrantyData.customerPhone, warrantyData.registrationNumber, warrantyData.productType, checkId || '']
-      );
+      let categoryQuery = `SELECT uid, customer_name FROM warranty_registrations WHERE (customer_phone = ?`;
+      let categoryParams = [warrantyData.customerPhone];
+
+      if (warrantyData.registrationNumber !== 'APPLIED-FOR') {
+        categoryQuery += ` OR registration_number = ?`;
+        categoryParams.push(warrantyData.registrationNumber);
+      }
+
+      categoryQuery += `) AND product_type = ? AND status != 'rejected' AND uid != ?`;
+      categoryParams.push(warrantyData.productType, checkId || '');
+
+      const [existingCategoryData]: any = await db.execute(categoryQuery, categoryParams);
 
       if (existingCategoryData.length > 0) {
         const existing = existingCategoryData[0];
