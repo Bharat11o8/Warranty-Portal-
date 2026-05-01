@@ -131,21 +131,14 @@ export class PublicController {
             let conditions: string[] = ['product_type = ?', 'status != "rejected"'];
             let params: any[] = [normalizedType];
 
-            if (phone) {
-                conditions.push('customer_phone = ?');
-                params.push(phone);
-            }
-
             if (reg) {
                 if (reg === 'APPLIED-FOR') {
                     return res.json({ success: true, unique: true });
                 }
                 conditions.push('registration_number = ?');
                 params.push(reg);
-            }
-
-            if (!phone && !reg) {
-                return res.status(400).json({ error: 'Either phone or registration number is required' });
+            } else {
+                return res.json({ success: true, unique: true });
             }
 
             const query = `SELECT uid, customer_name FROM warranty_registrations WHERE ${conditions.join(' AND ')} LIMIT 1`;
@@ -595,16 +588,6 @@ export class PublicController {
                 }
             }
 
-            // Check if phone is already registered for this product type
-            const [existingPhone]: any = await db.execute(
-                'SELECT uid FROM warranty_registrations WHERE customer_phone = ? AND product_type = ? AND status != "rejected"',
-                [customerPhone, warrantyData.productType]
-            );
-            if (existingPhone.length > 0) {
-                return res.status(400).json({
-                    error: `The phone number ${customerPhone} is already registered for a ${warrantyData.productType === 'seat-cover' ? 'Seat Cover' : 'Paint Protection Film (PPF)'} warranty.`
-                });
-            }
 
             // Check if vehicle registration is already registered for this product type
             if (warrantyData.registrationNumber !== 'APPLIED-FOR') {

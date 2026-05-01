@@ -663,21 +663,7 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
 
     setFormData(prev => ({ ...prev, [name]: processedValue }));
 
-    // Real-time uniqueness check for Mobile number
-    if (name === 'customerMobile' && processedValue.length === 10) {
-      api.get(`/public/warranty/check-uniqueness?phone=${processedValue}&type=seat-cover`)
-        .then(res => {
-          if (!res.data.unique) {
-            toast({
-              title: "Already Registered",
-              description: res.data.message,
-              variant: "destructive",
-            });
-          }
-        })
-        .catch(err => console.error("Uniqueness check failed", err));
-    }
-
+    // Real-time uniqueness check for Mobile number removed per requirements
     // Real-time uniqueness check for Vehicle Registration
     if (name === 'carReg' && processedValue.length >= 6 && processedValue !== 'APPLIED-FOR') {
       // Small delay to let user finish typing

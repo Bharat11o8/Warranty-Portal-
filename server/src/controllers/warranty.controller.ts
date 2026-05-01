@@ -184,28 +184,18 @@ export class WarrantyController {
         }
       }
 
-      // Check if phone or registration number already exists for this product category
-      let categoryQuery = `SELECT uid, customer_name FROM warranty_registrations WHERE (customer_phone = ?`;
-      let categoryParams = [warrantyData.customerPhone];
-
+      // Check if registration number already exists for this product category
       if (warrantyData.registrationNumber !== 'APPLIED-FOR') {
-        categoryQuery += ` OR registration_number = ?`;
-        categoryParams.push(warrantyData.registrationNumber);
-      }
+        const categoryQuery = `SELECT uid, customer_name FROM warranty_registrations WHERE registration_number = ? AND product_type = ? AND status != 'rejected' AND uid != ?`;
+        const categoryParams = [warrantyData.registrationNumber, warrantyData.productType, checkId || ''];
 
-      categoryQuery += `) AND product_type = ? AND status != 'rejected' AND uid != ?`;
-      categoryParams.push(warrantyData.productType, checkId || '');
+        const [existingCategoryData]: any = await db.execute(categoryQuery, categoryParams);
 
-      const [existingCategoryData]: any = await db.execute(categoryQuery, categoryParams);
-
-      if (existingCategoryData.length > 0) {
-        const existing = existingCategoryData[0];
-        // Identify which field is duplicate
-        // Note: For simplicity, we just block if either is duplicate for the same type.
-        // But let's be more specific with the message.
-        return res.status(400).json({
-          error: `A registration for this ${warrantyData.productType === 'seat-cover' ? 'Seat Cover' : 'Paint Protection Film (PPF)'} already exists with the same phone or vehicle details.`
-        });
+        if (existingCategoryData.length > 0) {
+          return res.status(400).json({
+            error: `A registration for this ${warrantyData.productType === 'seat-cover' ? 'Seat Cover' : 'Paint Protection Film (PPF)'} already exists with the same vehicle registration number.`
+          });
+        }
       }
 
       // For customer submissions, set status to 'pending_vendor' (needs franchise verification)
