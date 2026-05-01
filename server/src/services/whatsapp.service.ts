@@ -53,7 +53,8 @@ export class WhatsAppService {
         templateName: string,
         bodyValues: string[],
         context: string,
-        referenceId?: string
+        referenceId?: string,
+        buttonValues?: string[]  // For templates with variable buttons (e.g., OTP copy button)
     ): Promise<boolean> {
         const logId = uuidv4();
         const { countryCode, phoneNumber } = this.formatPhoneNumber(phone);
@@ -88,6 +89,16 @@ export class WhatsAppService {
             // Only include bodyValues if there are variables in the template
             if (bodyValues.length > 0) {
                 payload.template.bodyValues = bodyValues.map(val => String(val));
+            }
+
+            // Include buttonValues if the template has variable buttons (e.g., OTP copy button)
+            // Interakt expects format: { "0": ["value"], "1": ["value"] }
+            if (buttonValues && buttonValues.length > 0) {
+                const buttonValuesObj: Record<string, string[]> = {};
+                buttonValues.forEach((val, index) => {
+                    buttonValuesObj[String(index)] = [String(val)];
+                });
+                payload.template.buttonValues = buttonValuesObj;
             }
 
             const response = await axios.post(
@@ -163,14 +174,16 @@ export class WhatsAppService {
 
     /**
      * Send Login OTP
-     * Template: login_otp — Variables: {{1}} = OTP
+     * Template: fms_login_otp — Variables: body {{1}} = OTP, button[0] = OTP (copy button)
      */
     static async sendLoginOTP(phone: string, name: string, otp: string): Promise<boolean> {
         return this.sendTemplateMessage(
             phone,
-            'login_otp',
-            [otp],
-            'login_auth'
+            'fms_login_otp',
+            [otp],         // body {{1}} = OTP
+            'login_auth',
+            undefined,
+            [otp]          // button[0] = OTP (copy code button)
         );
     }
 

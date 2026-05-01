@@ -4,6 +4,7 @@ import { v4 as uuidv4 } from 'uuid';
 import db, { executeWithRetry, isTransientDbError } from '../config/database.js';
 import { EmailService } from '../services/email.service.js';
 import { OTPService } from '../services/otp.service.js';
+import { WhatsAppService } from '../services/whatsapp.service.js';
 import { ActivityLogService } from '../services/activity-log.service.js';
 import { RegisterData } from '../types/index.js';
 import dotenv from 'dotenv';
@@ -161,7 +162,15 @@ export class AuthController {
 
       // Generate OTP (using pending registration ID)
       const otp = await OTPService.createOTP(pendingId);
-      await EmailService.sendOTP(email, name, otp);
+
+      let otpSentViaWhatsApp = false;
+      if (process.env.ENABLE_WHATSAPP === 'true') {
+        otpSentViaWhatsApp = await WhatsAppService.sendLoginOTP(phoneNumber, name, otp);
+      }
+
+      if (!otpSentViaWhatsApp) {
+        await EmailService.sendOTP(email, name, otp);
+      }
 
       res.status(201).json({
         success: true,
@@ -178,21 +187,37 @@ export class AuthController {
 
   static async login(req: Request, res: Response) {
     try {
-      const { email, role } = req.body;
+      const { identifier, email, role } = req.body;
+      
+      // Fallback for older clients that might still send 'email'
+      const loginId = identifier || email;
 
-      if (!email) {
-        return res.status(400).json({ error: 'Email is required' });
+      if (!loginId) {
+        return res.status(400).json({ error: 'Email or Mobile Number is required' });
       }
 
       if (!role) {
         return res.status(400).json({ error: 'Role is required' });
       }
 
-      // Get user profile
-      const [users]: any = await executeWithRetry(
-        'SELECT * FROM profiles WHERE email = ?',
-        [email]
-      );
+      let users: any = [];
+
+      // Admins still use email, everyone else uses mobile number
+      if (role === 'admin') {
+        const [result]: any = await executeWithRetry(
+          'SELECT * FROM profiles WHERE email = ?',
+          [loginId]
+        );
+        users = result;
+      } else {
+        // Clean phone number (just in case)
+        const cleanedPhone = loginId.replace(/[\s\-+]/g, '').replace(/^91/, '').replace(/^0/, '');
+        const [result]: any = await executeWithRetry(
+          'SELECT * FROM profiles WHERE phone_number = ?',
+          [cleanedPhone]
+        );
+        users = result;
+      }
 
       if (users.length === 0) {
         return res.status(401).json({ error: 'User not found. Please register first.' });
@@ -244,8 +269,14 @@ export class AuthController {
       // Generate OTP
       const otp = await OTPService.createOTP(user.id);
 
-      // Send OTP email
-      await EmailService.sendOTP(user.email, user.name, otp);
+      let otpSentViaWhatsApp = false;
+      if (process.env.ENABLE_WHATSAPP === 'true' && user.phone_number) {
+        otpSentViaWhatsApp = await WhatsAppService.sendLoginOTP(user.phone_number, user.name, otp);
+      }
+
+      if (!otpSentViaWhatsApp) {
+        await EmailService.sendOTP(user.email, user.name, otp);
+      }
 
       res.json({
         success: true,
@@ -530,20 +561,22 @@ export class AuthController {
 
       let userEmail: string;
       let userName: string;
+      let userPhone: string;
 
       // FIRST: Check if this is a pending registration
       const [pendingUsers]: any = await db.execute(
-        'SELECT email, name FROM pending_registrations WHERE id = ? AND expires_at > NOW()',
+        'SELECT email, name, phone_number FROM pending_registrations WHERE id = ? AND expires_at > NOW()',
         [userId]
       );
 
       if (pendingUsers.length > 0) {
         userEmail = pendingUsers[0].email;
         userName = pendingUsers[0].name;
+        userPhone = pendingUsers[0].phone_number;
       } else {
         // SECOND: Check profiles table (login flow)
         const [users]: any = await db.execute(
-          'SELECT id, email, name FROM profiles WHERE id = ?',
+          'SELECT id, email, name, phone_number FROM profiles WHERE id = ?',
           [userId]
         );
 
@@ -553,6 +586,7 @@ export class AuthController {
 
         userEmail = users[0].email;
         userName = users[0].name;
+        userPhone = users[0].phone_number;
       }
 
       // Invalidate all existing unused OTPs for this user
@@ -564,8 +598,14 @@ export class AuthController {
       // Generate new OTP
       const otp = await OTPService.createOTP(userId);
 
-      // Send OTP email
-      await EmailService.sendOTP(userEmail, userName, otp);
+      let otpSentViaWhatsApp = false;
+      if (process.env.ENABLE_WHATSAPP === 'true' && userPhone) {
+        otpSentViaWhatsApp = await WhatsAppService.sendLoginOTP(userPhone, userName, otp);
+      }
+
+      if (!otpSentViaWhatsApp) {
+        await EmailService.sendOTP(userEmail, userName, otp);
+      }
 
       res.json({
         success: true,

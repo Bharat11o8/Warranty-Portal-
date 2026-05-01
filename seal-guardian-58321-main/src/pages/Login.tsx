@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { useAuth, UserRole } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { User, Building, Loader2 } from "lucide-react";
-import { getEmailError } from "@/lib/validation";
+import { getEmailError, validateIndianMobile } from "@/lib/validation";
 import RoleCard from "@/components/ui/RoleCard";
 import OTPInput from "@/components/ui/OTPInput";
 import api from "@/lib/api";
@@ -34,8 +34,8 @@ const Login = () => {
 
   const [selectedRole, setSelectedRole] = useState<'customer' | 'vendor' | 'admin'>(getInitialRole());
   const [step, setStep] = useState<'email' | 'otp'>('email');
-  const [email, setEmail] = useState("");
-  const [emailError, setEmailError] = useState("");
+  const [identifier, setIdentifier] = useState("");
+  const [identifierError, setIdentifierError] = useState("");
   const [otp, setOtp] = useState<string[]>(Array(6).fill(''));
   const [userId, setUserId] = useState<string>("");
   const [loading, setLoading] = useState(false);
@@ -75,8 +75,16 @@ const Login = () => {
       setStep('email');
       setOtp(Array(6).fill(''));
       setCountdown(0);
+      setIdentifier("");
+      setIdentifierError("");
     }
   }, [initialRole, isLockedMode]);
+
+  // Clear identifier when role changes manually
+  useEffect(() => {
+    setIdentifier("");
+    setIdentifierError("");
+  }, [selectedRole]);
 
   // Countdown timer effect
   useEffect(() => {
@@ -86,10 +94,27 @@ const Login = () => {
     }
   }, [countdown]);
 
-  const handleEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    setEmail(value);
-    setEmailError(getEmailError(value));
+  const handleIdentifierChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    let value = e.target.value;
+    
+    if (selectedRole !== 'admin') {
+      // Allow only digits and + for mobile number
+      value = value.replace(/[^\d+]/g, '');
+    }
+
+    setIdentifier(value);
+
+    if (selectedRole === 'admin') {
+      setIdentifierError(getEmailError(value));
+    } else {
+      if (!value) {
+        setIdentifierError("Mobile number is required");
+      } else if (!validateIndianMobile(value)) {
+        setIdentifierError("Please enter a valid 10-digit mobile number");
+      } else {
+        setIdentifierError("");
+      }
+    }
   };
 
   const isOTPComplete = otp.every((digit) => digit !== '');
@@ -97,21 +122,28 @@ const Login = () => {
   const handleSendOTP = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    const error = getEmailError(email);
+    let error = "";
+    if (selectedRole === 'admin') {
+      error = getEmailError(identifier) || "";
+    } else {
+      if (!identifier) error = "Mobile number is required";
+      else if (!validateIndianMobile(identifier)) error = "Please enter a valid 10-digit mobile number";
+    }
+
     if (error) {
-      setEmailError(error);
+      setIdentifierError(error);
       toast({ title: "Validation Error", description: error, variant: "destructive" });
       return;
     }
 
     setLoading(true);
     try {
-      const result = await login(email, selectedRole);
+      const result = await login(identifier, selectedRole);
       if (result.requiresOTP && result.userId) {
         setUserId(result.userId);
         setStep('otp');
         setCountdown(30);
-        toast({ title: "OTP Sent", description: "Please check your email for the verification code." });
+        toast({ title: "OTP Sent", description: selectedRole === 'admin' ? "Please check your email for the verification code." : "Please check WhatsApp for the verification code." });
       }
     } catch (error: any) {
       const errorMessage = getApiErrorMessage(error, "Login failed");
@@ -164,7 +196,7 @@ const Login = () => {
       if (data.success) {
         setCountdown(30);
         setOtp(Array(6).fill(''));
-        toast({ title: "OTP Resent", description: "A new code has been sent to your email." });
+        toast({ title: "OTP Resent", description: selectedRole === 'admin' ? "A new code has been sent to your email." : "A new code has been sent." });
       } else {
         const msg = typeof data?.error === "string" ? data.error : "Failed to resend OTP";
         throw new Error(msg);
@@ -266,21 +298,28 @@ const Login = () => {
         {step === 'email' && (
           <form onSubmit={handleSendOTP} className="space-y-6">
             <div>
-              <label htmlFor="email" className="text-xs font-bold uppercase tracking-widest text-white/80 block mb-2">
-                Email Address
+              <label htmlFor="identifier" className="text-xs font-bold uppercase tracking-widest text-white/80 block mb-2">
+                {selectedRole === 'admin' ? 'Email Address' : 'Mobile Number'}
               </label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="Enter your Email"
-                value={email}
-                onChange={handleEmailChange}
-                required
-                disabled={loading || authLoading}
-                className={`h-14 px-4 rounded-xl border-2 bg-white/10 border-white/10 text-white placeholder:text-white/40 focus:border-blue-400 focus:ring-2 focus:ring-blue-400/20 text-lg transition-all ${emailError ? 'border-red-400' : ''}`}
-              />
-              {emailError && (
-                <p className="text-sm text-red-300 mt-1 font-medium bg-red-500/10 p-1 rounded px-2 inline-block">{emailError}</p>
+              <div className="relative">
+                {selectedRole !== 'admin' && (
+                  <div className="absolute inset-y-0 left-0 flex items-center pl-4 pointer-events-none">
+                    <span className="text-white/60 text-lg font-medium">+91</span>
+                  </div>
+                )}
+                <Input
+                  id="identifier"
+                  type={selectedRole === 'admin' ? 'email' : 'tel'}
+                  placeholder={selectedRole === 'admin' ? 'Enter your Email' : 'Enter 10-digit number'}
+                  value={identifier}
+                  onChange={handleIdentifierChange}
+                  required
+                  disabled={loading || authLoading}
+                  className={`h-14 ${selectedRole !== 'admin' ? 'pl-14' : 'px-4'} rounded-xl border-2 bg-white/10 border-white/10 text-white placeholder:text-white/40 focus:border-blue-400 focus:ring-2 focus:ring-blue-400/20 text-lg transition-all ${identifierError ? 'border-red-400' : ''}`}
+                />
+              </div>
+              {identifierError && (
+                <p className="text-sm text-red-300 mt-1 font-medium bg-red-500/10 p-1 rounded px-2 inline-block">{identifierError}</p>
               )}
             </div>
 
@@ -311,7 +350,7 @@ const Login = () => {
                 Verification Code
               </label>
               <p className="text-sm text-white/60 mt-1 mb-4">
-                sent to <span className="text-white font-medium">{email}</span>
+                sent to <span className="text-white font-medium">{selectedRole === 'admin' ? identifier : `+91 ${identifier}`}</span>
               </p>
               <div className="[&_input]:bg-white/10 [&_input]:border-white/20 [&_input]:text-white">
                 <OTPInput value={otp} onChange={setOtp} />
@@ -328,7 +367,7 @@ const Login = () => {
 
             <div className="flex items-center justify-between text-sm">
               <button type="button" onClick={handleBackToEmail} className="text-white/60 hover:text-white hover:underline transition-colors">
-                Change email
+                Change {selectedRole === 'admin' ? 'email' : 'number'}
               </button>
               <button
                 type="button"

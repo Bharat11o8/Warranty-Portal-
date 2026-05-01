@@ -60,8 +60,14 @@ export const registerSchema = z.object({
 );
 
 export const loginSchema = z.object({
-    email: emailSchema,
+    // 'identifier' can be email (for admins) or mobile number (for users/vendors)
+    // We accept 'email' as an alias for backward compatibility
+    identifier: z.string().min(1, 'Email or Mobile Number is required').optional(),
+    email: z.string().min(1).optional(),
     role: z.enum(['customer', 'vendor', 'admin']),
+}).refine(data => data.identifier || data.email, {
+    message: 'Email or Mobile Number is required',
+    path: ['identifier'],
 });
 
 export const verifyOTPSchema = z.object({
