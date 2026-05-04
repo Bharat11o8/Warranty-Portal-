@@ -260,7 +260,7 @@ export const WarrantySpecSheet = ({ isOpen, onClose, warranty }: WarrantySpecShe
                                             }}>
                                                 <span className="flex items-center gap-2">
                                                     <ExternalLink className="h-3 w-3 text-orange-600" />
-                                                    <span className="text-orange-700 text-xs">Number Plate</span>
+                                                    <span className="text-orange-700 text-xs">Car Exterior with Number Plate</span>
                                                 </span>
                                                 <ExternalLink className="h-3 w-3 text-orange-500" />
                                             </Button>

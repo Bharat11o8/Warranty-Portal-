@@ -460,11 +460,11 @@ export class EmailService {
       
       <div class="info-box" style="background: #e3f2fd; border-left: 4px solid #2196f3; padding: 20px;">
         <h3 style="margin-top: 0; color: #0d47a1; font-size: 18px;">How to Manage Your Warranty:</h3>
-        <p style="margin-bottom: 10px;">You can now view, manage, and download your digital warranty certificates directly from our portal. Follow these simple steps:</p>
+        <p style="margin-bottom: 10px;">You can now view and manage your warranty details directly from our portal. Follow these simple steps:</p>
         <ol style="margin: 0; padding-left: 20px;">
           <li style="margin-bottom: 8px;"><strong>Visit the Portal:</strong> Click the button below to go to the Autoform Warranty Portal.</li>
           <li style="margin-bottom: 8px;"><strong>Secure Login:</strong> Use your registered email (${customerEmail}) to log in via OTP.</li>
-          <li style="margin-bottom: 8px;"><strong>Download Certificates:</strong> Access your dashboard to view and download your active warranty certificates anytime.</li>
+          <li style="margin-bottom: 8px;"><strong>View Details:</strong> Access your dashboard to view your active warranty details anytime.</li>
         </ol>
         <div style="text-align: center; margin-top: 25px;">
           <a href="https://warranty2.autoformindia.co.in/login?mode=warranty" class="button" style="background: linear-gradient(135deg, #2196f3 0%, #0d47a1 100%); min-width: 250px;">Login to Your Portal</a>
@@ -500,7 +500,7 @@ export class EmailService {
         <p style="margin: 0 0 5px 0;"><strong>Important Information:</strong></p>
         <ul style="margin: 0; padding-left: 20px;">
           <li>Keep this email for your records</li>
-          <li>Your digital warranty certificate is only accessible via the portal</li>
+          <li>Your digital warranty details are only accessible via the portal</li>
           <li>Your warranty is now active and valid</li>
         </ul>
       </div>
@@ -1309,7 +1309,7 @@ export class EmailService {
         
         <div>
           <strong style="color: #667eea;">3. Warranty Activated</strong>
-          <p style="margin: 5px 0 0 0; color: #666; font-size: 14px;">Once approved, you will receive a confirmation email with your warranty certificate.</p>
+          <p style="margin: 5px 0 0 0; color: #666; font-size: 14px;">Once approved, you will receive a confirmation email confirming your warranty activation.</p>
         </div>
       </div>
       

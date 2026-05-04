@@ -110,7 +110,7 @@ export const submitWarranty = async (data: WarrantyData) => {
     // It constructs `productDetails.photos` with names.
     // We should change it to pass the File objects.
 
-    ['lhs', 'rhs', 'frontReg', 'backReg', 'warranty', 'vehicle', 'seatCover', 'carOuter'].forEach(key => {
+    ['lhs', 'rhs', 'frontReg', 'backReg', 'warranty', 'vehicle', 'seatCover'].forEach(key => {
       if (isFileObject((photos as any)[key])) {
         console.log(`[DEBUG warrantyApi] Found file for ${key}:`, (photos as any)[key].name);
         filesToAppend[`${key}Photo`] = (photos as any)[key];
@@ -182,7 +182,7 @@ export const updateWarranty = async (id: string, data: WarrantyData) => {
 
   if (pd.photos) {
     const photos = { ...pd.photos };
-    ['lhs', 'rhs', 'frontReg', 'backReg', 'warranty', 'vehicle', 'seatCover', 'carOuter'].forEach(key => {
+    ['lhs', 'rhs', 'frontReg', 'backReg', 'warranty', 'vehicle', 'seatCover'].forEach(key => {
       if ((photos as any)[key] instanceof File) {
         filesToAppend[`${key}Photo`] = (photos as any)[key];
         delete (photos as any)[key];

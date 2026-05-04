@@ -44,7 +44,7 @@ export class WarrantyController {
         files.forEach(file => {
           if (file.fieldname === 'invoiceFile') {
             warrantyData.productDetails.invoiceFileName = file.path;
-          } else if (['lhsPhoto', 'rhsPhoto', 'frontRegPhoto', 'backRegPhoto', 'warrantyPhoto', 'vehiclePhoto', 'seatCoverPhoto', 'carOuterPhoto'].includes(file.fieldname)) {
+          } else if (['lhsPhoto', 'rhsPhoto', 'frontRegPhoto', 'backRegPhoto', 'warrantyPhoto', 'vehiclePhoto', 'seatCoverPhoto'].includes(file.fieldname)) {
             if (!warrantyData.productDetails.photos) {
               warrantyData.productDetails.photos = {};
             }
@@ -52,7 +52,6 @@ export class WarrantyController {
             if (file.fieldname === 'frontRegPhoto') key = 'frontReg';
             if (file.fieldname === 'backRegPhoto') key = 'backReg';
             if (file.fieldname === 'seatCoverPhoto') key = 'seatCover';
-            if (file.fieldname === 'carOuterPhoto') key = 'carOuter';
 
             (warrantyData.productDetails.photos as any)[key] = file.path;
           }
@@ -86,13 +85,17 @@ export class WarrantyController {
       }
 
       // Validate required fields
-      // Customer email is optional for vendors uploading on behalf of customers
-      if (!warrantyData.productType || !warrantyData.customerName ||
-        !warrantyData.customerPhone ||
-        !warrantyData.customerAddress || !warrantyData.registrationNumber ||
-        !warrantyData.carYear ||
-        !warrantyData.purchaseDate || !warrantyData.warrantyType) {
-        return res.status(400).json({ error: 'Missing required fields' });
+      const requiredFields = [
+        'productType', 'customerName', 'customerPhone', 'customerAddress', 
+        'registrationNumber', 'carYear', 'purchaseDate', 'warrantyType'
+      ];
+      const missingFields = requiredFields.filter(field => !warrantyData[field as keyof ExtendedWarrantyData]);
+
+      if (missingFields.length > 0) {
+        return res.status(400).json({ 
+          error: `Missing required fields: ${missingFields.join(', ')}`,
+          missingFields 
+        });
       }
 
       // Customer email is required for customers, optional for vendors

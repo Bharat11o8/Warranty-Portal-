@@ -544,7 +544,7 @@ export const AdminWarrantyList = ({
                                 <div>
                                     <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">Actions</p>
                                     <div className="flex gap-2">
-                                        {warranty.status === 'pending' && (
+                                        {(warranty.status === 'pending' || warranty.status === 'pending_vendor') && (
                                             <>
                                                 <Button
                                                     size="sm"

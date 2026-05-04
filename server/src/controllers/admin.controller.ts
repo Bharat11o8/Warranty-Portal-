@@ -1061,7 +1061,10 @@ export class AdminController {
                 FROM warranty_registrations wr
                 LEFT JOIN profiles p ON wr.user_id = p.id
                 LEFT JOIN manpower m ON wr.manpower_id = m.id
-                LEFT JOIN vendor_details vd ON (wr.installer_name = vd.store_name AND wr.installer_contact = vd.store_email)
+                LEFT JOIN vendor_details vd ON (
+                    (wr.manpower_id IS NOT NULL AND wr.manpower_id NOT LIKE 'owner-%' AND m.vendor_id = vd.id) OR
+                    (wr.installer_name = vd.store_name AND wr.installer_contact = vd.store_email)
+                )
                 LEFT JOIN profiles vp ON vd.user_id = vp.id
                 LEFT JOIN vendor_details vd_owner ON (
                     wr.manpower_id LIKE 'owner-%' AND
@@ -1118,7 +1121,10 @@ export class AdminController {
                 LEFT JOIN profiles p ON wr.user_id = p.id
                 LEFT JOIN user_roles ur ON p.id = ur.user_id
                 LEFT JOIN manpower m ON wr.manpower_id = m.id
-                LEFT JOIN vendor_details vd ON (wr.installer_name = vd.store_name AND wr.installer_contact = vd.store_email)
+                LEFT JOIN vendor_details vd ON (
+                    (wr.manpower_id IS NOT NULL AND wr.manpower_id NOT LIKE 'owner-%' AND m.vendor_id = vd.id) OR
+                    (wr.installer_name = vd.store_name AND wr.installer_contact = vd.store_email)
+                )
                 LEFT JOIN profiles vp ON vd.user_id = vp.id
                 WHERE wr.uid = ? OR wr.id = ?
                 LIMIT 1

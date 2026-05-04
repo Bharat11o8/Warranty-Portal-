@@ -683,7 +683,7 @@ export class AuthController {
 
       // Check if email is being changed and if it's already taken
       const [currentUser]: any = await db.execute(
-        'SELECT email FROM profiles WHERE id = ?',
+        'SELECT name, email, phone_number FROM profiles WHERE id = ?',
         [userId]
       );
 
@@ -763,6 +763,19 @@ export class AuthController {
       }
     } catch (error: any) {
       console.error('Update profile error:', error);
+      
+      // Handle MySQL duplicate key errors gracefully
+      if (error.code === 'ER_DUP_ENTRY') {
+        const msg = error.message?.toLowerCase() || '';
+        if (msg.includes('phone_number') || msg.includes('phone')) {
+          return res.status(400).json({ error: 'Phone number already in use by another account' });
+        }
+        if (msg.includes('email')) {
+          return res.status(400).json({ error: 'Email already in use by another account' });
+        }
+        return res.status(400).json({ error: 'This information is already in use by another account' });
+      }
+      
       res.status(500).json({ error: 'Failed to update profile' });
     }
   }
