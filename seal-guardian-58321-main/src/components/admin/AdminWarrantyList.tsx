@@ -146,11 +146,11 @@ export const AdminWarrantyList = ({
 
                                     {/* Desktop Dates */}
                                     <p className="hidden md:block text-sm text-muted-foreground mt-1">
-                                        Registered on {formatToIST(warranty.created_at).split(',')[0]}
+                                        Registered on {formatToIST(warranty.created_at)}
                                     </p>
                                     {warranty.status === 'validated' && expirationDate && (
                                         <p className="hidden md:block text-sm text-muted-foreground mt-0.5">
-                                            Expires on {formatToIST(expirationDate).split(',')[0]}
+                                            Expires on {formatToIST(expirationDate)}
                                         </p>
                                     )}
                                 </div>
