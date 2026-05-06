@@ -26,6 +26,7 @@ import { AdminPOSM } from "../modules/AdminPOSM";
 import { AdminECatalogue } from "../modules/AdminECatalogue";
 import { AdminCommandPalette } from "../AdminCommandPalette";
 import { AdminUIDManagement } from "../modules/AdminUIDManagement";
+import { AdminAnalytics } from "../modules/AdminAnalytics";
 
 export const AdminLayout = () => {
     const { user, loading } = useAuth();
@@ -54,6 +55,7 @@ export const AdminLayout = () => {
     const renderModule = () => {
         switch (activeModule) {
             case 'overview': return <AdminHome />;
+            case 'analytics': return <AdminAnalytics onNavigate={setActiveModule} />;
             case 'warranties': return <AdminWarranties />;
             case 'vendors': return <AdminVendors />;
             case 'customers': return <AdminCustomers />;
@@ -84,6 +86,7 @@ export const AdminLayout = () => {
     const getModuleTitle = () => {
         const titles: Record<AdminModule, string> = {
             'overview': 'Dashboard Overview',
+            'analytics': 'Advanced Data Analytics',
             'warranties': 'Warranty Management',
             'old-warranties': 'Archived Records',
             'vendors': 'Franchise Network',

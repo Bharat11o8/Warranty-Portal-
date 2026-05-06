@@ -644,6 +644,8 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
       setUidMessage('');
     } else if (name === 'carReg') {
       processedValue = formatVehicleRegLive(value);
+    } else if (name === 'customerEmail') {
+      processedValue = value.trim().toLowerCase();
     }
 
     setFormData(prev => ({ ...prev, [name]: processedValue }));

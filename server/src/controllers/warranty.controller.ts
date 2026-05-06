@@ -110,7 +110,10 @@ export class WarrantyController {
 
       // Role-based validation: Customers can only register warranties under their own email
       if (req.user.role === 'customer') {
-        if (warrantyData.customerEmail.toLowerCase() !== req.user.email.toLowerCase()) {
+        const customerEmail = (warrantyData.customerEmail || '').trim().toLowerCase();
+        const userEmail = (req.user.email || '').trim().toLowerCase();
+        
+        if (customerEmail !== userEmail) {
           return res.status(403).json({
             error: 'Customers can only register warranties under their own account'
           });

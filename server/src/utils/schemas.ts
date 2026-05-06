@@ -13,6 +13,8 @@ const PINCODE_REGEX = /^\d{6}$/;
 // Common field schemas
 export const emailSchema = z.string()
     .min(1, 'Email is required')
+    .trim()
+    .toLowerCase()
     .regex(EMAIL_REGEX, 'Please enter a valid email address');
 
 export const phoneSchema = z.string()
@@ -88,7 +90,7 @@ const seatCoverDetailsSchema = z.object({
     uid: z.string().min(13, 'UID must be at least 13 digits').max(16, 'UID must be at most 16 digits'),
     productName: z.string().min(1, 'Product name is required'),
     storeName: z.string().optional(),
-    storeEmail: z.string().email().optional().or(z.literal('')),
+    storeEmail: emailSchema.optional().or(z.literal('')),
     manpowerId: z.string().optional(),
     manpowerName: z.string().optional(),
     customerAddress: z.string().optional(),
@@ -127,7 +129,7 @@ const productDetailsSchema = z.union([
 export const warrantySubmitSchema = z.object({
     productType: z.enum(['seat-cover', 'ev-products']),
     customerName: z.string().min(2, 'Customer name is required'),
-    customerEmail: z.string().email().optional().or(z.literal('')),
+    customerEmail: emailSchema.optional().or(z.literal('')),
     customerPhone: z.string().min(10, 'Customer phone is required'),
     customerAddress: z.string().min(1, 'Customer address is required'),
     carMake: z.string().optional(),

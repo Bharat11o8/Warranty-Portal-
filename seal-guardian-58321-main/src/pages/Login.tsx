@@ -87,7 +87,7 @@ const Login = () => {
   }, [countdown]);
 
   const handleEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
+    const value = e.target.value.trim().toLowerCase();
     setEmail(value);
     setEmailError(getEmailError(value));
   };
