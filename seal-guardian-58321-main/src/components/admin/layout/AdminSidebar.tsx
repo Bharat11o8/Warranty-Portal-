@@ -46,7 +46,7 @@ export type AdminModule =
     | 'posm'
     | 'uid-management'
     | 'ecatalogue'
-    | 'analytics'
+    // 'analytics'
     | 'profile';
 
 interface SidebarItemProps {
@@ -141,7 +141,7 @@ const moduleToPermKey: Record<string, string> = {
     'activity-logs':    'activity_logs',
     'admins':           'admins',   // Super Admin only
     'ecatalogue':       'ecatalogue',
-    'analytics':        'overview', // Reusing overview permission or we could add a new one
+    // 'analytics':        'overview', 
     'profile':          'profile',  // Always visible
 };
 
@@ -175,7 +175,7 @@ export const SidebarContent = ({
             label: "Dashboard",
             items: [
                 { id: 'overview' as const, label: "Overview", icon: LayoutDashboard },
-                { id: 'analytics' as const, label: "Deep Analytics", icon: MessageSquare },
+                // { id: 'analytics' as const, label: "Deep Analytics", icon: MessageSquare },
             ]
         },
         {
