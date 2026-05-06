@@ -588,7 +588,7 @@ const CustomerDashboard = () => {
                                 value="rejected"
                                 className="relative z-10 rounded-full px-2 md:px-5 py-1.5 md:py-2 text-[10px] sm:text-xs md:text-sm font-medium text-slate-500 data-[state=active]:text-orange-600 data-[state=active]:bg-white data-[state=active]:shadow-md transition-all duration-300 ease-out flex items-center justify-center gap-1 md:gap-2 whitespace-nowrap"
                             >
-                                Rejected
+                                Action Required
                                 <span className="ml-0.5 md:ml-1.5 py-0.5 px-1.5 md:px-2 rounded-full bg-red-100 text-red-700 text-[9px] md:text-[10px] font-bold">
                                     {dashboardStats.rejected || 0}
                                 </span>
@@ -759,7 +759,7 @@ const CustomerDashboard = () => {
                 <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
                     <DialogHeader>
                         <DialogTitle>Edit Warranty</DialogTitle>
-                        <DialogDescription>Update the details for your rejected warranty.</DialogDescription>
+                        <DialogDescription>Update the details for your application requiring action.</DialogDescription>
                     </DialogHeader>
                     {editingWarranty && (() => {
                         const FormComponent = getWarrantyFormComponent(editingWarranty.product_type);

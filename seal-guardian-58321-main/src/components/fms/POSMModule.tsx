@@ -213,7 +213,7 @@ const POSMModule: React.FC = () => {
                                     <div className="flex justify-between items-start mb-1">
                                         <span className="text-xs font-mono text-gray-400">#{req.ticket_id}</span>
                                         <Badge className={cn("text-[10px] uppercase font-bold", getStatusColor(req.status))}>
-                                            {req.status.replace('_', ' ')}
+                                            {req.status === 'rejected' ? 'Action Required' : req.status.replace('_', ' ')}
                                         </Badge>
                                     </div>
                                     <p className="text-sm font-medium text-gray-800 line-clamp-1 mb-2">
@@ -259,7 +259,7 @@ const POSMModule: React.FC = () => {
                                         <div className="flex items-center gap-2">
                                             <h3 className="font-semibold text-gray-800">#{selectedRequest.ticket_id}</h3>
                                             <Badge className={cn("text-[10px] uppercase", getStatusColor(selectedRequest.status))}>
-                                                {selectedRequest.status.replace('_', ' ')}
+                                                {selectedRequest.status === 'rejected' ? 'Action Required' : selectedRequest.status.replace('_', ' ')}
                                             </Badge>
                                         </div>
                                         <p className="text-xs text-gray-500 truncate max-w-[200px] md:max-w-md">

@@ -61,7 +61,8 @@ const STATUS_OPTIONS = [
     { value: 'in_production', label: 'In Production' },
     { value: 'dispatched', label: 'Dispatched' },
     { value: 'delivered', label: 'Delivered' },
-    { value: 'closed', label: 'Closed' }
+    { value: 'closed', label: 'Closed' },
+    { value: 'rejected', label: 'Action Required' }
 ];
 
 export const AdminPOSM = () => {
@@ -390,7 +391,7 @@ export const AdminPOSM = () => {
                                     </td>
                                     <td className="p-6">
                                         <Badge className={cn(STATUS_COLORS[r.status], "shadow-sm uppercase text-[10px] h-6")}>
-                                            {r.status.replace("_", " ")}
+                                            {r.status === 'rejected' ? 'Action Required' : r.status.replace("_", " ")}
                                         </Badge>
                                     </td>
                                     <td className="p-6 text-right">
@@ -424,7 +425,7 @@ export const AdminPOSM = () => {
                         <CardContent className="p-6">
                             <div className="flex justify-between items-start mb-4">
                                 <Badge className={cn(STATUS_COLORS[r.status], "uppercase text-[9px] px-2")}>
-                                    {r.status.replace("_", " ")}
+                                    {r.status === 'rejected' ? 'Action Required' : r.status.replace("_", " ")}
                                 </Badge>
                                 <span className="text-[10px] font-bold text-slate-400 font-mono tracking-tighter bg-slate-50 px-2 py-1 rounded-lg">
                                     {r.ticket_id}
@@ -552,7 +553,7 @@ export const AdminPOSM = () => {
                                 )}>
                                     <div className="p-8 border-b border-orange-50 bg-white">
                                         <Badge className={cn(STATUS_COLORS[selectedRequest.status], "mb-4 h-6 uppercase text-[10px]")}>
-                                            {selectedRequest.status.replace("_", " ")}
+                                            {selectedRequest.status === 'rejected' ? 'Action Required' : selectedRequest.status.replace("_", " ")}
                                         </Badge>
                                         <h2 className="text-2xl font-black text-slate-800 mb-1">#{selectedRequest.ticket_id}</h2>
                                         <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">{formatToIST(selectedRequest.created_at)}</p>

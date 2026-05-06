@@ -347,7 +347,7 @@ export class EmailService {
       
       ${rejectionReason ? `
       <div class="error-box" style="border-color: #ff4b2b;">
-        <p style="margin: 0 0 5px 0; color: #d32f2f;"><strong>Reason for Decision:</strong></p>
+        <p style="margin: 0 0 5px 0; color: #d32f2f;"><strong>Reviewer Remarks / Feedback:</strong></p>
         <p style="margin: 0; color: #d32f2f;">${rejectionReason}</p>
       </div>
       ` : ''}
@@ -369,7 +369,7 @@ export class EmailService {
     await transporter.sendMail({
       from: process.env.EMAIL_FROM,
       to: vendorEmail,
-      subject: 'Vendor Application Status Update',
+      subject: 'Your Application is Not Approved',
       html: this.getHtmlTemplate({
         title: 'Application Status Update',
         content: htmlContent,
@@ -552,7 +552,7 @@ export class EmailService {
       <p>After careful review of your warranty registration, we are unable to approve your application in its current state. However, you can easily correct the information and resubmit for approval.</p>
       
       <div class="error-box" style="border-left: 4px solid #ff6b6b; background: #fff5f5; padding: 20px; margin-bottom: 25px;">
-        <h4 style="margin: 0 0 10px 0; color: #d32f2f; font-size: 16px;">Reason for Rejection:</h4>
+        <h4 style="margin: 0 0 10px 0; color: #d32f2f; font-size: 16px;">Reviewer Remarks / Feedback:</h4>
         <p style="margin: 0; color: #b71c1c; font-weight: 500; font-size: 15px;">${rejectionReason}</p>
       </div>
 
@@ -561,7 +561,7 @@ export class EmailService {
         <p style="margin-bottom: 10px;">To activate your warranty, please follow these steps to correct and resubmit your application:</p>
         <ol style="margin: 0; padding-left: 20px;">
           <li style="margin-bottom: 8px;"><strong>Login to Portal:</strong> Click the button below to access your dashboard.</li>
-          <li style="margin-bottom: 8px;"><strong>Edit Application:</strong> Find your rejected warranty and click "Edit & Resubmit".</li>
+          <li style="margin-bottom: 8px;"><strong>Edit Application:</strong> Find your application requiring action and click "Edit & Resubmit".</li>
           <li style="margin-bottom: 8px;"><strong>Update Details:</strong> Correct the information based on the reason provided above.</li>
         </ol>
         <div style="text-align: center; margin-top: 25px;">
@@ -598,7 +598,7 @@ export class EmailService {
     await transporter.sendMail({
       from: process.env.EMAIL_FROM,
       to: customerEmail,
-      subject: 'Warranty Application Update - Action Required',
+      subject: 'Your Warranty is Not Approved',
       html: this.getHtmlTemplate({
         title: 'Application Update',
         content: htmlContent,
@@ -725,7 +725,7 @@ export class EmailService {
       </div>
       
       <div class="error-box" style="border-color: #f44336;">
-        <h4 style="margin: 0 0 10px 0; color: #d32f2f;">🔍 Reason for Decision:</h4>
+        <h4 style="margin: 0 0 10px 0; color: #d32f2f;">🔍 Reviewer Remarks / Feedback:</h4>
         <p style="margin: 0; color: #d32f2f;">${rejectionReason}</p>
       </div>
       
@@ -746,7 +746,7 @@ export class EmailService {
     await transporter.sendMail({
       from: process.env.EMAIL_FROM,
       to: vendorEmail,
-      subject: 'Warranty Application Update - Customer Application',
+      subject: 'Your Warranty is Not Approved',
       html: this.getHtmlTemplate({
         title: 'Warranty Update',
         content: htmlContent,
@@ -890,7 +890,7 @@ export class EmailService {
         
         <p style="margin-top: 20px; font-size: 14px;">
           Is there an issue with this registration?
-          <a href="${rejectionLink}" style="color: #dc3545;">Reject Claim</a>
+          <a href="${rejectionLink}" style="color: #dc3545;">Decline</a>
         </p>
       </div>
       

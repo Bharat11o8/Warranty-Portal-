@@ -316,7 +316,7 @@ const FranchiseDashboard = () => {
         try {
             const response = await api.post(`/vendor/warranty/${warrantyId}/reject`, { reason });
             if (response.data.success) {
-                toast({ title: "Warranty Rejected", variant: "destructive" });
+                toast({ title: "Needs Correction", variant: "destructive" });
                 fetchWarranties(warrantyPagination.currentPage, warrantyLimit, true);
             }
         } catch (error: any) {
@@ -521,7 +521,7 @@ const FranchiseDashboard = () => {
                 return {
                     time: formatToIST(w.created_at),
                     action: w.status === 'validated' ? 'Warranty Approved' :
-                        w.status === 'rejected' ? 'Warranty Rejected' : 'New Registration',
+                        w.status === 'rejected' ? 'Needs Correction' : 'New Registration',
                     sub: `${w.registration_number || 'N/A'} • ${toTitleCase(w.customer_name)}`,
                     status: w.status === 'validated' ? 'success' :
                         w.status === 'rejected' ? 'warning' : 'primary'

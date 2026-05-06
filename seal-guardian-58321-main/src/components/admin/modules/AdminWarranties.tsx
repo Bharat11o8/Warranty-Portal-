@@ -360,7 +360,7 @@ export const AdminWarranties = () => {
                         <SelectItem value="validated">Approved</SelectItem>
                         <SelectItem value="pending">Pending Approval</SelectItem>
                         <SelectItem value="pending_vendor">Pending Vendor</SelectItem>
-                        <SelectItem value="rejected">Rejected</SelectItem>
+                        <SelectItem value="rejected">Action Required</SelectItem>
 
                     </SelectContent>
                 </Select>
@@ -394,7 +394,7 @@ export const AdminWarranties = () => {
                         </Badge>
                     </TabsTrigger>
                     <TabsTrigger value="rejected" className="data-[state=active]:bg-red-50 data-[state=active]:text-red-700 gap-2">
-                        Rejected
+                        Action Required
                         <Badge variant="secondary" className="bg-red-100/50 text-red-700 border-none px-1.5 py-0 h-4 text-[10px] font-bold">
                             {warranties.filter(w => w.status === 'rejected').length}
                         </Badge>
@@ -637,17 +637,17 @@ export const AdminWarranties = () => {
             <Dialog open={rejectDialogOpen} onOpenChange={setRejectDialogOpen}>
                 <DialogContent className="sm:max-w-md">
                     <DialogHeader>
-                        <DialogTitle>Reject Warranty</DialogTitle>
+                        <DialogTitle>Decline Warranty</DialogTitle>
                         <DialogDescription>
-                            Please provide a reason for rejecting this warranty registration.
+                            Please provide feedback for this warranty registration.
                         </DialogDescription>
                     </DialogHeader>
                     <div className="space-y-4 py-4">
                         <div className="space-y-2">
-                            <Label htmlFor="rejection-reason">Reason for Rejection</Label>
+                            <Label htmlFor="rejection-reason">Reviewer Remarks / Feedback</Label>
                             <Textarea
                                 id="rejection-reason"
-                                placeholder="Enter the reason for rejection..."
+                                placeholder="Enter feedback for the user..."
                                 value={rejectReason}
                                 onChange={(e) => setRejectReason(e.target.value)}
                                 className="min-h-[100px]"
@@ -676,7 +676,7 @@ export const AdminWarranties = () => {
                                 }}
                                 disabled={!rejectReason.trim()}
                             >
-                                Reject Warranty
+                                Decline Warranty
                             </Button>
                         </div>
                     </div>

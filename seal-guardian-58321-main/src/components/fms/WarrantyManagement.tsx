@@ -173,7 +173,7 @@ export const WarrantyManagement = ({
             case 'validated': return 'Approved';
             case 'pending_ho': return 'Verified';
             case 'pending': return 'Pending';
-            case 'rejected': return 'Rejected';
+            case 'rejected': return 'Action Required';
             default: return tab;
         }
     };
@@ -189,7 +189,7 @@ export const WarrantyManagement = ({
             case 'pending':
                 return 'New registrations pending verification by franchise';
             case 'rejected':
-                return 'Warranties rejected due to invalid or incomplete information';
+                return 'Warranties requiring action due to invalid or incomplete information';
             default:
                 return '';
         }
@@ -373,7 +373,7 @@ export const WarrantyManagement = ({
                                                     <span className="truncate max-w-[80px] sm:max-w-none">
                                                         {warranty.status === 'pending_vendor' ? 'Verify Now' :
                                                             warranty.status === 'pending' ? 'H.O Review' :
-                                                                warranty.status === 'validated' ? 'Approved' : 'Rejected'}
+                                                                warranty.status === 'validated' ? 'Approved' : 'Action Required'}
                                                     </span>
                                                 </div>
                                                 {warranty.status === 'validated' && (
@@ -518,7 +518,7 @@ export const WarrantyManagement = ({
                                                 )} />
                                                 {warranty.status === 'pending_vendor' ? 'Verify Now' :
                                                     warranty.status === 'pending' ? 'H.O Review' :
-                                                        warranty.status === 'validated' ? 'Approved' : 'Rejected'}
+                                                        warranty.status === 'validated' ? 'Approved' : 'Action Required'}
                                             </div>
                                             {warranty.status === 'validated' && (
                                                 <span className="hidden lg:inline text-[8px] font-black opacity-70">
@@ -714,10 +714,10 @@ export const WarrantyManagement = ({
                                         </DropdownMenuItem>
                                         <DropdownMenuItem onClick={() => setActiveTab('rejected')} className="flex flex-col items-start p-3 rounded-2xl cursor-pointer hover:bg-red-50">
                                             <div className="flex items-center justify-between w-full">
-                                                <span className={cn("text-xs font-black uppercase", activeTab === 'rejected' ? "text-red-600" : "text-slate-500")}>Rejected</span>
+                                                <span className={cn("text-xs font-black uppercase", activeTab === 'rejected' ? "text-red-600" : "text-slate-500")}>Action Required</span>
                                                 <Badge className="bg-red-100 text-red-700 font-black px-3 py-0.5 rounded-full text-[10px]">{stats.rejected}</Badge>
                                             </div>
-                                            <span className="text-[10px] text-slate-400 font-medium mt-1">Rejected due to invalid or incomplete info</span>
+                                            <span className="text-[10px] text-slate-400 font-medium mt-1">Action required due to invalid or incomplete info</span>
                                         </DropdownMenuItem>
                                     </div>
                                 </DropdownMenuContent>
@@ -798,7 +798,7 @@ export const WarrantyManagement = ({
                             value="rejected"
                             className="relative z-10 rounded-full px-6 py-2 text-xs font-black text-slate-500 data-[state=active]:text-red-600 data-[state=active]:bg-white data-[state=active]:shadow-md transition-all duration-300 flex items-center gap-2 uppercase tracking-widest border border-transparent data-[state=active]:border-red-100"
                         >
-                            Rejected
+                            Action Required
                             <span className="py-0.5 px-2 rounded-full bg-red-100 text-red-700 text-[10px] font-black">{stats.rejected || 0}</span>
                         </TabsTrigger>
                     </TabsList>

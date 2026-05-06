@@ -445,7 +445,7 @@ const GrievancePage = () => {
                                                 </div>
                                                 <div className="flex gap-2">
                                                     <Badge className={STATUS_COLORS[g.status]}>
-                                                        {g.status.replace("_", " ")}
+                                                        {g.status === 'rejected' ? 'Action Required' : g.status.replace("_", " ")}
                                                     </Badge>
                                                     {g.priority !== "normal" && (
                                                         <Badge variant="outline" className="text-amber-500 border-amber-500">

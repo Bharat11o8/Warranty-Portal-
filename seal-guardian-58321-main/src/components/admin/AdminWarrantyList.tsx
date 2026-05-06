@@ -172,7 +172,7 @@ export const AdminWarrantyList = ({
                                         warranty.status === 'pending_vendor' && "bg-orange-600 hover:bg-orange-700 text-white"
                                     )}>
                                         {warranty.status === 'validated' ? 'Approved' :
-                                            warranty.status === 'rejected' ? 'Disapproved' :
+                                            warranty.status === 'rejected' ? 'Action Required' :
                                                 warranty.status === 'pending_vendor' ? 'Waiting Vendor' : 'Pending'}
                                     </Badge>
                                     {/* Fraud Score Badge */}
@@ -421,7 +421,7 @@ export const AdminWarrantyList = ({
 
                             {showRejectionReason && (
                                 <div>
-                                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">Rejection Reason</p>
+                                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">Reviewer Remarks / Feedback</p>
                                     <p className="text-sm text-red-600">{warranty.rejection_reason || 'N/A'}</p>
                                 </div>
                             )}
@@ -587,11 +587,11 @@ export const AdminWarrantyList = ({
                                                 ) : (
                                                     <X className="h-3 w-3 mr-1" />
                                                 )}
-                                                Reject
+                                                Decline
                                             </Button>
                                         )}
                                         {warranty.status === 'rejected' && (
-                                            <span className="text-xs text-muted-foreground">Must be resubmitted</span>
+                                            <span className="text-xs text-muted-foreground">Waiting for resubmission</span>
                                         )}
                                     </div>
                                 </div>

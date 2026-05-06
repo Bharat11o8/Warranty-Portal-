@@ -405,7 +405,7 @@ const AdminGrievances = () => {
                                     </td>
                                     <td className="p-3">
                                         <Badge className={STATUS_COLORS[g.status]}>
-                                            {g.status.replace("_", " ")}
+                                            {g.status === 'rejected' ? 'Action Required' : g.status.replace("_", " ")}
                                         </Badge>
                                     </td>
                                     <td className="p-3 text-sm">
@@ -430,7 +430,7 @@ const AdminGrievances = () => {
                                 <DialogTitle className="flex items-center gap-2">
                                     <span>{selectedGrievance.ticket_id}</span>
                                     <Badge className={STATUS_COLORS[selectedGrievance.status]}>
-                                        {selectedGrievance.status.replace("_", " ")}
+                                        {selectedGrievance.status === 'rejected' ? 'Action Required' : selectedGrievance.status.replace("_", " ")}
                                     </Badge>
                                 </DialogTitle>
                                 <DialogDescription>{selectedGrievance.subject}</DialogDescription>

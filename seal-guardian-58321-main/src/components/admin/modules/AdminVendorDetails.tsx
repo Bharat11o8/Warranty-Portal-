@@ -242,7 +242,7 @@ export const AdminVendorDetails = ({ vendor: initialVendor, onBack }: AdminVendo
 
             if (response.data.success) {
                 toast({
-                    title: `Warranty ${status === 'validated' ? 'Approved' : 'Disapproved'}`,
+                    title: `Warranty ${status === 'validated' ? 'Approved' : 'Declined'}`,
                     description: response.data.message,
                     variant: status === 'validated' ? "default" : "destructive"
                 });
@@ -632,7 +632,7 @@ export const AdminVendorDetails = ({ vendor: initialVendor, onBack }: AdminVendo
                                 <TabsList className="grid w-full grid-cols-4 lg:w-auto h-auto bg-white border">
                                     <TabsTrigger value="all" className="data-[state=active]:bg-slate-100">All</TabsTrigger>
                                     <TabsTrigger value="validated" className="data-[state=active]:bg-emerald-50 data-[state=active]:text-emerald-700">Approved</TabsTrigger>
-                                    <TabsTrigger value="rejected" className="data-[state=active]:bg-red-50 data-[state=active]:text-red-700">Rejected</TabsTrigger>
+                                    <TabsTrigger value="rejected" className="data-[state=active]:bg-red-50 data-[state=active]:text-red-700">Action Required</TabsTrigger>
                                     <TabsTrigger value="pending" className="data-[state=active]:bg-amber-50 data-[state=active]:text-amber-700">Pending</TabsTrigger>
                                 </TabsList>
                             </Tabs>
@@ -839,7 +839,7 @@ export const AdminVendorDetails = ({ vendor: initialVendor, onBack }: AdminVendo
                                                                 onClick={() => showManpowerWarranties(member, 'rejected')}
                                                                 className="px-3 py-1 bg-red-100 text-red-700 rounded-full text-xs font-semibold hover:bg-red-200 transition-colors"
                                                             >
-                                                                {member.rejected_points || 0} Rejected
+                                                                {member.rejected_points || 0} Action Required
                                                             </button>
                                                         </div>
                                                     </div>
@@ -915,8 +915,8 @@ export const AdminVendorDetails = ({ vendor: initialVendor, onBack }: AdminVendo
             <Dialog open={rejectDialogOpen} onOpenChange={setRejectDialogOpen}>
                 <DialogContent>
                     <DialogHeader>
-                        <DialogTitle>Reject Warranty</DialogTitle>
-                        <DialogDescription>Please provide a reason for rejection.</DialogDescription>
+                        <DialogTitle>Decline Warranty</DialogTitle>
+                        <DialogDescription>Please provide reviewer remarks / feedback.</DialogDescription>
                     </DialogHeader>
                     <div className="py-4">
                         <textarea
@@ -933,7 +933,7 @@ export const AdminVendorDetails = ({ vendor: initialVendor, onBack }: AdminVendo
                             onClick={() => selectedWarrantyId && handleUpdateStatus(selectedWarrantyId, 'rejected', rejectReason)}
                             disabled={!rejectReason || !!processingWarranty}
                         >
-                            {processingWarranty ? <Loader2 className="h-4 w-4 animate-spin" /> : "Confirm Rejection"}
+                            {processingWarranty ? <Loader2 className="h-4 w-4 animate-spin" /> : "Confirm Decline"}
                         </Button>
                     </div>
                 </DialogContent>
