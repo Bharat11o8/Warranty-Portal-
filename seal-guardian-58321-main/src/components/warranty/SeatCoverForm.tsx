@@ -896,11 +896,20 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
                   />
                 ) : (
                   <Combobox
-                    options={stores.map(store => ({ value: store.store_name, label: store.store_name }))}
-                    value={formData.storeName}
-                    onChange={(value) => handleChange("storeName", value)}
+                    options={stores.map(store => ({ value: store.store_email, label: `${store.store_name} - ${store.city}` }))}
+                    value={formData.storeEmail}
+                    onChange={(value) => {
+                      const selectedStore = stores.find(s => s.store_email === value);
+                      if (selectedStore) {
+                        setFormData(prev => ({ 
+                          ...prev, 
+                          storeName: selectedStore.store_name,
+                          storeEmail: selectedStore.store_email 
+                        }));
+                      }
+                    }}
                     placeholder="Select Store"
-                    searchPlaceholder="Search store name..."
+                    searchPlaceholder="Search store name or city..."
                     emptyMessage="No store found."
                     disabled={loading}
                     className="w-full"

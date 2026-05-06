@@ -654,7 +654,10 @@ export class WarrantyController {
             COALESCE(vd.state, vd_owner.state) as vendor_state
         FROM warranty_registrations w 
         LEFT JOIN manpower m ON w.manpower_id = m.id
-        LEFT JOIN vendor_details vd ON (w.installer_name = vd.store_name AND w.installer_contact = vd.store_email)
+        LEFT JOIN vendor_details vd ON (
+            (w.installer_name = vd.store_name OR w.installer_name = CONCAT(vd.store_name, ' - ', vd.city)) 
+            AND w.installer_contact = vd.store_email
+        )
         LEFT JOIN profiles vp ON vd.user_id = vp.id
         LEFT JOIN vendor_details vd_owner ON (
             w.manpower_id LIKE 'owner-%' AND 

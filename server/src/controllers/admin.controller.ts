@@ -1010,12 +1010,14 @@ export class AdminController {
                     wr.car_make LIKE ? OR 
                     wr.car_model LIKE ? OR
                     wr.installer_name LIKE ? OR
-                    vd.store_name LIKE ? OR
+                    vd_m.store_name LIKE ? OR
+                    vd_i.store_name LIKE ? OR
                     vd_owner.store_name LIKE ? OR
-                    vd.city LIKE ? OR
+                    vd_m.city LIKE ? OR
+                    vd_i.city LIKE ? OR
                     vd_owner.city LIKE ?
                 )`);
-                params.push(searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm);
+                params.push(searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm);
             }
 
             // Date Range
@@ -1032,7 +1034,8 @@ export class AdminController {
                 SELECT COUNT(*) as total
                 FROM warranty_registrations wr
                 LEFT JOIN manpower m ON wr.manpower_id = m.id
-                LEFT JOIN vendor_details vd ON m.vendor_id = vd.id
+                LEFT JOIN vendor_details vd_m ON (wr.manpower_id IS NOT NULL AND wr.manpower_id NOT LIKE 'owner-%' AND m.vendor_id = vd_m.id)
+                LEFT JOIN vendor_details vd_i ON (wr.installer_name = vd_i.store_name AND wr.installer_contact = vd_i.store_email)
                 LEFT JOIN vendor_details vd_owner ON (
                     wr.manpower_id LIKE 'owner-%' AND
                     vd_owner.id = REPLACE(wr.manpower_id, 'owner-', '')
@@ -1051,21 +1054,22 @@ export class AdminController {
                     p.email as submitted_by_email,
                     (SELECT ur.role FROM user_roles ur WHERE ur.user_id = p.id LIMIT 1) as submitted_by_role,
                     m.name as manpower_name_from_db,
-                    COALESCE(vd.store_name, vd_owner.store_name) as vendor_store_name,
-                    COALESCE(vd.store_email, vd_owner.store_email) as vendor_store_email,
-                    COALESCE(vd.city, vd_owner.city) as vendor_city,
-                    COALESCE(vd.state, vd_owner.state) as vendor_state,
-                    COALESCE(vd.latitude, vd_owner.latitude) as store_lat,
-                    COALESCE(vd.longitude, vd_owner.longitude) as store_lng,
+                    COALESCE(vd_m.store_name, vd_i.store_name, vd_owner.store_name) as vendor_store_name,
+                    COALESCE(vd_m.store_email, vd_i.store_email, vd_owner.store_email) as vendor_store_email,
+                    COALESCE(vd_m.city, vd_i.city, vd_owner.city) as vendor_city,
+                    COALESCE(vd_m.state, vd_i.state, vd_owner.state) as vendor_state,
+                    COALESCE(vd_m.latitude, vd_i.latitude, vd_owner.latitude) as store_lat,
+                    COALESCE(vd_m.longitude, vd_i.longitude, vd_owner.longitude) as store_lng,
                     vp.phone_number as vendor_phone_number
                 FROM warranty_registrations wr
                 LEFT JOIN profiles p ON wr.user_id = p.id
                 LEFT JOIN manpower m ON wr.manpower_id = m.id
-                LEFT JOIN vendor_details vd ON (
-                    (wr.manpower_id IS NOT NULL AND wr.manpower_id NOT LIKE 'owner-%' AND m.vendor_id = vd.id) OR
-                    (wr.installer_name = vd.store_name AND wr.installer_contact = vd.store_email)
+                LEFT JOIN vendor_details vd_m ON (wr.manpower_id IS NOT NULL AND wr.manpower_id NOT LIKE 'owner-%' AND m.vendor_id = vd_m.id)
+                LEFT JOIN vendor_details vd_i ON (
+                    (wr.installer_name = vd_i.store_name OR wr.installer_name = CONCAT(vd_i.store_name, ' - ', vd_i.city)) 
+                    AND wr.installer_contact = vd_i.store_email
                 )
-                LEFT JOIN profiles vp ON vd.user_id = vp.id
+                LEFT JOIN profiles vp ON COALESCE(vd_m.user_id, vd_i.user_id) = vp.id
                 LEFT JOIN vendor_details vd_owner ON (
                     wr.manpower_id LIKE 'owner-%' AND
                     vd_owner.id = REPLACE(wr.manpower_id, 'owner-', '')
