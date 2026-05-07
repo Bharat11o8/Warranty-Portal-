@@ -257,8 +257,8 @@ const VendorDashboard = () => {
             const response = await api.post(`/vendor/warranty/${warranty.uid}/reject`, { reason });
             if (response.data.success) {
                 toast({
-                    title: "Warranty Rejected",
-                    description: "Status updated to Rejected.",
+                    title: "Warranty Sent Back",
+                    description: "Status updated to Action Required.",
                     variant: "destructive"
                 });
                 fetchWarranties();
@@ -673,12 +673,12 @@ const VendorDashboard = () => {
 
                         <Card>
                             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                                <CardTitle className="text-sm font-medium">Disapproved</CardTitle>
+                                <CardTitle className="text-sm font-medium">Action Required</CardTitle>
                                 <XCircle className="h-4 w-4 text-red-600" />
                             </CardHeader>
                             <CardContent>
                                 <div className="text-2xl font-bold">{rejectedWarranties.length}</div>
-                                <p className="text-xs text-muted-foreground">Rejected warranties</p>
+                                <p className="text-xs text-muted-foreground">Action required</p>
                             </CardContent>
                         </Card>
                     </div>
@@ -785,7 +785,7 @@ const VendorDashboard = () => {
                             Approved ({approvedWarranties.length})
                         </TabsTrigger>
                         <TabsTrigger value="disapproved" className="flex-1 min-w-[80px] rounded-md py-2 px-2 text-xs font-medium data-[state=active]:bg-white data-[state=active]:shadow-sm text-red-700 data-[state=active]:text-red-800 data-[state=active]:border-2 data-[state=active]:border-red-500/20 transition-all">
-                            Rejected ({rejectedWarranties.length})
+                            Action Required ({rejectedWarranties.length})
                         </TabsTrigger>
                         <TabsTrigger value="pending_verification" className="flex-1 min-w-[90px] rounded-md py-2 px-2 text-xs font-medium data-[state=active]:bg-white data-[state=active]:shadow-sm text-blue-700 data-[state=active]:text-blue-800 data-[state=active]:border-2 data-[state=active]:border-blue-500/20 transition-all">
                             <span className="hidden sm:inline">Pending for </span>Verification ({pendingVendorWarranties.length})
@@ -1047,7 +1047,7 @@ const VendorDashboard = () => {
                                                                             className="flex flex-col items-center p-2 rounded-lg bg-red-50 hover:bg-red-100 transition-colors"
                                                                         >
                                                                             <span className="text-lg font-bold text-red-700">{member.rejected_count || 0}</span>
-                                                                            <span className="text-[10px] text-red-600 font-medium">Rejected</span>
+                                                                            <span className="text-[10px] text-red-600 font-medium">Action Req.</span>
                                                                         </button>
                                                                         <div className="flex flex-col items-center p-2 rounded-lg bg-muted/50">
                                                                             <span className="text-lg font-bold text-muted-foreground">{member.total_count || 0}</span>
@@ -1135,7 +1135,7 @@ const VendorDashboard = () => {
                                                                     className="flex flex-col items-center p-2 rounded-lg bg-red-50/50 hover:bg-red-50 transition-colors cursor-pointer"
                                                                 >
                                                                     <span className="text-lg font-bold text-red-700/80">{member.rejected_count || 0}</span>
-                                                                    <span className="text-[10px] text-red-600/80 font-medium">Rejected</span>
+                                                                    <span className="text-[10px] text-red-600/80 font-medium">Action Req.</span>
                                                                 </button>
                                                                 <div className="flex flex-col items-center p-2 rounded-lg bg-muted/30">
                                                                     <span className="text-lg font-bold text-muted-foreground">{member.total_count || 0}</span>
@@ -1162,7 +1162,7 @@ const VendorDashboard = () => {
                     <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
                         <DialogHeader>
                             <DialogTitle>
-                                {manpowerWarrantyDialogData.member?.name} - {manpowerWarrantyDialogData.status === 'validated' ? 'Approved' : manpowerWarrantyDialogData.status === 'rejected' ? 'Disapproved' : 'Pending'} Warranties
+                                {manpowerWarrantyDialogData.member?.name} - {manpowerWarrantyDialogData.status === 'validated' ? 'Approved' : manpowerWarrantyDialogData.status === 'rejected' ? 'Action Required' : 'Pending'} Warranties
                             </DialogTitle>
                             <DialogDescription>
                                 {manpowerWarrantyDialogData.warranties.length} warranty registrations
@@ -1229,7 +1229,7 @@ const VendorDashboard = () => {
                     <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
                         <DialogHeader>
                             <DialogTitle>Edit & Resubmit Warranty</DialogTitle>
-                            <DialogDescription>Update the details for the rejected warranty and resubmit for approval.</DialogDescription>
+                            <DialogDescription>Update the details for the warranty and resubmit for approval.</DialogDescription>
                         </DialogHeader>
                         {editingWarranty && (() => {
                             const FormComponent = getWarrantyFormComponent(editingWarranty.product_type);

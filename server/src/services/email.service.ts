@@ -598,7 +598,7 @@ export class EmailService {
     await transporter.sendMail({
       from: process.env.EMAIL_FROM,
       to: customerEmail,
-      subject: 'Your Warranty is Not Approved',
+      subject: 'Your Warranty is Pending',
       html: this.getHtmlTemplate({
         title: 'Application Update',
         content: htmlContent,
@@ -708,8 +708,8 @@ export class EmailService {
       <h2 style="color: #333; margin-top: 0;">Hello ${vendorName},</h2>
       
       <div class="warning-box">
-        <h3 style="color: #856404; margin: 0 0 5px 0;">Application Status Update</h3>
-        <p style="margin: 0;">A warranty application submitted through your store could not be approved at this time.</p>
+        <h3 style="color: #856404; margin: 0 0 5px 0;">Application Pending</h3>
+        <p style="margin: 0;">A warranty application submitted through your store is pending an update.</p>
       </div>
       
       <div class="info-box" style="border-left-color: #ff9800;">
@@ -732,7 +732,7 @@ export class EmailService {
       <div class="info-box" style="background: #e3f2fd; border-left-color: #2196f3;">
         <h4 style="margin: 0 0 10px 0; color: #1976d2;">Recommended Actions:</h4>
         <ul style="margin: 0; padding-left: 20px;">
-          <li>Review the rejection reason with your team</li>
+          <li>Review the remarks with your team</li>
           <li>Contact the customer to explain the situation</li>
           <li>Assist the customer in resubmitting with corrected information</li>
         </ul>
@@ -746,7 +746,7 @@ export class EmailService {
     await transporter.sendMail({
       from: process.env.EMAIL_FROM,
       to: vendorEmail,
-      subject: 'Your Warranty is Not Approved',
+      subject: 'Your Warranty is Pending',
       html: this.getHtmlTemplate({
         title: 'Warranty Update',
         content: htmlContent,

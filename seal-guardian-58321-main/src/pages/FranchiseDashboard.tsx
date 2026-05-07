@@ -873,7 +873,7 @@ const FranchiseDashboard = () => {
                     <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
                         <DialogHeader>
                             <DialogTitle className="text-2xl font-bold">Edit & Resubmit Warranty</DialogTitle>
-                            <DialogDescription>Update the details for the rejected warranty and resubmit for approval.</DialogDescription>
+                            <DialogDescription>Update the details for the warranty and resubmit for approval.</DialogDescription>
                         </DialogHeader>
                         {editingWarranty && (() => {
                             const FormComponent = getWarrantyFormComponent(editingWarranty.product_type);
@@ -916,7 +916,7 @@ const FranchiseDashboard = () => {
                     <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
                         <DialogHeader>
                             <DialogTitle className="text-xl font-bold">
-                                {manpowerWarrantyDialogData.member?.name} - {manpowerWarrantyDialogData.status === 'validated' ? 'Approved' : manpowerWarrantyDialogData.status === 'rejected' ? 'Disapproved' : 'Pending'} Warranties
+                                {manpowerWarrantyDialogData.member?.name} - {manpowerWarrantyDialogData.status === 'validated' ? 'Approved' : manpowerWarrantyDialogData.status === 'rejected' ? 'Action Required' : 'Pending'} Warranties
                             </DialogTitle>
                             <DialogDescription>
                                 {manpowerWarrantyDialogData.warranties.length} entries found
