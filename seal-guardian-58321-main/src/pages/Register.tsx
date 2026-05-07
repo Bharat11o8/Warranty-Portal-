@@ -83,8 +83,9 @@ const Register = () => {
       setCustomerData(prev => ({ ...prev, [name]: cleaned }));
       setErrors(prev => ({ ...prev, phoneNumber: getPhoneError(cleaned) }));
     } else if (name === 'email') {
-      setCustomerData(prev => ({ ...prev, [name]: value }));
-      setErrors(prev => ({ ...prev, email: getEmailError(value) }));
+      const sanitized = value.trim().toLowerCase();
+      setCustomerData(prev => ({ ...prev, [name]: sanitized }));
+      setErrors(prev => ({ ...prev, email: getEmailError(sanitized) }));
     } else if (name === 'name') {
       // Allow only letters and spaces for name
       const textOnly = value.replace(/[^A-Za-z\s]/g, '');
@@ -103,8 +104,9 @@ const Register = () => {
       setVendorData(prev => ({ ...prev, [name]: cleaned }));
       setErrors(prev => ({ ...prev, phoneNumber: getPhoneError(cleaned) }));
     } else if (name === 'storeEmail') {
-      setVendorData(prev => ({ ...prev, [name]: value }));
-      setErrors(prev => ({ ...prev, storeEmail: getEmailError(value) }));
+      const sanitized = value.trim().toLowerCase();
+      setVendorData(prev => ({ ...prev, [name]: sanitized }));
+      setErrors(prev => ({ ...prev, storeEmail: getEmailError(sanitized) }));
     } else if (name === 'pincode') {
       const cleaned = value.replace(/\D/g, '').slice(0, 6);
       setVendorData(prev => ({ ...prev, [name]: cleaned }));

@@ -68,7 +68,7 @@ const STATUS_CONFIG: Record<string, { color: string; icon: any; label: string }>
     under_review: { color: "bg-blue-500", icon: AlertCircle, label: "Under Review" },
     in_progress: { color: "bg-amber-500", icon: RefreshCw, label: "In Progress" },
     resolved: { color: "bg-green-500", icon: CheckCircle, label: "Resolved" },
-    rejected: { color: "bg-red-500", icon: AlertCircle, label: "Rejected" },
+    rejected: { color: "bg-red-500", icon: AlertCircle, label: "Action Required" },
 };
 
 const FRANCHISE_CATEGORIES = [

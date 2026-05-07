@@ -133,7 +133,7 @@ const CustomerDetails = ({ formData, updateFormData, onNext, onPrev, isCustomer 
             type="email"
             placeholder="customer@example.com"
             value={formData.customerEmail}
-            onChange={(e) => updateFormData({ customerEmail: e.target.value })}
+            onChange={(e) => updateFormData({ customerEmail: e.target.value.trim().toLowerCase() })}
             required={!isVendor}
             readOnly={isCustomer}
             className={isCustomer ? 'bg-muted cursor-not-allowed' : ''}

@@ -70,6 +70,11 @@ api.interceptors.response.use(
       }
     }
 
+    if (error.response) {
+      console.error(`[API Error] ${error.response.status} - ${error.response.config.url}:`, error.response.data);
+    } else {
+      console.error('[API Error] No response:', error.message);
+    }
     return Promise.reject(error);
   }
 );

@@ -67,7 +67,8 @@ export const WarrantySpecSheet = ({ isOpen, onClose, warranty }: WarrantySpecShe
                                 {warranty.status === 'validated' ? 'Approved' :
                                     warranty.status === 'pending_vendor' ? 'In Review' :
                                         warranty.status === 'pending' ? 'Pending' :
-                                            warranty.status}
+                                            warranty.status === 'rejected' ? 'Action Required' :
+                                                warranty.status}
                             </Badge>
                         </div>
                         <SheetTitle className="text-2xl font-bold tracking-tight text-foreground/90">
@@ -86,12 +87,12 @@ export const WarrantySpecSheet = ({ isOpen, onClose, warranty }: WarrantySpecShe
                         <div className="animate-in fade-in slide-in-from-top-2 duration-500">
                             <h4 className="text-xs font-bold text-red-500 uppercase tracking-widest mb-3 pl-1 flex items-center gap-2">
                                 <div className="w-1 h-4 bg-red-500 rounded-full" />
-                                Rejection Information
+                                Action Required
                             </h4>
                             <div className="bg-red-50/50 border border-red-100 rounded-2xl p-4 flex items-start gap-3 shadow-sm">
                                 <XCircle className="h-5 w-5 text-red-500 shrink-0 mt-0.5" />
                                 <div className="min-w-0">
-                                    <p className="text-[10px] font-black text-red-700/50 uppercase tracking-widest mb-1">Reason for Rejection</p>
+                                    <p className="text-[10px] font-black text-red-700/50 uppercase tracking-widest mb-1">Reviewer Remarks / Feedback</p>
                                     <p className="text-sm font-bold text-red-600 italic leading-relaxed">{warranty.rejection_reason}</p>
                                 </div>
                             </div>
@@ -260,7 +261,7 @@ export const WarrantySpecSheet = ({ isOpen, onClose, warranty }: WarrantySpecShe
                                             }}>
                                                 <span className="flex items-center gap-2">
                                                     <ExternalLink className="h-3 w-3 text-orange-600" />
-                                                    <span className="text-orange-700 text-xs">Number Plate</span>
+                                                    <span className="text-orange-700 text-xs">Car Exterior with Number Plate</span>
                                                 </span>
                                                 <ExternalLink className="h-3 w-3 text-orange-500" />
                                             </Button>

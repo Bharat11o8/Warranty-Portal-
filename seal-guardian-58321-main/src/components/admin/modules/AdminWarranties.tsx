@@ -360,15 +360,15 @@ export const AdminWarranties = () => {
                         <SelectItem value="validated">Approved</SelectItem>
                         <SelectItem value="pending">Pending Approval</SelectItem>
                         <SelectItem value="pending_vendor">Pending Vendor</SelectItem>
-                        <SelectItem value="rejected">Rejected</SelectItem>
-                        <SelectItem value="resubmitted">Edits/Resubmissions</SelectItem>
+                        <SelectItem value="rejected">Action Required</SelectItem>
+
                     </SelectContent>
                 </Select>
             </div>
 
             {/* Desktop Status Tabs */}
             <Tabs value={statusFilter} onValueChange={setStatusFilter} className="hidden md:block w-full xl:w-auto">
-                <TabsList className="grid w-full grid-cols-6 xl:inline-flex h-auto bg-white border border-orange-100 p-1">
+                <TabsList className="grid w-full grid-cols-5 xl:inline-flex h-auto bg-white border border-orange-100 p-1">
                     <TabsTrigger value="all" className="data-[state=active]:bg-orange-50 data-[state=active]:text-orange-700 gap-2">
                         All
                         <Badge variant="secondary" className="bg-slate-100 text-slate-600 border-none px-1.5 py-0 h-4 text-[10px] font-bold">
@@ -394,19 +394,12 @@ export const AdminWarranties = () => {
                         </Badge>
                     </TabsTrigger>
                     <TabsTrigger value="rejected" className="data-[state=active]:bg-red-50 data-[state=active]:text-red-700 gap-2">
-                        Rejected
+                        Action Required
                         <Badge variant="secondary" className="bg-red-100/50 text-red-700 border-none px-1.5 py-0 h-4 text-[10px] font-bold">
                             {warranties.filter(w => w.status === 'rejected').length}
                         </Badge>
                     </TabsTrigger>
-                    <TabsTrigger value="resubmitted" className="data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700 gap-2">
-                        Resubmitted
-                        {resubmissions.length > 0 && (
-                            <Badge variant="secondary" className="bg-blue-500 text-white border-none px-1.5 py-0 h-4 text-[10px] font-bold animate-pulse">
-                                {resubmissions.length}
-                            </Badge>
-                        )}
-                    </TabsTrigger>
+
                 </TabsList>
             </Tabs>
 
@@ -644,17 +637,17 @@ export const AdminWarranties = () => {
             <Dialog open={rejectDialogOpen} onOpenChange={setRejectDialogOpen}>
                 <DialogContent className="sm:max-w-md">
                     <DialogHeader>
-                        <DialogTitle>Reject Warranty</DialogTitle>
+                        <DialogTitle>Decline Warranty</DialogTitle>
                         <DialogDescription>
-                            Please provide a reason for rejecting this warranty registration.
+                            Please provide feedback for this warranty registration.
                         </DialogDescription>
                     </DialogHeader>
                     <div className="space-y-4 py-4">
                         <div className="space-y-2">
-                            <Label htmlFor="rejection-reason">Reason for Rejection</Label>
+                            <Label htmlFor="rejection-reason">Reviewer Remarks / Feedback</Label>
                             <Textarea
                                 id="rejection-reason"
-                                placeholder="Enter the reason for rejection..."
+                                placeholder="Enter feedback for the user..."
                                 value={rejectReason}
                                 onChange={(e) => setRejectReason(e.target.value)}
                                 className="min-h-[100px]"
@@ -683,7 +676,7 @@ export const AdminWarranties = () => {
                                 }}
                                 disabled={!rejectReason.trim()}
                             >
-                                Reject Warranty
+                                Decline Warranty
                             </Button>
                         </div>
                     </div>

@@ -80,7 +80,6 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
     invoiceFile: null as File | null,
     vehicleFile: null as File | null,
     seatCoverPhoto: null as File | null,
-    carOuterPhoto: null as File | null,
     termsAccepted: true, // Already accepted if editing
     exifData: null as any,
   } : {
@@ -100,7 +99,6 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
     invoiceFile: null as File | null,
     vehicleFile: null as File | null,
     seatCoverPhoto: null as File | null,
-    carOuterPhoto: null as File | null,
     termsAccepted: false,
     exifData: null as any,
     allExifData: {} as Record<string, any>,
@@ -483,8 +481,8 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
         }
         if (!formData.vehicleFile) {
           toast({
-            title: "Number Plate Photo Required",
-            description: "Please capture a photo of the vehicle number plate",
+            title: "Car Exterior Photo Required",
+            description: "Please capture a photo of the car exterior with the number plate visible",
             variant: "destructive",
           });
           setLoading(false);
@@ -494,15 +492,6 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
           toast({
             title: "Seat Cover Photo Required",
             description: "Please capture a photo of the fitted seat cover",
-            variant: "destructive",
-          });
-          setLoading(false);
-          return;
-        }
-        if (!formData.carOuterPhoto) {
-          toast({
-            title: "Car Outer Photo Required",
-            description: "Please capture a photo of the car exterior",
             variant: "destructive",
           });
           setLoading(false);
@@ -547,7 +536,6 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
           photos: {
             vehicle: formData.vehicleFile,
             seatCover: formData.seatCoverPhoto,
-            carOuter: formData.carOuterPhoto
           }
         },
         vendorDirect: vendorDirect || false,
@@ -585,9 +573,6 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
             }
             if (pd.photos?.seatCover instanceof File) {
               formDataPayload.append('seatCoverPhoto', pd.photos.seatCover);
-            }
-            if (pd.photos?.carOuter instanceof File) {
-              formDataPayload.append('carOuterPhoto', pd.photos.carOuter);
             }
           } else if (value !== null && value !== undefined) {
             formDataPayload.append(key, String(value));
@@ -659,6 +644,8 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
       setUidMessage('');
     } else if (name === 'carReg') {
       processedValue = formatVehicleRegLive(value);
+    } else if (name === 'customerEmail') {
+      processedValue = value.trim().toLowerCase();
     }
 
     setFormData(prev => ({ ...prev, [name]: processedValue }));
@@ -687,7 +674,7 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
   const ALLOWED_FILE_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/heic', 'image/heif', 'application/pdf'];
   const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>, field: 'invoiceFile' | 'vehicleFile' | 'seatCoverPhoto' | 'carOuterPhoto') => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>, field: 'invoiceFile' | 'vehicleFile' | 'seatCoverPhoto') => {
     const file = e.target.files?.[0];
     if (file) {
       // Check file type
@@ -702,7 +689,7 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
       }
 
       // --- FRAUD DETECTION: Extract EXIF BEFORE compression ---
-      if (['vehicleFile', 'seatCoverPhoto', 'carOuterPhoto'].includes(field)) {
+      if (['vehicleFile', 'seatCoverPhoto'].includes(field)) {
         try {
           // Parse EXIF, GPS, and TIFF data (for make/model)
           const exif = await exifr.parse(file, {
@@ -779,7 +766,7 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
   };
 
   // Handle camera captures: extract EXIF then compress before storing
-  const handleCameraCapture = async (file: File | null, field: 'vehicleFile' | 'seatCoverPhoto' | 'carOuterPhoto') => {
+  const handleCameraCapture = async (file: File | null, field: 'vehicleFile' | 'seatCoverPhoto') => {
     if (!file) {
       setFormData(prev => ({ ...prev, [field]: null }));
       return;
@@ -911,11 +898,20 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
                   />
                 ) : (
                   <Combobox
-                    options={stores.map(store => ({ value: store.store_name, label: store.store_name }))}
-                    value={formData.storeName}
-                    onChange={(value) => handleChange("storeName", value)}
+                    options={stores.map(store => ({ value: store.store_email, label: `${store.store_name} - ${store.city}` }))}
+                    value={formData.storeEmail}
+                    onChange={(value) => {
+                      const selectedStore = stores.find(s => s.store_email === value);
+                      if (selectedStore) {
+                        setFormData(prev => ({ 
+                          ...prev, 
+                          storeName: selectedStore.store_name,
+                          storeEmail: selectedStore.store_email 
+                        }));
+                      }
+                    }}
                     placeholder="Select Store"
-                    searchPlaceholder="Search store name..."
+                    searchPlaceholder="Search store name or city..."
                     emptyMessage="No store found."
                     disabled={loading}
                     className="w-full"
@@ -1273,10 +1269,10 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
                 </div>
               </div>
 
-              {/* Number Plate Photo */}
+              {/* Number Plate Photo (Now Exterior with Plate) */}
               <CameraCapture
                 id="vehicleFile"
-                label="Number Plate Image"
+                label="Car Exterior image with number plate"
                 description="Take a photo or upload from gallery"
                 required={!warrantyId}
                 disabled={loading}
@@ -1285,7 +1281,7 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
                 onChange={(file) => handleCameraCapture(file, 'vehicleFile')}
                 accept="image/jpeg,image/heic,image/heif"
                 selectedIcon={<Car className="h-6 w-6" />}
-                sampleImageUrl="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776227240/Car-Number-Plate-Image_cmbu0u.png"
+                sampleImageUrl="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776228125/Car_Exterior_Image_New_vvjoqa.jpg"
               />
 
               {/* Fitted Seat Cover Photo */}
@@ -1303,20 +1299,7 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
                 sampleImageUrl="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1775217073/Seat_Cover_Fitted_jfgizq.jpg"
               />
 
-              {/* Car Outer Image */}
-              <CameraCapture
-                id="carOuterPhoto"
-                label="Car Exterior Image"
-                description="Take a photo or upload from gallery"
-                required={!warrantyId}
-                disabled={loading}
-                cameraOnly={false}
-                value={formData.carOuterPhoto}
-                onChange={(file) => handleCameraCapture(file, 'carOuterPhoto')}
-                accept="image/jpeg,image/heic,image/heif"
-                selectedIcon={<ImageIcon className="h-6 w-6" />}
-                sampleImageUrl="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776228125/Car_Exterior_Image_New_vvjoqa.jpg"
-              />
+
             </div>
             <div className="space-y-3 mt-5 md:col-span-2">
               <Label htmlFor="invoiceFile" className="text-sm font-medium text-slate-700">

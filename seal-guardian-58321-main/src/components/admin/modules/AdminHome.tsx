@@ -63,7 +63,7 @@ export const AdminHome = () => {
     // Prepare chart data
     const pieData = [
         { name: 'Approved', value: Number(stats.validatedWarranties || 0), color: COLORS.validated },
-        { name: 'Rejected', value: Number(stats.rejectedWarranties || 0), color: COLORS.rejected },
+        { name: 'Action Required', value: Number(stats.rejectedWarranties || 0), color: COLORS.rejected },
         { name: 'Pending (Admin)', value: Number(stats.pendingApprovals || 0), color: COLORS.pending },
         { name: 'Pending (Vendor)', value: Number(stats.pendingVendorApprovals || 0), color: COLORS.pending_vendor },
     ].filter(item => item.value > 0);
@@ -144,7 +144,7 @@ export const AdminHome = () => {
                                 />
                                 <Legend />
                                 <Bar dataKey="approved" name="Approved" fill={COLORS.validated} radius={[4, 4, 0, 0]} stackId="a" />
-                                <Bar dataKey="rejected" name="Rejected" fill={COLORS.rejected} radius={[4, 4, 0, 0]} stackId="a" />
+                                <Bar dataKey="rejected" name="Action Required" fill={COLORS.rejected} radius={[4, 4, 0, 0]} stackId="a" />
                                 <Bar dataKey="pending" name="Pending" fill={COLORS.pending} radius={[4, 4, 0, 0]} stackId="a" />
                             </BarChart>
                         </ResponsiveContainer>

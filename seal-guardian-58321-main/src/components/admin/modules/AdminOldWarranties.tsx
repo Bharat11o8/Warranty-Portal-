@@ -256,7 +256,7 @@ export function AdminOldWarranties() {
                         </CardHeader>
                         <CardContent>
                             <p className="text-sm">
-                                {stats.earliest_date ? formatToIST(stats.earliest_date).split(",")[0] : "N/A"} - {stats.latest_date ? formatToIST(stats.latest_date).split(",")[0] : "N/A"}
+                                {stats.earliest_date ? formatToIST(stats.earliest_date) : "N/A"} - {stats.latest_date ? formatToIST(stats.latest_date) : "N/A"}
                             </p>
                         </CardContent>
                     </Card>
@@ -394,7 +394,7 @@ export function AdminOldWarranties() {
                                                 <Badge variant="outline">{w.warranty_type || "-"}</Badge>
                                             </TableCell>
                                             <TableCell className="text-sm max-w-[150px] truncate">{w.store_name || "-"}</TableCell>
-                                            <TableCell className="text-sm">{w.purchase_date ? formatToIST(w.purchase_date).split(",")[0] : "-"}</TableCell>
+                                            <TableCell className="text-sm">{w.purchase_date ? formatToIST(w.purchase_date) : "-"}</TableCell>
                                             <TableCell>
                                                 {w.file_proof_url ? (
                                                     <a href={w.file_proof_url} target="_blank" rel="noopener noreferrer"

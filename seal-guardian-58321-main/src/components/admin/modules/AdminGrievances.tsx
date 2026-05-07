@@ -547,7 +547,7 @@ export const AdminGrievances = () => {
                                                 <td className="p-4">
                                                     <div className="flex flex-col gap-1 items-start">
                                                         <Badge className={`${STATUS_COLORS[g.status]} hover:${STATUS_COLORS[g.status]} whitespace-nowrap`}>
-                                                            {g.status.replace("_", " ")}
+                                                            {g.status === 'rejected' ? 'Action Required' : g.status.replace("_", " ")}
                                                         </Badge>
                                                         <Badge className={cn(
                                                             "text-[10px] font-medium border shadow-sm whitespace-nowrap",
@@ -643,7 +643,7 @@ export const AdminGrievances = () => {
                                     <DialogTitle className="flex flex-wrap items-center gap-2 md:gap-3">
                                         <span className="text-2xl text-blue-600 font-black tracking-tight">{selectedGrievance.ticket_id}</span>
                                         <Badge className={cn("font-black uppercase tracking-widest text-[10px] px-2 py-0.5", STATUS_COLORS[selectedGrievance.status] || "bg-slate-500")}>
-                                            {selectedGrievance.status.replace("_", " ")}
+                                            {selectedGrievance.status === 'rejected' ? 'Action Required' : selectedGrievance.status.replace("_", " ")}
                                         </Badge>
                                     </DialogTitle>
                                 </div>
