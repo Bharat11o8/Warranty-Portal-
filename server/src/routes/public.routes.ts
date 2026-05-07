@@ -5,8 +5,6 @@ import { warrantyUpload, attachPublicUrls } from '../config/localUpload.js';
 
 const router = Router();
 
-
-
 router.get('/stores', PublicController.getStores);
 router.get('/stores/code/:code', PublicController.getStoreByCode);  // QR store lookup
 router.get('/stores/:vendorDetailsId/manpower', PublicController.getStoreManpower);

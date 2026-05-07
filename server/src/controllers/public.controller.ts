@@ -6,6 +6,7 @@ import bcrypt from 'bcryptjs';
 import { v4 as uuidv4 } from 'uuid';
 import { geolocateIP, getClientIP } from '../utils/ipGeolocation.js';
 import { calculateFraudScore } from '../utils/fraudScoring.js';
+import { WhatsAppService } from '../services/whatsapp.service.js';
 
 export class PublicController {
     static async getStores(req: Request, res: Response) {
@@ -710,39 +711,120 @@ export class PublicController {
 
             // UID is checked but NOT marked as used until Admin approves it.
 
-            // Step 4: Send vendor confirmation email
-            if (warrantyData.installerContact) {
-                const token = jwt.sign(
-                    { warrantyId: warrantyId, vendorEmail: warrantyData.installerContact },
-                    process.env.JWT_SECRET!,
-                    { expiresIn: '7d' }
-                );
-
+            // Step 4: Franchise Verify Notification (pending_vendor only)
+            if (initialStatus === 'pending_vendor' && warrantyData.installerContact) {
                 let vendorEmail = warrantyData.installerContact;
                 if (vendorEmail.includes('|')) {
                     vendorEmail = vendorEmail.split('|')[0].trim();
                 }
 
-                await EmailService.sendVendorConfirmationEmail(
-                    vendorEmail,
-                    warrantyData.installerName || 'Partner',
-                    customerName,
-                    token,
-                    warrantyData.productType,
-                    warrantyData.productDetails,
-                    warrantyData.registrationNumber,
-                    warrantyData.carMake,
-                    warrantyData.carModel
-                );
+                // Try WhatsApp first
+                let franchiseWaSent = false;
+                if (process.env.ENABLE_WHATSAPP === 'true') {
+                    try {
+                        const [vendorProfile]: any = await db.execute(
+                            `SELECT p.phone_number FROM profiles p
+                             JOIN vendor_details vd ON vd.user_id = p.id
+                             WHERE vd.store_email = ? LIMIT 1`,
+                            [vendorEmail]
+                        );
+                        if (vendorProfile.length > 0 && vendorProfile[0].phone_number) {
+                            const productName = warrantyData.productDetails?.productName
+                                || warrantyData.productDetails?.product
+                                || warrantyData.productType;
+                            franchiseWaSent = await WhatsAppService.sendFranchiseVerifyAction(
+                                vendorProfile[0].phone_number,
+                                warrantyData.installerName || 'Franchise Partner',
+                                warrantyData.customerName,
+                                warrantyData.customerPhone,
+                                warrantyData.registrationNumber,
+                                productName,
+                                warrantyId,
+                                warrantyId
+                            );
+                        }
+                    } catch (err) {
+                        console.error('[WhatsApp] Franchise verify action failed:', err);
+                    }
+                }
+
+                // Email fallback
+                if (!franchiseWaSent) {
+                    try {
+                        const token = jwt.sign(
+                            { warrantyId: warrantyId, vendorEmail: warrantyData.installerContact },
+                            process.env.JWT_SECRET!,
+                            { expiresIn: '7d' }
+                        );
+                        await EmailService.sendVendorConfirmationEmail(
+                            vendorEmail,
+                            warrantyData.installerName || 'Partner',
+                            customerName,
+                            token,
+                            warrantyData.productType,
+                            warrantyData.productDetails,
+                            warrantyData.registrationNumber,
+                            warrantyData.carMake,
+                            warrantyData.carModel
+                        );
+                    } catch (err) {
+                        console.error('[Email] Franchise verify fallback email failed:', err);
+                    }
+                }
             }
 
-            // Step 5: Send welcome email for new users
-            if (isNewUser) {
-                await EmailService.sendPublicRegistrationWelcome(
-                    customerEmail,
-                    customerName,
-                    warrantyId
-                );
+            // Step 5: Customer Submission Notification
+            // Try WhatsApp first
+            let customerWaSent = false;
+            if (process.env.ENABLE_WHATSAPP === 'true' && warrantyData.customerPhone) {
+                try {
+                    const productName = warrantyData.productDetails?.productName
+                        || warrantyData.productDetails?.product
+                        || warrantyData.productType;
+                    customerWaSent = await WhatsAppService.sendWarrantySubmitted(
+                        warrantyData.customerPhone,
+                        warrantyData.customerName,
+                        productName,
+                        warrantyData.registrationNumber,
+                        warrantyId,
+                        warrantyData.productType,
+                        warrantyData.purchaseDate,
+                        warrantyId
+                    );
+                } catch (err) {
+                    console.error('[WhatsApp] Customer submission notification failed:', err);
+                }
+            }
+
+            // Email fallback for confirmation
+            if (!customerWaSent && customerEmail && customerEmail.trim()) {
+                try {
+                    await EmailService.sendWarrantyConfirmation(
+                        customerEmail,
+                        customerName,
+                        warrantyId,
+                        warrantyData.productType,
+                        warrantyData.productDetails,
+                        warrantyData.registrationNumber,
+                        warrantyData.carMake,
+                        warrantyData.carModel
+                    );
+                } catch (err) {
+                    console.error('[Email] Customer submission fallback email failed:', err);
+                }
+            }
+
+            // Step 6: Send welcome email for completely new users
+            if (isNewUser && customerEmail && customerEmail.trim()) {
+                try {
+                    await EmailService.sendPublicRegistrationWelcome(
+                        customerEmail,
+                        customerName,
+                        warrantyId
+                    );
+                } catch (err) {
+                    console.error('[Email] Public registration welcome failed:', err);
+                }
             }
 
             res.json({
