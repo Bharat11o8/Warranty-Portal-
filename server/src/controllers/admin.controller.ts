@@ -987,10 +987,10 @@ export class AdminController {
                 // 4. Send real-time notification to vendor
                 if (vendorUserId) {
                     await NotificationService.notify(vendorUserId, {
-                        title: status === 'validated' ? 'Warranty Approved! ✓' : 'Warranty Rejected ✗',
+                        title: status === 'validated' ? 'Warranty Approved! ✓' : 'Warranty Pending ⏳',
                         message: status === 'validated'
                             ? `The warranty for ${warrantyData.customer_name} (${warrantyData.uid}) has been approved.`
-                            : `The warranty for ${warrantyData.customer_name} (${warrantyData.uid}) was rejected. Reason: ${rejectionReason}`,
+                            : `The warranty for ${warrantyData.customer_name} (${warrantyData.uid}) is pending. Reason: ${rejectionReason}`,
                         type: 'warranty',
                         link: `/dashboard/vendor`
                     });
@@ -999,10 +999,10 @@ export class AdminController {
                 // 5. Notify Customer
                 if (warrantyData.user_id) {
                     await NotificationService.notify(warrantyData.user_id, {
-                        title: status === 'validated' ? 'Warranty Validated! ✓' : 'Warranty Rejected ✗',
+                        title: status === 'validated' ? 'Warranty Validated! ✓' : 'Warranty Pending ⏳',
                         message: status === 'validated'
                             ? `Your warranty for ${warrantyData.uid} has been validated by AutoForm.`
-                            : `Your warranty for ${warrantyData.uid} was rejected. Reason: ${rejectionReason}`,
+                            : `Your warranty for ${warrantyData.uid} is pending. Reason: ${rejectionReason}`,
                         type: 'warranty',
                         link: `/dashboard/customer`
                     });
