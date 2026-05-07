@@ -41,6 +41,7 @@ const Login = () => {
   const [loading, setLoading] = useState(false);
   const [countdown, setCountdown] = useState(0);
   const [resendLoading, setResendLoading] = useState(false);
+  const [otpMessage, setOtpMessage] = useState("");
 
   const navigate = useNavigate();
   const { login, verifyOTP, user, loading: authLoading } = useAuth();
@@ -143,7 +144,8 @@ const Login = () => {
         setUserId(result.userId);
         setStep('otp');
         setCountdown(30);
-        toast({ title: "OTP Sent", description: selectedRole === 'admin' ? "Please check your email for the verification code." : "Please check WhatsApp for the verification code." });
+        setOtpMessage(result.message || "OTP Sent");
+        toast({ title: "OTP Sent", description: result.message });
       }
     } catch (error: any) {
       const errorMessage = getApiErrorMessage(error, "Login failed");
@@ -196,7 +198,8 @@ const Login = () => {
       if (data.success) {
         setCountdown(30);
         setOtp(Array(6).fill(''));
-        toast({ title: "OTP Resent", description: selectedRole === 'admin' ? "A new code has been sent to your email." : "A new code has been sent." });
+        setOtpMessage(data.message || "A new code has been sent.");
+        toast({ title: "OTP Resent", description: data.message || "A new code has been sent." });
       } else {
         const msg = typeof data?.error === "string" ? data.error : "Failed to resend OTP";
         throw new Error(msg);
@@ -350,7 +353,7 @@ const Login = () => {
                 Verification Code
               </label>
               <p className="text-sm text-white/60 mt-1 mb-4">
-                sent to <span className="text-white font-medium">{selectedRole === 'admin' ? identifier : `+91 ${identifier}`}</span>
+                {otpMessage || "Code sent to your registered contact."}
               </p>
               <div className="[&_input]:bg-white/10 [&_input]:border-white/20 [&_input]:text-white">
                 <OTPInput value={otp} onChange={setOtp} />

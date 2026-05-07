@@ -6,6 +6,7 @@ import { AuthRequest } from '../middleware/auth.js';
 import { WarrantyData } from '../types/index.js';
 import jwt from 'jsonwebtoken';
 import { NotificationService } from '../services/notification.service.js';
+import { WhatsAppService } from '../services/whatsapp.service.js';
 import { geolocateIP, getClientIP } from '../utils/ipGeolocation.js';
 import { calculateFraudScore } from '../utils/fraudScoring.js';
 
@@ -393,60 +394,110 @@ export class WarrantyController {
 
       // UID is checked but NOT marked as used until Admin approves it.
 
-      // Handle Email Notifications
+      // ── Franchise Verify Notification (pending_vendor only) ────────────────
       if (initialStatus === 'pending_vendor' && warrantyData.installerContact) {
-        // Generate Token
-        const token = jwt.sign(
-          { warrantyId: warrantyId, vendorEmail: warrantyData.installerContact },
-          process.env.JWT_SECRET!,
-          { expiresIn: '7d' } // Long expiry for email links
-        );
-
-        // Send Email to Vendor
-        // Parsing installerContact to get email if it's in "email | phone" format
         let vendorEmail = warrantyData.installerContact;
         if (vendorEmail.includes('|')) {
           vendorEmail = vendorEmail.split('|')[0].trim();
         }
 
-        await EmailService.sendVendorConfirmationEmail(
-          vendorEmail,
-          warrantyData.installerName || 'Partner',
-          warrantyData.customerName,
-          token,
-          warrantyData.productType,
-          warrantyData.productDetails,
-          warrantyData.registrationNumber,
-          warrantyData.carMake,
-          warrantyData.carModel
-        );
-      } else if (warrantyData.customerEmail && warrantyData.customerEmail.trim()) {
-        // Standard confirmation to customer (only if not pending vendor, or maybe send "Submission Received"?)
-        // User said: "share a mail to the vendor... if it gets confirmed then the request will be updated... and the mailing will also be perfomed accordingly"
-        // This implies customer gets their "Registered" email AFTER vendor confirms?
-        // Or do they get a "Pending Verification" email now?
-        // Let's stick to existing behavior for non-pending-vendor, but for pending-vendor, maybe skip this or send a "Waiting for store" email.
-        // For now, I will SKIP the standard confirmation email here if it's pending_vendor, 
-        // to avoid confusion ("Registered" vs "Pending").
-        // I should probably add sending this email in the verification endpoint.
+        // 1. Try WhatsApp first (with Approve/Reject buttons)
+        let franchiseWaSent = false;
+        if (process.env.ENABLE_WHATSAPP === 'true') {
+          try {
+            const [vendorProfile]: any = await db.execute(
+              `SELECT p.phone_number FROM profiles p
+               JOIN vendor_details vd ON vd.user_id = p.id
+               WHERE vd.store_email = ? LIMIT 1`,
+              [vendorEmail]
+            );
+            if (vendorProfile.length > 0 && vendorProfile[0].phone_number) {
+              const productName = warrantyData.productDetails?.productName
+                || warrantyData.productDetails?.product
+                || warrantyData.productType;
+              franchiseWaSent = await WhatsAppService.sendFranchiseVerifyAction(
+                vendorProfile[0].phone_number,
+                warrantyData.installerName || 'Franchise Partner',
+                warrantyData.customerName,
+                warrantyData.customerPhone,
+                warrantyData.registrationNumber,
+                productName,
+                warrantyId,
+                warrantyId
+              );
+            }
+          } catch (err) {
+            console.error('[WhatsApp] Franchise verify action failed:', err);
+          }
+        }
+
+        // 2. Email fallback — only if WhatsApp didn't send
+        if (!franchiseWaSent) {
+          try {
+            const token = jwt.sign(
+              { warrantyId: warrantyId, vendorEmail: warrantyData.installerContact },
+              process.env.JWT_SECRET!,
+              { expiresIn: '7d' }
+            );
+            await EmailService.sendVendorConfirmationEmail(
+              vendorEmail,
+              warrantyData.installerName || 'Partner',
+              warrantyData.customerName,
+              token,
+              warrantyData.productType,
+              warrantyData.productDetails,
+              warrantyData.registrationNumber,
+              warrantyData.carMake,
+              warrantyData.carModel
+            );
+          } catch (err) {
+            console.error('[Email] Franchise verify fallback email failed:', err);
+          }
+        }
       }
 
-      // If it WASN'T pending_vendor (e.g. Admin submitted), send the standard confirmation now
-      if (initialStatus !== 'pending_vendor' && warrantyData.customerEmail && warrantyData.customerEmail.trim()) {
-        await EmailService.sendWarrantyConfirmation(
-          warrantyData.customerEmail,
-          warrantyData.customerName,
-          warrantyId,
-          warrantyData.productType,
-          warrantyData.productDetails,
-          warrantyData.registrationNumber,
-          warrantyData.carMake,
-          warrantyData.carModel
-        );
+      // ── Customer Submission Notification ──────────────────────────────────
+      // WhatsApp first; email only as fallback
+      let customerWaSent = false;
+      if (process.env.ENABLE_WHATSAPP === 'true' && warrantyData.customerPhone) {
+        try {
+          const productName = warrantyData.productDetails?.productName
+            || warrantyData.productDetails?.product
+            || warrantyData.productType;
+          customerWaSent = await WhatsAppService.sendWarrantySubmitted(
+            warrantyData.customerPhone,
+            warrantyData.customerName,
+            productName,
+            warrantyData.registrationNumber,
+            warrantyId,
+            warrantyData.productType,
+            warrantyData.purchaseDate,
+            warrantyId
+          );
+        } catch (err) {
+          console.error('[WhatsApp] Customer submission notification failed:', err);
+        }
       }
 
+      // Email fallback — send if WhatsApp didn't fire
+      if (!customerWaSent && warrantyData.customerEmail && warrantyData.customerEmail.trim()) {
+        try {
+          await EmailService.sendWarrantyConfirmation(
+            warrantyData.customerEmail,
+            warrantyData.customerName,
+            warrantyId,
+            warrantyData.productType,
+            warrantyData.productDetails,
+            warrantyData.registrationNumber,
+            warrantyData.carMake,
+            warrantyData.carModel
+          );
+        } catch (err) {
+          console.error('[Email] Customer submission fallback email failed:', err);
+        }
+      }
 
-      // Notify Admin about new warranty
+      // ── Admin Notification ────────────────────────────────────────────────
       try {
         await NotificationService.broadcast({
           title: `New Warranty Registration`,

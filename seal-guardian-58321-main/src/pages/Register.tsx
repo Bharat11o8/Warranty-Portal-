@@ -249,7 +249,7 @@ const Register = () => {
 
       toast({
         title: "OTP Sent",
-        description: "An OTP has been sent to your email. Enter it below to complete registration.",
+        description: result.message || "An OTP has been sent. Enter it below to complete registration.",
       });
     } catch (error: any) {
       console.error("Registration error:", error);
@@ -290,7 +290,7 @@ const Register = () => {
       } else {
         toast({
           title: "Registration Submitted",
-          description: "Your franchise registration request has been submitted for approval. You'll be notified via email.",
+          description: "Your franchise registration request has been submitted for approval. You'll be notified once reviewed.",
           duration: 5000
         });
         setTimeout(() => {
@@ -352,7 +352,7 @@ const Register = () => {
           </h1>
           {showOTP && (
             <p className="text-white/70">
-              Enter the OTP sent to your email
+              Enter the verification code to proceed
             </p>
           )}
           {!showOTP && role === "vendor" && (
@@ -656,7 +656,7 @@ const Register = () => {
                 <AlertCircle className="h-5 w-5 flex-shrink-0 mt-0.5" />
                 <p className="text-sm">
                   Submitting this form will send a registration request to our admin team.
-                  You will receive an OTP to verify your email first.
+                  You will receive an OTP to verify your contact details first.
                 </p>
               </div>
             )}
@@ -718,7 +718,7 @@ const Register = () => {
                 />
               </div>
               <p className="text-xs text-white/70 text-center">
-                Check your email ({role === "customer" ? customerData.email : vendorData.storeEmail}) for the OTP
+                Check your messages for the verification code
               </p>
             </div>
 

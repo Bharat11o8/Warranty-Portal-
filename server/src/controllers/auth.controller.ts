@@ -174,7 +174,9 @@ export class AuthController {
 
       res.status(201).json({
         success: true,
-        message: 'OTP sent to your email. Please verify to complete registration.',
+        message: otpSentViaWhatsApp 
+          ? 'OTP sent to your WhatsApp. Please verify to complete registration.'
+          : 'OTP sent to your email. Please verify to complete registration.',
         userId: pendingId,
         requiresOTP: true
       });
@@ -270,7 +272,8 @@ export class AuthController {
       const otp = await OTPService.createOTP(user.id);
 
       let otpSentViaWhatsApp = false;
-      if (process.env.ENABLE_WHATSAPP === 'true' && user.phone_number) {
+      // Admins should always receive OTPs via email, even if they have a phone number
+      if (process.env.ENABLE_WHATSAPP === 'true' && user.phone_number && userRole !== 'admin') {
         otpSentViaWhatsApp = await WhatsAppService.sendLoginOTP(user.phone_number, user.name, otp);
       }
 
@@ -280,7 +283,9 @@ export class AuthController {
 
       res.json({
         success: true,
-        message: 'OTP sent to your email',
+        message: otpSentViaWhatsApp 
+          ? 'OTP sent to your WhatsApp'
+          : 'OTP sent to your email',
         userId: user.id,
         requiresOTP: true
       });
@@ -394,7 +399,18 @@ export class AuthController {
               verificationToken
             );
 
-            await EmailService.sendVendorRegistrationConfirmation(pending.email, pending.name);
+            // ── Vendor Welcome: WhatsApp first, email fallback ──
+            let vendorWelcomeWaSent = false;
+            if (process.env.ENABLE_WHATSAPP === 'true' && pending.phone_number) {
+              try {
+                vendorWelcomeWaSent = await WhatsAppService.sendVendorWelcome(pending.phone_number, pending.name);
+              } catch (waErr) {
+                console.error('[WhatsApp] Failed to send vendor welcome:', waErr);
+              }
+            }
+            if (!vendorWelcomeWaSent) {
+              await EmailService.sendVendorRegistrationConfirmation(pending.email, pending.name);
+            }
 
             // Vendor needs admin approval, don't provide token yet
             return res.json({
@@ -563,9 +579,11 @@ export class AuthController {
       let userName: string;
       let userPhone: string;
 
+      let userRole = '';
+
       // FIRST: Check if this is a pending registration
       const [pendingUsers]: any = await db.execute(
-        'SELECT email, name, phone_number FROM pending_registrations WHERE id = ? AND expires_at > NOW()',
+        'SELECT email, name, phone_number, role FROM pending_registrations WHERE id = ? AND expires_at > NOW()',
         [userId]
       );
 
@@ -573,10 +591,11 @@ export class AuthController {
         userEmail = pendingUsers[0].email;
         userName = pendingUsers[0].name;
         userPhone = pendingUsers[0].phone_number;
+        userRole = pendingUsers[0].role;
       } else {
         // SECOND: Check profiles table (login flow)
         const [users]: any = await db.execute(
-          'SELECT id, email, name, phone_number FROM profiles WHERE id = ?',
+          'SELECT p.id, p.email, p.name, p.phone_number, ur.role FROM profiles p JOIN user_roles ur ON p.id = ur.user_id WHERE p.id = ?',
           [userId]
         );
 
@@ -587,6 +606,7 @@ export class AuthController {
         userEmail = users[0].email;
         userName = users[0].name;
         userPhone = users[0].phone_number;
+        userRole = users[0].role;
       }
 
       // Invalidate all existing unused OTPs for this user
@@ -599,7 +619,8 @@ export class AuthController {
       const otp = await OTPService.createOTP(userId);
 
       let otpSentViaWhatsApp = false;
-      if (process.env.ENABLE_WHATSAPP === 'true' && userPhone) {
+      // Admins should always receive OTPs via email, even if they have a phone number
+      if (process.env.ENABLE_WHATSAPP === 'true' && userPhone && userRole !== 'admin') {
         otpSentViaWhatsApp = await WhatsAppService.sendLoginOTP(userPhone, userName, otp);
       }
 
@@ -609,7 +630,9 @@ export class AuthController {
 
       res.json({
         success: true,
-        message: 'New OTP sent to your email'
+        message: otpSentViaWhatsApp 
+          ? 'New OTP sent to your WhatsApp'
+          : 'New OTP sent to your email'
       });
     } catch (error: any) {
       console.error('Resend OTP error:', error);

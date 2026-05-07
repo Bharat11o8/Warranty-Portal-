@@ -188,6 +188,194 @@ export class WhatsAppService {
     }
 
     /**
+     * Send Warranty Submitted Confirmation
+     * Template: af_warranty_submitted
+     * Variables:
+     *   {{1}} = Customer Name
+     *   {{2}} = Product Name (e.g. "AquaShield Premium Seat Cover")
+     *   {{3}} = Vehicle Registration Number
+     *   {{4}} = UID / Serial Number
+     *   {{5}} = Product Type (e.g. "Seat Cover", "Paint Protection Film")
+     *   {{6}} = Registration Date (DD-MMM-YYYY)
+     */
+    static async sendWarrantySubmitted(
+        phone: string,
+        customerName: string,
+        productName: string,
+        registrationNumber: string,
+        uid: string,
+        productType: string,
+        purchaseDate: string,
+        warrantyId: string
+    ): Promise<boolean> {
+        // Format product type label
+        const productTypeLabel = productType === 'seat-cover' ? 'Seat Cover'
+            : productType === 'ev-products' ? 'Paint Protection Film'
+                : productType;
+
+        // Format date as DD-MMM-YYYY
+        const formattedDate = new Date(purchaseDate).toLocaleDateString('en-IN', {
+            day: '2-digit', month: 'short', year: 'numeric'
+        });
+
+        return this.sendTemplateMessage(
+            phone,
+            'af_warranty_submitted',
+            [customerName, productName, registrationNumber, uid, productTypeLabel, formattedDate],
+            'warranty_submitted',
+            warrantyId
+        );
+    }
+
+    /**
+     * Welcome message to vendor after OTP verification on registration.
+     * Template: af_vendor_welcome
+     *   {{1}} = Vendor Name
+     * Static message: "Welcome to Autoform India, our team will review and confirm
+     * your store and your profile will be activated."
+     */
+    static async sendVendorWelcome(
+        phone: string,
+        vendorName: string
+    ): Promise<boolean> {
+        return this.sendTemplateMessage(
+            phone,
+            'af_vendor_welcome',
+            [vendorName],
+            'vendor_welcome'
+        );
+    }
+
+    /**
+     * Notify customer their warranty has been approved by admin.
+     * Template: af_warranty_approved_customer
+     *   {{1}} = Customer Name
+     *   {{2}} = Product Name
+     *   {{3}} = Registration Number
+     *   {{4}} = UID
+     *   {{5}} = Store Name
+     *   {{6}} = Status (e.g. "Approved")
+     *   {{7}} = Purchase Date
+     *   {{8}} = Warranty Type
+     */
+    static async sendWarrantyApprovedCustomer(
+        phone: string,
+        customerName: string,
+        productName: string,
+        registrationNumber: string,
+        uid: string,
+        storeName: string,
+        status: string,
+        purchaseDate: string,
+        warrantyType: string
+    ): Promise<boolean> {
+        return this.sendTemplateMessage(
+            phone,
+            'af_warranty_approved_customer',
+            [customerName, productName, registrationNumber, uid, storeName, status, purchaseDate, warrantyType],
+            'warranty_approved_customer',
+            uid
+        );
+    }
+
+    /**
+     * Notify customer their warranty has been rejected by admin.
+     * Template: af_warranty_rejected_customer
+     *   {{1}} = Customer Name
+     *   {{2}} = Product Name
+     *   {{3}} = Registration Number
+     *   {{4}} = UID
+     *   {{5}} = Store Name
+     *   {{6}} = Status (e.g. "Rejected")
+     *   {{7}} = Purchase Date
+     *   {{8}} = Warranty Type
+     *   {{9}} = Rejection Reason
+     */
+    static async sendWarrantyRejectedCustomer(
+        phone: string,
+        customerName: string,
+        productName: string,
+        registrationNumber: string,
+        uid: string,
+        storeName: string,
+        status: string,
+        purchaseDate: string,
+        warrantyType: string,
+        rejectionReason: string
+    ): Promise<boolean> {
+        return this.sendTemplateMessage(
+            phone,
+            'af_warranty_rejected_customer',
+            [customerName, productName, registrationNumber, uid, storeName, status, purchaseDate, warrantyType, rejectionReason],
+            'warranty_rejected_customer',
+            uid
+        );
+    }
+
+    /**
+     * Notify franchise vendor their submitted warranty was rejected by admin.
+     * Template: af_vendor_rejected
+     *   {{1}} = Store Name
+     *   {{2}} = Product Name
+     *   {{3}} = Registration Number
+     *   {{4}} = UID
+     *   {{5}} = Status (e.g. "Not Approved")
+     *   {{6}} = Purchase Date
+     *   {{7}} = Warranty Type
+     *   {{8}} = Rejection Reason
+     */
+    static async sendVendorRejected(
+        phone: string,
+        storeName: string,
+        productName: string,
+        registrationNumber: string,
+        uid: string,
+        status: string,
+        purchaseDate: string,
+        warrantyType: string,
+        rejectionReason: string
+    ): Promise<boolean> {
+        return this.sendTemplateMessage(
+            phone,
+            'af_vendor_rejected',
+            [storeName, productName, registrationNumber, uid, status, purchaseDate, warrantyType, rejectionReason],
+            'vendor_rejected',
+            uid
+        );
+    }
+
+    /**
+     * Send Franchise Verification Request
+     * Template: franchise_verify_action
+     * Variables:
+     *   {{1}} = Franchise Store Name
+     *   {{2}} = Customer Name
+     *   {{3}} = Customer Phone
+     *   {{4}} = Vehicle Registration Number
+     *   {{5}} = Product Name
+     *   {{6}} = UID
+     * Buttons: Quick Replies — "Approve Installation" / "Reject Installation" (static)
+     */
+    static async sendFranchiseVerifyAction(
+        phone: string,
+        franchiseName: string,
+        customerName: string,
+        customerPhone: string,
+        registrationNumber: string,
+        productName: string,
+        uid: string,
+        warrantyId: string
+    ): Promise<boolean> {
+        return this.sendTemplateMessage(
+            phone,
+            'franchise_verify_action',
+            [franchiseName, customerName, customerPhone, registrationNumber, productName, uid],
+            'franchise_verify',
+            warrantyId
+        );
+    }
+
+    /**
      * Send Warranty Submission Authorization OTP
      * Template: warranty_auth_otp — Variables: {{1}} = registrant, {{2}} = product, {{3}} = OTP
      */
@@ -222,6 +410,64 @@ export class WhatsAppService {
             [name, uid, product, car],
             'warranty_confirm',
             uid
+        );
+    }
+
+    /**
+     * Confirm to franchise vendor that they approved an installation (webhook response)
+     * Simple acknowledgement — template TBD, using a basic utility template for now.
+     * TODO: Create a dedicated Interakt template for this if needed.
+     */
+    static async sendFranchiseVerifyConfirmed(
+        phone: string,
+        franchiseName: string,
+        customerName: string,
+        warrantyId: string
+    ): Promise<boolean> {
+        return this.sendTemplateMessage(
+            phone,
+            'franchise_verify_approved',
+            [],   // No variables — static template
+            'franchise_verify_confirmed',
+            warrantyId
+        );
+    }
+
+    /**
+     * Confirm to franchise vendor that they rejected an installation (webhook response)
+     * Template: franchise_verify_rejected — no variables
+     */
+    static async sendFranchiseVerifyRejected(
+        phone: string,
+        franchiseName: string,
+        customerName: string,
+        warrantyId: string
+    ): Promise<boolean> {
+        return this.sendTemplateMessage(
+            phone,
+            'franchise_verify_rejected',
+            [],   // No variables — static template
+            'franchise_verify_rejected',
+            warrantyId
+        );
+    }
+
+    /**
+     * Notify franchise vendor they already responded to this verification.
+     * Template: franchise_verify_responded — no variables (static)
+     * Fires when vendor taps a button on a warranty already approved/rejected.
+     * TODO: swap template name once Meta approves 'franchise_verify_responded'
+     */
+    static async sendFranchiseVerifyResponded(
+        phone: string,
+        warrantyId: string
+    ): Promise<boolean> {
+        return this.sendTemplateMessage(
+            phone,
+            'franchise_verify_responded',
+            [],
+            'franchise_verify_responded',
+            warrantyId
         );
     }
 
