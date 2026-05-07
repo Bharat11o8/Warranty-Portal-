@@ -21,9 +21,9 @@ export interface User {
 interface AuthContextType {
   user: User | null;
   loading: boolean;
-  register: (data: RegisterData) => Promise<{ userId: string; requiresOTP: boolean }>;
+  register: (data: RegisterData) => Promise<{ userId: string; requiresOTP: boolean; message: string }>;
   verifyOTP: (userId: string, otp: string) => Promise<{ user?: User }>;
-  login: (email: string, role: UserRole) => Promise<{ userId: string; requiresOTP: boolean }>;
+  login: (identifier: string, role: UserRole) => Promise<{ userId: string; requiresOTP: boolean; message: string }>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
   // RBAC helpers
@@ -66,14 +66,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const register = async (data: RegisterData): Promise<{ userId: string; requiresOTP: boolean }> => {
+  const register = async (data: RegisterData): Promise<{ userId: string; requiresOTP: boolean; message: string }> => {
     const response = await api.post("/auth/register", data);
     if (!response.data.success) {
       throw new Error(getErrorMessage(response.data.error, "Registration failed"));
     }
     return {
       userId: response.data.userId,
-      requiresOTP: response.data.requiresOTP
+      requiresOTP: response.data.requiresOTP,
+      message: response.data.message
     };
   };
 
@@ -92,14 +93,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   };
 
-  const login = async (email: string, role: UserRole): Promise<{ userId: string; requiresOTP: boolean }> => {
-    const response = await api.post("/auth/login", { email, role });
+  const login = async (identifier: string, role: UserRole): Promise<{ userId: string; requiresOTP: boolean; message: string }> => {
+    const response = await api.post("/auth/login", { identifier, role });
     if (!response.data.success) {
       throw new Error(getErrorMessage(response.data.error, "Login failed"));
     }
     return {
       userId: response.data.userId,
-      requiresOTP: response.data.requiresOTP
+      requiresOTP: response.data.requiresOTP,
+      message: response.data.message
     };
   };
 

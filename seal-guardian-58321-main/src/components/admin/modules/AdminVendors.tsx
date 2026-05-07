@@ -678,7 +678,7 @@ export const AdminVendors = () => {
                         <DialogTitle>Reject Franchise Application</DialogTitle>
                         <DialogDescription>
                             Please provide a reason for rejecting {selectedVendor?.store_name}.
-                            An email will be sent to the vendor.
+                            The vendor will be notified.
                         </DialogDescription>
                     </DialogHeader>
                     <div className="py-4">

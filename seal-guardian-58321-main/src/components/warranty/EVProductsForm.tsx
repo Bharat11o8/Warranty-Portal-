@@ -474,7 +474,7 @@ const EVProductsForm = ({ initialData, warrantyId, onSuccess, isUniversal, isEdi
         toast({
           title: "Warranty Submitted!",
           description: result.isNewUser
-            ? "Your warranty has been submitted. Check your email for account details!"
+            ? "Your warranty has been submitted. Check your messages for confirmation!"
             : "Your warranty has been submitted and is awaiting store verification.",
         });
       } else {

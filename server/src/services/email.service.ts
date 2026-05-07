@@ -313,7 +313,7 @@ export class EmailService {
       </div>
 
       <div class="warning-box">
-        <strong>Note:</strong> You'll need to enter your registered email and verify via OTP to access your account securely.
+        <strong>Note:</strong> You'll need to enter your registered mobile number and verify via OTP to access your account securely.
       </div>
       
       <p style="margin-top: 30px;">If you have any questions, please contact our support team at <a href="mailto:${process.env.EMAIL_FROM}" style="color: #11998e;">${process.env.EMAIL_FROM}</a>.</p>
@@ -463,8 +463,8 @@ export class EmailService {
         <p style="margin-bottom: 10px;">You can now view and manage your warranty details directly from our portal. Follow these simple steps:</p>
         <ol style="margin: 0; padding-left: 20px;">
           <li style="margin-bottom: 8px;"><strong>Visit the Portal:</strong> Click the button below to go to the Autoform Warranty Portal.</li>
-          <li style="margin-bottom: 8px;"><strong>Secure Login:</strong> Use your registered email (${customerEmail}) to log in via OTP.</li>
-          <li style="margin-bottom: 8px;"><strong>View Details:</strong> Access your dashboard to view your active warranty details anytime.</li>
+          <li style="margin-bottom: 8px;"><strong>Secure Login:</strong> Use your registered mobile number to log in via OTP.</li>
+          <li style="margin-bottom: 8px;"><strong>Download Certificates:</strong> Access your dashboard to view and download your active warranty certificates anytime.</li>
         </ol>
         <div style="text-align: center; margin-top: 25px;">
           <a href="https://warranty2.autoformindia.co.in/login?mode=warranty" class="button" style="background: linear-gradient(135deg, #2196f3 0%, #0d47a1 100%); min-width: 250px;">Login to Your Portal</a>
@@ -1315,7 +1315,7 @@ export class EmailService {
       
       <div class="warning-box">
         <p style="margin: 0 0 5px 0;"><strong>📌 How to Access Your Dashboard:</strong></p>
-        <p style="margin: 0;">Use OTP-based login with your registered email (${customerEmail}) to check your warranty status anytime.</p>
+        <p style="margin: 0;">Use OTP-based login with your registered mobile number to check your warranty status anytime.</p>
       </div>
       
       <div style="text-align: center; margin: 30px 0;">
@@ -1398,9 +1398,8 @@ export class EmailService {
 
         <div style="background: #ffffff; border: 1px solid #e2e8f0; border-left: 4px solid #f59e0b; padding: 20px; border-radius: 8px; margin-top: 30px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);">
           <p style="margin: 0 0 8px 0; font-size: 14px;"><strong>Login Details:</strong></p>
-          <p style="margin: 0; font-size: 14px;">Your account is already active. Just use your registered email address:<br>
-          <strong style="color: #ea580c; font-size: 16px; display: inline-block; margin-top: 5px;">${vendorEmail}</strong></p>
-          <p style="margin: 10px 0 0 0; font-size: 13px; color: #64748b;">(You won't need a password; we use secure OTPs sent directly to your inbox.)</p>
+          <p style="margin: 0; font-size: 14px;">Your account is already active. Just use your registered mobile number to securely log in.</p>
+          <p style="margin: 10px 0 0 0; font-size: 13px; color: #64748b;">(You won't need a password; we use secure OTPs.)</p>
         </div>
 
         <div style="text-align: center; margin: 40px 0 20px;">

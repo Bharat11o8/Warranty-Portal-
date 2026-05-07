@@ -498,7 +498,7 @@ const FranchiseDashboard = () => {
             <p className="text-sm font-bold text-muted-foreground uppercase tracking-widest animate-pulse">Initializing FMS...</p>
         </div>
     );
-    if (!user) return <Navigate to="/login" />;
+    if (!user) return <Navigate to="/login?role=vendor" />;
     if (user.role !== "vendor") return <Navigate to="/" />;
 
     const renderModule = () => {
