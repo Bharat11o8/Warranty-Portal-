@@ -591,6 +591,14 @@ export class AdminController {
                     return res.status(400).json({ error: 'Email already in use by another account' });
                 }
 
+                const [existingPhone]: any = await connection.execute(
+                    'SELECT id FROM profiles WHERE phone_number = ? AND id != ?',
+                    [phone_number, id]
+                );
+                if (existingPhone.length > 0) {
+                    return res.status(400).json({ error: 'Phone number already in use by another account' });
+                }
+
                 await connection.execute(
                     'UPDATE profiles SET name = ?, email = ?, phone_number = ? WHERE id = ?',
                     [contact_name, email, phone_number, id]
