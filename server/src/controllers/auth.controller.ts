@@ -89,7 +89,12 @@ export class AuthController {
       }
 
       // Validate Indian mobile number (clean it first)
-      const cleanedPhone = phoneNumber.replace(/[\s\-+]/g, '').replace(/^91/, '').replace(/^0/, '');
+      let cleanedPhone = phoneNumber.replace(/[\s\-+]/g, '');
+      if (cleanedPhone.length === 12 && cleanedPhone.startsWith('91')) {
+        cleanedPhone = cleanedPhone.substring(2);
+      } else if (cleanedPhone.length === 11 && cleanedPhone.startsWith('0')) {
+        cleanedPhone = cleanedPhone.substring(1);
+      }
       if (!INDIAN_MOBILE_REGEX.test(cleanedPhone)) {
         return res.status(400).json({ error: 'Please enter a valid 10-digit Indian mobile number (must start with 6-9)' });
       }
@@ -213,7 +218,13 @@ export class AuthController {
         users = result;
       } else {
         // Clean phone number (just in case)
-        const cleanedPhone = loginId.replace(/[\s\-+]/g, '').replace(/^91/, '').replace(/^0/, '');
+        let cleanedPhone = loginId.replace(/[\s\-+]/g, '');
+        // If the user pasted a number with country code like 919876543210 (12 digits) or 09876543210 (11 digits)
+        if (cleanedPhone.length === 12 && cleanedPhone.startsWith('91')) {
+          cleanedPhone = cleanedPhone.substring(2);
+        } else if (cleanedPhone.length === 11 && cleanedPhone.startsWith('0')) {
+          cleanedPhone = cleanedPhone.substring(1);
+        }
         const [result]: any = await executeWithRetry(
           'SELECT * FROM profiles WHERE phone_number = ?',
           [cleanedPhone]
