@@ -38,6 +38,18 @@ export class WarrantyController {
         }
       }
 
+      // SBP-DB: Trim string lengths to prevent database overflow (Data Too Long) edge cases
+      if (warrantyData.customerName) warrantyData.customerName = String(warrantyData.customerName).substring(0, 255);
+      if (warrantyData.customerEmail) warrantyData.customerEmail = String(warrantyData.customerEmail).substring(0, 255);
+      if (warrantyData.customerPhone) warrantyData.customerPhone = String(warrantyData.customerPhone).substring(0, 20);
+      if (warrantyData.installerName) warrantyData.installerName = String(warrantyData.installerName).substring(0, 255);
+      if (warrantyData.installerContact) warrantyData.installerContact = String(warrantyData.installerContact).substring(0, 255);
+      if (warrantyData.registrationNumber) warrantyData.registrationNumber = String(warrantyData.registrationNumber).substring(0, 50);
+      if (warrantyData.carMake) warrantyData.carMake = String(warrantyData.carMake).substring(0, 100);
+      if (warrantyData.carModel) warrantyData.carModel = String(warrantyData.carModel).substring(0, 100);
+      if (warrantyData.carYear) warrantyData.carYear = String(warrantyData.carYear).substring(0, 4);
+      if (warrantyData.warrantyType) warrantyData.warrantyType = String(warrantyData.warrantyType).substring(0, 50);
+
       // Handle uploaded files
       const files = req.files as Express.Multer.File[];
       if (files && files.length > 0) {

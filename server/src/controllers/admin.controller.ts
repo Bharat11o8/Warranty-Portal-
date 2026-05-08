@@ -573,7 +573,13 @@ export class AdminController {
     static async updateVendorProfile(req: Request, res: Response) {
         try {
             const { id } = req.params;
-            const { store_name, contact_name, email, phone_number } = req.body;
+            let { store_name, contact_name, email, phone_number } = req.body;
+
+            // SBP-DB: Trim string lengths to prevent database overflow (Data Too Long) edge cases
+            store_name = store_name?.substring(0, 255);
+            contact_name = contact_name?.substring(0, 100);
+            email = email?.substring(0, 100);
+            phone_number = phone_number?.substring(0, 15);
 
             if (!store_name || !contact_name || !email || !phone_number) {
                 return res.status(400).json({ error: 'All fields are required' });

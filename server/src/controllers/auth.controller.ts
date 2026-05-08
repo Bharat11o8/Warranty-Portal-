@@ -68,10 +68,19 @@ const getAuthCookieOptions = (role?: string): CookieOptions => {
 export class AuthController {
   static async register(req: Request, res: Response) {
     try {
-      const {
+      let {
         name, email, phoneNumber, role,
         storeName, address, state, city, pincode, manpower
       }: RegisterData = req.body;
+
+      // SBP-DB: Trim string lengths to prevent database overflow (Data Too Long) edge cases
+      name = name?.substring(0, 100);
+      email = email?.substring(0, 100);
+      storeName = storeName?.substring(0, 255);
+      city = city?.substring(0, 100);
+      state = state?.substring(0, 100);
+      address = address?.substring(0, 1000);
+      pincode = pincode?.substring(0, 20);
 
       // Validate input
       if (!name || !email || !phoneNumber || !role) {
