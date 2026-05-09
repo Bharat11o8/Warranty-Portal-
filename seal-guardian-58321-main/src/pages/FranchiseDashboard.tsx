@@ -551,6 +551,20 @@ const FranchiseDashboard = () => {
                 />;
             case 'register':
                 return (
+                    <div className="flex h-[60vh] flex-col items-center justify-center text-center">
+                        <h2 className="text-6xl font-black text-slate-800 mb-4">404</h2>
+                        <p className="text-slate-500 font-medium">This page is no longer available.</p>
+                        <Button 
+                            onClick={() => setActiveModule('home')} 
+                            className="mt-8 bg-orange-500 hover:bg-orange-600 rounded-full px-8"
+                        >
+                            Return to Dashboard
+                        </Button>
+                    </div>
+                );
+            /* --- RETAINED FOR ROLLBACK ---
+            case 'register':
+                return (
                     <div className="-mt-8 md:-mt-14">
                         <div className="max-w-4xl mx-auto">
                             <Tabs value={registerTab} onValueChange={setRegisterTab} className="w-full">
@@ -599,6 +613,7 @@ const FranchiseDashboard = () => {
                         </div>
                     </div>
                 );
+            ------------------------------ */
             case 'warranty':
                 return (
                     <div className="-mt-8 md:-mt-14">
