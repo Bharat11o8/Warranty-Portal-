@@ -141,6 +141,7 @@ export const menuGroups = [
         items: [
             { id: 'home' as const, label: "Home", icon: Home },
             // { id: 'register' as const, label: "Register Warranty", icon: PlusCircle }, // Hidden by request
+            { id: 'profile' as const, label: "My Profile", icon: User },
             {
                 id: 'warranty' as const,
                 label: "Warranty Management",
@@ -196,7 +197,6 @@ export const menuGroups = [
     {
         label: "Team & Performance",
         items: [
-            { id: 'profile' as const, label: "My Profile", icon: User },
             { id: 'manpower' as const, label: "Manpower Control", icon: Users },
             { id: 'targets' as const, label: "Targets & Achievements", icon: Target, comingSoon: true },
         ]

@@ -15,7 +15,7 @@ interface ModuleLayoutProps {
     onMenuToggle?: () => void;
 }
 
-export const ModuleLayout = ({ title, description, children, actions, onMenuToggle }: ModuleLayoutProps) => {
+export const ModuleLayout = ({ title, description, children, actions, onNavigate, onMenuToggle }: ModuleLayoutProps) => {
     return (
         <div className="flex-1 min-h-0 flex flex-col min-w-0 relative bg-[#fffaf5]">
             <main
@@ -67,7 +67,7 @@ export const ModuleLayout = ({ title, description, children, actions, onMenuTogg
                                     <div className="h-10 md:h-12 border-l border-slate-100 pl-2 md:pl-4 flex items-center gap-1 md:gap-2">
                                         {/* TODO: Re-enable notifications in Phase 2 */}
                                         {/* <NotificationPopover onNavigate={onNavigate} onLinkClick={onLinkClick} /> */}
-                                        <HelpPopover />
+                                        <HelpPopover onNavigate={onNavigate} />
                                     </div>
                                 </div>
                             </div>

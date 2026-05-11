@@ -189,7 +189,7 @@ export class WhatsAppService {
 
     /**
      * Send Warranty Submitted Confirmation
-     * Template: af_warranty_submitted
+     * Template: af_warranty_submitted_2
      * Variables:
      *   {{1}} = Customer Name
      *   {{2}} = Product Name (e.g. "AquaShield Premium Seat Cover")
@@ -220,7 +220,7 @@ export class WhatsAppService {
 
         return this.sendTemplateMessage(
             phone,
-            'af_warranty_submitted',
+            'af_warranty_submitted_2',
             [customerName, productName, registrationNumber, uid, productTypeLabel, formattedDate],
             'warranty_submitted',
             warrantyId
@@ -280,7 +280,7 @@ export class WhatsAppService {
 
     /**
      * Notify customer their warranty has been rejected by admin.
-     * Template: af_warranty_rejected_customer
+     * Template: af_cust_warr_rejec_2
      *   {{1}} = Customer Name
      *   {{2}} = Product Name
      *   {{3}} = Registration Number
@@ -305,7 +305,7 @@ export class WhatsAppService {
     ): Promise<boolean> {
         return this.sendTemplateMessage(
             phone,
-            'af_warranty_rejected_customer',
+            'af_cust_warr_rejec_2',
             [customerName, productName, registrationNumber, uid, storeName, status, purchaseDate, warrantyType, rejectionReason],
             'warranty_rejected_customer',
             uid
@@ -314,7 +314,7 @@ export class WhatsAppService {
 
     /**
      * Notify franchise vendor their submitted warranty was rejected by admin.
-     * Template: af_vendor_rejected
+     * Template: af_vendor_warr_rejected
      *   {{1}} = Store Name
      *   {{2}} = Product Name
      *   {{3}} = Registration Number
@@ -337,7 +337,7 @@ export class WhatsAppService {
     ): Promise<boolean> {
         return this.sendTemplateMessage(
             phone,
-            'af_vendor_rejected',
+            'af_vendor_warr_rejected',
             [storeName, productName, registrationNumber, uid, status, purchaseDate, warrantyType, rejectionReason],
             'vendor_rejected',
             uid
