@@ -276,20 +276,30 @@ export class WarrantyController {
       // Determine user_id: If vendor/admin is submitting, we ensure a customer profile exists
       let finalUserId = req.user.id;
       
-      // For vendor/admin submissions with a customer email, auto-create customer profile
-      if (req.user.role !== 'customer' && warrantyData.customerEmail) {
+      // For vendor/admin submissions, ensure a customer profile exists (based on mandatory Phone Number)
+      if (req.user.role !== 'customer') {
         try {
-          const customerEmail = warrantyData.customerEmail.toLowerCase().trim();
+          const customerPhone = warrantyData.customerPhone.trim();
+          const customerEmail = warrantyData.customerEmail ? warrantyData.customerEmail.toLowerCase().trim() : null;
           
-          // Prevent franchise from using their own email
-          if (customerEmail === req.user.email.toLowerCase().trim()) {
+          // Prevent franchise from using their own email as customer email
+          if (customerEmail && customerEmail === req.user.email.toLowerCase().trim()) {
             return res.status(400).json({ error: "You cannot use your franchise email address as the customer's email. Please use the actual customer's email address." });
           }
 
-          const [existingUsers]: any = await db.execute(
-            'SELECT id FROM profiles WHERE email = ?',
-            [customerEmail]
+          // 1. Try to find existing user by Phone Number (Priority)
+          let [existingUsers]: any = await db.execute(
+            'SELECT id, email FROM profiles WHERE phone_number = ?',
+            [customerPhone]
           );
+
+          // 2. Fallback: Try to find by Email if phone didn't match and email is provided
+          if (existingUsers.length === 0 && customerEmail) {
+            [existingUsers] = await db.execute(
+              'SELECT id, email FROM profiles WHERE email = ?',
+              [customerEmail]
+            );
+          }
 
           if (existingUsers.length > 0) {
             finalUserId = existingUsers[0].id;
@@ -302,9 +312,12 @@ export class WarrantyController {
             
             const userRoles = roles.map((r: any) => r.role);
             
-            // If the user is an admin or vendor, prevent using this email as a customer
+            // If the user is an admin or vendor, prevent using this account as a customer
             if (userRoles.includes('admin') || userRoles.includes('vendor')) {
-              return res.status(400).json({ error: "This email address is registered as a franchise or admin account and cannot be used as a customer email." });
+              const matchedBy = existingUsers[0].email === customerEmail ? 'email address' : 'phone number';
+              return res.status(400).json({ 
+                error: `This ${matchedBy} is registered as a franchise or admin account and cannot be used as a customer profile.` 
+              });
             }
 
             // Ensure they have the 'customer' role
@@ -314,19 +327,24 @@ export class WarrantyController {
                 [uuidv4(), finalUserId]
               );
             }
+            
+            // If email was provided but DB email is null/empty, update it
+            if (customerEmail && (!existingUsers[0].email)) {
+              await db.execute('UPDATE profiles SET email = ? WHERE id = ?', [customerEmail, finalUserId]);
+            }
           } else {
-            // Create new customer profile 
-            // Note: We don't set a password, user will use OTP login
+            // Create new customer profile based on Phone (and Email if provided)
             const newCustomerId = uuidv4();
             await db.execute(
               'INSERT INTO profiles (id, name, email, phone_number) VALUES (?, ?, ?, ?)',
-              [newCustomerId, warrantyData.customerName, customerEmail, warrantyData.customerPhone]
+              [newCustomerId, warrantyData.customerName, customerEmail, customerPhone]
             );
             await db.execute(
               'INSERT INTO user_roles (id, user_id, role) VALUES (?, ?, "customer")',
               [uuidv4(), newCustomerId]
             );
             finalUserId = newCustomerId;
+            console.log(`✓ Auto-created customer profile for phone: ${customerPhone}`);
           }
         } catch (profileError) {
           console.error('Error auto-creating customer profile:', profileError);
