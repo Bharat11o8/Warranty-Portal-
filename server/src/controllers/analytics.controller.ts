@@ -630,15 +630,17 @@ export class AnalyticsController {
                 // No date filter — show everything
             } else if (period === 'year') {
                 whereClause = 'YEAR(w.created_at) = ?';
-                params.push(year || new Date().getFullYear().toString());
+                params.push((year || new Date().getFullYear()).toString());
             } else if (period === 'month') {
                 whereClause = 'YEAR(w.created_at) = ? AND MONTH(w.created_at) = ?';
-                params.push(year || new Date().getFullYear().toString(), month || (new Date().getMonth() + 1).toString());
+                params.push((year || new Date().getFullYear()).toString(), (month || (new Date().getMonth() + 1)).toString());
             } else if (period === 'week') {
                 whereClause = 'DATE(w.created_at) >= DATE_SUB(CURDATE(), INTERVAL 6 DAY)';
-            } else if (period === 'custom' && startDate && endDate) {
+            } else if (period === 'custom') {
+                const s = startDate || '2000-01-01';
+                const e = endDate || new Date().toISOString().split('T')[0];
                 whereClause = 'DATE(w.created_at) >= ? AND DATE(w.created_at) <= ?';
-                params.push(startDate, endDate);
+                params.push(s.toString(), e.toString());
             }
 
             // Grouping by State or City
@@ -647,10 +649,10 @@ export class AnalyticsController {
             
             // 1. Get Master List of All Regions (States or Cities) from vendor_details
             // This ensures we show regions even with 0 data
-            const [allRegions]: any = await db.execute(`
-                SELECT DISTINCT ${selectedState ? 'city' : 'state'} as label 
+            const [allRegions]: any = await db.query(`
+                SELECT DISTINCT LOWER(TRIM(${selectedState ? 'city' : 'state'})) as label 
                 FROM vendor_details 
-                WHERE ${selectedState ? 'state = ?' : 'state IS NOT NULL'}
+                WHERE ${selectedState ? 'LOWER(TRIM(state)) = LOWER(TRIM(?))' : 'state IS NOT NULL'}
                 ORDER BY label ASC
             `, selectedState ? [selectedState] : []);
 
@@ -689,9 +691,12 @@ export class AnalyticsController {
             `;
 
             // Fetch Warranty Stats per Geo — using triple-path join with DISTINCT for perfect accuracy
-            const [warrantyStats]: any = await db.execute(`
+            const queryParams = [...params, ...params];
+            if (selectedState) queryParams.push(selectedState);
+
+            const [warrantyStats]: any = await db.query(`
                 SELECT 
-                    ${groupLabel} as label,
+                    LOWER(TRIM(${groupLabel})) as label,
                     COUNT(DISTINCT w.id) as total_warranties,
                     COUNT(DISTINCT CASE WHEN w.status = 'validated' THEN w.id END) as approved_warranties,
                     COUNT(DISTINCT CASE WHEN w.status = 'pending' THEN w.id END) as pending_admin_warranties,
@@ -709,12 +714,12 @@ export class AnalyticsController {
                 AND ${groupLabel} IS NOT NULL
                 GROUP BY label
                 ORDER BY total_warranties DESC
-            `, [ ...params, ...params, ...(selectedState ? [selectedState] : [])]);
+            `, queryParams);
 
             // Fetch Product Mix per Geo — extracting actual product name from JSON for granular reporting
-            const [productMix]: any = await db.execute(`
+            const [productMix]: any = await db.query(`
                 SELECT 
-                    ${groupLabel} as label,
+                    LOWER(TRIM(${groupLabel})) as label,
                     JSON_UNQUOTE(JSON_EXTRACT(w.product_details, '$.productName')) as product_name,
                     COUNT(DISTINCT w.id) as count
                 FROM warranty_registrations w
@@ -730,12 +735,11 @@ export class AnalyticsController {
                 AND ${groupLabel} IS NOT NULL
                 GROUP BY label, product_name
                 ORDER BY label, count DESC
-            `, [ ...params, ...params, ...(selectedState ? [selectedState] : [])]);
+            `, queryParams);
 
-            // Fetch Grievance Stats per Geo
-            const [grievanceStats]: any = await db.execute(`
+            const [grievanceStats]: any = await db.query(`
                 SELECT 
-                    ${selectedState ? 'v.city' : 'v.state'} as label,
+                    LOWER(TRIM(${selectedState ? 'v.city' : 'v.state'})) as label,
                     COUNT(*) as total_grievances
                 FROM grievances g
                 JOIN vendor_details v ON (
@@ -745,19 +749,18 @@ export class AnalyticsController {
                 WHERE DATE(g.created_at) >= ? AND DATE(g.created_at) <= ? 
                 ${selectedState ? `AND LOWER(TRIM(v.state)) = LOWER(TRIM(?))` : ''}
                 GROUP BY label
-            `, [startDate || '2000-01-01', endDate || getISTDate(), ...(selectedState ? [selectedState] : [])]);
+            `, [startDate || '2000-01-01', endDate || new Date().toISOString().split('T')[0], ...(selectedState ? [selectedState] : [])]);
 
-            // Fetch POSM Stats per Geo
-            const [posmStats]: any = await db.execute(`
+            const [posmStats]: any = await db.query(`
                 SELECT 
-                    ${selectedState ? 'v.city' : 'v.state'} as label,
+                    LOWER(TRIM(${selectedState ? 'v.city' : 'v.state'})) as label,
                     COUNT(*) as total_posm
                 FROM posm_requests p
                 JOIN vendor_details v ON p.franchise_id = v.id
                 WHERE DATE(p.created_at) >= ? AND DATE(p.created_at) <= ? 
                 ${selectedState ? `AND LOWER(TRIM(v.state)) = LOWER(TRIM(?))` : ''}
                 GROUP BY label
-            `, [startDate || '2000-01-01', endDate || getISTDate(), ...(selectedState ? [selectedState] : [])]);
+            `, [startDate || '2000-01-01', endDate || new Date().toISOString().split('T')[0], ...(selectedState ? [selectedState] : [])]);
 
             // Merge everything into a unified geo response
             // Use case-insensitive mapping to handle inconsistent DB casing (e.g. "HARYANA" vs "Haryana")
