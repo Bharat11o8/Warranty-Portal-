@@ -125,24 +125,20 @@ const CustomerDetails = ({ formData, updateFormData, onNext, onPrev, isCustomer 
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="customerEmail">
-            Email ID {!isVendor && <span className="text-destructive">*</span>}
-          </Label>
+          <Label htmlFor="customerEmail">Email ID</Label>
           <Input
             id="customerEmail"
             type="email"
             placeholder="customer@example.com"
             value={formData.customerEmail}
             onChange={(e) => updateFormData({ customerEmail: e.target.value.trim().toLowerCase() })}
-            required={!isVendor}
             readOnly={isCustomer}
             className={isCustomer ? 'bg-muted cursor-not-allowed' : ''}
           />
-          {isCustomer && (
+          {isCustomer ? (
             <p className="text-xs text-muted-foreground">Auto-filled from your account</p>
-          )}
-          {isVendor && (
-            <p className="text-xs text-muted-foreground">Optional - If not provided, customer won't receive email notifications</p>
+          ) : (
+            <p className="text-xs text-muted-foreground">Optional - Used for sending warranty certificates and notifications</p>
           )}
         </div>
       </div>

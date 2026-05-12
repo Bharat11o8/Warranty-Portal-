@@ -389,6 +389,7 @@ export class EmailService {
     carMake?: string,
     carModel?: string
   ): Promise<void> {
+    if (!customerEmail || customerEmail.trim() === '') return;
     const productName = productDetails?.product || productDetails?.productName || productType;
 
     const htmlContent = `
@@ -445,6 +446,7 @@ export class EmailService {
     storePhone?: string,
     applicatorName?: string
   ): Promise<void> {
+    if (!customerEmail || customerEmail.trim() === '') return;
     const productName = productDetails?.product || productDetails?.productName || productType;
 
     const htmlContent = `
@@ -538,6 +540,7 @@ export class EmailService {
     storePhone?: string,
     applicatorName?: string
   ): Promise<void> {
+    if (!customerEmail || customerEmail.trim() === '') return;
     const productName = productDetails?.product || productDetails?.productName || productType;
 
     const htmlContent = `

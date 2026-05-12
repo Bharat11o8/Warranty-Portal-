@@ -381,15 +381,7 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
 
       // Validate Customer Email (if provided or required)
       // Note: Email is required for non-vendors and for public flow
-      if (isPublic && !formData.customerEmail) {
-        toast({
-          title: "Email Required",
-          description: "Please enter your email address",
-          variant: "destructive",
-        });
-        setLoading(false);
-        return;
-      }
+      // Email is optional (Phone-Number Centric)
       if (formData.customerEmail && !validateEmail(formData.customerEmail)) {
         toast({
           title: "Invalid Email",

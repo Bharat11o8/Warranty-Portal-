@@ -494,9 +494,9 @@ export class PublicController {
                 console.warn('[FraudDetection] IP geolocation failed:', err);
             }
 
-            // Validate required fields
+            // Validate required fields (customerEmail is now optional)
             const requiredFields = [
-                'productType', 'customerName', 'customerPhone', 'customerEmail', 
+                'productType', 'customerName', 'customerPhone', 
                 'registrationNumber', 'carYear', 'purchaseDate', 'warrantyType'
             ];
             const missingFields = requiredFields.filter(field => !warrantyData[field as keyof any]);
@@ -534,21 +534,37 @@ export class PublicController {
                 }
             }
 
-            const customerEmail = warrantyData.customerEmail.toLowerCase().trim();
+            const customerEmail = warrantyData.customerEmail ? warrantyData.customerEmail.toLowerCase().trim() : null;
             const customerPhone = warrantyData.customerPhone.trim();
             const customerName = warrantyData.customerName.trim();
 
-            // Step 1: Find or create customer user
-            let userId: number;
+            // Step 1: Find or create customer user (Phone-Number Centric)
+            let userId: string;
             let isNewUser = false;
 
-            const [existingUsers]: any = await db.execute(
-                'SELECT id FROM profiles WHERE email = ?',
-                [customerEmail]
+            // 1. Try to find existing user by Phone Number (Priority)
+            let cleanedPhone = customerPhone.replace(/[\s\-+]/g, '');
+            if (cleanedPhone.length === 12 && cleanedPhone.startsWith('91')) {
+                cleanedPhone = cleanedPhone.substring(2);
+            } else if (cleanedPhone.length === 11 && cleanedPhone.startsWith('0')) {
+                cleanedPhone = cleanedPhone.substring(1);
+            }
+
+            let [existingUsers]: any = await db.execute(
+                'SELECT id, email FROM profiles WHERE phone_number = ?',
+                [cleanedPhone]
             );
 
+            // 2. Fallback: Try to find by Email if phone didn't match and email is provided
+            if (existingUsers.length === 0 && customerEmail) {
+                [existingUsers] = await db.execute(
+                    'SELECT id, email FROM profiles WHERE email = ?',
+                    [customerEmail]
+                );
+            }
+
             if (existingUsers.length > 0) {
-                // Existing user
+                // Existing user found
                 userId = existingUsers[0].id;
 
                 // Fetch all roles for this user
@@ -559,25 +575,47 @@ export class PublicController {
 
                 const userRoles = roles.map((r: any) => r.role);
 
-                // If the user is an admin or vendor, prevent using this email as a customer
+                // If the user is an admin or vendor, prevent using this account as a customer
                 if (userRoles.includes('admin') || userRoles.includes('vendor')) {
-                    return res.status(400).json({ error: "This email address is registered to a franchise or admin and cannot be used for customer registration." });
+                    const matchedBy = existingUsers[0].email === customerEmail ? 'email address' : 'phone number';
+                    return res.status(400).json({ 
+                        error: `This ${matchedBy} is registered as a franchise or admin account and cannot be used as a customer profile.` 
+                    });
+                }
+
+                // Ensure they have the 'customer' role
+                if (!userRoles.includes('customer')) {
+                    await db.execute(
+                        'INSERT INTO user_roles (id, user_id, role) VALUES (?, ?, "customer")',
+                        [uuidv4(), userId]
+                    );
+                }
+
+                // If email was provided but DB email is null/empty, update it
+                if (customerEmail && (!existingUsers[0].email)) {
+                    await db.execute('UPDATE profiles SET email = ? WHERE id = ?', [customerEmail, userId]);
                 }
             } else {
                 // Create new customer user
                 isNewUser = true;
 
-                // Generate random password (user will use OTP login or reset)
+                // Generate random password (user will use OTP login)
                 const tempPassword = uuidv4().substring(0, 12);
                 const hashedPassword = await bcrypt.hash(tempPassword, 10);
 
                 const newUserId = uuidv4();
-                const [result]: any = await db.execute(
+                await db.execute(
                     `INSERT INTO profiles (id, name, email, phone_number, password) VALUES (?, ?, ?, ?, ?)`,
-                    [newUserId, customerName, customerEmail, customerPhone, hashedPassword]
+                    [newUserId, customerName, customerEmail, cleanedPhone, hashedPassword]
+                );
+                
+                await db.execute(
+                    'INSERT INTO user_roles (id, user_id, role) VALUES (?, ?, "customer")',
+                    [uuidv4(), newUserId]
                 );
 
-                userId = result.insertId || newUserId;
+                userId = newUserId;
+                console.log(`✓ Auto-created public customer profile for phone: ${cleanedPhone}`);
             }
 
             // Step 2: Check UID/Serial duplication AND conditional uniqueness (phone/reg)

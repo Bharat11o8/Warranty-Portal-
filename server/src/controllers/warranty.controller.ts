@@ -112,9 +112,11 @@ export class WarrantyController {
       }
 
       // Customer email is required for customers, optional for vendors
+      /* 
       if (req.user.role === 'customer' && !warrantyData.customerEmail) {
         return res.status(400).json({ error: 'Customer email is required' });
       }
+      */
 
       // UID is only required for seat-cover products
       if (warrantyData.productType === 'seat-cover' && !warrantyData.productDetails?.uid) {
@@ -951,9 +953,11 @@ export class WarrantyController {
       }
 
       // Customer email is required for customers, optional for vendors
+      /* 
       if (req.user.role === 'customer' && !warrantyData.customerEmail) {
         return res.status(400).json({ error: 'Customer email is required' });
       }
+      */
 
       // Check if warranty exists and belongs to user (or user is admin/vendor linked)
       // For simplicity, we'll check ownership via user_id for now as per getWarrantyById logic

@@ -281,17 +281,7 @@ const EVProductsForm = ({ initialData, warrantyId, onSuccess, isUniversal, isEdi
       }
     }
 
-    // Email is required for public flow
-    if (isPublic && !formData.customerEmail) {
-      toast({ title: "Email Required", description: "Please enter your email address", variant: "destructive" });
-      return;
-    }
-
-    // Email is required for public flow
-    if (isPublic && !formData.customerEmail) {
-      toast({ title: "Email Required", description: "Please enter your email address", variant: "destructive" });
-      return;
-    }
+    // Email is optional (Phone-Number Centric)
 
     // === Step 2: Customer Details Validation ===
     // Prevent vendor from using their own email as the customer email
