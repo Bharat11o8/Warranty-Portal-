@@ -1424,6 +1424,103 @@ export class EmailService {
     });
   }
 
+  static async sendWarrantyResubmittedConfirmation(
+    customerEmail: string,
+    customerName: string,
+    uid: string,
+    productType: string,
+    registrationNumber: string,
+    carMake?: string,
+    carModel?: string,
+    productDetails?: any
+  ): Promise<void> {
+    const productName = productDetails?.product || productDetails?.productName || productType;
+
+    const htmlContent = `
+      <h2 style="color: #333; margin-top: 0;">Hello ${customerName},</h2>
+      <p>Your warranty registration has been successfully updated and resubmitted!</p>
+      
+      <div class="success-box" style="background: #e8f5e9; border: 2px solid #4caf50; padding: 20px; border-radius: 10px; text-align: center; margin-bottom: 25px;">
+        <h3 style="color: #2e7d32; margin: 0;">Update Received!</h3>
+        <p style="color: #2e7d32; margin: 5px 0 0 0;">Your registration is now back in review.</p>
+      </div>
+
+      <div class="info-box">
+        <p><strong>Customer Name:</strong> ${customerName}</p>
+        <p><strong>Vehicle Registration:</strong> ${registrationNumber || 'N/A'}</p>
+        ${productType === 'seat-cover' ? `<p><strong>UID:</strong> ${uid}</p>` : ''}
+        <p><strong>Product:</strong> ${String(productName).replace(/-/g, ' ').toUpperCase()}</p>
+        <p><strong>Resubmission Date:</strong> ${formatDateIST()}</p>
+        <p><strong>Status:</strong> <span style="color: #f59e0b; font-weight: bold;">UNDER REVIEW</span></p>
+      </div>
+      
+      <p>We will notify you via email and WhatsApp once the verification is complete.</p>
+      
+      <p>Best regards,<br><strong>Autoform India Team</strong></p>
+    `;
+
+    await transporter.sendMail({
+      from: process.env.EMAIL_FROM,
+      to: customerEmail,
+      subject: 'Warranty Resubmission Successful',
+      html: this.getHtmlTemplate({
+        title: 'Update Received',
+        content: htmlContent,
+        headerColorStart: '#f59e0b',
+        headerColorEnd: '#ea580c'
+      })
+    });
+  }
+
+  static async sendVendorResubmissionNotification(
+    vendorEmail: string,
+    vendorName: string,
+    customerName: string,
+    uid: string,
+    productType: string,
+    registrationNumber: string
+  ): Promise<void> {
+    const baseUrl = this.getAppUrl();
+    const dashboardLink = `${baseUrl}/dashboard/vendor`;
+
+    const htmlContent = `
+      <h2 style="color: #333; margin-top: 0;">Hello ${vendorName},</h2>
+      
+      <div class="warning-box" style="background: #fff8e1; border-left: 4px solid #ffc107; padding: 20px; margin-bottom: 25px;">
+        <h3 style="color: #856404; margin: 0;">Action Required: Warranty Resubmitted</h3>
+        <p style="margin: 5px 0 0 0;">A customer has updated their rejected warranty registration.</p>
+      </div>
+      
+      <div class="info-box">
+        <p><strong>Customer Name:</strong> ${customerName}</p>
+        <p><strong>Vehicle Registration:</strong> ${registrationNumber || 'N/A'}</p>
+        <p><strong>Product Type:</strong> ${productType}</p>
+        ${productType === 'seat-cover' ? `<p><strong>UID:</strong> ${uid}</p>` : ''}
+        <p><strong>Update Date:</strong> ${formatDateIST()}</p>
+      </div>
+      
+      <p>Please log in to your dashboard to verify the updated information and photos.</p>
+      
+      <div style="text-align: center; margin: 30px 0;">
+        <a href="${dashboardLink}" class="button" style="background: linear-gradient(135deg, #ffc107 0%, #ff9800 100%); color: #000 !important;">Go to Dashboard</a>
+      </div>
+      
+      <p>Best regards,<br><strong>Autoform India Team</strong></p>
+    `;
+
+    await transporter.sendMail({
+      from: process.env.EMAIL_FROM,
+      to: vendorEmail,
+      subject: 'Action Required: Warranty Updated by Customer',
+      html: this.getHtmlTemplate({
+        title: 'Verification Required',
+        content: htmlContent,
+        headerColorStart: '#ffc107',
+        headerColorEnd: '#ff9800'
+      })
+    });
+  }
+
   /**
    * Helper to get display text for category
    */

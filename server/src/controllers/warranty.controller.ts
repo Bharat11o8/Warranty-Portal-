@@ -951,10 +951,49 @@ export class WarrantyController {
 
       const warranty = warranties[0];
 
-      // Authorization check: Only allow update if user owns it or is admin (though admin usually uses different endpoint)
-      // Also allow vendors to update warranties they submitted
-      if (req.user.role !== 'admin' && warranty.user_id !== req.user.id) {
+      // Authorization check: Only allow update if user owns it, is admin, or is a linked vendor
+      let isAuthorized = req.user.role === 'admin' || warranty.user_id === req.user.id;
+
+      if (!isAuthorized && req.user.role === 'vendor') {
+        // Fetch vendor details to check for link
+        const [vendorDetails]: any = await db.execute(
+          'SELECT id, store_name, store_email FROM vendor_details WHERE user_id = ?',
+          [req.user.id]
+        );
+
+        if (vendorDetails.length > 0) {
+          const vd = vendorDetails[0];
+          
+          // 1. Check if manpower belongs to this vendor
+          if (warranty.manpower_id) {
+            const [manpower]: any = await db.execute(
+              'SELECT id FROM manpower WHERE id = ? AND vendor_id = ?',
+              [warranty.manpower_id, vd.id]
+            );
+            if (manpower.length > 0) isAuthorized = true;
+          }
+
+          // 2. Check if installer name/contact match this store (catches QR/public submissions)
+          if (!isAuthorized && 
+              (warranty.installer_name === vd.store_name || warranty.installer_name === `${vd.store_name} - ${vd.city}`) && 
+              warranty.installer_contact === vd.store_email) {
+            isAuthorized = true;
+          }
+
+          // 3. Check if the warranty installer_contact contains the vendor email (fallback for mixed formats)
+          if (!isAuthorized && warranty.installer_contact && warranty.installer_contact.includes(vd.store_email)) {
+            isAuthorized = true;
+          }
+        }
+      }
+
+      if (!isAuthorized) {
         return res.status(403).json({ error: 'Not authorized to update this warranty' });
+      }
+
+      // Only allow updating if status is 'rejected' for non-admins
+      if (req.user.role !== 'admin' && warranty.status !== 'rejected') {
+        return res.status(400).json({ error: 'Only rejected warranties can be edited' });
       }
 
       // Only allow updating if status is 'rejected' (or maybe 'pending' if we want to allow corrections before approval)
@@ -1018,12 +1057,21 @@ export class WarrantyController {
       let clearRejectionReason = false;
 
       if (warranty.status === 'rejected') {
+        // If customer edits, go back to franchise review (pending_vendor)
+        // If franchise/vendor edits, go straight to admin review (pending)
         updatedStatus = req.user.role === 'customer' ? 'pending_vendor' : 'pending';
         clearRejectionReason = true;
       }
 
       // Use the warranty's actual id from the found record for update
       const warrantyRecordId = warranty.id;
+
+      // CRITICAL SAFETY CHECK: Ensure we have a valid ID before updating to prevent mass update
+      if (!warrantyRecordId) {
+        console.error('CRITICAL: warrantyRecordId is null/undefined during update! Aborting to prevent mass update.');
+        return res.status(500).json({ error: 'Internal error: Warranty ID not found for update' });
+      }
+
       await db.execute(
         `UPDATE warranty_registrations SET
          product_type = ?, customer_name = ?, customer_email = ?, customer_phone = ?,
@@ -1066,15 +1114,32 @@ export class WarrantyController {
             link: `/warranty/view/${warrantyUid}`
           });
         }
+
+        // Email Confirmation to Customer
+        if (warrantyData.customerEmail && warrantyData.customerEmail.trim()) {
+          await EmailService.sendWarrantyResubmittedConfirmation(
+            warrantyData.customerEmail,
+            warrantyData.customerName,
+            warrantyUid,
+            warrantyData.productType,
+            warrantyData.registrationNumber,
+            warrantyData.carMake,
+            warrantyData.carModel,
+            warrantyData.productDetails
+          );
+        }
       } catch (e) {
         console.error('Failed to notify customer of warranty update', e);
       }
 
       // 2. Notify Admin
       try {
+        const resubmittedBy = req.user.role === 'customer' ? 'the customer' : 'the franchise';
+        const awaitingReview = updatedStatus === 'pending_vendor' ? 'franchise' : 'admin';
+        
         await NotificationService.broadcast({
           title: 'Warranty Resubmitted',
-          message: `Warranty ${warrantyUid} has been resubmitted by the customer (${warrantyData.customerName}) and is awaiting ${updatedStatus === 'pending_vendor' ? 'franchise' : 'admin'} review.`,
+          message: `Warranty ${warrantyUid} has been resubmitted by ${resubmittedBy} (${warrantyData.customerName}) and is awaiting ${awaitingReview} review.`,
           type: 'warranty',
           link: `/admin/verifications?uid=${warrantyUid}`,
           targetUsers: [],
@@ -1119,13 +1184,32 @@ export class WarrantyController {
           }
         }
 
-        if (vendorUserId) {
+        if (vendorUserId && vendorUserId !== req.user.id) {
+          // In-app notification
           await NotificationService.notify(vendorUserId, {
             title: 'Warranty Updated',
             message: `The warranty for ${warrantyData.customerName} (${warrantyUid}) has been resubmitted and requires your verification.`,
             type: 'warranty',
             link: `/dashboard/vendor`
           });
+
+          // Email notification (Only if customer edited)
+          if (req.user.role === 'customer') {
+            const [vendorEmailInfo]: any = await db.execute(
+              'SELECT store_email, store_name FROM vendor_details WHERE user_id = ?',
+              [vendorUserId]
+            );
+            if (vendorEmailInfo.length > 0) {
+              await EmailService.sendVendorResubmissionNotification(
+                vendorEmailInfo[0].store_email,
+                vendorEmailInfo[0].store_name,
+                warrantyData.customerName,
+                warrantyUid,
+                warrantyData.productType,
+                warrantyData.registrationNumber
+              );
+            }
+          }
           console.log(`✓ Notified vendor ${storeName} about warranty update`);
         }
       } catch (err) {

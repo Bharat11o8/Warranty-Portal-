@@ -803,24 +803,23 @@ export class AdminController {
                                 console.error('[WhatsApp] Failed to send approval to customer:', waErr);
                             }
                         }
-                        if (!approvalWaSent) {
-                            await EmailService.sendWarrantyApprovalToCustomer(
-                                warrantyData.customer_email,
-                                warrantyData.customer_name,
-                                warrantyData.uid,
-                                warrantyData.product_type,
-                                warrantyData.registration_number,
-                                warrantyData.car_make,
-                                warrantyData.car_model,
-                                productDetails,
-                                warrantyData.warranty_type,
-                                warrantyData.store_name,
-                                storeFullAddress,
-                                warrantyData.store_email,
-                                warrantyData.applicator_name
-                            );
-                            console.log(`✓ Warranty approval email (fallback) sent to customer: ${warrantyData.customer_email}`);
-                        }
+                        // Send Email (always live alongside WhatsApp)
+                        await EmailService.sendWarrantyApprovalToCustomer(
+                            warrantyData.customer_email,
+                            warrantyData.customer_name,
+                            warrantyData.uid,
+                            warrantyData.product_type,
+                            warrantyData.registration_number,
+                            warrantyData.car_make,
+                            warrantyData.car_model,
+                            productDetails,
+                            warrantyData.warranty_type,
+                            warrantyData.store_name,
+                            storeFullAddress,
+                            warrantyData.store_email,
+                            warrantyData.applicator_name
+                        );
+                        console.log(`✓ Warranty approval email sent to customer: ${warrantyData.customer_email}`);
                     } else {
                         // ── Customer Rejection: WhatsApp first, email fallback ──
                         let rejectionWaSent = false;
@@ -847,25 +846,24 @@ export class AdminController {
                                 console.error('[WhatsApp] Failed to send rejection to customer:', waErr);
                             }
                         }
-                        if (!rejectionWaSent) {
-                            await EmailService.sendWarrantyRejectionToCustomer(
-                                warrantyData.customer_email,
-                                warrantyData.customer_name,
-                                warrantyData.uid,
-                                warrantyData.product_type,
-                                warrantyData.registration_number,
-                                rejectionReason,
-                                warrantyData.car_make,
-                                warrantyData.car_model,
-                                productDetails,
-                                warrantyData.warranty_type,
-                                warrantyData.store_name,
-                                storeFullAddress,
-                                warrantyData.store_email,
-                                warrantyData.applicator_name
-                            );
-                            console.log(`✓ Warranty rejection email (fallback) sent to customer: ${warrantyData.customer_email}`);
-                        }
+                        // Send Email (always live alongside WhatsApp)
+                        await EmailService.sendWarrantyRejectionToCustomer(
+                            warrantyData.customer_email,
+                            warrantyData.customer_name,
+                            warrantyData.uid,
+                            warrantyData.product_type,
+                            warrantyData.registration_number,
+                            rejectionReason,
+                            warrantyData.car_make,
+                            warrantyData.car_model,
+                            productDetails,
+                            warrantyData.warranty_type,
+                            warrantyData.store_name,
+                            storeFullAddress,
+                            warrantyData.store_email,
+                            warrantyData.applicator_name
+                        );
+                        console.log(`✓ Warranty rejection email sent to customer: ${warrantyData.customer_email}`);
                     }
                 } catch (emailError: any) {
                     console.error('Customer email sending error:', emailError);
@@ -975,24 +973,23 @@ export class AdminController {
                                 console.error('[WhatsApp] Failed to send vendor rejection notice:', waErr);
                             }
                         }
-                        if (!vendorRejWaSent) {
-                            await EmailService.sendWarrantyRejectionToVendor(
-                                vendorEmail,
-                                vendorName,
-                                warrantyData.customer_name,
-                                warrantyData.customer_phone,
-                                warrantyData.product_type,
-                                warrantyData.registration_number,
-                                applicatorName ?? '',
-                                rejectionReason,
-                                warrantyData.uid,
-                                warrantyData.car_make,
-                                warrantyData.car_model,
-                                productDetails,
-                                warrantyData.warranty_type
-                            );
-                            console.log(`✓ Warranty rejection email (fallback) sent to vendor: ${vendorEmail}`);
-                        }
+                        // Send Email (always live alongside WhatsApp)
+                        await EmailService.sendWarrantyRejectionToVendor(
+                            vendorEmail,
+                            vendorName,
+                            warrantyData.customer_name,
+                            warrantyData.customer_phone,
+                            warrantyData.product_type,
+                            warrantyData.registration_number,
+                            applicatorName ?? '',
+                            rejectionReason,
+                            warrantyData.uid,
+                            warrantyData.car_make,
+                            warrantyData.car_model,
+                            productDetails,
+                            warrantyData.warranty_type
+                        );
+                        console.log(`✓ Warranty rejection email sent to vendor: ${vendorEmail}`);
                     }
                 } else {
                     console.log(`ℹ️ No vendor email found for warranty ${warrantyData.uid}, skipping vendor email`);
