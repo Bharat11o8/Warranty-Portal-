@@ -670,7 +670,15 @@ export class AnalyticsController {
                 }
             });
 
-            if (selectedState) params.push(selectedState);
+            // Construct query parameters carefully:
+            // queryParams: [...params, ...params] for the double-check queries (warranty, product)
+            // singleQueryParams: [...params] for single-where-clause queries (grievance, posm)
+            const queryParams = [...params, ...params];
+            const singleQueryParams = [...params];
+            if (selectedState) {
+                queryParams.push(selectedState);
+                singleQueryParams.push(selectedState);
+            }
 
             // Define labels for grouping and filtering separately
             const groupLabel = selectedState ? 'COALESCE(vd_m.city, vd_i.city, vd_owner.city)' : 'COALESCE(vd_m.state, vd_i.state, vd_owner.state)';
@@ -689,10 +697,6 @@ export class AnalyticsController {
                     vd_owner.id = REPLACE(w.manpower_id, 'owner-', '')
                 )
             `;
-
-            // Fetch Warranty Stats per Geo — using triple-path join with DISTINCT for perfect accuracy
-            const queryParams = [...params, ...params];
-            if (selectedState) queryParams.push(selectedState);
 
             const [warrantyStats]: any = await db.query(`
                 SELECT 
@@ -746,10 +750,13 @@ export class AnalyticsController {
                     (g.source_type = 'customer' AND g.franchise_id = v.id) OR
                     (g.source_type = 'franchise' AND g.customer_id = v.user_id)
                 )
-                WHERE DATE(g.created_at) >= ? AND DATE(g.created_at) <= ? 
+                WHERE (
+                    -- Unified period filter
+                    ${whereClause.replace(/w.created_at/g, 'g.created_at')}
+                )
                 ${selectedState ? `AND LOWER(TRIM(v.state)) = LOWER(TRIM(?))` : ''}
                 GROUP BY label
-            `, [startDate || '2000-01-01', endDate || new Date().toISOString().split('T')[0], ...(selectedState ? [selectedState] : [])]);
+            `, singleQueryParams);
 
             const [posmStats]: any = await db.query(`
                 SELECT 
@@ -757,10 +764,13 @@ export class AnalyticsController {
                     COUNT(*) as total_posm
                 FROM posm_requests p
                 JOIN vendor_details v ON p.franchise_id = v.id
-                WHERE DATE(p.created_at) >= ? AND DATE(p.created_at) <= ? 
+                WHERE (
+                    -- Unified period filter
+                    ${whereClause.replace(/w.created_at/g, 'p.created_at')}
+                )
                 ${selectedState ? `AND LOWER(TRIM(v.state)) = LOWER(TRIM(?))` : ''}
                 GROUP BY label
-            `, [startDate || '2000-01-01', endDate || new Date().toISOString().split('T')[0], ...(selectedState ? [selectedState] : [])]);
+            `, singleQueryParams);
 
             // Merge everything into a unified geo response
             // Use case-insensitive mapping to handle inconsistent DB casing (e.g. "HARYANA" vs "Haryana")

@@ -825,7 +825,7 @@ export class VendorController {
 
       // Update the warranty status
       await db.execute(
-        `UPDATE warranty_registrations SET status = 'pending' WHERE uid = ?`,
+        `UPDATE warranty_registrations SET status = 'pending', vendor_approved_at = NOW() WHERE uid = ?`,
         [uid]
       );
 
@@ -931,7 +931,7 @@ export class VendorController {
 
       // Update the warranty status
       await db.execute(
-        `UPDATE warranty_registrations SET status = 'rejected', rejection_reason = ? WHERE uid = ?`,
+        `UPDATE warranty_registrations SET status = 'rejected', rejection_reason = ?, rejected_at = NOW() WHERE uid = ?`,
         [reason, uid]
       );
 
