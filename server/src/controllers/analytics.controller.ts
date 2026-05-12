@@ -5,9 +5,31 @@ export class AnalyticsController {
     /**
      * Get high-level summary statistics
      */
-    static async getSummaryStats(_req: Request, res: Response) {
+    static async getSummaryStats(req: Request, res: Response) {
         try {
-            // 1. Detailed Franchise breakdown
+            const period = (req.query.period as string) || 'all';
+            const year = req.query.year as string || new Date().getFullYear().toString();
+            const month = req.query.month as string;
+            const startDate = req.query.startDate as string;
+            const endDate = req.query.endDate as string;
+
+            let whereClause = '1=1';
+            const params: any[] = [];
+
+            if (period === 'year') {
+                whereClause = 'YEAR(created_at) = ?';
+                params.push(year);
+            } else if (period === 'month') {
+                whereClause = 'YEAR(created_at) = ? AND MONTH(created_at) = ?';
+                params.push(year, month || (new Date().getMonth() + 1).toString());
+            } else if (period === 'week') {
+                whereClause = 'DATE(created_at) >= DATE_SUB(CURDATE(), INTERVAL 6 DAY)';
+            } else if (period === 'custom' && startDate && endDate) {
+                whereClause = 'DATE(created_at) >= ? AND DATE(created_at) <= ?';
+                params.push(startDate, endDate);
+            }
+
+            // 1. Detailed Franchise breakdown (Lifetime/Overall)
             const [franchiseDetails]: any = await db.execute(`
                 SELECT 
                     COUNT(*) as total,
@@ -18,18 +40,14 @@ export class AnalyticsController {
             `);
 
             // 2. Module participation counts
-            // warranty_participation = unique franchises (vendor_details) that have at least one warranty,
-            // either submitted directly by the vendor user, or via their manpower staff.
             const [participation]: any = await db.execute(`
                 SELECT 
                     (
                         SELECT COUNT(DISTINCT vd.id)
                         FROM vendor_details vd
                         WHERE EXISTS (
-                            -- Direct vendor submission (vendor's user_id matches warranty user_id)
                             SELECT 1 FROM warranty_registrations wr WHERE wr.user_id = vd.user_id
                         ) OR EXISTS (
-                            -- Via manpower: manpower belongs to this vendor and is linked to a warranty
                             SELECT 1 FROM manpower m
                             JOIN warranty_registrations wr ON wr.manpower_id = m.id
                             WHERE m.vendor_id = vd.id
@@ -50,14 +68,15 @@ export class AnalyticsController {
                 FROM warranty_registrations
             `);
 
-            // 4. Today's Specific Actions (The "Progress" view)
-            const [todayActions]: any = await db.execute(`
+            // 4. Period Specific Actions (Dynamic Progress view)
+            // We use the whereClause but replace created_at with specific action dates
+            const [periodActions]: any = await db.execute(`
                 SELECT 
-                    (SELECT COUNT(*) FROM warranty_registrations WHERE DATE(created_at) = CURDATE()) as registrations,
-                    (SELECT COUNT(*) FROM warranty_registrations WHERE DATE(validated_at) = CURDATE()) as approvals,
-                    (SELECT COUNT(*) FROM warranty_registrations WHERE DATE(rejected_at) = CURDATE()) as rejections,
-                    (SELECT COUNT(*) FROM warranty_registrations WHERE DATE(vendor_approved_at) = CURDATE()) as vendor_approvals
-            `);
+                    (SELECT COUNT(*) FROM warranty_registrations WHERE ${whereClause}) as registrations,
+                    (SELECT COUNT(*) FROM warranty_registrations WHERE ${whereClause.replace(/created_at/g, 'validated_at')}) as approvals,
+                    (SELECT COUNT(*) FROM warranty_registrations WHERE ${whereClause.replace(/created_at/g, 'rejected_at')}) as rejections,
+                    (SELECT COUNT(*) FROM warranty_registrations WHERE ${whereClause.replace(/created_at/g, 'vendor_approved_at')}) as vendor_approvals
+            `, [...params, ...params, ...params, ...params]);
 
             // 5. Overall Totals for other modules
             const [grievanceStats]: any = await db.execute(`
@@ -86,7 +105,7 @@ export class AnalyticsController {
                     franchise: franchiseDetails[0],
                     participation: participation[0],
                     warranty: warrantyStates[0],
-                    today: todayActions[0],
+                    today: periodActions[0], // Keep key "today" for frontend compatibility, but it's now "period"
                     grievance: grievanceStats[0],
                     posm: posmStats[0]
                 }
@@ -156,14 +175,14 @@ export class AnalyticsController {
                     SUM(pending_vendor) as pending_vendor,
                     SUM(rejected) as rejected
                 FROM (
-                    -- 1. All Registrations, Pendings (by creation date)
+                    -- 1. Registrations (by creation date)
                     SELECT 
                         DATE_FORMAT(created_at, ?) as label,
                         MIN(created_at) as sort_date,
                         COUNT(*) as total,
                         0 as approved,
-                        SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pending_admin,
-                        SUM(CASE WHEN status = 'pending_vendor' THEN 1 ELSE 0 END) as pending_vendor,
+                        0 as pending_admin,
+                        0 as pending_vendor,
                         0 as rejected
                     FROM warranty_registrations 
                     WHERE ${whereClause}
@@ -200,10 +219,44 @@ export class AnalyticsController {
                     WHERE rejected_at IS NOT NULL 
                       AND ${whereClause.replace(/created_at/g, 'rejected_at')}
                     GROUP BY label, DATE(rejected_at)
+
+                    UNION ALL
+
+                    -- 4. Admin Ready Items (by vendor_approved_at)
+                    -- This represents items that became "Pending Admin" on this day
+                    SELECT 
+                        DATE_FORMAT(vendor_approved_at, ?) as label,
+                        MIN(vendor_approved_at) as sort_date,
+                        0 as total,
+                        0 as approved,
+                        COUNT(*) as pending_admin,
+                        0 as pending_vendor,
+                        0 as rejected
+                    FROM warranty_registrations 
+                    WHERE vendor_approved_at IS NOT NULL 
+                      AND ${whereClause.replace(/created_at/g, 'vendor_approved_at')}
+                    GROUP BY label, DATE(vendor_approved_at)
+
+                    UNION ALL
+
+                    -- 5. Vendor Pending Items (by created_at)
+                    -- Only counts items that were at some point pending vendor
+                    SELECT 
+                        DATE_FORMAT(created_at, ?) as label,
+                        MIN(created_at) as sort_date,
+                        0 as total,
+                        0 as approved,
+                        0 as pending_admin,
+                        COUNT(*) as pending_vendor,
+                        0 as rejected
+                    FROM warranty_registrations 
+                    WHERE (status = 'pending_vendor' OR vendor_approved_at IS NOT NULL)
+                      AND ${whereClause}
+                    GROUP BY label, DATE(created_at)
                 ) combined
                 GROUP BY label
                 ORDER BY MIN(sort_date) ASC
-            `, [dateFormat, ...params, dateFormat, ...params, dateFormat, ...params]);
+            `, [dateFormat, ...params, dateFormat, ...params, dateFormat, ...params, dateFormat, ...params, dateFormat, ...params]);
 
             return res.json({
                 success: true,
