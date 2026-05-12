@@ -30,7 +30,7 @@ export class NotificationController {
             const totalPages = Math.ceil(totalCount / limit);
 
             const query = `SELECT * FROM notifications ${whereClause} ORDER BY created_at DESC LIMIT ? OFFSET ?`;
-            const [notifications]: any = await db.execute(query, [userId, limit, offset]);
+            const [notifications]: any = await db.query(query, [userId, limit, offset]);
 
             // Parse metadata for each notification
             const parsedNotifications = notifications.map((n: any) => ({

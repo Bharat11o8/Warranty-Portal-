@@ -7,9 +7,9 @@ This guide explains how to sync UIDs from your system into the Autoform Warranty
 ---
 
 ## 🚦 Quick Overview
-*   **Endpoint:** `https://server-bharat-maheshwaris-projects.vercel.app/api/uid/sync`
+*   **Endpoint:** `https://api.autoformindia.co.in/api/uid/sync`
 *   **Method:** `POST`
-*   **Auth Header:** `x-api-key: <YOUR_SECRET_API_KEY>`
+*   **Auth Header:** `x-api-key: uid_autoform_man_s3cur3_2026_xK9mP7qW`
 *   **Format:** Standard JSON with an array named `uids`.
 
 ---

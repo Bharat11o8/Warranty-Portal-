@@ -6,7 +6,7 @@ import path from 'path';
 dotenv.config({ path: path.join(process.cwd(), '.env') });
 
 const API_KEY = process.env.UID_SYNC_API_KEY;
-const BASE_URL = 'http://localhost:3000/api/uid/sync'; // Adjust if needed
+const BASE_URL = 'https://api.autoformindia.co.in/api/uid/sync'; // Production API URL
 
 async function testSync() {
     console.log('🚀 Starting UID Sync Verification Test...');

@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import db from '../config/database.js';
+import db, { getISTDate } from '../config/database.js';
 
 export class AnalyticsController {
     /**
@@ -39,7 +39,7 @@ export class AnalyticsController {
                     (SELECT COUNT(DISTINCT franchise_id) FROM posm_requests) as posm_participation
             `);
 
-            // 3. Warranty states breakdown
+            // 3. Warranty states breakdown (Overall Lifetime)
             const [warrantyStates]: any = await db.execute(`
                 SELECT 
                     COUNT(*) as total,
@@ -50,11 +50,34 @@ export class AnalyticsController {
                 FROM warranty_registrations
             `);
 
-            // 4. Overall Totals for other modules
-            const [otherTotals]: any = await db.execute(`
+            // 4. Today's Specific Actions (The "Progress" view)
+            const [todayActions]: any = await db.execute(`
                 SELECT 
-                    (SELECT COUNT(*) FROM grievances) as total_grievances,
-                    (SELECT COUNT(*) FROM posm_requests) as total_posm
+                    (SELECT COUNT(*) FROM warranty_registrations WHERE DATE(created_at) = CURDATE()) as registrations,
+                    (SELECT COUNT(*) FROM warranty_registrations WHERE DATE(validated_at) = CURDATE()) as approvals,
+                    (SELECT COUNT(*) FROM warranty_registrations WHERE DATE(rejected_at) = CURDATE()) as rejections,
+                    (SELECT COUNT(*) FROM warranty_registrations WHERE DATE(vendor_approved_at) = CURDATE()) as vendor_approvals
+            `);
+
+            // 5. Overall Totals for other modules
+            const [grievanceStats]: any = await db.execute(`
+                SELECT 
+                    COUNT(*) as total,
+                    SUM(CASE WHEN status = 'submitted' THEN 1 ELSE 0 END) as submitted,
+                    SUM(CASE WHEN status = 'assigned' OR status = 'in_progress' THEN 1 ELSE 0 END) as in_progress,
+                    SUM(CASE WHEN status = 'resolved' THEN 1 ELSE 0 END) as resolved,
+                    SUM(CASE WHEN status = 'rejected' THEN 1 ELSE 0 END) as rejected
+                FROM grievances
+            `);
+
+            const [posmStats]: any = await db.execute(`
+                SELECT 
+                    COUNT(*) as total,
+                    SUM(CASE WHEN status = 'open' THEN 1 ELSE 0 END) as open,
+                    SUM(CASE WHEN status = 'under_review' OR status = 'approved' OR status = 'in_production' THEN 1 ELSE 0 END) as processing,
+                    SUM(CASE WHEN status = 'dispatched' OR status = 'delivered' THEN 1 ELSE 0 END) as shipped,
+                    SUM(CASE WHEN status = 'closed' OR status = 'rejected' THEN 1 ELSE 0 END) as closed
+                FROM posm_requests
             `);
 
             return res.json({
@@ -63,7 +86,9 @@ export class AnalyticsController {
                     franchise: franchiseDetails[0],
                     participation: participation[0],
                     warranty: warrantyStates[0],
-                    other: otherTotals[0]
+                    today: todayActions[0],
+                    grievance: grievanceStats[0],
+                    posm: posmStats[0]
                 }
             });
         } catch (error: any) {
@@ -73,38 +98,117 @@ export class AnalyticsController {
     }
 
     /**
-     * Get time-series data for charts (Monthly)
+     * Get time-series data for charts (Custom Period & Hierarchical Filtering)
      */
     static async getTimeSeriesData(req: Request, res: Response) {
         try {
-            const months = parseInt(req.query.months as string) || 12;
+            const period = (req.query.period as string) || 'year';
+            const year = req.query.year as string || new Date().getFullYear().toString();
+            const month = req.query.month as string; // 1-12
+            const startDate = req.query.startDate as string;
+            const endDate = req.query.endDate as string;
 
-            const [monthlyWarranties]: any = await db.execute(`
-                SELECT 
-                    DATE_FORMAT(created_at, '%Y-%m') as month,
-                    COUNT(*) as total,
-                    SUM(CASE WHEN status = 'validated' THEN 1 ELSE 0 END) as approved
-                FROM warranty_registrations 
-                WHERE created_at >= DATE_SUB(NOW(), INTERVAL ? MONTH)
-                GROUP BY month
-                ORDER BY month ASC
-            `, [months]);
+            let dateFormat = '%Y-%m';
+            let whereClause = '1=1';
+            const params: any[] = [];
 
-            const [monthlyGrievances]: any = await db.execute(`
+            if (period === 'all') {
+                // All time — group by year
+                dateFormat = '%Y';
+            } else if (period === 'year') {
+                // Specific year — group by date but label with day + month
+                dateFormat = '%e %b';
+                whereClause = 'YEAR(created_at) = ?';
+                params.push(year);
+            } else if (period === 'month') {
+                // Specific month — group by date but label with day + month
+                dateFormat = '%e %b';
+                whereClause = 'YEAR(created_at) = ? AND MONTH(created_at) = ?';
+                params.push(year, month || (new Date().getMonth() + 1).toString());
+            } else if (period === 'week') {
+                // Last 7 days (including today) — group by day name + date
+                dateFormat = '%a %e';
+                whereClause = 'DATE(created_at) >= DATE_SUB(CURDATE(), INTERVAL 6 DAY)';
+            } else if (period === 'custom' && startDate && endDate) {
+                // Custom range — auto-detect grain
+                const start = new Date(startDate);
+                const end = new Date(endDate);
+                const diffDays = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+                
+                if (diffDays <= 90) {
+                    dateFormat = '%Y-%m-%d'; // Daily grain for short ranges
+                } else {
+                    dateFormat = '%Y-%m'; // Monthly grain for long ranges
+                }
+                whereClause = 'DATE(created_at) >= ? AND DATE(created_at) <= ?';
+                params.push(startDate, endDate);
+            }
+
+            // We need a clever query to show registrations by creation date 
+            // BUT show approvals/rejections by their actual action date on the same timeline.
+            // This ensures Admin "Daily Work" is visible on the chart for the day they did it.
+            const [results]: any = await db.execute(`
                 SELECT 
-                    DATE_FORMAT(created_at, '%Y-%m') as month,
-                    COUNT(*) as total
-                FROM grievances 
-                WHERE created_at >= DATE_SUB(NOW(), INTERVAL ? MONTH)
-                GROUP BY month
-                ORDER BY month ASC
-            `, [months]);
+                    label,
+                    SUM(total) as total,
+                    SUM(approved) as approved,
+                    SUM(pending_admin) as pending_admin,
+                    SUM(pending_vendor) as pending_vendor,
+                    SUM(rejected) as rejected
+                FROM (
+                    -- 1. All Registrations, Pendings (by creation date)
+                    SELECT 
+                        DATE_FORMAT(created_at, ?) as label,
+                        MIN(created_at) as sort_date,
+                        COUNT(*) as total,
+                        0 as approved,
+                        SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pending_admin,
+                        SUM(CASE WHEN status = 'pending_vendor' THEN 1 ELSE 0 END) as pending_vendor,
+                        0 as rejected
+                    FROM warranty_registrations 
+                    WHERE ${whereClause}
+                    GROUP BY label, DATE(created_at)
+
+                    UNION ALL
+
+                    -- 2. Approvals (by validation date)
+                    SELECT 
+                        DATE_FORMAT(validated_at, ?) as label,
+                        MIN(validated_at) as sort_date,
+                        0 as total,
+                        COUNT(*) as approved,
+                        0 as pending_admin,
+                        0 as pending_vendor,
+                        0 as rejected
+                    FROM warranty_registrations 
+                    WHERE validated_at IS NOT NULL 
+                      AND ${whereClause.replace(/created_at/g, 'validated_at')}
+                    GROUP BY label, DATE(validated_at)
+
+                    UNION ALL
+
+                    -- 3. Rejections (by rejection date)
+                    SELECT 
+                        DATE_FORMAT(rejected_at, ?) as label,
+                        MIN(rejected_at) as sort_date,
+                        0 as total,
+                        0 as approved,
+                        0 as pending_admin,
+                        0 as pending_vendor,
+                        COUNT(*) as rejected
+                    FROM warranty_registrations 
+                    WHERE rejected_at IS NOT NULL 
+                      AND ${whereClause.replace(/created_at/g, 'rejected_at')}
+                    GROUP BY label, DATE(rejected_at)
+                ) combined
+                GROUP BY label
+                ORDER BY MIN(sort_date) ASC
+            `, [dateFormat, ...params, dateFormat, ...params, dateFormat, ...params]);
 
             return res.json({
                 success: true,
                 data: {
-                    warranties: monthlyWarranties,
-                    grievances: monthlyGrievances
+                    warranties: results
                 }
             });
         } catch (error: any) {
@@ -116,10 +220,33 @@ export class AnalyticsController {
     /**
      * Get product and variation distribution
      */
-    static async getProductDistribution(_req: Request, res: Response) {
+    static async getProductDistribution(req: Request, res: Response) {
         try {
-            // Extract product names from JSON details
-            // Handling the case where product_details might be a string (double encoded) or object
+            const period = (req.query.period as string) || 'month';
+            const year = req.query.year as string;
+            const month = req.query.month as string;
+            const startDate = req.query.startDate as string;
+            const endDate = req.query.endDate as string;
+
+            let whereClause = '1=1';
+            const params: any[] = [];
+
+            if (period === 'all') {
+                // No date filter — show everything
+            } else if (period === 'year') {
+                whereClause = 'YEAR(created_at) = ?';
+                params.push(year || new Date().getFullYear().toString());
+            } else if (period === 'month') {
+                whereClause = 'YEAR(created_at) = ? AND MONTH(created_at) = ?';
+                params.push(year || new Date().getFullYear().toString(), month || (new Date().getMonth() + 1).toString());
+            } else if (period === 'week') {
+                whereClause = 'DATE(created_at) >= DATE_SUB(CURDATE(), INTERVAL 6 DAY)';
+            } else if (period === 'custom' && startDate && endDate) {
+                whereClause = 'DATE(created_at) >= ? AND DATE(created_at) <= ?';
+                params.push(startDate, endDate);
+            }
+
+            // Use Action Date for validated items, Registration Date for others
             const [products]: any = await db.execute(`
                 SELECT 
                     product_type,
@@ -132,9 +259,16 @@ export class AnalyticsController {
                     )) as product_name,
                     COUNT(*) as count
                 FROM warranty_registrations
+                WHERE (
+                    -- Items approved in this period
+                    (status = 'validated' AND ${whereClause.replace(/created_at/g, 'validated_at')})
+                    OR
+                    -- OR Items registered in this period (that aren't approved yet)
+                    (status != 'validated' AND ${whereClause})
+                )
                 GROUP BY product_type, product_name
                 ORDER BY count DESC
-            `);
+            `, [...params, ...params]);
 
             return res.json({
                 success: true,
@@ -147,25 +281,85 @@ export class AnalyticsController {
     }
 
     /**
-     * Get detailed franchise participation stats
+     * Get detailed franchise participation stats (with Date Filtering)
      */
-    static async getFranchiseStats(_req: Request, res: Response) {
+    static async getFranchiseStats(req: Request, res: Response) {
         try {
+            const period = (req.query.period as string) || 'month';
+            const year = req.query.year as string;
+            const month = req.query.month as string;
+            const startDate = req.query.startDate as string;
+            const endDate = req.query.endDate as string;
+
+            let whereClause = '1=1';
+            const params: any[] = [];
+
+            if (period === 'all') {
+                // No date filter
+            } else if (period === 'year') {
+                whereClause = 'YEAR(w.created_at) = ?';
+                params.push(year || new Date().getFullYear().toString());
+            } else if (period === 'month') {
+                whereClause = 'YEAR(w.created_at) = ? AND MONTH(w.created_at) = ?';
+                params.push(year || new Date().getFullYear().toString(), month || (new Date().getMonth() + 1).toString());
+            } else if (period === 'week') {
+                whereClause = 'DATE(w.created_at) >= DATE_SUB(CURDATE(), INTERVAL 6 DAY)';
+            } else if (period === 'custom' && startDate && endDate) {
+                whereClause = 'DATE(w.created_at) >= ? AND DATE(w.created_at) <= ?';
+                params.push(startDate, endDate);
+            }
+
+            // Also need to filter by action date for approvals
+            const actionWhereClause = whereClause.replace(/w.created_at/g, 'w.validated_at');
+
             const [franchises]: any = await db.execute(`
                 SELECT 
-                    v.id,
-                    v.store_name,
-                    v.city,
-                    v.state,
-                    (SELECT COUNT(*) FROM warranty_registrations w WHERE w.user_id = v.user_id) as warranty_count,
-                    (SELECT COUNT(*) FROM grievances g WHERE g.customer_id = v.user_id AND g.source_type = 'franchise') as grievance_count,
-                    (SELECT COUNT(*) FROM posm_requests p WHERE p.franchise_id = v.id) as posm_count
-                FROM vendor_details v
-                JOIN vendor_verification vv ON v.user_id = vv.user_id
-                WHERE vv.is_verified = true
-                ORDER BY warranty_count DESC
-                LIMIT 50
-            `);
+                    vd.id,
+                    vd.store_name,
+                    vd.store_email,
+                    vd.city,
+                    vd.state,
+                    p.id as profile_id,
+                    -- Total warranties (exact same logic as Franchise page)
+                    (
+                        SELECT COUNT(*) 
+                        FROM warranty_registrations wr 
+                        WHERE (wr.manpower_id IN (SELECT id FROM manpower WHERE vendor_id = vd.id)
+                            OR (wr.installer_name = vd.store_name AND wr.installer_contact = vd.store_email)
+                            OR wr.user_id = p.id)
+                        AND ${whereClause.replace(/w\.created_at/g, 'wr.created_at')}
+                    ) as total_registrations,
+                    -- Approved warranties
+                    (
+                        SELECT COUNT(*) 
+                        FROM warranty_registrations wr 
+                        WHERE (wr.manpower_id IN (SELECT id FROM manpower WHERE vendor_id = vd.id)
+                            OR (wr.installer_name = vd.store_name AND wr.installer_contact = vd.store_email)
+                            OR wr.user_id = p.id)
+                        AND wr.status = 'validated'
+                    ) as warranty_count,
+                    -- Grievances
+                    (
+                        SELECT COUNT(*) 
+                        FROM grievances g 
+                        WHERE g.customer_id = p.id 
+                        AND g.source_type = 'franchise'
+                    ) as grievance_count,
+                    -- POSM requests
+                    (
+                        SELECT COUNT(*) 
+                        FROM posm_requests pr 
+                        WHERE pr.franchise_id = vd.id
+                    ) as posm_count,
+                    COALESCE(vv.is_verified, false) as is_verified,
+                    vv.verified_at
+                FROM profiles p
+                JOIN user_roles ur ON p.id = ur.user_id
+                LEFT JOIN vendor_details vd ON p.id = vd.user_id
+                LEFT JOIN vendor_verification vv ON p.id = vv.user_id
+                WHERE ur.role = 'vendor'
+                ORDER BY total_registrations DESC
+            `, [...params]);
 
             return res.json({
                 success: true,
@@ -180,64 +374,476 @@ export class AnalyticsController {
     /**
      * Get fraud detection and trust score analytics
      */
-    static async getFraudAnalytics(_req: Request, res: Response) {
+    static async getFraudAnalytics(req: Request, res: Response) {
         try {
-            // 1. Trust Score Distribution
+            const period = (req.query.period as string) || 'month';
+            const year = req.query.year as string;
+            const month = req.query.month as string;
+            const startDate = req.query.startDate as string;
+            const endDate = req.query.endDate as string;
+            const flagFilter = req.query.flag as string; // new filter
+
+            let whereClause = '1=1';
+            const params: any[] = [];
+
+            if (period === 'all') {
+                // No date filter
+            } else if (period === 'year') {
+                whereClause = 'YEAR(created_at) = ?';
+                params.push(year || new Date().getFullYear().toString());
+            } else if (period === 'month') {
+                whereClause = 'YEAR(created_at) = ? AND MONTH(created_at) = ?';
+                params.push(year || new Date().getFullYear().toString(), month || (new Date().getMonth() + 1).toString());
+            } else if (period === 'week') {
+                whereClause = 'DATE(created_at) >= DATE_SUB(CURDATE(), INTERVAL 6 DAY)';
+            } else if (period === 'custom' && startDate && endDate) {
+                whereClause = 'DATE(created_at) >= ? AND DATE(created_at) <= ?';
+                params.push(startDate, endDate);
+            }
+
+            // Flag-specific filtering logic
+            let flagCondition = '1=1';
+            if (flagFilter && flagFilter !== 'all') {
+                const flagMap: Record<string, string> = {
+                    'ip': "JSON_EXTRACT(fraud_flags, '$.ip_penalty') > 0",
+                    'distance': "JSON_EXTRACT(fraud_flags, '$.distance_penalty') > 0",
+                    'time': "JSON_EXTRACT(fraud_flags, '$.time_penalty') > 0",
+                    'consistency': "JSON_EXTRACT(fraud_flags, '$.consistency_penalty') > 0"
+                };
+                if (flagMap[flagFilter]) {
+                    flagCondition = flagMap[flagFilter];
+                }
+            }
+
+            // 1. Trust Score Distribution (filtered by flag if provided)
             const [distribution]: any = await db.execute(`
                 SELECT 
                     SUM(CASE WHEN fraud_score >= 80 THEN 1 ELSE 0 END) as high_trust,
                     SUM(CASE WHEN fraud_score >= 40 AND fraud_score < 80 THEN 1 ELSE 0 END) as medium_trust,
                     SUM(CASE WHEN fraud_score < 40 THEN 1 ELSE 0 END) as low_trust,
-                    COUNT(*) as total
+                    COUNT(*) as total,
+                    ROUND(AVG(fraud_score), 1) as network_avg
                 FROM warranty_registrations
-                WHERE fraud_score IS NOT NULL
-            `);
+                WHERE fraud_score IS NOT NULL AND ${whereClause} AND ${flagCondition}
+            `, params);
 
-            // 2. Common Fraud Flags (Parsing JSON flags)
-            const [allFlags]: any = await db.execute(`
-                SELECT fraud_flags FROM warranty_registrations 
-                WHERE fraud_flags IS NOT NULL AND fraud_flags != '' AND fraud_flags != '{}'
-            `);
+            // 2. Riskiest Franchises (avg score ASC, min 5 submissions, filtered by flag)
+            const [riskyFranchises]: any = await db.execute(`
+                SELECT 
+                    installer_name,
+                    COUNT(*) as total_submissions,
+                    ROUND(AVG(fraud_score), 1) as avg_score,
+                    SUM(CASE WHEN fraud_score < 40 THEN 1 ELSE 0 END) as flagged_count,
+                    ROUND(SUM(CASE WHEN fraud_score < 40 THEN 1 ELSE 0 END) * 100.0 / COUNT(*), 0) as flagged_pct
+                FROM warranty_registrations
+                WHERE fraud_score IS NOT NULL 
+                AND installer_name IS NOT NULL 
+                AND installer_name != ''
+                AND ${whereClause}
+                AND ${flagCondition}
+                GROUP BY installer_name
+                HAVING total_submissions >= 5
+                ORDER BY avg_score ASC, flagged_count DESC
+            `, params);
 
-            const flagCounts: Record<string, number> = {
-                distance_penalty: 0,
-                time_penalty: 0,
-                ip_penalty: 0,
-                consistency_penalty: 0,
-                multi_device: 0,
-                location_mismatch: 0
-            };
+            // 3. Cleanest Franchises (avg score DESC, min 5 submissions, filtered by flag)
+            const [cleanFranchises]: any = await db.execute(`
+                SELECT 
+                    installer_name,
+                    COUNT(*) as total_submissions,
+                    ROUND(AVG(fraud_score), 1) as avg_score,
+                    SUM(CASE WHEN fraud_score >= 80 THEN 1 ELSE 0 END) as clean_count,
+                    ROUND(SUM(CASE WHEN fraud_score >= 80 THEN 1 ELSE 0 END) * 100.0 / COUNT(*), 0) as clean_pct
+                FROM warranty_registrations
+                WHERE fraud_score IS NOT NULL 
+                AND installer_name IS NOT NULL 
+                AND installer_name != ''
+                AND ${whereClause}
+                AND ${flagCondition}
+                GROUP BY installer_name
+                HAVING total_submissions >= 5
+                ORDER BY avg_score DESC, clean_count DESC
+            `, params);
 
-            allFlags.forEach((row: any) => {
-                try {
-                    const flags = typeof row.fraud_flags === 'string' ? JSON.parse(row.fraud_flags) : row.fraud_flags;
-                    if (flags.distance_penalty > 0) flagCounts.distance_penalty++;
-                    if (flags.time_penalty > 0) flagCounts.time_penalty++;
-                    if (flags.ip_penalty > 0) flagCounts.ip_penalty++;
-                    if (flags.consistency_penalty > 0) flagCounts.consistency_penalty++;
-                    if (flags.multi_device_detected) flagCounts.multi_device++;
-                    if (flags.location_mismatch) flagCounts.location_mismatch++;
-                } catch (e) {}
-            });
+            // 4. Primary fraud signal per risky franchise
+            let enrichedRisky = riskyFranchises;
+            if (riskyFranchises.length > 0) {
+                const riskyNames = riskyFranchises.map((f: any) => f.installer_name);
+                const placeholders = riskyNames.map(() => '?').join(',');
+                const [flagRows]: any = await db.execute(`
+                    SELECT installer_name, fraud_flags FROM warranty_registrations 
+                    WHERE fraud_flags IS NOT NULL AND fraud_flags != '' AND fraud_flags != '{}'
+                    AND installer_name IN (${placeholders})
+                    AND ${whereClause}
+                `, [...riskyNames, ...params]);
 
-            const formattedFlags = Object.entries(flagCounts)
-                .map(([name, count]) => ({ name: name.replace(/_/g, ' '), count }))
-                .sort((a, b) => b.count - a.count);
+                const franchisePenalties: Record<string, Record<string, number>> = {};
+                flagRows.forEach((row: any) => {
+                    try {
+                        const flags = typeof row.fraud_flags === 'string' ? JSON.parse(row.fraud_flags) : row.fraud_flags;
+                        if (!franchisePenalties[row.installer_name]) {
+                            franchisePenalties[row.installer_name] = { ip: 0, distance: 0, time: 0, consistency: 0 };
+                        }
+                        franchisePenalties[row.installer_name].ip += (flags.ip_penalty || 0);
+                        franchisePenalties[row.installer_name].distance += (flags.distance_penalty || 0);
+                        franchisePenalties[row.installer_name].time += (flags.time_penalty || 0);
+                        franchisePenalties[row.installer_name].consistency += (flags.consistency_penalty || 0);
+                    } catch (e) {}
+                });
+
+                enrichedRisky = riskyFranchises.map((f: any) => {
+                    const penalties = franchisePenalties[f.installer_name] || {};
+                    const primaryEntry = Object.entries(penalties).sort((a, b) => (b[1] as number) - (a[1] as number))[0];
+                    const primaryFlag = primaryEntry ? primaryEntry[0] : 'unknown';
+                    return { ...f, primary_flag: primaryFlag };
+                });
+            }
 
             return res.json({
                 success: true,
                 data: {
                     distribution: distribution[0],
-                    flags: formattedFlags,
-                    impact: {
-                        estimated_savings: (distribution[0]?.low_trust || 0) * 2500,
-                        prevented_claims: distribution[0]?.low_trust || 0
-                    }
+                    riskiest_franchises: enrichedRisky,
+                    cleanest_franchises: cleanFranchises,
                 }
             });
         } catch (error: any) {
             console.error('Fraud analytics error:', error);
             return res.status(500).json({ success: false, error: 'Failed to fetch fraud analytics' });
+        }
+    }
+
+    /**
+     * Get per-franchise fraud drill-down
+     */
+    static async getFranchiseFraudDrilldown(req: Request, res: Response) {
+        try {
+            const franchiseName = req.params.franchiseName?.trim();
+            if (!franchiseName) return res.status(400).json({ success: false, error: 'Franchise name required' });
+
+            // 1. Overall stats
+            const [stats]: any = await db.execute(`
+                SELECT 
+                    COUNT(*) as total,
+                    ROUND(AVG(fraud_score), 1) as avg_score,
+                    MIN(fraud_score) as min_score,
+                    MAX(fraud_score) as max_score,
+                    SUM(CASE WHEN fraud_score < 40 THEN 1 ELSE 0 END) as high_risk_count,
+                    SUM(CASE WHEN fraud_score >= 40 AND fraud_score < 80 THEN 1 ELSE 0 END) as medium_risk_count,
+                    SUM(CASE WHEN fraud_score >= 80 THEN 1 ELSE 0 END) as low_risk_count
+                FROM warranty_registrations
+                WHERE TRIM(installer_name) = ? AND fraud_score IS NOT NULL
+            `, [franchiseName]);
+
+            // If no data, return empty stats but success:true to avoid "No data" flash
+            if (!stats[0] || stats[0].total === 0) {
+                return res.json({
+                    success: true,
+                    data: {
+                        stats: { total: 0, avg_score: 0, high_risk_count: 0, medium_risk_count: 0, low_risk_count: 0 },
+                        penalty_totals: { ip: 0, distance: 0, time: 0, consistency: 0 },
+                        histogram: [],
+                        recent_submissions: []
+                    }
+                });
+            }
+
+            // 2. Penalty totals
+            const [flagRows]: any = await db.execute(`
+                SELECT fraud_flags FROM warranty_registrations
+                WHERE TRIM(installer_name) = ? AND fraud_flags IS NOT NULL AND fraud_flags != '' AND fraud_flags != '{}'
+            `, [franchiseName]);
+
+            const penaltyTotals: Record<string, number> = { ip: 0, distance: 0, time: 0, consistency: 0 };
+            let missingDataCount = 0;
+            flagRows.forEach((row: any) => {
+                try {
+                    const f = typeof row.fraud_flags === 'string' ? JSON.parse(row.fraud_flags) : row.fraud_flags;
+                    penaltyTotals.ip += (f.ip_penalty || 0);
+                    penaltyTotals.distance += (f.distance_penalty || 0);
+                    penaltyTotals.time += (f.time_penalty || 0);
+                    penaltyTotals.consistency += (f.consistency_penalty || 0);
+                    if (f.is_missing_data) missingDataCount++;
+                } catch (e) {}
+            });
+
+            // 3. Score histogram
+            const [histogram]: any = await db.execute(`
+                SELECT 
+                    FLOOR(fraud_score / 10) * 10 as bucket,
+                    COUNT(*) as count
+                FROM warranty_registrations
+                WHERE TRIM(installer_name) = ? AND fraud_score IS NOT NULL
+                GROUP BY bucket
+                ORDER BY bucket ASC
+            `, [franchiseName]);
+
+            // 4. All submissions for full audit
+            const [allSubmissions]: any = await db.execute(`
+                SELECT 
+                    id, customer_name, customer_email, status,
+                    fraud_score, fraud_flags, created_at
+                FROM warranty_registrations
+                WHERE TRIM(installer_name) = ? AND fraud_score IS NOT NULL
+                ORDER BY created_at DESC
+            `, [franchiseName]);
+
+            return res.json({
+                success: true,
+                data: {
+                    stats: stats[0],
+                    penalty_totals: penaltyTotals,
+                    missing_data_count: missingDataCount,
+                    histogram: histogram.map((h: any) => ({
+                        range: `${h.bucket}–${Math.min(h.bucket + 9, 100)}`,
+                        count: h.count,
+                        bucket: h.bucket
+                    })),
+                    recent_submissions: allSubmissions.map((s: any) => ({
+                        ...s,
+                        fraud_flags: (() => { try { return typeof s.fraud_flags === 'string' ? JSON.parse(s.fraud_flags) : s.fraud_flags; } catch { return {}; } })()
+                    }))
+                }
+            });
+        } catch (error: any) {
+            console.error('Franchise fraud drilldown error:', error);
+            return res.status(500).json({ success: false, error: 'Failed to fetch franchise fraud details' });
+        }
+    }
+
+    /**
+     * Get geographic performance stats (State/City wise)
+     */
+    static async getGeographicStats(req: Request, res: Response) {
+        try {
+            const period = (req.query.period as string) || 'month';
+            const year = req.query.year as string;
+            const month = req.query.month as string;
+            const startDate = req.query.startDate as string;
+            const endDate = req.query.endDate as string;
+            const selectedState = req.query.state as string;
+
+            let whereClause = '1=1';
+            const params: any[] = [];
+
+            if (period === 'all') {
+                // No date filter — show everything
+            } else if (period === 'year') {
+                whereClause = 'YEAR(w.created_at) = ?';
+                params.push(year || new Date().getFullYear().toString());
+            } else if (period === 'month') {
+                whereClause = 'YEAR(w.created_at) = ? AND MONTH(w.created_at) = ?';
+                params.push(year || new Date().getFullYear().toString(), month || (new Date().getMonth() + 1).toString());
+            } else if (period === 'week') {
+                whereClause = 'DATE(w.created_at) >= DATE_SUB(CURDATE(), INTERVAL 6 DAY)';
+            } else if (period === 'custom' && startDate && endDate) {
+                whereClause = 'DATE(w.created_at) >= ? AND DATE(w.created_at) <= ?';
+                params.push(startDate, endDate);
+            }
+
+            // Grouping by State or City
+            const groupBy = selectedState ? 'v.city' : 'v.state';
+            const geoFilter = selectedState ? 'AND v.state = ?' : '';
+            
+            // 1. Get Master List of All Regions (States or Cities) from vendor_details
+            // This ensures we show regions even with 0 data
+            const [allRegions]: any = await db.execute(`
+                SELECT DISTINCT ${selectedState ? 'city' : 'state'} as label 
+                FROM vendor_details 
+                WHERE ${selectedState ? 'state = ?' : 'state IS NOT NULL'}
+                ORDER BY label ASC
+            `, selectedState ? [selectedState] : []);
+
+            const geoMap = new Map();
+            allRegions.forEach((r: any) => {
+                if (r.label) {
+                    const key = r.label.toString().trim().toUpperCase();
+                    geoMap.set(key, { 
+                        label: r.label,
+                        warranty: { total_warranties: 0, approved_warranties: 0, pending_admin_warranties: 0, rejected_warranties: 0 },
+                        product: { total_products: 0, top_product: null, top_product_count: 0 },
+                        grievance: { total_grievances: 0 },
+                        posm: { total_posm: 0 }
+                    });
+                }
+            });
+
+            if (selectedState) params.push(selectedState);
+
+            // Define labels for grouping and filtering separately
+            const groupLabel = selectedState ? 'COALESCE(vd_m.city, vd_i.city, vd_owner.city)' : 'COALESCE(vd_m.state, vd_i.state, vd_owner.state)';
+            const stateFilterLabel = 'COALESCE(vd_m.state, vd_i.state, vd_owner.state)';
+            
+            const joinLogic = `
+                LEFT JOIN manpower m ON w.manpower_id = m.id
+                LEFT JOIN vendor_details vd_m ON (w.manpower_id IS NOT NULL AND w.manpower_id NOT LIKE 'owner-%' AND m.vendor_id = vd_m.id)
+                LEFT JOIN vendor_details vd_i ON (
+                    (LOWER(TRIM(w.installer_name)) = LOWER(TRIM(vd_i.store_name)) OR 
+                     LOWER(TRIM(w.installer_name)) = LOWER(TRIM(CONCAT(vd_i.store_name, ' - ', vd_i.city)))) 
+                    AND LOWER(TRIM(w.installer_contact)) = LOWER(TRIM(vd_i.store_email))
+                )
+                LEFT JOIN vendor_details vd_owner ON (
+                    w.manpower_id LIKE 'owner-%' AND 
+                    vd_owner.id = REPLACE(w.manpower_id, 'owner-', '')
+                )
+            `;
+
+            // Fetch Warranty Stats per Geo — using triple-path join with DISTINCT for perfect accuracy
+            const [warrantyStats]: any = await db.execute(`
+                SELECT 
+                    ${groupLabel} as label,
+                    COUNT(DISTINCT w.id) as total_warranties,
+                    COUNT(DISTINCT CASE WHEN w.status = 'validated' THEN w.id END) as approved_warranties,
+                    COUNT(DISTINCT CASE WHEN w.status = 'pending' THEN w.id END) as pending_admin_warranties,
+                    COUNT(DISTINCT CASE WHEN w.status = 'rejected' THEN w.id END) as rejected_warranties
+                FROM warranty_registrations w
+                ${joinLogic}
+                WHERE (
+                    -- Items approved in this period
+                    (w.status = 'validated' AND ${whereClause.replace(/w.created_at/g, 'w.validated_at')})
+                    OR
+                    -- OR Items registered in this period (that aren't approved yet)
+                    (w.status != 'validated' AND ${whereClause})
+                )
+                ${selectedState ? `AND LOWER(TRIM(${stateFilterLabel})) = LOWER(TRIM(?))` : ''}
+                AND ${groupLabel} IS NOT NULL
+                GROUP BY label
+                ORDER BY total_warranties DESC
+            `, [ ...params, ...params, ...(selectedState ? [selectedState] : [])]);
+
+            // Fetch Product Mix per Geo — extracting actual product name from JSON for granular reporting
+            const [productMix]: any = await db.execute(`
+                SELECT 
+                    ${groupLabel} as label,
+                    JSON_UNQUOTE(JSON_EXTRACT(w.product_details, '$.productName')) as product_name,
+                    COUNT(DISTINCT w.id) as count
+                FROM warranty_registrations w
+                ${joinLogic}
+                WHERE (
+                    -- Items approved in this period
+                    (w.status = 'validated' AND ${whereClause.replace(/w.created_at/g, 'w.validated_at')})
+                    OR
+                    -- OR Items registered in this period (that aren't approved yet)
+                    (w.status != 'validated' AND ${whereClause})
+                )
+                ${selectedState ? `AND LOWER(TRIM(${stateFilterLabel})) = LOWER(TRIM(?))` : ''}
+                AND ${groupLabel} IS NOT NULL
+                GROUP BY label, product_name
+                ORDER BY label, count DESC
+            `, [ ...params, ...params, ...(selectedState ? [selectedState] : [])]);
+
+            // Fetch Grievance Stats per Geo
+            const [grievanceStats]: any = await db.execute(`
+                SELECT 
+                    ${selectedState ? 'v.city' : 'v.state'} as label,
+                    COUNT(*) as total_grievances
+                FROM grievances g
+                JOIN vendor_details v ON (
+                    (g.source_type = 'customer' AND g.franchise_id = v.id) OR
+                    (g.source_type = 'franchise' AND g.customer_id = v.user_id)
+                )
+                WHERE DATE(g.created_at) >= ? AND DATE(g.created_at) <= ? 
+                ${selectedState ? `AND LOWER(TRIM(v.state)) = LOWER(TRIM(?))` : ''}
+                GROUP BY label
+            `, [startDate || '2000-01-01', endDate || getISTDate(), ...(selectedState ? [selectedState] : [])]);
+
+            // Fetch POSM Stats per Geo
+            const [posmStats]: any = await db.execute(`
+                SELECT 
+                    ${selectedState ? 'v.city' : 'v.state'} as label,
+                    COUNT(*) as total_posm
+                FROM posm_requests p
+                JOIN vendor_details v ON p.franchise_id = v.id
+                WHERE DATE(p.created_at) >= ? AND DATE(p.created_at) <= ? 
+                ${selectedState ? `AND LOWER(TRIM(v.state)) = LOWER(TRIM(?))` : ''}
+                GROUP BY label
+            `, [startDate || '2000-01-01', endDate || getISTDate(), ...(selectedState ? [selectedState] : [])]);
+
+            // Merge everything into a unified geo response
+            // Use case-insensitive mapping to handle inconsistent DB casing (e.g. "HARYANA" vs "Haryana")
+            warrantyStats.forEach((w: any) => {
+                const key = w.label?.toString().trim().toUpperCase();
+                if (!key) return;
+
+                let existing = geoMap.get(key);
+                
+                // If not in master list (e.g. region with warranties but no current active vendors), add it
+                if (!existing) {
+                    existing = {
+                        label: w.label,
+                        warranty: { total_warranties: 0, approved_warranties: 0, pending_admin_warranties: 0, rejected_warranties: 0 },
+                        product: { total_products: 0, top_product: null, top_product_count: 0 },
+                        grievance: { total_grievances: 0 },
+                        posm: { total_posm: 0 }
+                    };
+                    geoMap.set(key, existing);
+                }
+
+                // Cast all warranty counts to Number to avoid BigInt serialization issues
+                w.total_warranties = Number(w.total_warranties);
+                w.approved_warranties = Number(w.approved_warranties);
+                w.pending_admin_warranties = Number(w.pending_admin_warranties);
+                w.rejected_warranties = Number(w.rejected_warranties);
+                existing.warranty = w;
+            });
+
+            productMix.forEach((pm: any) => {
+                const key = pm.label?.toString().trim().toUpperCase();
+                if (!key) return;
+
+                const existing = geoMap.get(key);
+                if (existing && existing.product) {
+                    // Initialize mix array if not exists
+                    if (!existing.product.mix) {
+                        existing.product.mix = [];
+                    }
+
+                    if (!existing.product.top_product) {
+                        existing.product.top_product = pm.product_name;
+                        existing.product.top_product_count = Number(pm.count);
+                    }
+                    
+                    existing.product.mix.push({
+                        name: pm.product_name,
+                        count: Number(pm.count)
+                    });
+
+                    existing.product.total_products = (Number(existing.product.total_products) || 0) + Number(pm.count);
+                }
+            });
+
+            grievanceStats.forEach((g: any) => {
+                const key = g.label?.toString().trim().toUpperCase();
+                if (!key) return;
+                const existing = geoMap.get(key);
+                if (existing) {
+                    g.total_grievances = Number(g.total_grievances);
+                    existing.grievance = g;
+                }
+            });
+
+            posmStats.forEach((p: any) => {
+                const key = p.label?.toString().trim().toUpperCase();
+                if (!key) return;
+                const existing = geoMap.get(key);
+                if (existing) {
+                    p.total_posm = Number(p.total_posm);
+                    existing.posm = p;
+                }
+            });
+
+            return res.json({
+                success: true,
+                data: Array.from(geoMap.values())
+            });
+        } catch (error: any) {
+            console.error('Geographic stats error:', {
+                message: error.message,
+                code: error.code,
+                sqlMessage: error.sqlMessage,
+                stack: error.stack
+            });
+            return res.status(500).json({ success: false, error: 'Failed to fetch geographic stats' });
         }
     }
 }

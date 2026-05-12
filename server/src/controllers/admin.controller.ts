@@ -735,8 +735,13 @@ export class AdminController {
             console.log(`Updating warranty: uid=${uid}, resolved_uid=${warrantyData.uid}, new_status=${status}`);
 
             await db.execute(
-                'UPDATE warranty_registrations SET status = ?, rejection_reason = ? WHERE uid = ?',
-                [status, status === 'rejected' ? rejectionReason : null, warrantyData.uid]
+                `UPDATE warranty_registrations SET 
+                    status = ?, 
+                    rejection_reason = ?,
+                    validated_at = CASE WHEN ? = 'validated' THEN NOW() ELSE validated_at END,
+                    rejected_at = CASE WHEN ? = 'rejected' THEN NOW() ELSE rejected_at END
+                WHERE uid = ?`,
+                [status, status === 'rejected' ? rejectionReason : null, status, status, warrantyData.uid]
             );
 
             // Mark UID as used ONLY when validated, and free it up if rejected
@@ -1080,7 +1085,7 @@ export class AdminController {
             `;
 
             const mainParams = [...params, limit, offset];
-            const [warrantyList]: any = await db.execute(mainQuery, mainParams);
+            const [warrantyList]: any = await db.query(mainQuery, mainParams);
 
             // Parse JSON product_details
             const formattedWarranties = warrantyList.map((warranty: any) => ({
@@ -1707,7 +1712,7 @@ export class AdminController {
             const totalCount = countResult[0].total;
             const totalPages = Math.ceil(totalCount / limit);
 
-            const [resubmissions]: any = await db.execute(`
+            const [resubmissions]: any = await db.query(`
                 SELECT 
                     wr.*,
                     p.name as submitted_by_name,
@@ -1767,7 +1772,8 @@ export class AdminController {
                     customer_address = ?, car_make = ?, car_model = ?, car_year = ?,
                     registration_number = ?, purchase_date = ?, installer_name = ?, 
                     installer_contact = ?, product_details = ?, manpower_id = ?,
-                    status = 'validated', seat_cover_photo_url = ?, car_outer_photo_url = ?
+                    status = 'validated', seat_cover_photo_url = ?, car_outer_photo_url = ?,
+                    validated_at = NOW()
                 WHERE uid = ?
             `, [
                 staging.customer_name, staging.customer_email, staging.customer_phone,

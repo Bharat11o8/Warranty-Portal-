@@ -124,25 +124,24 @@ interface AdminSidebarProps {
 
 // Maps sidebar module IDs to permission keys
 const moduleToPermKey: Record<string, string> = {
-    'overview':         'overview',
-    'warranties':       'warranties',
+    'overview': 'overview',
+    'warranties': 'warranties',
     'warranty-products': 'warranty_products',
-    'uid-management':   'uid_management',
-    'warranty-form':    'warranty_form',
-    'vendors':          'vendors',
-    'customers':        'customers',
-    'products':         'products',
-    'announcements':    'announcements',
-    'grievances':       'grievances',
-    'posm':             'posm',
-    'ecatalogue':       'ecatalogue',
-    'terms':            'terms',
-    'old-warranties':   'old_warranties',
-    'activity-logs':    'activity_logs',
-    'admins':           'admins',   // Super Admin only
-    'ecatalogue':       'ecatalogue',
-    'analytics':        'overview', 
-    'profile':          'profile',  // Always visible
+    'uid-management': 'uid_management',
+    'warranty-form': 'warranty_form',
+    'vendors': 'vendors',
+    'customers': 'customers',
+    'products': 'products',
+    'announcements': 'announcements',
+    'grievances': 'grievances',
+    'posm': 'posm',
+    'ecatalogue': 'ecatalogue',
+    'terms': 'terms',
+    'old-warranties': 'old_warranties',
+    'activity-logs': 'activity_logs',
+    'admins': 'admins',   // Super Admin only
+    'analytics': 'overview',
+    'profile': 'profile',  // Always visible
 };
 
 // Extracted Sidebar Content for reuse in Mobile Sheet
@@ -312,7 +311,7 @@ export const SidebarContent = ({
                                     <div className="flex-1 min-w-0 animate-in-fade">
                                         <p className="text-xs font-black text-slate-800 truncate uppercase mt-0.5">{user?.name || "Administrator"}</p>
                                         <p className="text-[10px] font-bold tracking-tighter truncate uppercase leading-none flex items-center gap-1"
-                                           style={{ color: user?.isSuperAdmin ? '#f97316' : '#64748b' }}>
+                                            style={{ color: user?.isSuperAdmin ? '#f97316' : '#64748b' }}>
                                             {user?.isSuperAdmin ? (
                                                 <><Crown className="h-2.5 w-2.5" />Super Admin</>
                                             ) : 'Admin'}

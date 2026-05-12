@@ -12,5 +12,7 @@ router.get('/time-series', ...adminAuth, AnalyticsController.getTimeSeriesData);
 router.get('/products', ...adminAuth, AnalyticsController.getProductDistribution);
 router.get('/franchises', ...adminAuth, AnalyticsController.getFranchiseStats);
 router.get('/fraud', ...adminAuth, AnalyticsController.getFraudAnalytics);
+router.get('/fraud/franchise/:franchiseName', ...adminAuth, AnalyticsController.getFranchiseFraudDrilldown);
+router.get('/geographic', ...adminAuth, AnalyticsController.getGeographicStats);
 
 export default router;

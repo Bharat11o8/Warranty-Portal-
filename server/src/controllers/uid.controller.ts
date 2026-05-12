@@ -36,9 +36,9 @@ export class UIDController {
 
             // Step 1: Basic validation and intra-batch duplicate check
             for (const uid of uids) {
-                // Case 4: Invalid Format (API Sync allows alphanumeric up to 30 chars for legacy support)
-                if (typeof uid !== 'string' || !/^[a-zA-Z0-9]{13,30}$/.test(uid)) {
-                    results.push({ uid, status: 'invalid_format', message: 'UID must be a 13-30 character alphanumeric string' });
+                // Updated validation: Strictly 13-16 digits to match frontend and guide
+                if (typeof uid !== 'string' || !/^\d{13,16}$/.test(uid)) {
+                    results.push({ uid, status: 'invalid_format', message: 'UID must be a 13-16 digit number string' });
                     stats.invalid_format++;
                     continue;
                 }
@@ -265,7 +265,7 @@ export class UIDController {
             );
 
             // Get paginated results with expanded warranty data
-            const [uids]: any = await db.execute(
+            const [uids]: any = await db.query(
                 `SELECT 
                     p.uid, 
                     p.is_used, 
