@@ -281,7 +281,7 @@ export const AdminAnalytics = ({ onNavigate }: { onNavigate: (module: AdminModul
 
     useEffect(() => {
         fetchGeoData();
-    }, [geoPeriod, geoYear, geoMonth, geoStart, geoEnd, selectedState]);
+    }, [geoPeriod, geoYear, geoMonth, geoStart, geoEnd, selectedState, geoMetric]);
 
     // Initial load for everything
     useEffect(() => {
@@ -1085,7 +1085,7 @@ export const AdminAnalytics = ({ onNavigate }: { onNavigate: (module: AdminModul
                                                             #{idx + 1}
                                                         </div>
                                                         <div className="flex flex-col">
-                                                            <span className="text-sm font-black text-slate-900 tracking-tight">{item.label}</span>
+                                                            <span className="text-sm font-black text-slate-900 tracking-tight">{item.label?.toUpperCase()}</span>
                                                             <div className="flex items-center gap-2 flex-wrap">
                                                                 <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">{val} {geoMetric === 'product' ? 'Sales' : geoMetric}</span>
                                                                 {item.product?.mix && geoMetric === 'product' && !isExpanded && (
@@ -1123,16 +1123,48 @@ export const AdminAnalytics = ({ onNavigate }: { onNavigate: (module: AdminModul
                                                 </div>
 
                                                 {/* Expanded Product Breakdown for City */}
-                                                {isExpanded && item.product?.mix && (
+                                                {/* Expanded Metric Breakdown for City */}
+                                                {isExpanded && (
                                                     <div className="mx-8 p-6 bg-slate-900 rounded-[24px] shadow-inner animate-in slide-in-from-top-2 duration-300">
-                                                        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                                                            {item.product.mix.map((m: any, i: number) => (
-                                                                <div key={i} className="flex flex-col p-3 rounded-xl bg-white/5 border border-white/10">
-                                                                    <span className="text-[10px] font-black text-white/40 uppercase tracking-widest">{m.name}</span>
-                                                                    <span className="text-xl font-black text-white">{m.count} <span className="text-[10px] opacity-40">units</span></span>
+                                                        {geoMetric === 'warranty' ? (
+                                                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                                                <div className="flex flex-col p-3 rounded-xl bg-white/5 border border-white/10">
+                                                                    <span className="text-[10px] font-black text-emerald-400 uppercase tracking-widest">Validated</span>
+                                                                    <span className="text-xl font-black text-white">{item.warranty?.approved_warranties || 0}</span>
                                                                 </div>
-                                                            ))}
-                                                        </div>
+                                                                <div className="flex flex-col p-3 rounded-xl bg-white/5 border border-white/10">
+                                                                    <span className="text-[10px] font-black text-amber-400 uppercase tracking-widest">Pending</span>
+                                                                    <span className="text-xl font-black text-white">{item.warranty?.pending_admin_warranties || 0}</span>
+                                                                </div>
+                                                                <div className="flex flex-col p-3 rounded-xl bg-white/5 border border-white/10">
+                                                                    <span className="text-[10px] font-black text-rose-400 uppercase tracking-widest">Rejected</span>
+                                                                    <span className="text-xl font-black text-white">{item.warranty?.rejected_warranties || 0}</span>
+                                                                </div>
+                                                                <div className="flex flex-col p-3 rounded-xl bg-white/5 border border-white/10">
+                                                                    <span className="text-[10px] font-black text-white/40 uppercase tracking-widest">Total</span>
+                                                                    <span className="text-xl font-black text-white">{item.warranty?.total_warranties || 0}</span>
+                                                                </div>
+                                                            </div>
+                                                        ) : geoMetric === 'product' && item.product?.mix ? (
+                                                            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                                                                {item.product.mix.map((m: any, i: number) => (
+                                                                    <div key={i} className="flex flex-col p-3 rounded-xl bg-white/5 border border-white/10">
+                                                                        <span className="text-[10px] font-black text-white/40 uppercase tracking-widest">{m.name}</span>
+                                                                        <span className="text-xl font-black text-white">{m.count} <span className="text-[10px] opacity-40">units</span></span>
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        ) : (
+                                                            <div className="flex items-center justify-between p-4 rounded-xl bg-white/5 border border-white/10">
+                                                                <div className="flex flex-col">
+                                                                    <span className="text-[10px] font-black text-white/40 uppercase tracking-widest">Selected Metric: {geoMetric}</span>
+                                                                    <span className="text-2xl font-black text-white">{val} Total</span>
+                                                                </div>
+                                                                <div className="h-12 w-12 rounded-full bg-white/10 flex items-center justify-center">
+                                                                    {geoMetric === 'grievance' ? <MessageSquare className="h-6 w-6 text-rose-400" /> : <Package className="h-6 w-6 text-amber-400" />}
+                                                                </div>
+                                                            </div>
+                                                        )}
                                                     </div>
                                                 )}
                                             </div>
