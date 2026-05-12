@@ -247,6 +247,7 @@ export const AdminAnalytics = ({ onNavigate }: { onNavigate: (module: AdminModul
 
     const fetchGeoData = async () => {
         try {
+            setGeoData([]); // Clear old data to prevent stale view
             setGeoLoading(true);
             const params = new URLSearchParams({
                 period: geoPeriod,
@@ -827,26 +828,15 @@ export const AdminAnalytics = ({ onNavigate }: { onNavigate: (module: AdminModul
                     <CardHeader className="p-8 space-y-6 border-b border-slate-50">
                         {/* Row 1: Title & Drill-down Control */}
                         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                            <div className="space-y-1">
-                                <div className="flex items-center gap-3">
-                                    <div className="h-10 w-10 rounded-2xl bg-emerald-600 flex items-center justify-center shadow-lg shadow-emerald-100">
-                                        <MapPin className="h-5 w-5 text-white" />
+                                <div className="flex items-center gap-4">
+                                    <div className="h-14 w-14 rounded-3xl bg-emerald-100 flex items-center justify-center shadow-inner">
+                                        <MapPin className="h-7 w-7 text-emerald-600" />
                                     </div>
-                                    <div>
-                                        <CardTitle className="text-2xl font-black text-slate-800 uppercase tracking-tighter">
-                                            Geographic Performance
-                                        </CardTitle>
-                                        {selectedState && (
-                                            <button 
-                                                onClick={() => setSelectedState(null)}
-                                                className="text-[10px] font-black text-emerald-600 uppercase tracking-widest flex items-center gap-1 hover:gap-2 transition-all"
-                                            >
-                                                <ChevronRight className="h-3 w-3 rotate-180" /> Back to National View
-                                            </button>
-                                        )}
+                                    <div className="space-y-1">
+                                        <CardTitle className="text-3xl font-black text-slate-800 uppercase tracking-tighter">Geographic Performance</CardTitle>
+                                        <CardDescription className="text-emerald-600/60 text-[11px] font-bold uppercase tracking-[0.2em]">Regional penetration & market share</CardDescription>
                                     </div>
                                 </div>
-                            </div>
 
                             {/* Period Segmented Control (Localized) */}
                             <div className="flex items-center gap-1 bg-slate-100 p-1.5 rounded-[22px] border border-slate-200/50 w-fit self-end md:self-auto">
@@ -885,37 +875,39 @@ export const AdminAnalytics = ({ onNavigate }: { onNavigate: (module: AdminModul
                                                 type="date"
                                                 value={geoEnd}
                                                 onChange={(e) => setGeoEnd(e.target.value)}
-                                                className="bg-white border border-slate-200 rounded-[16px] px-4 py-2 text-[11px] font-bold text-slate-700 outline-none hover:border-slate-300 transition-all shadow-sm cursor-pointer"
                                             />
                                         </div>
                                     ) : (geoPeriod === 'year' || geoPeriod === 'month') ? (
                                         <>
-                                            {/* Year Selector */}
-                                            <select 
+                                            <ModernSelect
                                                 value={geoYear}
-                                                onChange={(e) => setGeoYear(e.target.value)}
-                                                className="bg-white border border-slate-200 rounded-[16px] px-4 py-2 text-[11px] font-bold text-slate-700 outline-none hover:border-slate-300 transition-all shadow-sm cursor-pointer min-w-[100px]"
-                                            >
-                                                {YEARS.map(y => <option key={y} value={y}>{y}</option>)}
-                                            </select>
-
-                                            {/* Month Selector */}
+                                                onChange={setGeoYear}
+                                                options={YEARS.map(y => ({ value: y, label: y }))}
+                                            />
                                             {geoPeriod === 'month' && (
-                                                <select 
+                                                <ModernSelect
                                                     value={geoMonth}
-                                                    onChange={(e) => setGeoMonth(e.target.value)}
-                                                    className="bg-white border border-slate-200 rounded-[16px] px-4 py-2 text-[11px] font-bold text-slate-700 outline-none hover:border-slate-300 transition-all shadow-sm cursor-pointer min-w-[120px]"
-                                                >
-                                                    {MONTHS.map((m, i) => <option key={m} value={i + 1}>{m}</option>)}
-                                                </select>
+                                                    onChange={setGeoMonth}
+                                                    options={MONTHS.map((m, i) => ({ value: (i + 1).toString(), label: m }))}
+                                                />
                                             )}
                                         </>
                                     ) : (
-                                        <span className="px-4 py-2 bg-white border border-slate-200 rounded-[16px] text-[11px] font-bold text-slate-500 shadow-sm">
-                                            {geoPeriod === 'all' ? '📊 All Time Records' : '📅 Last 7 Days'}
-                                        </span>
+                                        <div className="px-4 py-2 bg-slate-50 border border-slate-100 rounded-[16px] text-[11px] font-black uppercase tracking-widest text-slate-400">
+                                            {geoPeriod === 'all' ? 'Showing All History' : 'Last 7 Days Activity'}
+                                        </div>
                                     )}
                                 </div>
+
+                                {selectedState && (
+                                    <button 
+                                        onClick={() => setSelectedState(null)}
+                                        className="flex items-center gap-2 px-4 py-2 bg-slate-900 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-800 transition-all shadow-lg shadow-slate-200"
+                                    >
+                                        <X className="h-3 w-3" />
+                                        Back to National View
+                                    </button>
+                                )}
                             </div>
 
                             {/* Metric Selector (New) */}
@@ -962,7 +954,7 @@ export const AdminAnalytics = ({ onNavigate }: { onNavigate: (module: AdminModul
                                                 layout="vertical" 
                                                 data={geoData
                                                     .map(d => ({
-                                                        name: d.label,
+                                                        name: d.label?.toUpperCase(),
                                                         value: geoMetric === 'warranty' ? (d.warranty?.total_warranties || 0) :
                                                                geoMetric === 'product' ? (d.product?.total_products || 0) :
                                                                geoMetric === 'grievance' ? (d.grievance?.total_grievances || 0) :
@@ -972,11 +964,6 @@ export const AdminAnalytics = ({ onNavigate }: { onNavigate: (module: AdminModul
                                                     .sort((a, b) => b.value - a.value)
                                                 }
                                                 margin={{ left: 20, right: 60, top: 20, bottom: 20 }}
-                                            onClick={(data) => {
-                                                if (data && data.activePayload && !selectedState) {
-                                                    setSelectedState(data.activePayload[0].payload.name);
-                                                }
-                                            }}
                                         >
                                             <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
                                             <XAxis type="number" hide />
@@ -1028,6 +1015,11 @@ export const AdminAnalytics = ({ onNavigate }: { onNavigate: (module: AdminModul
                                                 radius={[0, 8, 8, 0]} 
                                                 barSize={20}
                                                 className="cursor-pointer"
+                                                onClick={(data: any) => {
+                                                    if (data && data.name && !selectedState) {
+                                                        setSelectedState(data.name);
+                                                    }
+                                                }}
                                             >
                                                 {geoData.map((_, index) => (
                                                     <Cell 
@@ -1047,7 +1039,9 @@ export const AdminAnalytics = ({ onNavigate }: { onNavigate: (module: AdminModul
                                 <div className="space-y-3">
                                     <div className="flex items-center px-8 py-4 bg-slate-900 rounded-[24px] mb-4 shadow-xl shadow-slate-200/50">
                                         <div className="flex-1 flex flex-col">
-                                            <span className="text-[11px] font-black uppercase text-white/40 tracking-[0.2em]">{selectedState ? 'CITY DRILL-DOWN' : 'NATIONAL PERFORMANCE'}</span>
+                                            <span className="text-[11px] font-black uppercase text-white tracking-[0.2em]">
+                                                {selectedState ? `CITY DRILL-DOWN: ${selectedState}` : 'NATIONAL PERFORMANCE'}
+                                            </span>
                                             <span className="text-white text-[10px] font-bold opacity-60">High-Fidelity Regional Ranking</span>
                                         </div>
                                     </div>
