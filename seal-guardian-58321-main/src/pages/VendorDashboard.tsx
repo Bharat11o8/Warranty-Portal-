@@ -142,7 +142,7 @@ const WarrantyList = ({ items, showReason = false, user, onEditWarranty, onVerif
                             </div>
 
                             {/* Pending Verification Actions */}
-                            {isPendingVerification && (
+                            {(isPendingVerification || (warranty.status === 'pending_vendor' && onVerify && onReject)) && (
                                 <div className="relative mx-1 p-3 bg-blue-500/5 rounded-b-xl border border-t-0 border-blue-500/10 animate-in slide-in-from-top-1 z-0">
                                     <div className="flex gap-2">
                                         <Button
@@ -828,6 +828,8 @@ const VendorDashboard = () => {
                             <WarrantyList
                                 items={filterAndSortWarranties(warranties)}
                                 user={user}
+                                onVerify={handleVerifyWarranty}
+                                onReject={handleRejectWarranty}
                                 onSelectWarranty={setSpecSheetData}
                             />
                         )}

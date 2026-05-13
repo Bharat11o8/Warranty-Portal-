@@ -290,16 +290,29 @@ export class AdminController {
                        p.name as submitted_by_name, 
                        p.email as submitted_by_email,
                        m.name as manpower_name_from_db,
-                       (SELECT latitude FROM vendor_details WHERE id = ?) as store_lat,
-                       (SELECT longitude FROM vendor_details WHERE id = ?) as store_lng
+                       COALESCE(vd_m.store_name, vd_i.store_name, vd_owner.store_name) as vendor_store_name,
+                       COALESCE(vd_m.store_email, vd_i.store_email, vd_owner.store_email) as vendor_store_email,
+                       vp.phone_number as vendor_phone_number,
+                       COALESCE(vd_m.latitude, vd_i.latitude, vd_owner.latitude) as store_lat,
+                       COALESCE(vd_m.longitude, vd_i.longitude, vd_owner.longitude) as store_lng
                 FROM warranty_registrations wr
                 LEFT JOIN profiles p ON wr.user_id = p.id
                 LEFT JOIN manpower m ON wr.manpower_id = m.id
+                LEFT JOIN vendor_details vd_m ON (wr.manpower_id IS NOT NULL AND wr.manpower_id NOT LIKE 'owner-%' AND m.vendor_id = vd_m.id)
+                LEFT JOIN vendor_details vd_i ON (
+                    (wr.installer_name = vd_i.store_name OR wr.installer_name = CONCAT(vd_i.store_name, ' - ', vd_i.city)) 
+                    AND wr.installer_contact = vd_i.store_email
+                )
+                LEFT JOIN vendor_details vd_owner ON (
+                    wr.manpower_id LIKE 'owner-%' AND
+                    vd_owner.id = REPLACE(wr.manpower_id, 'owner-', '')
+                )
+                LEFT JOIN profiles vp ON COALESCE(vd_m.user_id, vd_i.user_id, vd_owner.user_id) = vp.id
                 WHERE (wr.manpower_id IN (SELECT id FROM manpower WHERE vendor_id = ?)
                    OR wr.installer_name = ?
                    OR wr.user_id = ?)
                 ORDER BY wr.created_at DESC
-            `, [vendorData.vendor_details_id, vendorData.vendor_details_id, vendorData.vendor_details_id, vendorData.store_name, vendorData.user_id]);
+            `, [vendorData.vendor_details_id, vendorData.store_name, vendorData.user_id]);
 
             res.json({
                 success: true,
@@ -1446,11 +1459,24 @@ export class AdminController {
                     p.name as submitted_by_name,
                     p.email as submitted_by_email,
                     m.name as manpower_name_from_db,
-                    vd.store_name as vendor_store_name
+                    COALESCE(vd_m.store_name, vd_i.store_name, vd_owner.store_name) as vendor_store_name,
+                    COALESCE(vd_m.store_email, vd_i.store_email, vd_owner.store_email) as vendor_store_email,
+                    vp.phone_number as vendor_phone_number,
+                    COALESCE(vd_m.latitude, vd_i.latitude, vd_owner.latitude) as store_lat,
+                    COALESCE(vd_m.longitude, vd_i.longitude, vd_owner.longitude) as store_lng
                 FROM warranty_registrations wr
                 LEFT JOIN profiles p ON wr.user_id = p.id
                 LEFT JOIN manpower m ON wr.manpower_id = m.id
-                LEFT JOIN vendor_details vd ON (wr.installer_name = vd.store_name AND wr.installer_contact = vd.store_email)
+                LEFT JOIN vendor_details vd_m ON (wr.manpower_id IS NOT NULL AND wr.manpower_id NOT LIKE 'owner-%' AND m.vendor_id = vd_m.id)
+                LEFT JOIN vendor_details vd_i ON (
+                    (wr.installer_name = vd_i.store_name OR wr.installer_name = CONCAT(vd_i.store_name, ' - ', vd_i.city)) 
+                    AND wr.installer_contact = vd_i.store_email
+                )
+                LEFT JOIN vendor_details vd_owner ON (
+                    wr.manpower_id LIKE 'owner-%' AND
+                    vd_owner.id = REPLACE(wr.manpower_id, 'owner-', '')
+                )
+                LEFT JOIN profiles vp ON COALESCE(vd_m.user_id, vd_i.user_id, vd_owner.user_id) = vp.id
                 WHERE wr.customer_email = ?
                 ORDER BY wr.created_at DESC
             `, [email]);

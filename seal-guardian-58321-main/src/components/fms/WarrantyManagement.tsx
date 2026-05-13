@@ -296,18 +296,6 @@ export const WarrantyManagement = ({
                                                     <h4 className="font-bold text-sm md:text-base text-slate-800 truncate pr-2 tracking-tight">
                                                         {warranty.registration_number || (typeof warranty.product_details === 'string' ? JSON.parse(warranty.product_details || '{}').carRegistration : warranty.product_details?.carRegistration) || 'N/A'}
                                                     </h4>
-                                                    {/* Mobile-only status indicator */}
-                                                    <span className={cn(
-                                                        "lg:hidden shrink-0 px-2 py-0.5 rounded-full text-[8px] font-black uppercase",
-                                                        warranty.status === 'validated' ? "bg-green-100 text-green-600" :
-                                                            warranty.status === 'pending_vendor' ? "bg-blue-100 text-blue-600" :
-                                                                warranty.status === 'pending' ? "bg-amber-100 text-amber-600" :
-                                                                    "bg-red-100 text-red-600"
-                                                    )}>
-                                                        {warranty.status === 'pending_vendor' ? '✓' :
-                                                            warranty.status === 'pending' ? '⏳' :
-                                                                warranty.status === 'validated' ? '✓' : '✗'}
-                                                    </span>
                                                 </div>
                                                 <div className="flex flex-col gap-1">
                                                     <div className="flex items-center gap-2 text-[10px] md:text-xs text-slate-500 font-medium tracking-tight truncate uppercase">
@@ -354,7 +342,7 @@ export const WarrantyManagement = ({
                                             </div>
                                         </div>
 
-                                        <div className="hidden lg:flex flex-row md:flex-row items-center justify-between md:justify-end md:shrink-0 gap-3 md:gap-6 mt-2 md:mt-0 pt-3 md:pt-0 border-t md:border-0 border-slate-50">
+                                        <div className="flex flex-row md:flex-row items-center justify-between md:justify-end md:shrink-0 gap-3 md:gap-6 mt-2 md:mt-0 pt-3 md:pt-0 border-t md:border-0 border-slate-50">
 
                                             <div className={cn(
                                                 "flex flex-col items-center justify-center gap-0.5 px-3 py-1.5 rounded-full text-[9px] md:text-[10px] font-black uppercase tracking-[0.1em] border min-w-[110px]",
