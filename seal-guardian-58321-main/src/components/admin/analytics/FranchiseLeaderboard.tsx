@@ -1,6 +1,7 @@
 import { TrendingUp, MapPin, ChevronRight, MessageSquare, Package } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { LoadingOverlay, EmptyState, ExportButton, exportToExcel } from './Common';
 import { cn } from '@/lib/utils';
 
 interface FranchiseLeaderboardProps {
@@ -19,8 +20,25 @@ export const FranchiseLeaderboard = ({ franchises }: FranchiseLeaderboardProps) 
                         </CardTitle>
                         <CardDescription className="text-slate-400 text-[11px] font-bold uppercase tracking-widest mt-1">Real-time performance across all service modules</CardDescription>
                     </div>
-                    <div className="h-10 w-10 rounded-2xl bg-slate-50 flex items-center justify-center border border-slate-100">
-                        <ChevronRight className="h-5 w-5 text-slate-300" />
+                    <div className="flex items-center gap-4">
+                        <ExportButton 
+                            onClick={() => exportToExcel(
+                                franchises?.map(f => ({
+                                    "Franchise Name": f.store_name,
+                                    "City": f.city,
+                                    "State": f.state,
+                                    "Total Registrations": f.total_registrations,
+                                    "Approved Warranties": f.warranty_count,
+                                    "Grievances": f.grievance_count,
+                                    "POSM Requests": f.posm_count,
+                                    "Status": f.is_verified ? "Approved" : f.verified_at ? "Rejected" : "Pending"
+                                })) || [], 
+                                `Franchise_Leaderboard_${new Date().toISOString().split('T')[0]}`
+                            )} 
+                        />
+                        <div className="h-10 w-10 rounded-2xl bg-slate-50 flex items-center justify-center border border-slate-100">
+                            <ChevronRight className="h-5 w-5 text-slate-300" />
+                        </div>
                     </div>
                 </div>
             </CardHeader>

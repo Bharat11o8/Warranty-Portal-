@@ -1,6 +1,6 @@
 import { Package, Box } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { LoadingOverlay, EmptyState } from './Common';
+import { LoadingOverlay, EmptyState, ExportButton, exportToExcel } from './Common';
 import { cn } from '@/lib/utils';
 
 interface ProductDistributionSectionProps {
@@ -138,6 +138,13 @@ export const ProductDistributionSection = ({
                             <span className="text-sm font-black text-white leading-none">{products?.length || 0} <span className="opacity-40 text-[10px]">SKUs</span></span>
                         </div>
                     </div>
+
+                    <ExportButton 
+                        onClick={() => exportToExcel(
+                            products || [], 
+                            `Product_Velocity_${prodPeriod}_${new Date().toISOString().split('T')[0]}`
+                        )} 
+                    />
                 </div>
             </CardHeader>
             <CardContent className="p-0 relative min-h-[400px]">

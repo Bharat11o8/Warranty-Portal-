@@ -2,7 +2,7 @@ import { Activity, ChevronDown } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { ResponsiveContainer, AreaChart, Area, CartesianGrid, XAxis, YAxis, Tooltip } from 'recharts';
 import { ModernSelect } from './ModernSelect';
-import { LoadingOverlay, EmptyState } from './Common';
+import { LoadingOverlay, EmptyState, ExportButton, exportToExcel } from './Common';
 import { cn } from '@/lib/utils';
 
 interface TrendSectionProps {
@@ -170,6 +170,13 @@ export const TrendSection = ({
                                 </div>
                             </div>
                         </div>
+
+                        <ExportButton 
+                            onClick={() => exportToExcel(
+                                timeSeries?.warranties || [], 
+                                `Warranty_Trends_${trendPeriod}_${new Date().toISOString().split('T')[0]}`
+                            )} 
+                        />
                     </div>
                 </div>
 

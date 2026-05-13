@@ -2,6 +2,7 @@ import { ShieldAlert } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { ModernSelect } from './ModernSelect';
+import { LoadingOverlay, EmptyState, ExportButton, exportToExcel } from './Common';
 import { cn } from '@/lib/utils';
 
 interface FraudAnalysisSectionProps {
@@ -41,6 +42,13 @@ export const FraudAnalysisSection = ({
                                 { value: 'time', label: 'Time/Speed Abuse' },
                                 { value: 'consistency', label: 'Consistency Flags' }
                             ]}
+                        />
+                        <ExportButton 
+                            onClick={() => {
+                                const risky = (fraudData?.riskiest_franchises || []).map((f: any) => ({ ...f, Type: 'RISKY' }));
+                                const clean = (fraudData?.cleanest_franchises || []).map((f: any) => ({ ...f, Type: 'TRUSTED' }));
+                                exportToExcel([...risky, ...clean], `Fraud_Analysis_Risk_Intelligence_${new Date().toISOString().split('T')[0]}`);
+                            }} 
                         />
                     </div>
                 </div>

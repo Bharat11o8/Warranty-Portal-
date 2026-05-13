@@ -2,7 +2,7 @@ import { MapPin, ShieldCheck, Box, MessageSquare, Package, X, ChevronRight } fro
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { ResponsiveContainer, BarChart, Bar, Cell, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
 import { ModernSelect } from './ModernSelect';
-import { LoadingOverlay, EmptyState } from './Common';
+import { LoadingOverlay, EmptyState, ExportButton, exportToExcel } from './Common';
 import { cn } from '@/lib/utils';
 
 interface GeographicSectionProps {
@@ -161,6 +161,19 @@ export const GeographicSection = ({
                                 </button>
                             ))}
                         </div>
+
+                        <ExportButton 
+                            onClick={() => exportToExcel(
+                                geoData?.map(d => ({
+                                    Location: d.label,
+                                    [geoMetric.toUpperCase()]: geoMetric === 'warranty' ? (d.warranty?.total_warranties || 0) :
+                                                              geoMetric === 'product' ? (d.product?.total_products || 0) :
+                                                              geoMetric === 'grievance' ? (d.grievance?.total_grievances || 0) :
+                                                              (d.posm?.total_posm || 0)
+                                })) || [], 
+                                `Geographic_Impact_${geoMetric}_${geoPeriod}_${new Date().toISOString().split('T')[0]}`
+                            )} 
+                        />
                     </div>
                 </div>
             </CardHeader>

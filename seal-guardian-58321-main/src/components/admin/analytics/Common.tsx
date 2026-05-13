@@ -1,4 +1,23 @@
-import { Package } from 'lucide-react';
+import { Package, Download } from 'lucide-react';
+import * as XLSX from 'xlsx';
+
+export const exportToExcel = (data: any[], fileName: string) => {
+    const ws = XLSX.utils.json_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Data");
+    XLSX.writeFile(wb, `${fileName}.xlsx`);
+};
+
+export const ExportButton = ({ onClick, loading }: { onClick: () => void, loading?: boolean }) => (
+    <button
+        onClick={onClick}
+        disabled={loading}
+        className="flex items-center gap-2 px-4 py-2 bg-slate-900 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-800 transition-all shadow-lg shadow-slate-200 disabled:opacity-50"
+    >
+        <Download className="h-3.5 w-3.5" />
+        Export
+    </button>
+);
 
 export const LoadingOverlay = () => (
     <div className="absolute inset-0 z-50 bg-white/40 backdrop-blur-[2px] flex items-center justify-center transition-all duration-500 animate-in fade-in">
