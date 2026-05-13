@@ -686,7 +686,7 @@ export class AdminController {
             const { uid } = req.params;
             const { status, rejectionReason } = req.body;
 
-            if (!['validated', 'rejected'].includes(status)) {
+            if (!['validated', 'rejected', 'pending'].includes(status)) {
                 return res.status(400).json({ error: 'Invalid status' });
             }
 
@@ -699,6 +699,7 @@ export class AdminController {
                 `SELECT 
                     wr.id,
                     wr.uid,
+                    wr.status,
                     wr.user_id,
                     wr.installer_name,
                     wr.customer_name, 
@@ -748,27 +749,51 @@ export class AdminController {
                 return res.status(500).json({ error: 'Internal error: Warranty UID not found' });
             }
 
-            console.log(`Updating warranty: uid=${uid}, resolved_uid=${warrantyData.uid}, new_status=${status}`);
+            // SHIELD: Prevent invalid state transitions
+            if (status === 'pending' && !['rejected', 'pending_vendor'].includes(warrantyData.status)) {
+                return res.status(400).json({ error: `Cannot move to pending from ${warrantyData.status} status. Only rejected warranties can be overridden.` });
+            }
 
-            await db.execute(
-                'UPDATE warranty_registrations SET status = ?, rejection_reason = ? WHERE uid = ?',
-                [status, status === 'rejected' ? rejectionReason : null, warrantyData.uid]
-            );
+            console.log(`[SHIELD] Updating warranty: uid=${uid}, current_status=${warrantyData.status}, new_status=${status}`);
 
-            // Mark UID as used ONLY when validated, and free it up if rejected
-            if (warrantyData.product_type === 'seat-cover') {
-                if (status === 'validated') {
-                    const usedTimestamp = getISTTimestamp();
-                    await db.execute(
-                        'UPDATE pre_generated_uids SET is_used = TRUE, used_at = ? WHERE uid = ?',
-                        [usedTimestamp, warrantyData.uid]
-                    );
-                } else if (status === 'rejected') {
-                    await db.execute(
-                        'UPDATE pre_generated_uids SET is_used = FALSE, used_at = NULL WHERE uid = ?',
-                        [warrantyData.uid]
-                    );
+            const connection = await db.getConnection();
+            try {
+                await connection.beginTransaction();
+
+                // 1. Update the main registration status
+                await connection.execute(
+                    'UPDATE warranty_registrations SET status = ?, rejection_reason = ? WHERE uid = ? LIMIT 1',
+                    [status, status === 'rejected' ? rejectionReason : null, warrantyData.uid]
+                );
+
+                // 2. UID Management Shield
+                if (warrantyData.product_type === 'seat-cover') {
+                    if (status === 'validated') {
+                        const usedTimestamp = getISTTimestamp();
+                        await connection.execute(
+                            'UPDATE pre_generated_uids SET is_used = TRUE, used_at = ? WHERE uid = ?',
+                            [usedTimestamp, warrantyData.uid]
+                        );
+                    } else if (status === 'rejected') {
+                        await connection.execute(
+                            'UPDATE pre_generated_uids SET is_used = FALSE, used_at = NULL WHERE uid = ?',
+                            [warrantyData.uid]
+                        );
+                    } else if (status === 'pending' && warrantyData.status === 'rejected') {
+                        // Re-reserve the UID if it was previously released during rejection
+                        await connection.execute(
+                            'UPDATE pre_generated_uids SET is_used = TRUE, used_at = ? WHERE uid = ?',
+                            [getISTTimestamp(), warrantyData.uid]
+                        );
+                    }
                 }
+
+                await connection.commit();
+            } catch (err) {
+                await connection.rollback();
+                throw err;
+            } finally {
+                connection.release();
             }
 
             // Send email notification to customer only if email is provided
@@ -820,7 +845,7 @@ export class AdminController {
                             warrantyData.applicator_name
                         );
                         console.log(`✓ Warranty approval email sent to customer: ${warrantyData.customer_email}`);
-                    } else {
+                    } else if (status === 'rejected') {
                         // ── Customer Rejection: WhatsApp first, email fallback ──
                         let rejectionWaSent = false;
                         if (process.env.ENABLE_WHATSAPP === 'true' && warrantyData.customer_phone) {
@@ -940,7 +965,7 @@ export class AdminController {
                             warrantyData.warranty_type
                         );
                         console.log(`✓ Warranty approval email sent to vendor: ${vendorEmail}`);
-                    } else {
+                    } else if (status === 'rejected') {
                         // ── Vendor Rejection: WhatsApp first, email fallback ──
                         let vendorRejWaSent = false;
                         if (process.env.ENABLE_WHATSAPP === 'true') {
@@ -997,11 +1022,19 @@ export class AdminController {
 
                 // 4. Send real-time notification to vendor
                 if (vendorUserId) {
+                    let title = 'Warranty Pending ⏳';
+                    let message = `The warranty for ${warrantyData.customer_name} (${warrantyData.uid}) is pending review.`;
+                    
+                    if (status === 'validated') {
+                        title = 'Warranty Approved! ✓';
+                        message = `The warranty for ${warrantyData.customer_name} (${warrantyData.uid}) has been approved.`;
+                    } else if (status === 'rejected') {
+                        message = `The warranty for ${warrantyData.customer_name} (${warrantyData.uid}) has been rejected. Reason: ${rejectionReason}`;
+                    }
+
                     await NotificationService.notify(vendorUserId, {
-                        title: status === 'validated' ? 'Warranty Approved! ✓' : 'Warranty Pending ⏳',
-                        message: status === 'validated'
-                            ? `The warranty for ${warrantyData.customer_name} (${warrantyData.uid}) has been approved.`
-                            : `The warranty for ${warrantyData.customer_name} (${warrantyData.uid}) is pending. Reason: ${rejectionReason}`,
+                        title,
+                        message,
                         type: 'warranty',
                         link: `/dashboard/vendor`
                     });
@@ -1009,11 +1042,19 @@ export class AdminController {
 
                 // 5. Notify Customer
                 if (warrantyData.user_id) {
+                    let title = 'Warranty Pending ⏳';
+                    let message = `Your warranty for ${warrantyData.uid} is now under review by AutoForm.`;
+                    
+                    if (status === 'validated') {
+                        title = 'Warranty Validated! ✓';
+                        message = `Your warranty for ${warrantyData.uid} has been validated by AutoForm.`;
+                    } else if (status === 'rejected') {
+                        message = `Your warranty for ${warrantyData.uid} has been rejected. Reason: ${rejectionReason}`;
+                    }
+
                     await NotificationService.notify(warrantyData.user_id, {
-                        title: status === 'validated' ? 'Warranty Validated! ✓' : 'Warranty Pending ⏳',
-                        message: status === 'validated'
-                            ? `Your warranty for ${warrantyData.uid} has been validated by AutoForm.`
-                            : `Your warranty for ${warrantyData.uid} is pending. Reason: ${rejectionReason}`,
+                        title,
+                        message,
                         type: 'warranty',
                         link: `/dashboard/customer`
                     });
@@ -1029,7 +1070,8 @@ export class AdminController {
                 adminId: admin.id,
                 adminName: admin.name,
                 adminEmail: admin.email,
-                actionType: status === 'validated' ? 'WARRANTY_APPROVED' : 'WARRANTY_REJECTED',
+                actionType: status === 'validated' ? 'WARRANTY_APPROVED' : 
+                           status === 'pending' ? 'WARRANTY_OVERRIDDEN' : 'WARRANTY_REJECTED',
                 targetType: 'WARRANTY',
                 targetId: warrantyData.uid,
                 targetName: warrantyData.uid,

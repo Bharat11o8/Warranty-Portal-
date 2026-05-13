@@ -188,7 +188,7 @@ export const AdminWarranties = () => {
         }
     };
 
-    const handleUpdateStatus = async (id: string, status: 'validated' | 'rejected', reason?: string) => {
+    const handleUpdateStatus = async (id: string, status: 'validated' | 'rejected' | 'pending', reason?: string) => {
         setProcessingId(id);
         try {
             if (statusFilter === 'resubmitted') {
@@ -557,6 +557,7 @@ export const AdminWarranties = () => {
                                     setRejectReason("");
                                     setRejectDialogOpen(true);
                                 }}
+                                 onMoveToPending={(id) => handleUpdateStatus(id, 'pending')}
                                 processingWarranty={processingId}
                             />
                         </div>
