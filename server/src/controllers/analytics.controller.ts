@@ -29,75 +29,79 @@ export class AnalyticsController {
                 params.push(startDate, endDate);
             }
 
-            // 1. Detailed Franchise breakdown (Lifetime/Overall)
-            const [franchiseDetails]: any = await db.execute(`
-                SELECT 
-                    COUNT(*) as total,
-                    SUM(CASE WHEN is_verified = true THEN 1 ELSE 0 END) as approved,
-                    SUM(CASE WHEN is_verified = false AND (rejection_reason IS NULL OR rejection_reason = '') THEN 1 ELSE 0 END) as pending,
-                    SUM(CASE WHEN is_verified = false AND rejection_reason IS NOT NULL AND rejection_reason != '' THEN 1 ELSE 0 END) as disapproved
-                FROM vendor_verification
-            `);
-
-            // 2. Module participation counts
-            const [participation]: any = await db.execute(`
-                SELECT 
-                    (
-                        SELECT COUNT(DISTINCT vd.id)
-                        FROM vendor_details vd
-                        WHERE EXISTS (
-                            SELECT 1 FROM warranty_registrations wr WHERE wr.user_id = vd.user_id
-                        ) OR EXISTS (
-                            SELECT 1 FROM manpower m
-                            JOIN warranty_registrations wr ON wr.manpower_id = m.id
-                            WHERE m.vendor_id = vd.id
-                        )
-                    ) as warranty_participation,
-                    (SELECT COUNT(DISTINCT customer_id) FROM grievances WHERE source_type = 'franchise') as grievance_participation,
-                    (SELECT COUNT(DISTINCT franchise_id) FROM posm_requests) as posm_participation
-            `);
-
-            // 3. Warranty states breakdown (Overall Lifetime)
-            const [warrantyStates]: any = await db.execute(`
-                SELECT 
-                    COUNT(*) as total,
-                    SUM(CASE WHEN status = 'validated' THEN 1 ELSE 0 END) as validated,
-                    SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pending_admin,
-                    SUM(CASE WHEN status = 'pending_vendor' THEN 1 ELSE 0 END) as pending_vendor,
-                    SUM(CASE WHEN status = 'rejected' THEN 1 ELSE 0 END) as rejected
-                FROM warranty_registrations
-            `);
-
-            // 4. Period Specific Actions (Dynamic Progress view)
-            // We use the whereClause but replace created_at with specific action dates
-            const [periodActions]: any = await db.execute(`
-                SELECT 
-                    (SELECT COUNT(*) FROM warranty_registrations WHERE ${whereClause}) as registrations,
-                    (SELECT COUNT(*) FROM warranty_registrations WHERE ${whereClause.replace(/created_at/g, 'validated_at')}) as approvals,
-                    (SELECT COUNT(*) FROM warranty_registrations WHERE ${whereClause.replace(/created_at/g, 'rejected_at')}) as rejections,
-                    (SELECT COUNT(*) FROM warranty_registrations WHERE ${whereClause.replace(/created_at/g, 'vendor_approved_at')}) as vendor_approvals
-            `, [...params, ...params, ...params, ...params]);
-
-            // 5. Overall Totals for other modules
-            const [grievanceStats]: any = await db.execute(`
-                SELECT 
-                    COUNT(*) as total,
-                    SUM(CASE WHEN status = 'submitted' THEN 1 ELSE 0 END) as submitted,
-                    SUM(CASE WHEN status = 'assigned' OR status = 'in_progress' THEN 1 ELSE 0 END) as in_progress,
-                    SUM(CASE WHEN status = 'resolved' THEN 1 ELSE 0 END) as resolved,
-                    SUM(CASE WHEN status = 'rejected' THEN 1 ELSE 0 END) as rejected
-                FROM grievances
-            `);
-
-            const [posmStats]: any = await db.execute(`
-                SELECT 
-                    COUNT(*) as total,
-                    SUM(CASE WHEN status = 'open' THEN 1 ELSE 0 END) as open,
-                    SUM(CASE WHEN status = 'under_review' OR status = 'approved' OR status = 'in_production' THEN 1 ELSE 0 END) as processing,
-                    SUM(CASE WHEN status = 'dispatched' OR status = 'delivered' THEN 1 ELSE 0 END) as shipped,
-                    SUM(CASE WHEN status = 'closed' OR status = 'rejected' THEN 1 ELSE 0 END) as closed
-                FROM posm_requests
-            `);
+            // Use Promise.all to run independent queries in parallel
+            const [
+                [franchiseDetails],
+                [participation],
+                [warrantyStates],
+                [periodActions],
+                [grievanceStats],
+                [posmStats]
+            ]: any = await Promise.all([
+                // 1. Detailed Franchise breakdown (Lifetime/Overall)
+                db.execute(`
+                    SELECT 
+                        COUNT(*) as total,
+                        SUM(CASE WHEN is_verified = true THEN 1 ELSE 0 END) as approved,
+                        SUM(CASE WHEN is_verified = false AND (rejection_reason IS NULL OR rejection_reason = '') THEN 1 ELSE 0 END) as pending,
+                        SUM(CASE WHEN is_verified = false AND rejection_reason IS NOT NULL AND rejection_reason != '' THEN 1 ELSE 0 END) as disapproved
+                    FROM vendor_verification
+                `),
+                // 2. Module participation counts
+                db.execute(`
+                    SELECT 
+                        (
+                            SELECT COUNT(DISTINCT vd.id)
+                            FROM vendor_details vd
+                            WHERE EXISTS (
+                                SELECT 1 FROM warranty_registrations wr WHERE wr.user_id = vd.user_id
+                            ) OR EXISTS (
+                                SELECT 1 FROM manpower m
+                                JOIN warranty_registrations wr ON wr.manpower_id = m.id
+                                WHERE m.vendor_id = vd.id
+                            )
+                        ) as warranty_participation,
+                        (SELECT COUNT(DISTINCT customer_id) FROM grievances WHERE source_type = 'franchise') as grievance_participation,
+                        (SELECT COUNT(DISTINCT franchise_id) FROM posm_requests) as posm_participation
+                `),
+                // 3. Warranty states breakdown (Overall Lifetime)
+                db.execute(`
+                    SELECT 
+                        COUNT(*) as total,
+                        SUM(CASE WHEN status = 'validated' THEN 1 ELSE 0 END) as validated,
+                        SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pending_admin,
+                        SUM(CASE WHEN status = 'pending_vendor' THEN 1 ELSE 0 END) as pending_vendor,
+                        SUM(CASE WHEN status = 'rejected' THEN 1 ELSE 0 END) as rejected
+                    FROM warranty_registrations
+                `),
+                // 4. Period Specific Actions (Dynamic Progress view)
+                db.execute(`
+                    SELECT 
+                        (SELECT COUNT(*) FROM warranty_registrations WHERE ${whereClause}) as registrations,
+                        (SELECT COUNT(*) FROM warranty_registrations WHERE ${whereClause.replace(/created_at/g, 'validated_at')}) as approvals,
+                        (SELECT COUNT(*) FROM warranty_registrations WHERE ${whereClause.replace(/created_at/g, 'rejected_at')}) as rejections,
+                        (SELECT COUNT(*) FROM warranty_registrations WHERE ${whereClause.replace(/created_at/g, 'vendor_approved_at')}) as vendor_approvals
+                `, [...params, ...params, ...params, ...params]),
+                // 5. Overall Totals for other modules
+                db.execute(`
+                    SELECT 
+                        COUNT(*) as total,
+                        SUM(CASE WHEN status = 'submitted' THEN 1 ELSE 0 END) as submitted,
+                        SUM(CASE WHEN status = 'assigned' OR status = 'in_progress' THEN 1 ELSE 0 END) as in_progress,
+                        SUM(CASE WHEN status = 'resolved' THEN 1 ELSE 0 END) as resolved,
+                        SUM(CASE WHEN status = 'rejected' THEN 1 ELSE 0 END) as rejected
+                    FROM grievances
+                `),
+                db.execute(`
+                    SELECT 
+                        COUNT(*) as total,
+                        SUM(CASE WHEN status = 'open' THEN 1 ELSE 0 END) as open,
+                        SUM(CASE WHEN status = 'under_review' OR status = 'approved' OR status = 'in_production' THEN 1 ELSE 0 END) as processing,
+                        SUM(CASE WHEN status = 'dispatched' OR status = 'delivered' THEN 1 ELSE 0 END) as shipped,
+                        SUM(CASE WHEN status = 'closed' OR status = 'rejected' THEN 1 ELSE 0 END) as closed
+                    FROM posm_requests
+                `)
+            ]);
 
             return res.json({
                 success: true,
@@ -365,6 +369,7 @@ export class AnalyticsController {
             // Also need to filter by action date for approvals
             const actionWhereClause = whereClause.replace(/w.created_at/g, 'w.validated_at');
 
+            // Optimized query using LEFT JOIN and GROUP BY instead of O(N) subqueries
             const [franchises]: any = await db.execute(`
                 SELECT 
                     vd.id,
@@ -373,32 +378,14 @@ export class AnalyticsController {
                     vd.city,
                     vd.state,
                     p.id as profile_id,
-                    -- Total warranties (exact same logic as Franchise page)
-                    (
-                        SELECT COUNT(*) 
-                        FROM warranty_registrations wr 
-                        WHERE (wr.manpower_id IN (SELECT id FROM manpower WHERE vendor_id = vd.id)
-                            OR (wr.installer_name = vd.store_name AND wr.installer_contact = vd.store_email)
-                            OR wr.user_id = p.id)
-                        AND ${whereClause.replace(/w\.created_at/g, 'wr.created_at')}
-                    ) as total_registrations,
-                    -- Approved warranties
-                    (
-                        SELECT COUNT(*) 
-                        FROM warranty_registrations wr 
-                        WHERE (wr.manpower_id IN (SELECT id FROM manpower WHERE vendor_id = vd.id)
-                            OR (wr.installer_name = vd.store_name AND wr.installer_contact = vd.store_email)
-                            OR wr.user_id = p.id)
-                        AND wr.status = 'validated'
-                    ) as warranty_count,
-                    -- Grievances
+                    COUNT(DISTINCT wr.uid) as total_registrations,
+                    COUNT(DISTINCT CASE WHEN wr.status = 'validated' THEN wr.uid END) as warranty_count,
                     (
                         SELECT COUNT(*) 
                         FROM grievances g 
                         WHERE g.customer_id = p.id 
                         AND g.source_type = 'franchise'
                     ) as grievance_count,
-                    -- POSM requests
                     (
                         SELECT COUNT(*) 
                         FROM posm_requests pr 
@@ -410,7 +397,15 @@ export class AnalyticsController {
                 JOIN user_roles ur ON p.id = ur.user_id
                 LEFT JOIN vendor_details vd ON p.id = vd.user_id
                 LEFT JOIN vendor_verification vv ON p.id = vv.user_id
+                LEFT JOIN manpower m ON vd.id = m.vendor_id
+                LEFT JOIN warranty_registrations wr ON (
+                    wr.manpower_id = m.id
+                    OR (wr.installer_name = vd.store_name AND wr.installer_contact = vd.store_email)
+                    OR wr.user_id = p.id
+                )
                 WHERE ur.role = 'vendor'
+                AND (wr.uid IS NULL OR ${whereClause.replace(/w\.created_at/g, 'wr.created_at')})
+                GROUP BY p.id, vd.id, vv.is_verified, vv.verified_at
                 ORDER BY total_registrations DESC
             `, [...params]);
 
