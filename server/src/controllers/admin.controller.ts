@@ -1922,6 +1922,8 @@ export class AdminController {
             }
             
             const staging = rows[0];
+            console.log(`[Admin Approval] Approving resubmission ID: ${id}, for UID: ${staging.original_uid}`);
+            console.log(`[Admin Approval] Photo URLs in staging: SeatCover=${staging.seat_cover_photo_url}, CarOuter=${staging.car_outer_photo_url}`);
             
             // Using a transaction to ensure atomic update of both tables
             connection = await db.getConnection();

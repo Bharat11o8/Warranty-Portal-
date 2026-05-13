@@ -173,9 +173,29 @@ export class WarrantyController {
             // Increment retry count for the new submission
             warrantyData.productDetails.retryCount = currentRetryCount + 1;
 
+            // Merge logic: Preserve old photos if new ones are not provided
+            if (existingDetails.photos) {
+              if (!warrantyData.productDetails.photos) {
+                warrantyData.productDetails.photos = {};
+              }
+              const oldPhotos = existingDetails.photos;
+              Object.keys(oldPhotos).forEach(key => {
+                if (!(warrantyData.productDetails.photos as any)[key] && oldPhotos[key]) {
+                  (warrantyData.productDetails.photos as any)[key] = oldPhotos[key];
+                }
+              });
+            }
+            
+            // Also preserve invoice if missing
+            if (!warrantyData.productDetails.invoiceFileName && existingDetails.invoiceFileName) {
+              warrantyData.productDetails.invoiceFileName = existingDetails.invoiceFileName;
+            }
+
             // Mark as resubmission (do NOT delete original)
             isResubmission = true;
-            console.log(`[Resubmission] Detected resubmission for UID: ${checkId}, routing to staging table.`);
+            console.log(`[Resubmission] Detected resubmission for UID: ${checkId}`);
+            console.log(`[Resubmission] Files received in request:`, files?.map(f => f.fieldname));
+            console.log(`[Resubmission] Final merged photos:`, JSON.stringify(warrantyData.productDetails.photos));
           } else {
             return res.status(400).json({
               error: `This ${uid ? 'UID' : 'Serial Number'} is already registered.`
@@ -403,7 +423,7 @@ export class WarrantyController {
             exifData.deviceMake ? `${exifData.deviceMake} ${exifData.deviceModel || ''}`.trim() : null,
             exifData.deviceFingerprint, clientIP, ipGeo.city, ipGeo.region, ipGeo.lat, ipGeo.lng, fraudScore,
             JSON.stringify(fraudFlags), (warrantyData.productDetails as any)?.photos?.seatCover || null,
-            (warrantyData.productDetails as any)?.photos?.carOuter || null
+            (warrantyData.productDetails as any)?.photos?.vehicle || (warrantyData.productDetails as any)?.photos?.carOuter || null
           ]
         );
       } else {
@@ -425,7 +445,7 @@ export class WarrantyController {
             exifData.deviceMake ? `${exifData.deviceMake} ${exifData.deviceModel || ''}`.trim() : null,
             exifData.deviceFingerprint, clientIP, ipGeo.city, ipGeo.region, ipGeo.lat, ipGeo.lng, fraudScore,
             JSON.stringify(fraudFlags), (warrantyData.productDetails as any)?.photos?.seatCover || null,
-            (warrantyData.productDetails as any)?.photos?.carOuter || null
+            (warrantyData.productDetails as any)?.photos?.vehicle || (warrantyData.productDetails as any)?.photos?.carOuter || null
           ]
         );
       }
@@ -928,7 +948,7 @@ export class WarrantyController {
         files.forEach(file => {
           if (file.fieldname === 'invoiceFile') {
             warrantyData.productDetails.invoiceFileName = file.path;
-          } else if (['lhsPhoto', 'rhsPhoto', 'frontRegPhoto', 'backRegPhoto', 'warrantyPhoto'].includes(file.fieldname)) {
+          } else if (['lhsPhoto', 'rhsPhoto', 'frontRegPhoto', 'backRegPhoto', 'warrantyPhoto', 'vehiclePhoto', 'seatCoverPhoto'].includes(file.fieldname)) {
             if (!warrantyData.productDetails.photos) {
               warrantyData.productDetails.photos = {};
             }
@@ -1100,6 +1120,7 @@ export class WarrantyController {
          customer_address = ?, registration_number = ?, car_make = ?, car_model = ?, car_year = ?,
          purchase_date = ?, installer_name = ?,
          installer_contact = ?, product_details = ?, manpower_id = ?, warranty_type = ?,
+         seat_cover_photo_url = ?, car_outer_photo_url = ?,
          status = ?, rejection_reason = ${clearRejectionReason ? 'NULL' : 'rejection_reason'}
          WHERE id = ?`,
         [
@@ -1118,6 +1139,8 @@ export class WarrantyController {
           JSON.stringify(warrantyData.productDetails),
           (warrantyData.manpowerId && warrantyData.manpowerId !== 'owner') ? warrantyData.manpowerId : (warranty.manpower_id && warranty.manpower_id !== 'owner' ? warranty.manpower_id : null),
           warrantyData.warrantyType,
+          (warrantyData.productDetails.photos as any)?.seatCover || null,
+          (warrantyData.productDetails.photos as any)?.vehicle || (warrantyData.productDetails.photos as any)?.carOuter || null,
           updatedStatus,
           warrantyRecordId
         ]
