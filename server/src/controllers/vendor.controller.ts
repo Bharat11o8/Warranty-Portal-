@@ -829,8 +829,17 @@ export class VendorController {
         [uid]
       );
 
-      console.log(`✓ Warranty ${uid} approved by vendor ${storeName}`);
+      // Log the action to the immutable analytics_events table
+      try {
+          await db.execute(
+              `INSERT INTO analytics_events (warranty_id, action_type, performed_by) VALUES (?, ?, ?)`,
+              [w.id, 'vendor_approved', storeName]
+          );
+      } catch (err) {
+          console.error('Failed to log analytics event:', err);
+      }
 
+      console.log(`✓ Warranty ${uid} approved by vendor ${storeName}`);
 
       // Notify relevant parties
       try {
@@ -934,6 +943,16 @@ export class VendorController {
         `UPDATE warranty_registrations SET status = 'rejected', rejection_reason = ?, rejected_at = NOW() WHERE uid = ?`,
         [reason, uid]
       );
+
+      // Log the action to the immutable analytics_events table
+      try {
+          await db.execute(
+              `INSERT INTO analytics_events (warranty_id, action_type, performed_by) VALUES (?, ?, ?)`,
+              [w.id, 'rejected', storeName]
+          );
+      } catch (err) {
+          console.error('Failed to log analytics event:', err);
+      }
 
       // Fetch details and send email to Customer
       const [warranty]: any = await db.execute(

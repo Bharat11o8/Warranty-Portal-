@@ -374,7 +374,7 @@ export class WarrantyController {
           ]
         );
       } else {
-        await db.execute(
+        const [insertResult]: any = await db.execute(
           `INSERT INTO warranty_registrations 
           (uid, user_id, product_type, customer_name, customer_email, customer_phone, 
            customer_address, registration_number, car_make, car_model, car_year, 
@@ -395,6 +395,16 @@ export class WarrantyController {
             (warrantyData.productDetails as any)?.photos?.carOuter || null
           ]
         );
+
+        // Log the action to the immutable analytics_events table
+        try {
+            await db.execute(
+                `INSERT INTO analytics_events (warranty_id, action_type, performed_by) VALUES (?, ?, ?)`,
+                [insertResult.insertId, 'registered', warrantyData.customerName]
+            );
+        } catch (err) {
+            console.error('Failed to log analytics event:', err);
+        }
       }
 
       // UID is checked but NOT marked as used until Admin approves it.

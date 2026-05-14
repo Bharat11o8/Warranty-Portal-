@@ -172,95 +172,19 @@ export class AnalyticsController {
             // This ensures Admin "Daily Work" is visible on the chart for the day they did it.
             const [results]: any = await db.execute(`
                 SELECT 
-                    label,
-                    SUM(total) as total,
-                    SUM(approved) as approved,
-                    SUM(pending_admin) as pending_admin,
-                    SUM(pending_vendor) as pending_vendor,
-                    SUM(rejected) as rejected
-                FROM (
-                    -- 1. Registrations (by creation date)
-                    SELECT 
-                        DATE_FORMAT(created_at, ?) as label,
-                        MIN(created_at) as sort_date,
-                        COUNT(*) as total,
-                        0 as approved,
-                        0 as pending_admin,
-                        0 as pending_vendor,
-                        0 as rejected
-                    FROM warranty_registrations 
-                    WHERE ${whereClause}
-                    GROUP BY label, DATE(created_at)
-
-                    UNION ALL
-
-                    -- 2. Approvals (by validation date)
-                    SELECT 
-                        DATE_FORMAT(validated_at, ?) as label,
-                        MIN(validated_at) as sort_date,
-                        0 as total,
-                        COUNT(*) as approved,
-                        0 as pending_admin,
-                        0 as pending_vendor,
-                        0 as rejected
-                    FROM warranty_registrations 
-                    WHERE validated_at IS NOT NULL 
-                      AND ${whereClause.replace(/created_at/g, 'validated_at')}
-                    GROUP BY label, DATE(validated_at)
-
-                    UNION ALL
-
-                    -- 3. Rejections (by rejection date)
-                    SELECT 
-                        DATE_FORMAT(rejected_at, ?) as label,
-                        MIN(rejected_at) as sort_date,
-                        0 as total,
-                        0 as approved,
-                        0 as pending_admin,
-                        0 as pending_vendor,
-                        COUNT(*) as rejected
-                    FROM warranty_registrations 
-                    WHERE rejected_at IS NOT NULL 
-                      AND ${whereClause.replace(/created_at/g, 'rejected_at')}
-                    GROUP BY label, DATE(rejected_at)
-
-                    UNION ALL
-
-                    -- 4. Admin Ready Items (by vendor_approved_at)
-                    -- This represents items that became "Pending Admin" on this day
-                    SELECT 
-                        DATE_FORMAT(vendor_approved_at, ?) as label,
-                        MIN(vendor_approved_at) as sort_date,
-                        0 as total,
-                        0 as approved,
-                        COUNT(*) as pending_admin,
-                        0 as pending_vendor,
-                        0 as rejected
-                    FROM warranty_registrations 
-                    WHERE vendor_approved_at IS NOT NULL 
-                      AND ${whereClause.replace(/created_at/g, 'vendor_approved_at')}
-                    GROUP BY label, DATE(vendor_approved_at)
-
-                    UNION ALL
-
-                    -- 5. Vendor Pending Items (by created_at)
-                    -- Only counts items that were at some point pending vendor
-                    SELECT 
-                        DATE_FORMAT(created_at, ?) as label,
-                        MIN(created_at) as sort_date,
-                        0 as total,
-                        0 as approved,
-                        0 as pending_admin,
-                        COUNT(*) as pending_vendor,
-                        0 as rejected
-                    FROM warranty_registrations 
-                    WHERE (status = 'pending_vendor' OR vendor_approved_at IS NOT NULL)
-                      AND ${whereClause}
-                    GROUP BY label, DATE(created_at)
-                ) combined
-                GROUP BY label
-                ORDER BY MIN(sort_date) ASC
-            `, [dateFormat, ...params, dateFormat, ...params, dateFormat, ...params, dateFormat, ...params, dateFormat, ...params]);
+                    DATE_FORMAT(ae.created_at, ?) as label,
+                    MIN(ae.created_at) as sort_date,
+                    SUM(CASE WHEN ae.action_type = 'registered' THEN 1 ELSE 0 END) as total,
+                    SUM(CASE WHEN ae.action_type = 'validated' THEN 1 ELSE 0 END) as approved,
+                    SUM(CASE WHEN ae.action_type = 'vendor_approved' THEN 1 ELSE 0 END) as pending_admin,
+                    SUM(CASE WHEN ae.action_type = 'registered' AND (wr.status = 'pending_vendor' OR wr.vendor_approved_at IS NOT NULL) THEN 1 ELSE 0 END) as pending_vendor,
+                    SUM(CASE WHEN ae.action_type = 'rejected' THEN 1 ELSE 0 END) as rejected
+                FROM analytics_events ae
+                LEFT JOIN warranty_registrations wr ON ae.warranty_id = wr.id
+                WHERE ${whereClause.replace(/created_at/g, 'ae.created_at')}
+                GROUP BY label, DATE(ae.created_at)
+                ORDER BY MIN(ae.created_at) ASC
+            `, [dateFormat, ...params]);
 
             return res.json({
                 success: true,

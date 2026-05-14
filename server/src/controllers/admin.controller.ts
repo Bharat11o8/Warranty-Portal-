@@ -744,6 +744,16 @@ export class AdminController {
                 [status, status === 'rejected' ? rejectionReason : null, status, status, warrantyData.uid]
             );
 
+            // Log the action to the immutable analytics_events table
+            try {
+                await db.execute(
+                    `INSERT INTO analytics_events (warranty_id, action_type, performed_by) VALUES (?, ?, ?)`,
+                    [warrantyData.id, status, 'system_admin']
+                );
+            } catch (err) {
+                console.error('Failed to log analytics event:', err);
+            }
+
             // Mark UID as used ONLY when validated, and free it up if rejected
             if (warrantyData.product_type === 'seat-cover') {
                 if (status === 'validated') {
