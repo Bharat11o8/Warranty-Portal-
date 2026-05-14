@@ -143,17 +143,50 @@ export class WarrantyController {
       const checkId = uid || warrantyData.productDetails.serialNumber;
       if (checkId) {
         const [existingWarranty]: any = await db.execute(
-          'SELECT uid, user_id, status, product_details FROM warranty_registrations WHERE uid = ?',
+          'SELECT uid, user_id, status, product_details, manpower_id, installer_name, installer_contact FROM warranty_registrations WHERE uid = ?',
           [checkId]
         );
 
         if (existingWarranty.length > 0) {
           const existing = existingWarranty[0];
 
-          // Allow resubmission if:
-          // 1. The warranty was rejected AND
-          // 2. The user owns it (same user_id)
-          if (existing.status === 'rejected' && existing.user_id === req.user.id) {
+          // Authorization check: Only allow resubmission if user owns it, is admin, or is a linked vendor
+          let isAuthorized = req.user.role === 'admin' || existing.user_id === req.user.id;
+
+          if (!isAuthorized && req.user.role === 'vendor') {
+            // Fetch vendor details to check for link
+            const [vendorDetails]: any = await db.execute(
+              'SELECT id, store_name, store_email, city FROM vendor_details WHERE user_id = ?',
+              [req.user.id]
+            );
+
+            if (vendorDetails.length > 0) {
+              const vd = vendorDetails[0];
+              
+              // 1. Check if manpower belongs to this vendor
+              if (existing.manpower_id) {
+                const [manpower]: any = await db.execute(
+                  'SELECT id FROM manpower WHERE id = ? AND vendor_id = ?',
+                  [existing.manpower_id, vd.id]
+                );
+                if (manpower.length > 0) isAuthorized = true;
+              }
+
+              // 2. Check if installer name/contact match this store (catches QR/public submissions)
+              if (!isAuthorized && 
+                  (existing.installer_name === vd.store_name || existing.installer_name === `${vd.store_name} - ${vd.city}`) && 
+                  existing.installer_contact === vd.store_email) {
+                isAuthorized = true;
+              }
+
+              // 3. Check if the warranty installer_contact contains the vendor email (fallback for mixed formats)
+              if (!isAuthorized && existing.installer_contact && existing.installer_contact.includes(vd.store_email)) {
+                isAuthorized = true;
+              }
+            }
+          }
+
+          if (existing.status === 'rejected' && isAuthorized) {
             let existingDetails: any = {};
             try {
               existingDetails = typeof existing.product_details === 'string'
@@ -191,10 +224,20 @@ export class WarrantyController {
               warrantyData.productDetails.invoiceFileName = existingDetails.invoiceFileName;
             }
 
+            // Preserve all other top-level fields (like allExifData) if omitted from the new request
+            Object.keys(existingDetails).forEach(key => {
+              if (key !== 'photos' && key !== 'invoiceFileName' && key !== 'retryCount') {
+                if ((warrantyData.productDetails as any)[key] == null) {
+                  (warrantyData.productDetails as any)[key] = existingDetails[key];
+                }
+              }
+            });
+
             // Mark as resubmission (do NOT delete original)
             isResubmission = true;
             console.log(`[Resubmission] Detected resubmission for UID: ${checkId}`);
             console.log(`[Resubmission] Files received in request:`, files?.map(f => f.fieldname));
+            console.log(`[Resubmission] Post-merge productDetails keys preserved:`, Object.keys(warrantyData.productDetails));
             console.log(`[Resubmission] Final merged photos:`, JSON.stringify(warrantyData.productDetails.photos));
           } else {
             return res.status(400).json({
@@ -1090,6 +1133,21 @@ export class WarrantyController {
           }
         });
       }
+
+      // Preserve all other top-level fields (like allExifData, exifData) if omitted from the new request
+      console.log(`[Update Warranty] Pre-merge incoming keys:`, Object.keys(warrantyData.productDetails));
+      console.log(`[Update Warranty] Pre-merge existing keys:`, Object.keys(existingProductDetails));
+      
+      Object.keys(existingProductDetails).forEach(key => {
+        if (key !== 'photos' && key !== 'invoiceFileName') {
+          if ((warrantyData.productDetails as any)[key] == null) {
+            (warrantyData.productDetails as any)[key] = existingProductDetails[key];
+          }
+        }
+      });
+
+      console.log(`[Update Warranty] Post-merge final keys:`, Object.keys(warrantyData.productDetails));
+      console.log(`[Update Warranty] Final merged photos:`, JSON.stringify(warrantyData.productDetails.photos));
 
       // Update warranty details
       // Determine status based on who is updating and current status
