@@ -253,7 +253,7 @@ export const WarrantySpecSheet = ({ isOpen, onClose, warranty }: WarrantySpecShe
                                         <div className="w-1 h-4 bg-gradient-to-b from-orange-500 to-orange-400 rounded-full" />
                                         Installation Photos
                                     </h4>
-                                    <div className="grid grid-cols-2 gap-2">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                                         {productDetails.photos.vehicle && (
                                             <Button variant="outline" size="sm" className="justify-between h-10 bg-background/50 hover:bg-orange-50 hover:border-orange-200 border-input/50 transition-colors" onClick={() => {
                                                 const url = typeof productDetails.photos.vehicle === 'string' && productDetails.photos.vehicle.startsWith('http') ? productDetails.photos.vehicle : `http://localhost:3000/uploads/${productDetails.photos.vehicle}`;
@@ -304,7 +304,7 @@ export const WarrantySpecSheet = ({ isOpen, onClose, warranty }: WarrantySpecShe
                                     <div className="w-1 h-4 bg-gradient-to-b from-orange-500 to-orange-400 rounded-full" />
                                     Installation Photos
                                 </h4>
-                                <div className="grid grid-cols-2 gap-2">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                                     {productDetails.photos.lhs && (
                                         <Button variant="outline" size="sm" className="justify-between h-10 bg-background/50 hover:bg-blue-50 hover:border-blue-200 border-input/50 transition-colors" onClick={() => {
                                             const url = typeof productDetails.photos.lhs === 'string' && productDetails.photos.lhs.startsWith('http') ? productDetails.photos.lhs : `http://localhost:3000/uploads/${productDetails.photos.lhs}`;

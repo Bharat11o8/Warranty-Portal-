@@ -3,6 +3,7 @@ import db, { getISTTimestamp } from '../config/database.js';
 import { EmailService } from '../services/email.service.js';
 import { ActivityLogService } from '../services/activity-log.service.js';
 import { NotificationService } from '../services/notification.service.js';
+import { WhatsAppService } from '../services/whatsapp.service.js';
 
 export class AdminController {
     static async getDashboardStats(_req: Request, res: Response) {
@@ -289,16 +290,29 @@ export class AdminController {
                        p.name as submitted_by_name, 
                        p.email as submitted_by_email,
                        m.name as manpower_name_from_db,
-                       (SELECT latitude FROM vendor_details WHERE id = ?) as store_lat,
-                       (SELECT longitude FROM vendor_details WHERE id = ?) as store_lng
+                       COALESCE(vd_m.store_name, vd_i.store_name, vd_owner.store_name) as vendor_store_name,
+                       COALESCE(vd_m.store_email, vd_i.store_email, vd_owner.store_email) as vendor_store_email,
+                       vp.phone_number as vendor_phone_number,
+                       COALESCE(vd_m.latitude, vd_i.latitude, vd_owner.latitude) as store_lat,
+                       COALESCE(vd_m.longitude, vd_i.longitude, vd_owner.longitude) as store_lng
                 FROM warranty_registrations wr
                 LEFT JOIN profiles p ON wr.user_id = p.id
                 LEFT JOIN manpower m ON wr.manpower_id = m.id
+                LEFT JOIN vendor_details vd_m ON (wr.manpower_id IS NOT NULL AND wr.manpower_id NOT LIKE 'owner-%' AND m.vendor_id = vd_m.id)
+                LEFT JOIN vendor_details vd_i ON (
+                    (wr.installer_name = vd_i.store_name OR wr.installer_name = CONCAT(vd_i.store_name, ' - ', vd_i.city)) 
+                    AND wr.installer_contact = vd_i.store_email
+                )
+                LEFT JOIN vendor_details vd_owner ON (
+                    wr.manpower_id LIKE 'owner-%' AND
+                    vd_owner.id = REPLACE(wr.manpower_id, 'owner-', '')
+                )
+                LEFT JOIN profiles vp ON COALESCE(vd_m.user_id, vd_i.user_id, vd_owner.user_id) = vp.id
                 WHERE (wr.manpower_id IN (SELECT id FROM manpower WHERE vendor_id = ?)
                    OR wr.installer_name = ?
                    OR wr.user_id = ?)
                 ORDER BY wr.created_at DESC
-            `, [vendorData.vendor_details_id, vendorData.vendor_details_id, vendorData.vendor_details_id, vendorData.store_name, vendorData.user_id]);
+            `, [vendorData.vendor_details_id, vendorData.store_name, vendorData.user_id]);
 
             res.json({
                 success: true,
@@ -572,7 +586,13 @@ export class AdminController {
     static async updateVendorProfile(req: Request, res: Response) {
         try {
             const { id } = req.params;
-            const { store_name, contact_name, email, phone_number } = req.body;
+            let { store_name, contact_name, email, phone_number } = req.body;
+
+            // SBP-DB: Trim string lengths to prevent database overflow (Data Too Long) edge cases
+            store_name = store_name?.substring(0, 255);
+            contact_name = contact_name?.substring(0, 100);
+            email = email?.substring(0, 100);
+            phone_number = phone_number?.substring(0, 15);
 
             if (!store_name || !contact_name || !email || !phone_number) {
                 return res.status(400).json({ error: 'All fields are required' });
@@ -588,6 +608,14 @@ export class AdminController {
                 );
                 if (existingEmail.length > 0) {
                     return res.status(400).json({ error: 'Email already in use by another account' });
+                }
+
+                const [existingPhone]: any = await connection.execute(
+                    'SELECT id FROM profiles WHERE phone_number = ? AND id != ?',
+                    [phone_number, id]
+                );
+                if (existingPhone.length > 0) {
+                    return res.status(400).json({ error: 'Phone number already in use by another account' });
                 }
 
                 await connection.execute(
@@ -671,7 +699,7 @@ export class AdminController {
             const { uid } = req.params;
             const { status, rejectionReason } = req.body;
 
-            if (!['validated', 'rejected'].includes(status)) {
+            if (!['validated', 'rejected', 'pending'].includes(status)) {
                 return res.status(400).json({ error: 'Invalid status' });
             }
 
@@ -684,6 +712,7 @@ export class AdminController {
                 `SELECT 
                     wr.id,
                     wr.uid,
+                    wr.status,
                     wr.user_id,
                     wr.installer_name,
                     wr.customer_name, 
@@ -696,6 +725,7 @@ export class AdminController {
                     wr.car_model,
                     wr.registration_number,
                     wr.product_details,
+                    wr.created_at,
                     wr.manpower_id,
                     vd.store_name,
                     vd.store_email,
@@ -732,42 +762,57 @@ export class AdminController {
                 return res.status(500).json({ error: 'Internal error: Warranty UID not found' });
             }
 
-            console.log(`Updating warranty: uid=${uid}, resolved_uid=${warrantyData.uid}, new_status=${status}`);
+            // SHIELD: Prevent invalid state transitions
+            if (status === 'pending' && !['rejected', 'pending_vendor'].includes(warrantyData.status)) {
+                return res.status(400).json({ error: `Cannot move to pending from ${warrantyData.status} status. Only rejected warranties can be overridden.` });
+            }
 
-            await db.execute(
-                `UPDATE warranty_registrations SET 
-                    status = ?, 
-                    rejection_reason = ?,
-                    validated_at = CASE WHEN ? = 'validated' THEN NOW() ELSE validated_at END,
-                    rejected_at = CASE WHEN ? = 'rejected' THEN NOW() ELSE rejected_at END
-                WHERE uid = ?`,
-                [status, status === 'rejected' ? rejectionReason : null, status, status, warrantyData.uid]
-            );
+            console.log(`[SHIELD] Updating warranty: uid=${uid}, current_status=${warrantyData.status}, new_status=${status}`);
 
-            // Log the action to the immutable analytics_events table
+            const connection = await db.getConnection();
             try {
-                await db.execute(
+                await connection.beginTransaction();
+
+                // 1. Update the main registration status
+                await connection.execute(
+                    'UPDATE warranty_registrations SET status = ?, rejection_reason = ? WHERE uid = ? LIMIT 1',
+                    [status, status === 'rejected' ? rejectionReason : null, warrantyData.uid]
+                );
+
+                // Log the action to the immutable analytics_events table
+                await connection.execute(
                     `INSERT INTO analytics_events (warranty_id, action_type, performed_by) VALUES (?, ?, ?)`,
                     [warrantyData.id, status, 'system_admin']
                 );
-            } catch (err) {
-                console.error('Failed to log analytics event:', err);
-            }
 
-            // Mark UID as used ONLY when validated, and free it up if rejected
-            if (warrantyData.product_type === 'seat-cover') {
-                if (status === 'validated') {
-                    const usedTimestamp = getISTTimestamp();
-                    await db.execute(
-                        'UPDATE pre_generated_uids SET is_used = TRUE, used_at = ? WHERE uid = ?',
-                        [usedTimestamp, warrantyData.uid]
-                    );
-                } else if (status === 'rejected') {
-                    await db.execute(
-                        'UPDATE pre_generated_uids SET is_used = FALSE, used_at = NULL WHERE uid = ?',
-                        [warrantyData.uid]
-                    );
+                // 2. UID Management Shield
+                if (warrantyData.product_type === 'seat-cover') {
+                    if (status === 'validated') {
+                        const usedTimestamp = getISTTimestamp();
+                        await connection.execute(
+                            'UPDATE pre_generated_uids SET is_used = TRUE, used_at = ? WHERE uid = ?',
+                            [usedTimestamp, warrantyData.uid]
+                        );
+                    } else if (status === 'rejected') {
+                        await connection.execute(
+                            'UPDATE pre_generated_uids SET is_used = FALSE, used_at = NULL WHERE uid = ?',
+                            [warrantyData.uid]
+                        );
+                    } else if (status === 'pending' && warrantyData.status === 'rejected') {
+                        // Re-reserve the UID if it was previously released during rejection
+                        await connection.execute(
+                            'UPDATE pre_generated_uids SET is_used = TRUE, used_at = ? WHERE uid = ?',
+                            [getISTTimestamp(), warrantyData.uid]
+                        );
+                    }
                 }
+
+                await connection.commit();
+            } catch (err) {
+                await connection.rollback();
+                throw err;
+            } finally {
+                connection.release();
             }
 
             // Send email notification to customer only if email is provided
@@ -778,7 +823,31 @@ export class AdminController {
                         .filter(Boolean).join(', ');
 
                     if (status === 'validated') {
-                        // Send approval email to customer
+                        // ── Customer Approval: WhatsApp first, email fallback ──
+                        let approvalWaSent = false;
+                        if (process.env.ENABLE_WHATSAPP === 'true' && warrantyData.customer_phone) {
+                            try {
+                                const purchaseDate = warrantyData.created_at
+                                    ? new Date(warrantyData.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
+                                    : 'N/A';
+                                const productName = (productDetails as any)?.product || (productDetails as any)?.productName || warrantyData.product_type || 'Autoform Product';
+                                approvalWaSent = await WhatsAppService.sendWarrantyApprovedCustomer(
+                                    warrantyData.customer_phone,
+                                    warrantyData.customer_name,
+                                    productName,
+                                    warrantyData.registration_number || 'N/A',
+                                    warrantyData.uid,
+                                    warrantyData.store_name || warrantyData.installer_name || 'Autoform Store',
+                                    'Active',
+                                    purchaseDate,
+                                    warrantyData.warranty_type || 'Standard'
+                                );
+                                console.log(`[WhatsApp] Warranty approval sent to customer: ${warrantyData.customer_phone}`);
+                            } catch (waErr) {
+                                console.error('[WhatsApp] Failed to send approval to customer:', waErr);
+                            }
+                        }
+                        // Send Email (always live alongside WhatsApp)
                         await EmailService.sendWarrantyApprovalToCustomer(
                             warrantyData.customer_email,
                             warrantyData.customer_name,
@@ -795,8 +864,33 @@ export class AdminController {
                             warrantyData.applicator_name
                         );
                         console.log(`✓ Warranty approval email sent to customer: ${warrantyData.customer_email}`);
-                    } else {
-                        // Send rejection email to customer
+                    } else if (status === 'rejected') {
+                        // ── Customer Rejection: WhatsApp first, email fallback ──
+                        let rejectionWaSent = false;
+                        if (process.env.ENABLE_WHATSAPP === 'true' && warrantyData.customer_phone) {
+                            try {
+                                const purchaseDate = warrantyData.created_at
+                                    ? new Date(warrantyData.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
+                                    : 'N/A';
+                                const productName = (productDetails as any)?.product || (productDetails as any)?.productName || warrantyData.product_type || 'Autoform Product';
+                                rejectionWaSent = await WhatsAppService.sendWarrantyRejectedCustomer(
+                                    warrantyData.customer_phone,
+                                    warrantyData.customer_name,
+                                    productName,
+                                    warrantyData.registration_number || 'N/A',
+                                    warrantyData.uid,
+                                    warrantyData.store_name || warrantyData.installer_name || 'Autoform Store',
+                                    'Not Approved',
+                                    purchaseDate,
+                                    warrantyData.warranty_type || 'Standard',
+                                    rejectionReason
+                                );
+                                console.log(`[WhatsApp] Warranty rejection sent to customer: ${warrantyData.customer_phone}`);
+                            } catch (waErr) {
+                                console.error('[WhatsApp] Failed to send rejection to customer:', waErr);
+                            }
+                        }
+                        // Send Email (always live alongside WhatsApp)
                         await EmailService.sendWarrantyRejectionToCustomer(
                             warrantyData.customer_email,
                             warrantyData.customer_name,
@@ -871,9 +965,10 @@ export class AdminController {
                     }
                 }
 
-                // 3. Send vendor email if we found one
+                // 3. Send vendor notification if we found one
                 if (vendorEmail && vendorName) {
                     if (status === 'validated') {
+                        // Vendor approval: no WhatsApp template, email stays primary
                         await EmailService.sendWarrantyApprovalToVendor(
                             vendorEmail,
                             vendorName,
@@ -889,7 +984,40 @@ export class AdminController {
                             warrantyData.warranty_type
                         );
                         console.log(`✓ Warranty approval email sent to vendor: ${vendorEmail}`);
-                    } else {
+                    } else if (status === 'rejected') {
+                        // ── Vendor Rejection: WhatsApp first, email fallback ──
+                        let vendorRejWaSent = false;
+                        if (process.env.ENABLE_WHATSAPP === 'true') {
+                            try {
+                                const [vendorPhone]: any = await db.execute(
+                                    `SELECT p.phone_number FROM profiles p
+                                     JOIN vendor_details vd ON vd.user_id = p.id
+                                     WHERE p.email = ? LIMIT 1`,
+                                    [vendorEmail]
+                                );
+                                if (vendorPhone.length > 0 && vendorPhone[0].phone_number) {
+                                    const purchaseDate = warrantyData.created_at
+                                        ? new Date(warrantyData.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
+                                        : 'N/A';
+                                    const productName = (productDetails as any)?.product || (productDetails as any)?.productName || warrantyData.product_type || 'Autoform Product';
+                                    vendorRejWaSent = await WhatsAppService.sendVendorRejected(
+                                        vendorPhone[0].phone_number,
+                                        vendorName ?? 'Franchise Partner',
+                                        productName,
+                                        warrantyData.registration_number || 'N/A',
+                                        warrantyData.uid,
+                                        'Not Approved',
+                                        purchaseDate,
+                                        warrantyData.warranty_type || 'Standard',
+                                        rejectionReason
+                                    );
+                                    console.log(`[WhatsApp] Vendor rejection notice sent to: ${vendorPhone[0].phone_number}`);
+                                }
+                            } catch (waErr) {
+                                console.error('[WhatsApp] Failed to send vendor rejection notice:', waErr);
+                            }
+                        }
+                        // Send Email (always live alongside WhatsApp)
                         await EmailService.sendWarrantyRejectionToVendor(
                             vendorEmail,
                             vendorName,
@@ -913,11 +1041,19 @@ export class AdminController {
 
                 // 4. Send real-time notification to vendor
                 if (vendorUserId) {
+                    let title = 'Warranty Pending ⏳';
+                    let message = `The warranty for ${warrantyData.customer_name} (${warrantyData.uid}) is pending review.`;
+                    
+                    if (status === 'validated') {
+                        title = 'Warranty Approved! ✓';
+                        message = `The warranty for ${warrantyData.customer_name} (${warrantyData.uid}) has been approved.`;
+                    } else if (status === 'rejected') {
+                        message = `The warranty for ${warrantyData.customer_name} (${warrantyData.uid}) has been rejected. Reason: ${rejectionReason}`;
+                    }
+
                     await NotificationService.notify(vendorUserId, {
-                        title: status === 'validated' ? 'Warranty Approved! ✓' : 'Warranty Pending ⏳',
-                        message: status === 'validated'
-                            ? `The warranty for ${warrantyData.customer_name} (${warrantyData.uid}) has been approved.`
-                            : `The warranty for ${warrantyData.customer_name} (${warrantyData.uid}) is pending. Reason: ${rejectionReason}`,
+                        title,
+                        message,
                         type: 'warranty',
                         link: `/dashboard/vendor`
                     });
@@ -925,11 +1061,19 @@ export class AdminController {
 
                 // 5. Notify Customer
                 if (warrantyData.user_id) {
+                    let title = 'Warranty Pending ⏳';
+                    let message = `Your warranty for ${warrantyData.uid} is now under review by AutoForm.`;
+                    
+                    if (status === 'validated') {
+                        title = 'Warranty Validated! ✓';
+                        message = `Your warranty for ${warrantyData.uid} has been validated by AutoForm.`;
+                    } else if (status === 'rejected') {
+                        message = `Your warranty for ${warrantyData.uid} has been rejected. Reason: ${rejectionReason}`;
+                    }
+
                     await NotificationService.notify(warrantyData.user_id, {
-                        title: status === 'validated' ? 'Warranty Validated! ✓' : 'Warranty Pending ⏳',
-                        message: status === 'validated'
-                            ? `Your warranty for ${warrantyData.uid} has been validated by AutoForm.`
-                            : `Your warranty for ${warrantyData.uid} is pending. Reason: ${rejectionReason}`,
+                        title,
+                        message,
                         type: 'warranty',
                         link: `/dashboard/customer`
                     });
@@ -945,7 +1089,8 @@ export class AdminController {
                 adminId: admin.id,
                 adminName: admin.name,
                 adminEmail: admin.email,
-                actionType: status === 'validated' ? 'WARRANTY_APPROVED' : 'WARRANTY_REJECTED',
+                actionType: status === 'validated' ? 'WARRANTY_APPROVED' : 
+                           status === 'pending' ? 'WARRANTY_OVERRIDDEN' : 'WARRANTY_REJECTED',
                 targetType: 'WARRANTY',
                 targetId: warrantyData.uid,
                 targetName: warrantyData.uid,
@@ -1320,11 +1465,24 @@ export class AdminController {
                     p.name as submitted_by_name,
                     p.email as submitted_by_email,
                     m.name as manpower_name_from_db,
-                    vd.store_name as vendor_store_name
+                    COALESCE(vd_m.store_name, vd_i.store_name, vd_owner.store_name) as vendor_store_name,
+                    COALESCE(vd_m.store_email, vd_i.store_email, vd_owner.store_email) as vendor_store_email,
+                    vp.phone_number as vendor_phone_number,
+                    COALESCE(vd_m.latitude, vd_i.latitude, vd_owner.latitude) as store_lat,
+                    COALESCE(vd_m.longitude, vd_i.longitude, vd_owner.longitude) as store_lng
                 FROM warranty_registrations wr
                 LEFT JOIN profiles p ON wr.user_id = p.id
                 LEFT JOIN manpower m ON wr.manpower_id = m.id
-                LEFT JOIN vendor_details vd ON (wr.installer_name = vd.store_name AND wr.installer_contact = vd.store_email)
+                LEFT JOIN vendor_details vd_m ON (wr.manpower_id IS NOT NULL AND wr.manpower_id NOT LIKE 'owner-%' AND m.vendor_id = vd_m.id)
+                LEFT JOIN vendor_details vd_i ON (
+                    (wr.installer_name = vd_i.store_name OR wr.installer_name = CONCAT(vd_i.store_name, ' - ', vd_i.city)) 
+                    AND wr.installer_contact = vd_i.store_email
+                )
+                LEFT JOIN vendor_details vd_owner ON (
+                    wr.manpower_id LIKE 'owner-%' AND
+                    vd_owner.id = REPLACE(wr.manpower_id, 'owner-', '')
+                )
+                LEFT JOIN profiles vp ON COALESCE(vd_m.user_id, vd_i.user_id, vd_owner.user_id) = vp.id
                 WHERE wr.customer_email = ?
                 ORDER BY wr.created_at DESC
             `, [email]);
@@ -1770,6 +1928,8 @@ export class AdminController {
             }
             
             const staging = rows[0];
+            console.log(`[Admin Approval] Approving resubmission ID: ${id}, for UID: ${staging.original_uid}`);
+            console.log(`[Admin Approval] Photo URLs in staging: SeatCover=${staging.seat_cover_photo_url}, CarOuter=${staging.car_outer_photo_url}`);
             
             // Using a transaction to ensure atomic update of both tables
             connection = await db.getConnection();

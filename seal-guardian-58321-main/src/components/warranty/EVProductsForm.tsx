@@ -281,17 +281,7 @@ const EVProductsForm = ({ initialData, warrantyId, onSuccess, isUniversal, isEdi
       }
     }
 
-    // Email is required for public flow
-    if (isPublic && !formData.customerEmail) {
-      toast({ title: "Email Required", description: "Please enter your email address", variant: "destructive" });
-      return;
-    }
-
-    // Email is required for public flow
-    if (isPublic && !formData.customerEmail) {
-      toast({ title: "Email Required", description: "Please enter your email address", variant: "destructive" });
-      return;
-    }
+    // Email is optional (Phone-Number Centric)
 
     // === Step 2: Customer Details Validation ===
     // Prevent vendor from using their own email as the customer email
@@ -474,7 +464,7 @@ const EVProductsForm = ({ initialData, warrantyId, onSuccess, isUniversal, isEdi
         toast({
           title: "Warranty Submitted!",
           description: result.isNewUser
-            ? "Your warranty has been submitted. Check your email for account details!"
+            ? "Your warranty has been submitted. Check your messages for confirmation!"
             : "Your warranty has been submitted and is awaiting store verification.",
         });
       } else {

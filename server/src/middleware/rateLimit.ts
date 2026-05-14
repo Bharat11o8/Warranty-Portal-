@@ -1,15 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import rateLimit from 'express-rate-limit';
 import { Ratelimit } from '@upstash/ratelimit';
-import { Redis } from '@upstash/redis';
-
-// Initialize Redis client (only if credentials are available)
-const redis = process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN
-    ? new Redis({
-        url: process.env.UPSTASH_REDIS_REST_URL,
-        token: process.env.UPSTASH_REDIS_REST_TOKEN,
-    })
-    : null;
+import { redis } from '../config/redis.js';
 
 // Auth rate limiter: 10 requests per 15 minutes per IP
 const authLimiter = redis

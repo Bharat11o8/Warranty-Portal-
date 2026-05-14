@@ -275,16 +275,16 @@ const CameraCapture = ({
                 </div>
                 <div
                     className={`mt-2 border-2 border-dashed rounded-xl p-6 transition-all duration-200 text-center relative cursor-pointer ${value
-                            ? "border-orange-300 bg-orange-50/30"
-                            : "border-slate-200 hover:border-orange-300 hover:bg-slate-50"
+                        ? "border-orange-300 bg-orange-50/30"
+                        : "border-slate-200 hover:border-orange-300 hover:bg-slate-50"
                         } ${disabled ? "opacity-50 cursor-not-allowed" : ""}`}
                     onClick={!value ? handleButtonClick : undefined}
                 >
                     <div className="flex flex-col items-center gap-2">
                         <div
                             className={`p-3 rounded-full ${value
-                                    ? "bg-orange-100 text-orange-600"
-                                    : "bg-slate-100 text-slate-500"
+                                ? "bg-orange-100 text-orange-600"
+                                : "bg-slate-100 text-slate-500"
                                 }`}
                         >
                             {value

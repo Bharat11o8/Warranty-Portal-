@@ -170,8 +170,8 @@ export const AdminWarranties = () => {
 
         try {
             const [mainRes, resubRes] = await Promise.all([
-                api.get(`/admin/warranties?limit=1000&t=${Date.now()}`),
-                api.get(`/admin/warranties/resubmissions?limit=1000&t=${Date.now()}`)
+                api.get(`/admin/warranties?limit=10000&t=${Date.now()}`),
+                api.get(`/admin/warranties/resubmissions?limit=10000&t=${Date.now()}`)
             ]);
             
             if (mainRes.data.success) setWarranties(mainRes.data.warranties);
@@ -188,7 +188,7 @@ export const AdminWarranties = () => {
         }
     };
 
-    const handleUpdateStatus = async (id: string, status: 'validated' | 'rejected', reason?: string) => {
+    const handleUpdateStatus = async (id: string, status: 'validated' | 'rejected' | 'pending', reason?: string) => {
         setProcessingId(id);
         try {
             if (statusFilter === 'resubmitted') {
@@ -557,6 +557,7 @@ export const AdminWarranties = () => {
                                     setRejectReason("");
                                     setRejectDialogOpen(true);
                                 }}
+                                 onMoveToPending={(id) => handleUpdateStatus(id, 'pending')}
                                 processingWarranty={processingId}
                             />
                         </div>

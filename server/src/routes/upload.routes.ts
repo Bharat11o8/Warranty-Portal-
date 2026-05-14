@@ -1,42 +1,20 @@
 import { Router, Request, Response } from 'express';
-import multer from 'multer';
-import { CloudinaryStorage } from 'multer-storage-cloudinary';
-import cloudinary from '../config/cloudinary.js';
 import { authenticateToken } from '../middleware/auth.js';
+import { broadcastUpload, attachPublicUrls } from '../config/localUpload.js';
 
 const router = Router();
 
-// Configure Cloudinary storage for broadcasts/announcements
-const storage = new CloudinaryStorage({
-    cloudinary: cloudinary,
-    params: {
-        folder: 'broadcasts',
-        allowed_formats: ['jpg', 'jpeg', 'png', 'mp4', 'mov', 'webm'],
-        resource_type: 'auto', // Important for video support
-        public_id: (req: any, file: any) => {
-            const originalName = file.originalname.split('.')[0].replace(/[^a-zA-Z0-9]/g, '_').substring(0, 30);
-            const timestamp = Date.now();
-            return `broadcast_${originalName}_${timestamp}`;
-        }
-    } as any,
-});
 
-const upload = multer({
-    storage: storage,
-    limits: {
-        fileSize: 50 * 1024 * 1024, // 50MB max (videos can be large)
-    }
-});
 
 // Single file upload endpoint
-router.post('/', authenticateToken, upload.single('file'), (req: Request, res: Response) => {
+router.post('/', authenticateToken, broadcastUpload.single('file'), attachPublicUrls, (req: Request, res: Response) => {
     try {
         if (!req.file) {
             return res.status(400).json({ success: false, error: 'No file uploaded' });
         }
 
         const fileData = req.file as any;
-        const fileUrl = fileData.path || fileData.secure_url || fileData.url;
+        const fileUrl = fileData.secure_url || fileData.url || fileData.path;
 
         res.json({
             success: true,

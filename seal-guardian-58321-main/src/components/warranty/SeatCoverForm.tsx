@@ -381,15 +381,7 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
 
       // Validate Customer Email (if provided or required)
       // Note: Email is required for non-vendors and for public flow
-      if (isPublic && !formData.customerEmail) {
-        toast({
-          title: "Email Required",
-          description: "Please enter your email address",
-          variant: "destructive",
-        });
-        setLoading(false);
-        return;
-      }
+      // Email is optional (Phone-Number Centric)
       if (formData.customerEmail && !validateEmail(formData.customerEmail)) {
         toast({
           title: "Invalid Email",
@@ -586,7 +578,7 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
         toast({
           title: "Warranty Submitted!",
           description: result.isNewUser
-            ? "Your warranty has been submitted. Check your email for account details!"
+            ? "Your warranty has been submitted. Check your messages for confirmation!"
             : "Your warranty has been submitted and is awaiting store verification.",
         });
       } else {

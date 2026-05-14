@@ -22,7 +22,8 @@ import {
     MapPin,
     Wifi,
     Clock,
-    ChevronUp
+    ChevronUp,
+    RefreshCw
 } from "lucide-react";
 
 function haversineDistance(lat1: number, lng1: number, lat2: number, lng2: number): number {
@@ -45,6 +46,7 @@ interface AdminWarrantyListProps {
     processingWarranty?: string | null;
     onApprove?: (warrantyId: string) => void;
     onReject?: (warrantyId: string) => void;
+    onMoveToPending?: (warrantyId: string) => void;
 }
 
 export const AdminWarrantyList = ({
@@ -53,7 +55,8 @@ export const AdminWarrantyList = ({
     showActions = true,
     processingWarranty,
     onApprove,
-    onReject
+    onReject,
+    onMoveToPending
 }: AdminWarrantyListProps) => {
     const [selectedWarranty, setSelectedWarranty] = useState<any>(null);
     const [expandedFraud, setExpandedFraud] = useState<Set<string>>(new Set());
@@ -591,7 +594,25 @@ export const AdminWarrantyList = ({
                                             </Button>
                                         )}
                                         {warranty.status === 'rejected' && (
-                                            <span className="text-xs text-muted-foreground">Waiting for resubmission</span>
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-tight bg-slate-50 px-2 py-1 rounded-md border border-slate-100">Waiting for Resubmission</span>
+                                                {onMoveToPending && (
+                                                    <Button
+                                                        size="sm"
+                                                        variant="outline"
+                                                        className="h-8 text-[10px] font-bold uppercase tracking-tight text-orange-600 hover:text-orange-700 hover:bg-orange-50 border-orange-200"
+                                                        onClick={() => onMoveToPending(warranty.uid || warranty.id)}
+                                                        disabled={processingWarranty === (warranty.uid || warranty.id)}
+                                                    >
+                                                        {processingWarranty === (warranty.uid || warranty.id) ? (
+                                                            <Loader2 className="h-3 w-3 animate-spin" />
+                                                        ) : (
+                                                            <RefreshCw className="h-3 w-3 mr-1" />
+                                                        )}
+                                                        Move to Pending
+                                                    </Button>
+                                                )}
+                                            </div>
                                         )}
                                     </div>
                                 </div>

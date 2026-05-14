@@ -6,6 +6,7 @@ import { AuthRequest } from '../middleware/auth.js';
 import { WarrantyData } from '../types/index.js';
 import jwt from 'jsonwebtoken';
 import { NotificationService } from '../services/notification.service.js';
+import { WhatsAppService } from '../services/whatsapp.service.js';
 import { geolocateIP, getClientIP } from '../utils/ipGeolocation.js';
 import { calculateFraudScore } from '../utils/fraudScoring.js';
 
@@ -36,6 +37,18 @@ export class WarrantyController {
           return res.status(400).json({ error: 'Invalid productDetails format' });
         }
       }
+
+      // SBP-DB: Trim string lengths to prevent database overflow (Data Too Long) edge cases
+      if (warrantyData.customerName) warrantyData.customerName = String(warrantyData.customerName).substring(0, 255);
+      if (warrantyData.customerEmail) warrantyData.customerEmail = String(warrantyData.customerEmail).substring(0, 255);
+      if (warrantyData.customerPhone) warrantyData.customerPhone = String(warrantyData.customerPhone).substring(0, 20);
+      if (warrantyData.installerName) warrantyData.installerName = String(warrantyData.installerName).substring(0, 255);
+      if (warrantyData.installerContact) warrantyData.installerContact = String(warrantyData.installerContact).substring(0, 255);
+      if (warrantyData.registrationNumber) warrantyData.registrationNumber = String(warrantyData.registrationNumber).substring(0, 50);
+      if (warrantyData.carMake) warrantyData.carMake = String(warrantyData.carMake).substring(0, 100);
+      if (warrantyData.carModel) warrantyData.carModel = String(warrantyData.carModel).substring(0, 100);
+      if (warrantyData.carYear) warrantyData.carYear = String(warrantyData.carYear).substring(0, 4);
+      if (warrantyData.warrantyType) warrantyData.warrantyType = String(warrantyData.warrantyType).substring(0, 50);
 
       // Handle uploaded files
       const files = req.files as Express.Multer.File[];
@@ -99,9 +112,11 @@ export class WarrantyController {
       }
 
       // Customer email is required for customers, optional for vendors
+      /* 
       if (req.user.role === 'customer' && !warrantyData.customerEmail) {
         return res.status(400).json({ error: 'Customer email is required' });
       }
+      */
 
       // UID is only required for seat-cover products
       if (warrantyData.productType === 'seat-cover' && !warrantyData.productDetails?.uid) {
@@ -128,17 +143,50 @@ export class WarrantyController {
       const checkId = uid || warrantyData.productDetails.serialNumber;
       if (checkId) {
         const [existingWarranty]: any = await db.execute(
-          'SELECT uid, user_id, status, product_details FROM warranty_registrations WHERE uid = ?',
+          'SELECT uid, user_id, status, product_details, manpower_id, installer_name, installer_contact FROM warranty_registrations WHERE uid = ?',
           [checkId]
         );
 
         if (existingWarranty.length > 0) {
           const existing = existingWarranty[0];
 
-          // Allow resubmission if:
-          // 1. The warranty was rejected AND
-          // 2. The user owns it (same user_id)
-          if (existing.status === 'rejected' && existing.user_id === req.user.id) {
+          // Authorization check: Only allow resubmission if user owns it, is admin, or is a linked vendor
+          let isAuthorized = req.user.role === 'admin' || existing.user_id === req.user.id;
+
+          if (!isAuthorized && req.user.role === 'vendor') {
+            // Fetch vendor details to check for link
+            const [vendorDetails]: any = await db.execute(
+              'SELECT id, store_name, store_email, city FROM vendor_details WHERE user_id = ?',
+              [req.user.id]
+            );
+
+            if (vendorDetails.length > 0) {
+              const vd = vendorDetails[0];
+              
+              // 1. Check if manpower belongs to this vendor
+              if (existing.manpower_id) {
+                const [manpower]: any = await db.execute(
+                  'SELECT id FROM manpower WHERE id = ? AND vendor_id = ?',
+                  [existing.manpower_id, vd.id]
+                );
+                if (manpower.length > 0) isAuthorized = true;
+              }
+
+              // 2. Check if installer name/contact match this store (catches QR/public submissions)
+              if (!isAuthorized && 
+                  (existing.installer_name === vd.store_name || existing.installer_name === `${vd.store_name} - ${vd.city}`) && 
+                  existing.installer_contact === vd.store_email) {
+                isAuthorized = true;
+              }
+
+              // 3. Check if the warranty installer_contact contains the vendor email (fallback for mixed formats)
+              if (!isAuthorized && existing.installer_contact && existing.installer_contact.includes(vd.store_email)) {
+                isAuthorized = true;
+              }
+            }
+          }
+
+          if (existing.status === 'rejected' && isAuthorized) {
             let existingDetails: any = {};
             try {
               existingDetails = typeof existing.product_details === 'string'
@@ -158,9 +206,39 @@ export class WarrantyController {
             // Increment retry count for the new submission
             warrantyData.productDetails.retryCount = currentRetryCount + 1;
 
+            // Merge logic: Preserve old photos if new ones are not provided
+            if (existingDetails.photos) {
+              if (!warrantyData.productDetails.photos) {
+                warrantyData.productDetails.photos = {};
+              }
+              const oldPhotos = existingDetails.photos;
+              Object.keys(oldPhotos).forEach(key => {
+                if (!(warrantyData.productDetails.photos as any)[key] && oldPhotos[key]) {
+                  (warrantyData.productDetails.photos as any)[key] = oldPhotos[key];
+                }
+              });
+            }
+            
+            // Also preserve invoice if missing
+            if (!warrantyData.productDetails.invoiceFileName && existingDetails.invoiceFileName) {
+              warrantyData.productDetails.invoiceFileName = existingDetails.invoiceFileName;
+            }
+
+            // Preserve all other top-level fields (like allExifData) if omitted from the new request
+            Object.keys(existingDetails).forEach(key => {
+              if (key !== 'photos' && key !== 'invoiceFileName' && key !== 'retryCount') {
+                if ((warrantyData.productDetails as any)[key] == null) {
+                  (warrantyData.productDetails as any)[key] = existingDetails[key];
+                }
+              }
+            });
+
             // Mark as resubmission (do NOT delete original)
             isResubmission = true;
-            console.log(`[Resubmission] Detected resubmission for UID: ${checkId}, routing to staging table.`);
+            console.log(`[Resubmission] Detected resubmission for UID: ${checkId}`);
+            console.log(`[Resubmission] Files received in request:`, files?.map(f => f.fieldname));
+            console.log(`[Resubmission] Post-merge productDetails keys preserved:`, Object.keys(warrantyData.productDetails));
+            console.log(`[Resubmission] Final merged photos:`, JSON.stringify(warrantyData.productDetails.photos));
           } else {
             return res.status(400).json({
               error: `This ${uid ? 'UID' : 'Serial Number'} is already registered.`
@@ -263,20 +341,30 @@ export class WarrantyController {
       // Determine user_id: If vendor/admin is submitting, we ensure a customer profile exists
       let finalUserId = req.user.id;
       
-      // For vendor/admin submissions with a customer email, auto-create customer profile
-      if (req.user.role !== 'customer' && warrantyData.customerEmail) {
+      // For vendor/admin submissions, ensure a customer profile exists (based on mandatory Phone Number)
+      if (req.user.role !== 'customer') {
         try {
-          const customerEmail = warrantyData.customerEmail.toLowerCase().trim();
+          const customerPhone = warrantyData.customerPhone.trim();
+          const customerEmail = warrantyData.customerEmail ? warrantyData.customerEmail.toLowerCase().trim() : null;
           
-          // Prevent franchise from using their own email
-          if (customerEmail === req.user.email.toLowerCase().trim()) {
+          // Prevent franchise from using their own email as customer email
+          if (customerEmail && customerEmail === req.user.email.toLowerCase().trim()) {
             return res.status(400).json({ error: "You cannot use your franchise email address as the customer's email. Please use the actual customer's email address." });
           }
 
-          const [existingUsers]: any = await db.execute(
-            'SELECT id FROM profiles WHERE email = ?',
-            [customerEmail]
+          // 1. Try to find existing user by Phone Number (Priority)
+          let [existingUsers]: any = await db.execute(
+            'SELECT id, email FROM profiles WHERE phone_number = ?',
+            [customerPhone]
           );
+
+          // 2. Fallback: Try to find by Email if phone didn't match and email is provided
+          if (existingUsers.length === 0 && customerEmail) {
+            [existingUsers] = await db.execute(
+              'SELECT id, email FROM profiles WHERE email = ?',
+              [customerEmail]
+            );
+          }
 
           if (existingUsers.length > 0) {
             finalUserId = existingUsers[0].id;
@@ -289,9 +377,12 @@ export class WarrantyController {
             
             const userRoles = roles.map((r: any) => r.role);
             
-            // If the user is an admin or vendor, prevent using this email as a customer
+            // If the user is an admin or vendor, prevent using this account as a customer
             if (userRoles.includes('admin') || userRoles.includes('vendor')) {
-              return res.status(400).json({ error: "This email address is registered as a franchise or admin account and cannot be used as a customer email." });
+              const matchedBy = existingUsers[0].email === customerEmail ? 'email address' : 'phone number';
+              return res.status(400).json({ 
+                error: `This ${matchedBy} is registered as a franchise or admin account and cannot be used as a customer profile.` 
+              });
             }
 
             // Ensure they have the 'customer' role
@@ -301,19 +392,24 @@ export class WarrantyController {
                 [uuidv4(), finalUserId]
               );
             }
+            
+            // If email was provided but DB email is null/empty, update it
+            if (customerEmail && (!existingUsers[0].email)) {
+              await db.execute('UPDATE profiles SET email = ? WHERE id = ?', [customerEmail, finalUserId]);
+            }
           } else {
-            // Create new customer profile 
-            // Note: We don't set a password, user will use OTP login
+            // Create new customer profile based on Phone (and Email if provided)
             const newCustomerId = uuidv4();
             await db.execute(
               'INSERT INTO profiles (id, name, email, phone_number) VALUES (?, ?, ?, ?)',
-              [newCustomerId, warrantyData.customerName, customerEmail, warrantyData.customerPhone]
+              [newCustomerId, warrantyData.customerName, customerEmail, customerPhone]
             );
             await db.execute(
               'INSERT INTO user_roles (id, user_id, role) VALUES (?, ?, "customer")',
               [uuidv4(), newCustomerId]
             );
             finalUserId = newCustomerId;
+            console.log(`✓ Auto-created customer profile for phone: ${customerPhone}`);
           }
         } catch (profileError) {
           console.error('Error auto-creating customer profile:', profileError);
@@ -370,7 +466,7 @@ export class WarrantyController {
             exifData.deviceMake ? `${exifData.deviceMake} ${exifData.deviceModel || ''}`.trim() : null,
             exifData.deviceFingerprint, clientIP, ipGeo.city, ipGeo.region, ipGeo.lat, ipGeo.lng, fraudScore,
             JSON.stringify(fraudFlags), (warrantyData.productDetails as any)?.photos?.seatCover || null,
-            (warrantyData.productDetails as any)?.photos?.carOuter || null
+            (warrantyData.productDetails as any)?.photos?.vehicle || (warrantyData.productDetails as any)?.photos?.carOuter || null
           ]
         );
       } else {
@@ -392,7 +488,7 @@ export class WarrantyController {
             exifData.deviceMake ? `${exifData.deviceMake} ${exifData.deviceModel || ''}`.trim() : null,
             exifData.deviceFingerprint, clientIP, ipGeo.city, ipGeo.region, ipGeo.lat, ipGeo.lng, fraudScore,
             JSON.stringify(fraudFlags), (warrantyData.productDetails as any)?.photos?.seatCover || null,
-            (warrantyData.productDetails as any)?.photos?.carOuter || null
+            (warrantyData.productDetails as any)?.photos?.vehicle || (warrantyData.productDetails as any)?.photos?.carOuter || null
           ]
         );
 
@@ -409,60 +505,110 @@ export class WarrantyController {
 
       // UID is checked but NOT marked as used until Admin approves it.
 
-      // Handle Email Notifications
+      // ── Franchise Verify Notification (pending_vendor only) ────────────────
       if (initialStatus === 'pending_vendor' && warrantyData.installerContact) {
-        // Generate Token
-        const token = jwt.sign(
-          { warrantyId: warrantyId, vendorEmail: warrantyData.installerContact },
-          process.env.JWT_SECRET!,
-          { expiresIn: '7d' } // Long expiry for email links
-        );
-
-        // Send Email to Vendor
-        // Parsing installerContact to get email if it's in "email | phone" format
         let vendorEmail = warrantyData.installerContact;
         if (vendorEmail.includes('|')) {
           vendorEmail = vendorEmail.split('|')[0].trim();
         }
 
-        await EmailService.sendVendorConfirmationEmail(
-          vendorEmail,
-          warrantyData.installerName || 'Partner',
-          warrantyData.customerName,
-          token,
-          warrantyData.productType,
-          warrantyData.productDetails,
-          warrantyData.registrationNumber,
-          warrantyData.carMake,
-          warrantyData.carModel
-        );
-      } else if (warrantyData.customerEmail && warrantyData.customerEmail.trim()) {
-        // Standard confirmation to customer (only if not pending vendor, or maybe send "Submission Received"?)
-        // User said: "share a mail to the vendor... if it gets confirmed then the request will be updated... and the mailing will also be perfomed accordingly"
-        // This implies customer gets their "Registered" email AFTER vendor confirms?
-        // Or do they get a "Pending Verification" email now?
-        // Let's stick to existing behavior for non-pending-vendor, but for pending-vendor, maybe skip this or send a "Waiting for store" email.
-        // For now, I will SKIP the standard confirmation email here if it's pending_vendor, 
-        // to avoid confusion ("Registered" vs "Pending").
-        // I should probably add sending this email in the verification endpoint.
+        // 1. Try WhatsApp first (with Approve/Reject buttons)
+        let franchiseWaSent = false;
+        if (process.env.ENABLE_WHATSAPP === 'true') {
+          try {
+            const [vendorProfile]: any = await db.execute(
+              `SELECT p.phone_number FROM profiles p
+               JOIN vendor_details vd ON vd.user_id = p.id
+               WHERE vd.store_email = ? LIMIT 1`,
+              [vendorEmail]
+            );
+            if (vendorProfile.length > 0 && vendorProfile[0].phone_number) {
+              const productName = warrantyData.productDetails?.productName
+                || warrantyData.productDetails?.product
+                || warrantyData.productType;
+              franchiseWaSent = await WhatsAppService.sendFranchiseVerifyAction(
+                vendorProfile[0].phone_number,
+                warrantyData.installerName || 'Franchise Partner',
+                warrantyData.customerName,
+                warrantyData.customerPhone,
+                warrantyData.registrationNumber,
+                productName,
+                warrantyId,
+                warrantyId
+              );
+            }
+          } catch (err) {
+            console.error('[WhatsApp] Franchise verify action failed:', err);
+          }
+        }
+
+        // 2. Email fallback — only if WhatsApp didn't send
+        if (!franchiseWaSent) {
+          try {
+            const token = jwt.sign(
+              { warrantyId: warrantyId, vendorEmail: warrantyData.installerContact },
+              process.env.JWT_SECRET!,
+              { expiresIn: '7d' }
+            );
+            await EmailService.sendVendorConfirmationEmail(
+              vendorEmail,
+              warrantyData.installerName || 'Partner',
+              warrantyData.customerName,
+              token,
+              warrantyData.productType,
+              warrantyData.productDetails,
+              warrantyData.registrationNumber,
+              warrantyData.carMake,
+              warrantyData.carModel
+            );
+          } catch (err) {
+            console.error('[Email] Franchise verify fallback email failed:', err);
+          }
+        }
       }
 
-      // If it WASN'T pending_vendor (e.g. Admin submitted), send the standard confirmation now
-      if (initialStatus !== 'pending_vendor' && warrantyData.customerEmail && warrantyData.customerEmail.trim()) {
-        await EmailService.sendWarrantyConfirmation(
-          warrantyData.customerEmail,
-          warrantyData.customerName,
-          warrantyId,
-          warrantyData.productType,
-          warrantyData.productDetails,
-          warrantyData.registrationNumber,
-          warrantyData.carMake,
-          warrantyData.carModel
-        );
+      // ── Customer Submission Notification ──────────────────────────────────
+      // WhatsApp first; email only as fallback
+      let customerWaSent = false;
+      if (process.env.ENABLE_WHATSAPP === 'true' && warrantyData.customerPhone) {
+        try {
+          const productName = warrantyData.productDetails?.productName
+            || warrantyData.productDetails?.product
+            || warrantyData.productType;
+          customerWaSent = await WhatsAppService.sendWarrantySubmitted(
+            warrantyData.customerPhone,
+            warrantyData.customerName,
+            productName,
+            warrantyData.registrationNumber,
+            warrantyId,
+            warrantyData.productType,
+            warrantyData.purchaseDate,
+            warrantyId
+          );
+        } catch (err) {
+          console.error('[WhatsApp] Customer submission notification failed:', err);
+        }
       }
 
+      // Email fallback — send if WhatsApp didn't fire
+      if (!customerWaSent && warrantyData.customerEmail && warrantyData.customerEmail.trim()) {
+        try {
+          await EmailService.sendWarrantyConfirmation(
+            warrantyData.customerEmail,
+            warrantyData.customerName,
+            warrantyId,
+            warrantyData.productType,
+            warrantyData.productDetails,
+            warrantyData.registrationNumber,
+            warrantyData.carMake,
+            warrantyData.carModel
+          );
+        } catch (err) {
+          console.error('[Email] Customer submission fallback email failed:', err);
+        }
+      }
 
-      // Notify Admin about new warranty
+      // ── Admin Notification ────────────────────────────────────────────────
       try {
         await NotificationService.broadcast({
           title: `New Warranty Registration`,
@@ -855,7 +1001,7 @@ export class WarrantyController {
         files.forEach(file => {
           if (file.fieldname === 'invoiceFile') {
             warrantyData.productDetails.invoiceFileName = file.path;
-          } else if (['lhsPhoto', 'rhsPhoto', 'frontRegPhoto', 'backRegPhoto', 'warrantyPhoto'].includes(file.fieldname)) {
+          } else if (['lhsPhoto', 'rhsPhoto', 'frontRegPhoto', 'backRegPhoto', 'warrantyPhoto', 'vehiclePhoto', 'seatCoverPhoto'].includes(file.fieldname)) {
             if (!warrantyData.productDetails.photos) {
               warrantyData.productDetails.photos = {};
             }
@@ -880,14 +1026,16 @@ export class WarrantyController {
       }
 
       // Customer email is required for customers, optional for vendors
+      /* 
       if (req.user.role === 'customer' && !warrantyData.customerEmail) {
         return res.status(400).json({ error: 'Customer email is required' });
       }
+      */
 
       // Check if warranty exists and belongs to user (or user is admin/vendor linked)
       // For simplicity, we'll check ownership via user_id for now as per getWarrantyById logic
       // Support both uid (seat-cover) and id (EV products) for lookup
-      let checkQuery = 'SELECT id, uid, user_id, status, product_details, manpower_id FROM warranty_registrations WHERE uid = ? OR id = ?';
+      let checkQuery = 'SELECT id, uid, user_id, status, product_details, manpower_id, installer_name, installer_contact FROM warranty_registrations WHERE uid = ? OR id = ?';
       let checkParams: any[] = [uid, uid];
 
       const [warranties]: any = await db.execute(checkQuery, checkParams);
@@ -898,10 +1046,49 @@ export class WarrantyController {
 
       const warranty = warranties[0];
 
-      // Authorization check: Only allow update if user owns it or is admin (though admin usually uses different endpoint)
-      // Also allow vendors to update warranties they submitted
-      if (req.user.role !== 'admin' && warranty.user_id !== req.user.id) {
+      // Authorization check: Only allow update if user owns it, is admin, or is a linked vendor
+      let isAuthorized = req.user.role === 'admin' || warranty.user_id === req.user.id;
+
+      if (!isAuthorized && req.user.role === 'vendor') {
+        // Fetch vendor details to check for link
+        const [vendorDetails]: any = await db.execute(
+          'SELECT id, store_name, store_email FROM vendor_details WHERE user_id = ?',
+          [req.user.id]
+        );
+
+        if (vendorDetails.length > 0) {
+          const vd = vendorDetails[0];
+          
+          // 1. Check if manpower belongs to this vendor
+          if (warranty.manpower_id) {
+            const [manpower]: any = await db.execute(
+              'SELECT id FROM manpower WHERE id = ? AND vendor_id = ?',
+              [warranty.manpower_id, vd.id]
+            );
+            if (manpower.length > 0) isAuthorized = true;
+          }
+
+          // 2. Check if installer name/contact match this store (catches QR/public submissions)
+          if (!isAuthorized && 
+              (warranty.installer_name === vd.store_name || warranty.installer_name === `${vd.store_name} - ${vd.city}`) && 
+              warranty.installer_contact === vd.store_email) {
+            isAuthorized = true;
+          }
+
+          // 3. Check if the warranty installer_contact contains the vendor email (fallback for mixed formats)
+          if (!isAuthorized && warranty.installer_contact && warranty.installer_contact.includes(vd.store_email)) {
+            isAuthorized = true;
+          }
+        }
+      }
+
+      if (!isAuthorized) {
         return res.status(403).json({ error: 'Not authorized to update this warranty' });
+      }
+
+      // Only allow updating if status is 'rejected' for non-admins
+      if (req.user.role !== 'admin' && warranty.status !== 'rejected') {
+        return res.status(400).json({ error: 'Only rejected warranties can be edited' });
       }
 
       // Only allow updating if status is 'rejected' (or maybe 'pending' if we want to allow corrections before approval)
@@ -957,6 +1144,21 @@ export class WarrantyController {
         });
       }
 
+      // Preserve all other top-level fields (like allExifData, exifData) if omitted from the new request
+      console.log(`[Update Warranty] Pre-merge incoming keys:`, Object.keys(warrantyData.productDetails));
+      console.log(`[Update Warranty] Pre-merge existing keys:`, Object.keys(existingProductDetails));
+      
+      Object.keys(existingProductDetails).forEach(key => {
+        if (key !== 'photos' && key !== 'invoiceFileName') {
+          if ((warrantyData.productDetails as any)[key] == null) {
+            (warrantyData.productDetails as any)[key] = existingProductDetails[key];
+          }
+        }
+      });
+
+      console.log(`[Update Warranty] Post-merge final keys:`, Object.keys(warrantyData.productDetails));
+      console.log(`[Update Warranty] Final merged photos:`, JSON.stringify(warrantyData.productDetails.photos));
+
       // Update warranty details
       // Determine status based on who is updating and current status
       // If it's already pending or validated, preserve the status. 
@@ -965,18 +1167,28 @@ export class WarrantyController {
       let clearRejectionReason = false;
 
       if (warranty.status === 'rejected') {
+        // If customer edits, go back to franchise review (pending_vendor)
+        // If franchise/vendor edits, go straight to admin review (pending)
         updatedStatus = req.user.role === 'customer' ? 'pending_vendor' : 'pending';
         clearRejectionReason = true;
       }
 
       // Use the warranty's actual id from the found record for update
       const warrantyRecordId = warranty.id;
+
+      // CRITICAL SAFETY CHECK: Ensure we have a valid ID before updating to prevent mass update
+      if (!warrantyRecordId) {
+        console.error('CRITICAL: warrantyRecordId is null/undefined during update! Aborting to prevent mass update.');
+        return res.status(500).json({ error: 'Internal error: Warranty ID not found for update' });
+      }
+
       await db.execute(
         `UPDATE warranty_registrations SET
          product_type = ?, customer_name = ?, customer_email = ?, customer_phone = ?,
          customer_address = ?, registration_number = ?, car_make = ?, car_model = ?, car_year = ?,
          purchase_date = ?, installer_name = ?,
          installer_contact = ?, product_details = ?, manpower_id = ?, warranty_type = ?,
+         seat_cover_photo_url = ?, car_outer_photo_url = ?,
          status = ?, rejection_reason = ${clearRejectionReason ? 'NULL' : 'rejection_reason'}
          WHERE id = ?`,
         [
@@ -995,6 +1207,8 @@ export class WarrantyController {
           JSON.stringify(warrantyData.productDetails),
           (warrantyData.manpowerId && warrantyData.manpowerId !== 'owner') ? warrantyData.manpowerId : (warranty.manpower_id && warranty.manpower_id !== 'owner' ? warranty.manpower_id : null),
           warrantyData.warrantyType,
+          (warrantyData.productDetails.photos as any)?.seatCover || null,
+          (warrantyData.productDetails.photos as any)?.vehicle || (warrantyData.productDetails.photos as any)?.carOuter || null,
           updatedStatus,
           warrantyRecordId
         ]
@@ -1013,15 +1227,32 @@ export class WarrantyController {
             link: `/warranty/view/${warrantyUid}`
           });
         }
+
+        // Email Confirmation to Customer
+        if (warrantyData.customerEmail && warrantyData.customerEmail.trim()) {
+          await EmailService.sendWarrantyResubmittedConfirmation(
+            warrantyData.customerEmail,
+            warrantyData.customerName,
+            warrantyUid,
+            warrantyData.productType,
+            warrantyData.registrationNumber,
+            warrantyData.carMake,
+            warrantyData.carModel,
+            warrantyData.productDetails
+          );
+        }
       } catch (e) {
         console.error('Failed to notify customer of warranty update', e);
       }
 
       // 2. Notify Admin
       try {
+        const resubmittedBy = req.user.role === 'customer' ? 'the customer' : 'the franchise';
+        const awaitingReview = updatedStatus === 'pending_vendor' ? 'franchise' : 'admin';
+        
         await NotificationService.broadcast({
           title: 'Warranty Resubmitted',
-          message: `Warranty ${warrantyUid} has been resubmitted by the customer (${warrantyData.customerName}) and is awaiting ${updatedStatus === 'pending_vendor' ? 'franchise' : 'admin'} review.`,
+          message: `Warranty ${warrantyUid} has been resubmitted by ${resubmittedBy} (${warrantyData.customerName}) and is awaiting ${awaitingReview} review.`,
           type: 'warranty',
           link: `/admin/verifications?uid=${warrantyUid}`,
           targetUsers: [],
@@ -1066,13 +1297,32 @@ export class WarrantyController {
           }
         }
 
-        if (vendorUserId) {
+        if (vendorUserId && vendorUserId !== req.user.id) {
+          // In-app notification
           await NotificationService.notify(vendorUserId, {
             title: 'Warranty Updated',
             message: `The warranty for ${warrantyData.customerName} (${warrantyUid}) has been resubmitted and requires your verification.`,
             type: 'warranty',
             link: `/dashboard/vendor`
           });
+
+          // Email notification (Only if customer edited)
+          if (req.user.role === 'customer') {
+            const [vendorEmailInfo]: any = await db.execute(
+              'SELECT store_email, store_name FROM vendor_details WHERE user_id = ?',
+              [vendorUserId]
+            );
+            if (vendorEmailInfo.length > 0) {
+              await EmailService.sendVendorResubmissionNotification(
+                vendorEmailInfo[0].store_email,
+                vendorEmailInfo[0].store_name,
+                warrantyData.customerName,
+                warrantyUid,
+                warrantyData.productType,
+                warrantyData.registrationNumber
+              );
+            }
+          }
           console.log(`✓ Notified vendor ${storeName} about warranty update`);
         }
       } catch (err) {

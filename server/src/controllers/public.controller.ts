@@ -6,6 +6,7 @@ import bcrypt from 'bcryptjs';
 import { v4 as uuidv4 } from 'uuid';
 import { geolocateIP, getClientIP } from '../utils/ipGeolocation.js';
 import { calculateFraudScore } from '../utils/fraudScoring.js';
+import { WhatsAppService } from '../services/whatsapp.service.js';
 
 export class PublicController {
     static async getStores(req: Request, res: Response) {
@@ -493,9 +494,9 @@ export class PublicController {
                 console.warn('[FraudDetection] IP geolocation failed:', err);
             }
 
-            // Validate required fields
+            // Validate required fields (customerEmail is now optional)
             const requiredFields = [
-                'productType', 'customerName', 'customerPhone', 'customerEmail', 
+                'productType', 'customerName', 'customerPhone', 
                 'registrationNumber', 'carYear', 'purchaseDate', 'warrantyType'
             ];
             const missingFields = requiredFields.filter(field => !warrantyData[field as keyof any]);
@@ -533,21 +534,37 @@ export class PublicController {
                 }
             }
 
-            const customerEmail = warrantyData.customerEmail.toLowerCase().trim();
+            const customerEmail = warrantyData.customerEmail ? warrantyData.customerEmail.toLowerCase().trim() : null;
             const customerPhone = warrantyData.customerPhone.trim();
             const customerName = warrantyData.customerName.trim();
 
-            // Step 1: Find or create customer user
-            let userId: number;
+            // Step 1: Find or create customer user (Phone-Number Centric)
+            let userId: string;
             let isNewUser = false;
 
-            const [existingUsers]: any = await db.execute(
-                'SELECT id FROM profiles WHERE email = ?',
-                [customerEmail]
+            // 1. Try to find existing user by Phone Number (Priority)
+            let cleanedPhone = customerPhone.replace(/[\s\-+]/g, '');
+            if (cleanedPhone.length === 12 && cleanedPhone.startsWith('91')) {
+                cleanedPhone = cleanedPhone.substring(2);
+            } else if (cleanedPhone.length === 11 && cleanedPhone.startsWith('0')) {
+                cleanedPhone = cleanedPhone.substring(1);
+            }
+
+            let [existingUsers]: any = await db.execute(
+                'SELECT id, email FROM profiles WHERE phone_number = ?',
+                [cleanedPhone]
             );
 
+            // 2. Fallback: Try to find by Email if phone didn't match and email is provided
+            if (existingUsers.length === 0 && customerEmail) {
+                [existingUsers] = await db.execute(
+                    'SELECT id, email FROM profiles WHERE email = ?',
+                    [customerEmail]
+                );
+            }
+
             if (existingUsers.length > 0) {
-                // Existing user
+                // Existing user found
                 userId = existingUsers[0].id;
 
                 // Fetch all roles for this user
@@ -558,25 +575,47 @@ export class PublicController {
 
                 const userRoles = roles.map((r: any) => r.role);
 
-                // If the user is an admin or vendor, prevent using this email as a customer
+                // If the user is an admin or vendor, prevent using this account as a customer
                 if (userRoles.includes('admin') || userRoles.includes('vendor')) {
-                    return res.status(400).json({ error: "This email address is registered to a franchise or admin and cannot be used for customer registration." });
+                    const matchedBy = existingUsers[0].email === customerEmail ? 'email address' : 'phone number';
+                    return res.status(400).json({ 
+                        error: `This ${matchedBy} is registered as a franchise or admin account and cannot be used as a customer profile.` 
+                    });
+                }
+
+                // Ensure they have the 'customer' role
+                if (!userRoles.includes('customer')) {
+                    await db.execute(
+                        'INSERT INTO user_roles (id, user_id, role) VALUES (?, ?, "customer")',
+                        [uuidv4(), userId]
+                    );
+                }
+
+                // If email was provided but DB email is null/empty, update it
+                if (customerEmail && (!existingUsers[0].email)) {
+                    await db.execute('UPDATE profiles SET email = ? WHERE id = ?', [customerEmail, userId]);
                 }
             } else {
                 // Create new customer user
                 isNewUser = true;
 
-                // Generate random password (user will use OTP login or reset)
+                // Generate random password (user will use OTP login)
                 const tempPassword = uuidv4().substring(0, 12);
                 const hashedPassword = await bcrypt.hash(tempPassword, 10);
 
                 const newUserId = uuidv4();
-                const [result]: any = await db.execute(
+                await db.execute(
                     `INSERT INTO profiles (id, name, email, phone_number, password) VALUES (?, ?, ?, ?, ?)`,
-                    [newUserId, customerName, customerEmail, customerPhone, hashedPassword]
+                    [newUserId, customerName, customerEmail, cleanedPhone, hashedPassword]
+                );
+                
+                await db.execute(
+                    'INSERT INTO user_roles (id, user_id, role) VALUES (?, ?, "customer")',
+                    [uuidv4(), newUserId]
                 );
 
-                userId = result.insertId || newUserId;
+                userId = newUserId;
+                console.log(`✓ Auto-created public customer profile for phone: ${cleanedPhone}`);
             }
 
             // Step 2: Check UID/Serial duplication AND conditional uniqueness (phone/reg)
@@ -710,39 +749,120 @@ export class PublicController {
 
             // UID is checked but NOT marked as used until Admin approves it.
 
-            // Step 4: Send vendor confirmation email
-            if (warrantyData.installerContact) {
-                const token = jwt.sign(
-                    { warrantyId: warrantyId, vendorEmail: warrantyData.installerContact },
-                    process.env.JWT_SECRET!,
-                    { expiresIn: '7d' }
-                );
-
+            // Step 4: Franchise Verify Notification (pending_vendor only)
+            if (initialStatus === 'pending_vendor' && warrantyData.installerContact) {
                 let vendorEmail = warrantyData.installerContact;
                 if (vendorEmail.includes('|')) {
                     vendorEmail = vendorEmail.split('|')[0].trim();
                 }
 
-                await EmailService.sendVendorConfirmationEmail(
-                    vendorEmail,
-                    warrantyData.installerName || 'Partner',
-                    customerName,
-                    token,
-                    warrantyData.productType,
-                    warrantyData.productDetails,
-                    warrantyData.registrationNumber,
-                    warrantyData.carMake,
-                    warrantyData.carModel
-                );
+                // Try WhatsApp first
+                let franchiseWaSent = false;
+                if (process.env.ENABLE_WHATSAPP === 'true') {
+                    try {
+                        const [vendorProfile]: any = await db.execute(
+                            `SELECT p.phone_number FROM profiles p
+                             JOIN vendor_details vd ON vd.user_id = p.id
+                             WHERE vd.store_email = ? LIMIT 1`,
+                            [vendorEmail]
+                        );
+                        if (vendorProfile.length > 0 && vendorProfile[0].phone_number) {
+                            const productName = warrantyData.productDetails?.productName
+                                || warrantyData.productDetails?.product
+                                || warrantyData.productType;
+                            franchiseWaSent = await WhatsAppService.sendFranchiseVerifyAction(
+                                vendorProfile[0].phone_number,
+                                warrantyData.installerName || 'Franchise Partner',
+                                warrantyData.customerName,
+                                warrantyData.customerPhone,
+                                warrantyData.registrationNumber,
+                                productName,
+                                warrantyId,
+                                warrantyId
+                            );
+                        }
+                    } catch (err) {
+                        console.error('[WhatsApp] Franchise verify action failed:', err);
+                    }
+                }
+
+                // Email fallback
+                if (!franchiseWaSent) {
+                    try {
+                        const token = jwt.sign(
+                            { warrantyId: warrantyId, vendorEmail: warrantyData.installerContact },
+                            process.env.JWT_SECRET!,
+                            { expiresIn: '7d' }
+                        );
+                        await EmailService.sendVendorConfirmationEmail(
+                            vendorEmail,
+                            warrantyData.installerName || 'Partner',
+                            customerName,
+                            token,
+                            warrantyData.productType,
+                            warrantyData.productDetails,
+                            warrantyData.registrationNumber,
+                            warrantyData.carMake,
+                            warrantyData.carModel
+                        );
+                    } catch (err) {
+                        console.error('[Email] Franchise verify fallback email failed:', err);
+                    }
+                }
             }
 
-            // Step 5: Send welcome email for new users
-            if (isNewUser) {
-                await EmailService.sendPublicRegistrationWelcome(
-                    customerEmail,
-                    customerName,
-                    warrantyId
-                );
+            // Step 5: Customer Submission Notification
+            // Try WhatsApp first
+            let customerWaSent = false;
+            if (process.env.ENABLE_WHATSAPP === 'true' && warrantyData.customerPhone) {
+                try {
+                    const productName = warrantyData.productDetails?.productName
+                        || warrantyData.productDetails?.product
+                        || warrantyData.productType;
+                    customerWaSent = await WhatsAppService.sendWarrantySubmitted(
+                        warrantyData.customerPhone,
+                        warrantyData.customerName,
+                        productName,
+                        warrantyData.registrationNumber,
+                        warrantyId,
+                        warrantyData.productType,
+                        warrantyData.purchaseDate,
+                        warrantyId
+                    );
+                } catch (err) {
+                    console.error('[WhatsApp] Customer submission notification failed:', err);
+                }
+            }
+
+            // Email fallback for confirmation
+            if (!customerWaSent && customerEmail && customerEmail.trim()) {
+                try {
+                    await EmailService.sendWarrantyConfirmation(
+                        customerEmail,
+                        customerName,
+                        warrantyId,
+                        warrantyData.productType,
+                        warrantyData.productDetails,
+                        warrantyData.registrationNumber,
+                        warrantyData.carMake,
+                        warrantyData.carModel
+                    );
+                } catch (err) {
+                    console.error('[Email] Customer submission fallback email failed:', err);
+                }
+            }
+
+            // Step 6: Send welcome email for completely new users
+            if (isNewUser && customerEmail && customerEmail.trim()) {
+                try {
+                    await EmailService.sendPublicRegistrationWelcome(
+                        customerEmail,
+                        customerName,
+                        warrantyId
+                    );
+                } catch (err) {
+                    console.error('[Email] Public registration welcome failed:', err);
+                }
             }
 
             res.json({

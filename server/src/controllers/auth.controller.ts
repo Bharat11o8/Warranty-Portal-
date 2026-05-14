@@ -4,6 +4,7 @@ import { v4 as uuidv4 } from 'uuid';
 import db, { executeWithRetry, isTransientDbError } from '../config/database.js';
 import { EmailService } from '../services/email.service.js';
 import { OTPService } from '../services/otp.service.js';
+import { WhatsAppService } from '../services/whatsapp.service.js';
 import { ActivityLogService } from '../services/activity-log.service.js';
 import { RegisterData } from '../types/index.js';
 import dotenv from 'dotenv';
@@ -67,10 +68,19 @@ const getAuthCookieOptions = (role?: string): CookieOptions => {
 export class AuthController {
   static async register(req: Request, res: Response) {
     try {
-      const {
+      let {
         name, email, phoneNumber, role,
         storeName, address, state, city, pincode, manpower
       }: RegisterData = req.body;
+
+      // SBP-DB: Trim string lengths to prevent database overflow (Data Too Long) edge cases
+      name = name?.substring(0, 100);
+      email = email?.substring(0, 100);
+      storeName = storeName?.substring(0, 255);
+      city = city?.substring(0, 100);
+      state = state?.substring(0, 100);
+      address = address?.substring(0, 1000);
+      pincode = pincode?.substring(0, 20);
 
       // Validate input
       if (!name || !email || !phoneNumber || !role) {
@@ -88,7 +98,12 @@ export class AuthController {
       }
 
       // Validate Indian mobile number (clean it first)
-      const cleanedPhone = phoneNumber.replace(/[\s\-+]/g, '').replace(/^91/, '').replace(/^0/, '');
+      let cleanedPhone = phoneNumber.replace(/[\s\-+]/g, '');
+      if (cleanedPhone.length === 12 && cleanedPhone.startsWith('91')) {
+        cleanedPhone = cleanedPhone.substring(2);
+      } else if (cleanedPhone.length === 11 && cleanedPhone.startsWith('0')) {
+        cleanedPhone = cleanedPhone.substring(1);
+      }
       if (!INDIAN_MOBILE_REGEX.test(cleanedPhone)) {
         return res.status(400).json({ error: 'Please enter a valid 10-digit Indian mobile number (must start with 6-9)' });
       }
@@ -161,11 +176,21 @@ export class AuthController {
 
       // Generate OTP (using pending registration ID)
       const otp = await OTPService.createOTP(pendingId);
-      await EmailService.sendOTP(email, name, otp);
+
+      let otpSentViaWhatsApp = false;
+      if (process.env.ENABLE_WHATSAPP === 'true') {
+        otpSentViaWhatsApp = await WhatsAppService.sendLoginOTP(phoneNumber, name, otp);
+      }
+
+      if (!otpSentViaWhatsApp) {
+        await EmailService.sendOTP(email, name, otp);
+      }
 
       res.status(201).json({
         success: true,
-        message: 'OTP sent to your email. Please verify to complete registration.',
+        message: otpSentViaWhatsApp 
+          ? 'OTP sent to your WhatsApp. Please verify to complete registration.'
+          : 'OTP sent to your email. Please verify to complete registration.',
         userId: pendingId,
         requiresOTP: true
       });
@@ -178,21 +203,43 @@ export class AuthController {
 
   static async login(req: Request, res: Response) {
     try {
-      const { email, role } = req.body;
+      const { identifier, email, role } = req.body;
+      
+      // Fallback for older clients that might still send 'email'
+      const loginId = identifier || email;
 
-      if (!email) {
-        return res.status(400).json({ error: 'Email is required' });
+      if (!loginId) {
+        return res.status(400).json({ error: 'Email or Mobile Number is required' });
       }
 
       if (!role) {
         return res.status(400).json({ error: 'Role is required' });
       }
 
-      // Get user profile
-      const [users]: any = await executeWithRetry(
-        'SELECT * FROM profiles WHERE email = ?',
-        [email]
-      );
+      let users: any = [];
+
+      // Admins still use email, everyone else uses mobile number
+      if (role === 'admin') {
+        const [result]: any = await executeWithRetry(
+          'SELECT * FROM profiles WHERE email = ?',
+          [loginId]
+        );
+        users = result;
+      } else {
+        // Clean phone number (just in case)
+        let cleanedPhone = loginId.replace(/[\s\-+]/g, '');
+        // If the user pasted a number with country code like 919876543210 (12 digits) or 09876543210 (11 digits)
+        if (cleanedPhone.length === 12 && cleanedPhone.startsWith('91')) {
+          cleanedPhone = cleanedPhone.substring(2);
+        } else if (cleanedPhone.length === 11 && cleanedPhone.startsWith('0')) {
+          cleanedPhone = cleanedPhone.substring(1);
+        }
+        const [result]: any = await executeWithRetry(
+          'SELECT * FROM profiles WHERE phone_number = ?',
+          [cleanedPhone]
+        );
+        users = result;
+      }
 
       if (users.length === 0) {
         return res.status(401).json({ error: 'User not found. Please register first.' });
@@ -244,12 +291,21 @@ export class AuthController {
       // Generate OTP
       const otp = await OTPService.createOTP(user.id);
 
-      // Send OTP email
-      await EmailService.sendOTP(user.email, user.name, otp);
+      let otpSentViaWhatsApp = false;
+      // Admins should always receive OTPs via email, even if they have a phone number
+      if (process.env.ENABLE_WHATSAPP === 'true' && user.phone_number && userRole !== 'admin') {
+        otpSentViaWhatsApp = await WhatsAppService.sendLoginOTP(user.phone_number, user.name, otp);
+      }
+
+      if (!otpSentViaWhatsApp) {
+        await EmailService.sendOTP(user.email, user.name, otp);
+      }
 
       res.json({
         success: true,
-        message: 'OTP sent to your email',
+        message: otpSentViaWhatsApp 
+          ? 'OTP sent to your WhatsApp'
+          : 'OTP sent to your email',
         userId: user.id,
         requiresOTP: true
       });
@@ -363,7 +419,18 @@ export class AuthController {
               verificationToken
             );
 
-            await EmailService.sendVendorRegistrationConfirmation(pending.email, pending.name);
+            // ── Vendor Welcome: WhatsApp first, email fallback ──
+            let vendorWelcomeWaSent = false;
+            if (process.env.ENABLE_WHATSAPP === 'true' && pending.phone_number) {
+              try {
+                vendorWelcomeWaSent = await WhatsAppService.sendVendorWelcome(pending.phone_number, pending.name);
+              } catch (waErr) {
+                console.error('[WhatsApp] Failed to send vendor welcome:', waErr);
+              }
+            }
+            if (!vendorWelcomeWaSent) {
+              await EmailService.sendVendorRegistrationConfirmation(pending.email, pending.name);
+            }
 
             // Vendor needs admin approval, don't provide token yet
             return res.json({
@@ -530,20 +597,25 @@ export class AuthController {
 
       let userEmail: string;
       let userName: string;
+      let userPhone: string;
+
+      let userRole = '';
 
       // FIRST: Check if this is a pending registration
       const [pendingUsers]: any = await db.execute(
-        'SELECT email, name FROM pending_registrations WHERE id = ? AND expires_at > NOW()',
+        'SELECT email, name, phone_number, role FROM pending_registrations WHERE id = ? AND expires_at > NOW()',
         [userId]
       );
 
       if (pendingUsers.length > 0) {
         userEmail = pendingUsers[0].email;
         userName = pendingUsers[0].name;
+        userPhone = pendingUsers[0].phone_number;
+        userRole = pendingUsers[0].role;
       } else {
         // SECOND: Check profiles table (login flow)
         const [users]: any = await db.execute(
-          'SELECT id, email, name FROM profiles WHERE id = ?',
+          'SELECT p.id, p.email, p.name, p.phone_number, ur.role FROM profiles p JOIN user_roles ur ON p.id = ur.user_id WHERE p.id = ?',
           [userId]
         );
 
@@ -553,6 +625,8 @@ export class AuthController {
 
         userEmail = users[0].email;
         userName = users[0].name;
+        userPhone = users[0].phone_number;
+        userRole = users[0].role;
       }
 
       // Invalidate all existing unused OTPs for this user
@@ -564,12 +638,21 @@ export class AuthController {
       // Generate new OTP
       const otp = await OTPService.createOTP(userId);
 
-      // Send OTP email
-      await EmailService.sendOTP(userEmail, userName, otp);
+      let otpSentViaWhatsApp = false;
+      // Admins should always receive OTPs via email, even if they have a phone number
+      if (process.env.ENABLE_WHATSAPP === 'true' && userPhone && userRole !== 'admin') {
+        otpSentViaWhatsApp = await WhatsAppService.sendLoginOTP(userPhone, userName, otp);
+      }
+
+      if (!otpSentViaWhatsApp) {
+        await EmailService.sendOTP(userEmail, userName, otp);
+      }
 
       res.json({
         success: true,
-        message: 'New OTP sent to your email'
+        message: otpSentViaWhatsApp 
+          ? 'New OTP sent to your WhatsApp'
+          : 'New OTP sent to your email'
       });
     } catch (error: any) {
       console.error('Resend OTP error:', error);

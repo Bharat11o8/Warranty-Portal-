@@ -313,7 +313,7 @@ export class EmailService {
       </div>
 
       <div class="warning-box">
-        <strong>Note:</strong> You'll need to enter your registered email and verify via OTP to access your account securely.
+        <strong>Note:</strong> You'll need to enter your registered mobile number and verify via OTP to access your account securely.
       </div>
       
       <p style="margin-top: 30px;">If you have any questions, please contact our support team at <a href="mailto:${process.env.EMAIL_FROM}" style="color: #11998e;">${process.env.EMAIL_FROM}</a>.</p>
@@ -389,6 +389,7 @@ export class EmailService {
     carMake?: string,
     carModel?: string
   ): Promise<void> {
+    if (!customerEmail || customerEmail.trim() === '') return;
     const productName = productDetails?.product || productDetails?.productName || productType;
 
     const htmlContent = `
@@ -445,6 +446,7 @@ export class EmailService {
     storePhone?: string,
     applicatorName?: string
   ): Promise<void> {
+    if (!customerEmail || customerEmail.trim() === '') return;
     const productName = productDetails?.product || productDetails?.productName || productType;
 
     const htmlContent = `
@@ -463,8 +465,8 @@ export class EmailService {
         <p style="margin-bottom: 10px;">You can now view and manage your warranty details directly from our portal. Follow these simple steps:</p>
         <ol style="margin: 0; padding-left: 20px;">
           <li style="margin-bottom: 8px;"><strong>Visit the Portal:</strong> Click the button below to go to the Autoform Warranty Portal.</li>
-          <li style="margin-bottom: 8px;"><strong>Secure Login:</strong> Use your registered email (${customerEmail}) to log in via OTP.</li>
-          <li style="margin-bottom: 8px;"><strong>View Details:</strong> Access your dashboard to view your active warranty details anytime.</li>
+          <li style="margin-bottom: 8px;"><strong>Secure Login:</strong> Use your registered mobile number to log in via OTP.</li>
+          <li style="margin-bottom: 8px;"><strong>Download Certificates:</strong> Access your dashboard to view and download your active warranty certificates anytime.</li>
         </ol>
         <div style="text-align: center; margin-top: 25px;">
           <a href="https://warranty2.autoformindia.co.in/login?mode=warranty" class="button" style="background: linear-gradient(135deg, #2196f3 0%, #0d47a1 100%); min-width: 250px;">Login to Your Portal</a>
@@ -538,6 +540,7 @@ export class EmailService {
     storePhone?: string,
     applicatorName?: string
   ): Promise<void> {
+    if (!customerEmail || customerEmail.trim() === '') return;
     const productName = productDetails?.product || productDetails?.productName || productType;
 
     const htmlContent = `
@@ -1315,7 +1318,7 @@ export class EmailService {
       
       <div class="warning-box">
         <p style="margin: 0 0 5px 0;"><strong>📌 How to Access Your Dashboard:</strong></p>
-        <p style="margin: 0;">Use OTP-based login with your registered email (${customerEmail}) to check your warranty status anytime.</p>
+        <p style="margin: 0;">Use OTP-based login with your registered mobile number to check your warranty status anytime.</p>
       </div>
       
       <div style="text-align: center; margin: 30px 0;">
@@ -1398,9 +1401,8 @@ export class EmailService {
 
         <div style="background: #ffffff; border: 1px solid #e2e8f0; border-left: 4px solid #f59e0b; padding: 20px; border-radius: 8px; margin-top: 30px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);">
           <p style="margin: 0 0 8px 0; font-size: 14px;"><strong>Login Details:</strong></p>
-          <p style="margin: 0; font-size: 14px;">Your account is already active. Just use your registered email address:<br>
-          <strong style="color: #ea580c; font-size: 16px; display: inline-block; margin-top: 5px;">${vendorEmail}</strong></p>
-          <p style="margin: 10px 0 0 0; font-size: 13px; color: #64748b;">(You won't need a password; we use secure OTPs sent directly to your inbox.)</p>
+          <p style="margin: 0; font-size: 14px;">Your account is already active. Just use your registered mobile number to securely log in.</p>
+          <p style="margin: 10px 0 0 0; font-size: 13px; color: #64748b;">(You won't need a password; we use secure OTPs.)</p>
         </div>
 
         <div style="text-align: center; margin: 40px 0 20px;">
@@ -1422,6 +1424,103 @@ export class EmailService {
       to: vendorEmail,
       subject: 'Welcome to the New Autoform Franchise Portal! 🚀',
       html: htmlContent
+    });
+  }
+
+  static async sendWarrantyResubmittedConfirmation(
+    customerEmail: string,
+    customerName: string,
+    uid: string,
+    productType: string,
+    registrationNumber: string,
+    carMake?: string,
+    carModel?: string,
+    productDetails?: any
+  ): Promise<void> {
+    const productName = productDetails?.product || productDetails?.productName || productType;
+
+    const htmlContent = `
+      <h2 style="color: #333; margin-top: 0;">Hello ${customerName},</h2>
+      <p>Your warranty registration has been successfully updated and resubmitted!</p>
+      
+      <div class="success-box" style="background: #e8f5e9; border: 2px solid #4caf50; padding: 20px; border-radius: 10px; text-align: center; margin-bottom: 25px;">
+        <h3 style="color: #2e7d32; margin: 0;">Update Received!</h3>
+        <p style="color: #2e7d32; margin: 5px 0 0 0;">Your registration is now back in review.</p>
+      </div>
+
+      <div class="info-box">
+        <p><strong>Customer Name:</strong> ${customerName}</p>
+        <p><strong>Vehicle Registration:</strong> ${registrationNumber || 'N/A'}</p>
+        ${productType === 'seat-cover' ? `<p><strong>UID:</strong> ${uid}</p>` : ''}
+        <p><strong>Product:</strong> ${String(productName).replace(/-/g, ' ').toUpperCase()}</p>
+        <p><strong>Resubmission Date:</strong> ${formatDateIST()}</p>
+        <p><strong>Status:</strong> <span style="color: #f59e0b; font-weight: bold;">UNDER REVIEW</span></p>
+      </div>
+      
+      <p>We will notify you via email and WhatsApp once the verification is complete.</p>
+      
+      <p>Best regards,<br><strong>Autoform India Team</strong></p>
+    `;
+
+    await transporter.sendMail({
+      from: process.env.EMAIL_FROM,
+      to: customerEmail,
+      subject: 'Warranty Resubmission Successful',
+      html: this.getHtmlTemplate({
+        title: 'Update Received',
+        content: htmlContent,
+        headerColorStart: '#f59e0b',
+        headerColorEnd: '#ea580c'
+      })
+    });
+  }
+
+  static async sendVendorResubmissionNotification(
+    vendorEmail: string,
+    vendorName: string,
+    customerName: string,
+    uid: string,
+    productType: string,
+    registrationNumber: string
+  ): Promise<void> {
+    const baseUrl = this.getAppUrl();
+    const dashboardLink = `${baseUrl}/dashboard/vendor`;
+
+    const htmlContent = `
+      <h2 style="color: #333; margin-top: 0;">Hello ${vendorName},</h2>
+      
+      <div class="warning-box" style="background: #fff8e1; border-left: 4px solid #ffc107; padding: 20px; margin-bottom: 25px;">
+        <h3 style="color: #856404; margin: 0;">Action Required: Warranty Resubmitted</h3>
+        <p style="margin: 5px 0 0 0;">A customer has updated their rejected warranty registration.</p>
+      </div>
+      
+      <div class="info-box">
+        <p><strong>Customer Name:</strong> ${customerName}</p>
+        <p><strong>Vehicle Registration:</strong> ${registrationNumber || 'N/A'}</p>
+        <p><strong>Product Type:</strong> ${productType}</p>
+        ${productType === 'seat-cover' ? `<p><strong>UID:</strong> ${uid}</p>` : ''}
+        <p><strong>Update Date:</strong> ${formatDateIST()}</p>
+      </div>
+      
+      <p>Please log in to your dashboard to verify the updated information and photos.</p>
+      
+      <div style="text-align: center; margin: 30px 0;">
+        <a href="${dashboardLink}" class="button" style="background: linear-gradient(135deg, #ffc107 0%, #ff9800 100%); color: #000 !important;">Go to Dashboard</a>
+      </div>
+      
+      <p>Best regards,<br><strong>Autoform India Team</strong></p>
+    `;
+
+    await transporter.sendMail({
+      from: process.env.EMAIL_FROM,
+      to: vendorEmail,
+      subject: 'Action Required: Warranty Updated by Customer',
+      html: this.getHtmlTemplate({
+        title: 'Verification Required',
+        content: htmlContent,
+        headerColorStart: '#ffc107',
+        headerColorEnd: '#ff9800'
+      })
     });
   }
 

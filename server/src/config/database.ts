@@ -41,20 +41,23 @@ const pool = mysql.createPool({
   timezone: '+05:30',
 
   // Connection Pool Settings
-  // Serverless (Vercel): keeping pool moderate to handle bursts
   waitForConnections: true,
   connectionLimit: parseInt(process.env.DB_POOL_SIZE || '10'),
   maxIdle: parseInt(process.env.DB_MAX_IDLE || '2'),
   queueLimit: 0,
 
-  // Keep-Alive DISABLED on serverless — Vercel freezes idle TCP sockets,
-  // making keep-alive packets cause stale connections and ETIMEDOUT on reuse.
   enableKeepAlive: false,
 
-  // Timeout Settings — longer connect timeout for cold starts
   connectTimeout: parseInt(process.env.DB_CONNECT_TIMEOUT || '20000'),
   idleTimeout: parseInt(process.env.DB_IDLE_TIMEOUT || '30000'),
 });
+
+// ✅ MySQL 8.0 compatibility fix:
+// execute() uses the binary (prepared-statement) protocol which is stricter
+// in MySQL 8.0 — it rejects LIMIT/OFFSET as strings and arrays in IN clauses.
+// query() uses the text protocol and handles all of these correctly.
+// Redirecting execute → query fixes all controllers without touching them.
+(pool as any).execute = pool.query.bind(pool);
 
 const TRANSIENT_DB_ERROR_CODES = new Set([
   'ETIMEDOUT',
@@ -90,7 +93,7 @@ export async function executeWithRetry<T = any>(
 
   for (let attempt = 0; ; attempt++) {
     try {
-      const result = await pool.execute(sql, params) as T;
+      const result = await pool.query(sql, params) as T;
       const duration = Date.now() - startTime;
 
       // Log slow queries (> 2 seconds)

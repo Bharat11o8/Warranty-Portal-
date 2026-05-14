@@ -23,6 +23,13 @@ import {
     List,
     RefreshCw
 } from "lucide-react";
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
 
 interface ManpowerManagementProps {
     manpowerList: any[];
@@ -246,14 +253,18 @@ export const StaffManagement = ({
                                         </div>
                                         <div className="w-full md:col-span-2 space-y-2">
                                             <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Specialization</label>
-                                            <select
+                                            <Select
                                                 value={newMember.type}
-                                                onChange={e => setNewMember({ ...newMember, type: e.target.value })}
-                                                className="flex h-11 md:h-12 w-full rounded-xl border border-slate-100 bg-slate-50/50 px-3 py-2 text-xs md:text-sm font-bold text-slate-700 focus:bg-white focus:outline-none focus:border-orange-200 focus:ring-4 focus:ring-orange-500/10 transition-all cursor-pointer hover:bg-white"
+                                                onValueChange={(value) => setNewMember({ ...newMember, type: value })}
                                             >
-                                                <option value="seat_cover">Seat cover applicator</option>
-                                                <option value="ppf_spf">PPF Applicator</option>
-                                            </select>
+                                                <SelectTrigger className="rounded-xl h-11 md:h-12 border-slate-100 bg-slate-50/50 focus:bg-white focus:border-orange-200 focus:ring-4 focus:ring-orange-500/10 transition-all font-bold text-slate-700 text-xs md:text-sm">
+                                                    <SelectValue placeholder="Select Specialization" />
+                                                </SelectTrigger>
+                                                <SelectContent className="rounded-xl border-orange-100">
+                                                    <SelectItem value="seat_cover" className="font-bold text-slate-700">Seat cover applicator</SelectItem>
+                                                    <SelectItem value="ppf_spf" className="font-bold text-slate-700">PPF Applicator</SelectItem>
+                                                </SelectContent>
+                                            </Select>
                                         </div>
                                         <div className="w-full md:col-span-2">
                                             <Button
@@ -381,23 +392,37 @@ export const StaffManagement = ({
                                 <Card key={member.id} className="group hover:shadow-lg transition-all duration-300 border-orange-100 overflow-hidden bg-white">
                                     <div className="p-4 md:p-6">
                                         {editingId === member.id ? (
-                                            <div className="grid grid-cols-1 md:grid-cols-5 gap-4 items-center">
-                                                <Input value={editMember.name} onChange={e => setEditMember({ ...editMember, name: e.target.value })} placeholder="Name" className="rounded-xl border-slate-200" />
-                                                <Input value={editMember.phone} onChange={e => setEditMember({ ...editMember, phone: e.target.value })} placeholder="Phone" className="rounded-xl border-slate-200" />
-                                                <select value={editMember.type} onChange={e => setEditMember({ ...editMember, type: e.target.value })} className="w-full h-10 px-3 border border-slate-200 rounded-xl bg-white text-sm">
-                                                    <option value="seat_cover">Seat cover applicator</option>
-                                                    <option value="ppf_spf">PPF Applicator</option>
-                                                </select>
-                                                <div className="flex gap-2 col-span-2">
-                                                    <Button onClick={() => handleSaveEdit(member.id)} className="flex-1 rounded-xl bg-orange-500 hover:bg-orange-600" disabled={isSaving}>
+                                            <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-center">
+                                                <div className="md:col-span-3">
+                                                    <Input value={editMember.name} onChange={e => setEditMember({ ...editMember, name: e.target.value })} placeholder="Name" className="rounded-xl border-slate-200 h-10" />
+                                                </div>
+                                                <div className="md:col-span-2">
+                                                    <Input value={editMember.phone} onChange={e => setEditMember({ ...editMember, phone: e.target.value })} placeholder="Phone" className="rounded-xl border-slate-200 h-10" />
+                                                </div>
+                                                <div className="md:col-span-3">
+                                                    <Select
+                                                        value={editMember.type}
+                                                        onValueChange={(value) => setEditMember({ ...editMember, type: value })}
+                                                    >
+                                                        <SelectTrigger className="h-10 rounded-xl border-slate-200 bg-white">
+                                                            <SelectValue placeholder="Specialization" />
+                                                        </SelectTrigger>
+                                                        <SelectContent className="rounded-xl border-orange-100">
+                                                            <SelectItem value="seat_cover">Seat cover applicator</SelectItem>
+                                                            <SelectItem value="ppf_spf">PPF Applicator</SelectItem>
+                                                        </SelectContent>
+                                                    </Select>
+                                                </div>
+                                                <div className="md:col-span-4 flex gap-2">
+                                                    <Button onClick={() => handleSaveEdit(member.id)} className="flex-1 rounded-xl bg-orange-500 hover:bg-orange-600 h-10" disabled={isSaving}>
                                                         {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save"}
                                                     </Button>
-                                                    <Button variant="outline" onClick={() => setEditingId(null)} className="flex-1 rounded-xl border-slate-200">Cancel</Button>
+                                                    <Button variant="outline" onClick={() => setEditingId(null)} className="flex-1 rounded-xl border-slate-200 h-10">Cancel</Button>
                                                 </div>
                                             </div>
                                         ) : (
-                                            <div className="flex flex-col md:flex-row md:items-center gap-4 w-full">
-                                                <div className="flex-1 flex items-center gap-4 min-w-0">
+                                            <div className="grid grid-cols-1 md:grid-cols-12 md:items-center gap-4 w-full">
+                                                <div className="col-span-12 md:col-span-3 flex items-center gap-4 min-w-0">
                                                     <div className="h-10 w-10 md:h-12 md:w-12 shrink-0 rounded-xl bg-orange-50 border border-orange-100 flex items-center justify-center text-orange-600 font-black text-base md:text-lg">
                                                         {(member.name || '').substring(0, 2).toUpperCase()}
                                                     </div>
@@ -406,15 +431,15 @@ export const StaffManagement = ({
                                                         <p className="text-[9px] md:text-[10px] font-bold text-slate-400 uppercase truncate">ID: {member.manpower_id}</p>
                                                     </div>
                                                 </div>
-                                                <div className="w-full md:w-32 lg:w-40 text-xs md:text-sm font-bold text-slate-500 flex items-center gap-2">
+                                                <div className="col-span-12 md:col-span-2 text-xs md:text-sm font-bold text-slate-500 flex items-center gap-2">
                                                     <Phone className="h-3.5 w-3.5 text-slate-400" /> {member.phone_number}
                                                 </div>
-                                                <div className="w-full md:w-32 lg:w-40">
+                                                <div className="col-span-12 md:col-span-2">
                                                     <Badge variant="secondary" className="bg-orange-50 text-orange-600 border-none font-bold text-[9px] md:text-[10px] uppercase tracking-wider px-3 py-1">
                                                         {member.applicator_type === 'seat_cover' ? 'Seat cover applicator' : 'PPF Applicator'}
                                                     </Badge>
                                                 </div>
-                                                <div className="w-full md:w-auto flex justify-between md:justify-center gap-2 mt-2 md:mt-0 pt-2 md:pt-0 border-t md:border-0 border-slate-50">
+                                                <div className="col-span-12 md:col-span-3 flex justify-between md:justify-center gap-2 mt-2 md:mt-0 pt-2 md:pt-0 border-t md:border-0 border-slate-50">
                                                     <button onClick={() => onShowWarranties(member, 'validated')} className="flex-1 md:flex-none px-3 py-1.5 rounded-lg bg-green-50 hover:bg-green-100 border border-green-100 flex items-center justify-center gap-2 transition-colors min-w-[70px]">
                                                         <span className="text-[10px] md:text-xs font-black text-green-600">{member.validated_count || 0}</span>
                                                         <span className="text-[8px] md:text-[9px] font-bold text-green-700/50 uppercase">Appr.</span>
@@ -424,7 +449,7 @@ export const StaffManagement = ({
                                                         <span className="text-[8px] md:text-[9px] font-bold text-amber-700/50 uppercase">Pend.</span>
                                                     </button>
                                                 </div>
-                                                <div className="w-full md:w-auto flex justify-end items-center gap-2 mt-2 md:mt-0">
+                                                <div className="col-span-12 md:col-span-2 flex justify-end items-center gap-2 mt-2 md:mt-0">
                                                     <Button variant="ghost" size="icon" onClick={() => handleEditClick(member)} className="h-9 w-9 md:h-10 md:w-10 rounded-xl text-slate-400 hover:bg-orange-50 hover:text-orange-600">
                                                         <Edit2 className="h-3.5 w-3.5 md:h-4 md:w-4" />
                                                     </Button>
