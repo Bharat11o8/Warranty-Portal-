@@ -182,14 +182,27 @@ export class AnalyticsController {
                 FROM analytics_events ae
                 LEFT JOIN warranty_registrations wr ON ae.warranty_id = wr.id
                 WHERE ${whereClause.replace(/created_at/g, 'ae.created_at')}
-                GROUP BY label, DATE(ae.created_at)
+                GROUP BY label
                 ORDER BY MIN(ae.created_at) ASC
             `, [dateFormat, ...params]);
+
+            // Calculate the true CURRENT status of the units registered in this period
+            const [periodTotals]: any = await db.execute(`
+                SELECT 
+                    COUNT(*) as total,
+                    SUM(CASE WHEN status = 'validated' THEN 1 ELSE 0 END) as approved,
+                    SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pending_admin,
+                    SUM(CASE WHEN status = 'pending_vendor' THEN 1 ELSE 0 END) as pending_vendor,
+                    SUM(CASE WHEN status = 'rejected' THEN 1 ELSE 0 END) as rejected
+                FROM warranty_registrations
+                WHERE ${whereClause}
+            `, params);
 
             return res.json({
                 success: true,
                 data: {
-                    warranties: results
+                    warranties: results,
+                    totals: periodTotals[0]
                 }
             });
         } catch (error: any) {
@@ -852,30 +865,30 @@ export class AnalyticsController {
             // 2. Find missing approvals (Admin)
             const [missingApp]: any = await db.execute(`
                 INSERT INTO analytics_events (warranty_id, action_type, performed_by, created_at)
-                SELECT wr.id, 'validated', 'system_admin', wr.validated_at
+                SELECT wr.id, 'validated', 'system_admin', COALESCE(wr.validated_at, NOW())
                 FROM warranty_registrations wr
                 LEFT JOIN analytics_events ae ON (wr.id = ae.warranty_id AND ae.action_type = 'validated')
-                WHERE wr.status = 'validated' AND wr.validated_at IS NOT NULL AND ae.id IS NULL
+                WHERE wr.status = 'validated' AND ae.id IS NULL
             `);
             console.log(`✅ Synced ${missingApp.affectedRows} missing approvals`);
 
             // 3. Find missing vendor approvals
             const [missingVend]: any = await db.execute(`
                 INSERT INTO analytics_events (warranty_id, action_type, performed_by, created_at)
-                SELECT wr.id, 'vendor_approved', wr.installer_name, wr.vendor_approved_at
+                SELECT wr.id, 'vendor_approved', COALESCE(wr.installer_name, 'Unknown Vendor'), COALESCE(wr.vendor_approved_at, NOW())
                 FROM warranty_registrations wr
                 LEFT JOIN analytics_events ae ON (wr.id = ae.warranty_id AND ae.action_type = 'vendor_approved')
-                WHERE wr.vendor_approved_at IS NOT NULL AND ae.id IS NULL
+                WHERE (wr.status = 'pending' OR wr.vendor_approved_at IS NOT NULL) AND ae.id IS NULL
             `);
             console.log(`✅ Synced ${missingVend.affectedRows} missing vendor approvals`);
 
             // 4. Find missing rejections
             const [missingRej]: any = await db.execute(`
                 INSERT INTO analytics_events (warranty_id, action_type, performed_by, created_at)
-                SELECT wr.id, 'rejected', 'system_admin', wr.rejected_at
+                SELECT wr.id, 'rejected', 'system_admin', COALESCE(wr.rejected_at, NOW())
                 FROM warranty_registrations wr
                 LEFT JOIN analytics_events ae ON (wr.id = ae.warranty_id AND ae.action_type = 'rejected')
-                WHERE wr.status = 'rejected' AND wr.rejected_at IS NOT NULL AND ae.id IS NULL
+                WHERE wr.status = 'rejected' AND ae.id IS NULL
             `);
             console.log(`✅ Synced ${missingRej.affectedRows} missing rejections`);
 

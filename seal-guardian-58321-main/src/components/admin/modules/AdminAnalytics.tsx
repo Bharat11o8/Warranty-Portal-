@@ -94,14 +94,14 @@ export const AdminAnalytics = ({ onNavigate }: { onNavigate: (module: AdminModul
     };
 
     const trendTotals = useMemo(() => {
-        if (!timeSeries?.warranties) return { total: 0, approved: 0, pending_admin: 0, pending_vendor: 0, rejected: 0 };
-        return timeSeries.warranties.reduce((acc: any, curr: any) => ({
-            total: Number(acc.total) + Number(curr.total || 0),
-            approved: Number(acc.approved) + Number(curr.approved || 0),
-            pending_admin: Number(acc.pending_admin) + Number(curr.pending_admin || 0),
-            pending_vendor: Number(acc.pending_vendor) + Number(curr.pending_vendor || 0),
-            rejected: Number(acc.rejected) + Number(curr.rejected || 0)
-        }), { total: 0, approved: 0, pending_admin: 0, pending_vendor: 0, rejected: 0 });
+        if (!timeSeries?.totals) return { total: 0, approved: 0, pending_admin: 0, pending_vendor: 0, rejected: 0 };
+        return {
+            total: Number(timeSeries.totals.total || 0),
+            approved: Number(timeSeries.totals.approved || 0),
+            pending_admin: Number(timeSeries.totals.pending_admin || 0),
+            pending_vendor: Number(timeSeries.totals.pending_vendor || 0),
+            rejected: Number(timeSeries.totals.rejected || 0)
+        };
     }, [timeSeries]);
 
     const toggleLine = (line: string) => {

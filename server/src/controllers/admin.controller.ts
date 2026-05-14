@@ -774,8 +774,12 @@ export class AdminController {
                 await connection.beginTransaction();
 
                 // 1. Update the main registration status
+                let timestampUpdates = '';
+                if (status === 'validated') timestampUpdates = ', validated_at = NOW()';
+                if (status === 'rejected') timestampUpdates = ', rejected_at = NOW()';
+                
                 await connection.execute(
-                    'UPDATE warranty_registrations SET status = ?, rejection_reason = ? WHERE uid = ? LIMIT 1',
+                    `UPDATE warranty_registrations SET status = ?, rejection_reason = ? ${timestampUpdates} WHERE uid = ? LIMIT 1`,
                     [status, status === 'rejected' ? rejectionReason : null, warrantyData.uid]
                 );
 
