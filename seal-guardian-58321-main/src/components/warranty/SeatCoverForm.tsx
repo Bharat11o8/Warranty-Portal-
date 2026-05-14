@@ -7,7 +7,7 @@ import {
   getVehicleRegError,
   formatVehicleRegLive
 } from "@/lib/validation";
-import { getISTTodayISO } from "@/lib/utils";
+import { getISTTodayISO, formatToISTDateISO } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -17,6 +17,13 @@ import { DatePicker } from "@/components/ui/date-picker";
 import { MobileSelect } from "@/components/ui/mobile-select";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 import { Upload, Loader2, HelpCircle, CheckCircle2, FileText, Building2, User, Car, Smartphone, Mail, Package, XCircle, AlertCircle, Armchair, ImageIcon } from "lucide-react";
 import CameraCapture from "@/components/ui/CameraCapture";
 import { submitWarranty, updateWarranty } from "@/lib/warrantyApi";
@@ -61,6 +68,7 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
   const [uidStatus, setUidStatus] = useState<'idle' | 'checking' | 'valid' | 'invalid' | 'used'>('idle');
   const [uidMessage, setUidMessage] = useState('');
   const uidTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [showExistingInvoice, setShowExistingInvoice] = useState(false);
   const [deviceFingerprint, setDeviceFingerprint] = useState<string | null>(null);
   const [isBrandNew, setIsBrandNew] = useState(initialData?.registration_number === 'APPLIED-FOR');
   const [formData, setFormData] = useState(initialData ? {
@@ -71,7 +79,7 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
 
     productName: initialData.product_details?.productName || "",
     storeEmail: initialData.installer_contact || "",
-    purchaseDate: getISTTodayISO(),
+    purchaseDate: initialData.purchase_date ? formatToISTDateISO(initialData.purchase_date) : getISTTodayISO(),
     storeName: initialData.installer_name || "",
     manpowerId: initialData.manpower_id || "",
     carReg: initialData.registration_number || "",
@@ -252,7 +260,12 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
       const selectedStore = stores.find(s => s.store_name === formData.storeName);
       if (selectedStore) {
         // Auto-fill email
-        setFormData(prev => ({ ...prev, storeEmail: selectedStore.store_email, manpowerId: "" }));
+        setFormData(prev => {
+          if (prev.storeEmail !== selectedStore.store_email) {
+            return { ...prev, storeEmail: selectedStore.store_email, manpowerId: "" };
+          }
+          return prev;
+        });
 
         try {
           const manpowerResponse = await api.get(`/public/stores/${selectedStore.vendor_details_id}/manpower?active=true`);
@@ -861,6 +874,38 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
         </p>
       </div>
 
+      {/* Existing Invoice Dialog */}
+      <Dialog open={showExistingInvoice} onOpenChange={setShowExistingInvoice}>
+          <DialogContent className="max-w-sm p-0 overflow-hidden">
+              <DialogHeader className="px-4 pt-4 pb-2">
+                  <DialogTitle className="text-sm font-semibold">Existing Invoice</DialogTitle>
+                  <DialogDescription className="text-xs">Previously uploaded proof of purchase</DialogDescription>
+              </DialogHeader>
+              {initialData?.product_details?.invoiceFileName && (
+                  initialData.product_details.invoiceFileName.toLowerCase().endsWith('.pdf') ? (
+                      <div className="flex flex-col items-center justify-center p-8 bg-slate-50">
+                          <FileText className="h-16 w-16 text-slate-400 mb-2" />
+                          <p className="text-sm font-medium text-slate-600">PDF Document</p>
+                          <a 
+                              href={initialData.product_details.invoiceFileName.startsWith('http') ? initialData.product_details.invoiceFileName : `${window.location.origin}/uploads/${initialData.product_details.invoiceFileName}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="mt-4 text-xs text-blue-600 underline"
+                          >
+                              Open in new tab
+                          </a>
+                      </div>
+                  ) : (
+                      <img
+                          src={initialData.product_details.invoiceFileName.startsWith('http') ? initialData.product_details.invoiceFileName : `${window.location.origin}/uploads/${initialData.product_details.invoiceFileName}`}
+                          alt="Existing Invoice"
+                          className="w-full object-contain"
+                      />
+                  )
+              )}
+          </DialogContent>
+      </Dialog>
+
       <form onSubmit={handleSubmit} className="space-y-8">
         {/* Section 1: Store & Installer Details */}
         <Card className="border-0 shadow-lg bg-white/80 backdrop-blur-sm ring-1 ring-slate-100">
@@ -880,7 +925,7 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
                 <Label htmlFor="storeName" className="text-sm font-medium text-slate-700">
                   Store Name <span className="text-destructive">*</span>
                 </Label>
-                {user?.role === 'vendor' || isPublic ? (
+                {user?.role === 'vendor' || isPublic || isEditing ? (
                   <Input
                     id="storeName"
                     value={formData.storeName}
@@ -898,7 +943,8 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
                         setFormData(prev => ({ 
                           ...prev, 
                           storeName: selectedStore.store_name,
-                          storeEmail: selectedStore.store_email 
+                          storeEmail: selectedStore.store_email,
+                          manpowerId: ""
                         }));
                       }
                     }}
@@ -1271,9 +1317,9 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
                 cameraOnly={false}
                 value={formData.vehicleFile}
                 onChange={(file) => handleCameraCapture(file, 'vehicleFile')}
-                accept="image/jpeg,image/heic,image/heif"
                 selectedIcon={<Car className="h-6 w-6" />}
                 sampleImageUrl="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1776228125/Car_Exterior_Image_New_vvjoqa.jpg"
+                existingImageUrl={isEditing && initialData?.product_details?.photos?.vehicle ? initialData.product_details.photos.vehicle : null}
               />
 
               {/* Fitted Seat Cover Photo */}
@@ -1286,17 +1332,29 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
                 cameraOnly={false}
                 value={formData.seatCoverPhoto}
                 onChange={(file) => handleCameraCapture(file, 'seatCoverPhoto')}
-                accept="image/jpeg,image/heic,image/heif"
                 selectedIcon={<Armchair className="h-6 w-6" />}
                 sampleImageUrl="https://res.cloudinary.com/dmwt4rg4m/image/upload/v1775217073/Seat_Cover_Fitted_jfgizq.jpg"
+                existingImageUrl={isEditing && initialData?.product_details?.photos?.seatCover ? initialData.product_details.photos.seatCover : null}
               />
 
 
             </div>
             <div className="space-y-3 mt-5 md:col-span-2">
-              <Label htmlFor="invoiceFile" className="text-sm font-medium text-slate-700">
-                Proof of Purchase (Invoice / MRP Sticker) <span className="text-destructive">*</span>
-              </Label>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <Label htmlFor="invoiceFile" className="text-sm font-medium text-slate-700 shrink-0">
+                  Proof of Purchase (Invoice / MRP Sticker) <span className="text-destructive">*</span>
+                </Label>
+                {isEditing && initialData?.product_details?.invoiceFileName && (
+                  <button
+                    type="button"
+                    onClick={() => setShowExistingInvoice(true)}
+                    className="flex items-center gap-1 text-xs text-emerald-600 font-medium hover:text-emerald-800 transition-colors"
+                  >
+                    <ImageIcon className="h-3 w-3" />
+                    View Existing
+                  </button>
+                )}
+              </div>
               <div className={`mt-2 border-2 border-dashed rounded-xl p-6 transition-all duration-200 text-center relative ${formData.invoiceFile ? 'border-orange-300 bg-orange-50/30' : 'border-slate-200 hover:border-orange-300 hover:bg-slate-50'}`}>
                 <div className="flex flex-col items-center gap-2">
                   <div className={`p-3 rounded-full ${formData.invoiceFile ? 'bg-orange-100 text-orange-600' : 'bg-slate-100 text-slate-500'}`}>
@@ -1313,6 +1371,11 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
                       <div className="space-y-1">
                         <p className="text-sm font-medium text-slate-700">Click to upload or drag and drop</p>
                         <p className="text-xs text-muted-foreground">(Max 2MB)</p>
+                        {isEditing && initialData?.product_details?.invoiceFileName && (
+                           <p className="text-[10px] text-emerald-600 font-medium mt-1">
+                              ✓ Proof of purchase is already uploaded
+                           </p>
+                        )}
                       </div>
                     )}
                   </div>

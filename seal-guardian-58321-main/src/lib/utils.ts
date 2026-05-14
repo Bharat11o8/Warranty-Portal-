@@ -124,11 +124,36 @@ export function getISTYear(): number {
  */
 export function getISTTodayISO(): string {
   const now = new Date();
-  const istDateString = now.toLocaleString('en-CA', {
+  return now.toLocaleString('en-CA', {
     timeZone: 'Asia/Kolkata',
     hour12: false
   }).split(',')[0];
-  return istDateString;
+}
+
+/**
+ * Formats any date input into a YYYY-MM-DD string in IST timezone
+ */
+export function formatToISTDateISO(dateInput: string | Date | number | undefined | null): string {
+  if (!dateInput) return "";
+  
+  let date: Date;
+  if (typeof dateInput === 'string') {
+    // Handle MySQL format "YYYY-MM-DD HH:mm:ss"
+    if (!dateInput.endsWith('Z') && !/[+-]\d{2}:\d{2}$/.test(dateInput)) {
+      date = new Date(dateInput.replace(' ', 'T') + 'Z');
+    } else {
+      date = new Date(dateInput);
+    }
+  } else {
+    date = new Date(dateInput);
+  }
+
+  if (isNaN(date.getTime())) return "";
+
+  return date.toLocaleString('en-CA', {
+    timeZone: 'Asia/Kolkata',
+    hour12: false
+  }).split(',')[0];
 }
 
 /**

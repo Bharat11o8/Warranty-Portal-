@@ -1037,7 +1037,7 @@ export class AdminController {
                 if (vendorUserId) {
                     let title = 'Warranty Pending ⏳';
                     let message = `The warranty for ${warrantyData.customer_name} (${warrantyData.uid}) is pending review.`;
-                    
+
                     if (status === 'validated') {
                         title = 'Warranty Approved! ✓';
                         message = `The warranty for ${warrantyData.customer_name} (${warrantyData.uid}) has been approved.`;
@@ -1057,7 +1057,7 @@ export class AdminController {
                 if (warrantyData.user_id) {
                     let title = 'Warranty Pending ⏳';
                     let message = `Your warranty for ${warrantyData.uid} is now under review by AutoForm.`;
-                    
+
                     if (status === 'validated') {
                         title = 'Warranty Validated! ✓';
                         message = `Your warranty for ${warrantyData.uid} has been validated by AutoForm.`;
@@ -1083,8 +1083,8 @@ export class AdminController {
                 adminId: admin.id,
                 adminName: admin.name,
                 adminEmail: admin.email,
-                actionType: status === 'validated' ? 'WARRANTY_APPROVED' : 
-                           status === 'pending' ? 'WARRANTY_OVERRIDDEN' : 'WARRANTY_REJECTED',
+                actionType: status === 'validated' ? 'WARRANTY_APPROVED' :
+                    status === 'pending' ? 'WARRANTY_OVERRIDDEN' : 'WARRANTY_REJECTED',
                 targetType: 'WARRANTY',
                 targetId: warrantyData.uid,
                 targetName: warrantyData.uid,
@@ -1620,21 +1620,21 @@ export class AdminController {
 
             // Normalize permissions — default all to false if not provided
             const defaultPermissions = {
-                overview:          { read: false, write: false },
-                warranties:        { read: false, write: false },
+                overview: { read: false, write: false },
+                warranties: { read: false, write: false },
                 warranty_products: { read: false, write: false },
-                uid_management:    { read: false, write: false },
-                warranty_form:     { read: false, write: false },
-                vendors:           { read: false, write: false },
-                customers:         { read: false, write: false },
-                products:          { read: false, write: false },
-                announcements:     { read: false, write: false },
-                grievances:        { read: false, write: false },
-                posm:              { read: false, write: false },
-                ecatalogue:        { read: false, write: false },
-                terms:             { read: false, write: false },
-                old_warranties:    { read: false, write: false },
-                activity_logs:     { read: false, write: false },
+                uid_management: { read: false, write: false },
+                warranty_form: { read: false, write: false },
+                vendors: { read: false, write: false },
+                customers: { read: false, write: false },
+                products: { read: false, write: false },
+                announcements: { read: false, write: false },
+                grievances: { read: false, write: false },
+                posm: { read: false, write: false },
+                ecatalogue: { read: false, write: false },
+                terms: { read: false, write: false },
+                old_warranties: { read: false, write: false },
+                activity_logs: { read: false, write: false },
             };
             const resolvedPermissions = permissions || defaultPermissions;
 
@@ -1916,15 +1916,13 @@ export class AdminController {
             const { id } = req.params;
             const sql = 'SELECT * FROM warranty_resubmissions WHERE id = ? AND status = "pending_review"';
             const [rows]: any = await db.execute(sql, [id]);
-            
+
             if (rows.length === 0) {
                 return res.status(404).json({ error: 'Resubmission not found or already processed' });
             }
-            
+
             const staging = rows[0];
-            console.log(`[Admin Approval] Approving resubmission ID: ${id}, for UID: ${staging.original_uid}`);
-            console.log(`[Admin Approval] Photo URLs in staging: SeatCover=${staging.seat_cover_photo_url}, CarOuter=${staging.car_outer_photo_url}`);
-            
+
             // Using a transaction to ensure atomic update of both tables
             connection = await db.getConnection();
             await connection.beginTransaction();
@@ -1962,7 +1960,7 @@ export class AdminController {
             await connection.commit();
 
             // Send Email logic can be triggered here if needed, but keeping it simple for DB sync first
-            
+
             const admin = (req as any).user;
             await ActivityLogService.log({
                 adminId: admin.id,
@@ -1989,10 +1987,10 @@ export class AdminController {
         try {
             const { id } = req.params;
             const { notes } = req.body;
-            
+
             const [rows]: any = await db.execute('SELECT original_uid FROM warranty_resubmissions WHERE id = ?', [id]);
             if (rows.length === 0) return res.status(404).json({ error: 'Resubmission not found' });
-            
+
             await db.execute(
                 'UPDATE warranty_resubmissions SET status = "rejected", admin_notes = ? WHERE id = ?',
                 [notes || 'Rejected by admin', id]

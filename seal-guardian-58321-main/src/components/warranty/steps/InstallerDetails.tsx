@@ -15,6 +15,7 @@ interface InstallerDetailsProps {
   updateFormData: (updates: Partial<EVFormData>) => void;
   onNext: () => void;
   isPublic?: boolean;
+  isEditing?: boolean;
   installers?: any[];
   storeDetails?: {
     owner_name?: string;
@@ -22,7 +23,7 @@ interface InstallerDetailsProps {
   };
 }
 
-const InstallerDetails = ({ formData, updateFormData, onNext, isPublic, installers, storeDetails }: InstallerDetailsProps) => {
+const InstallerDetails = ({ formData, updateFormData, onNext, isPublic, isEditing, installers, storeDetails }: InstallerDetailsProps) => {
   const { user } = useAuth();
   const { toast } = useToast();
   const [stores, setStores] = useState<any[]>([]);
@@ -132,6 +133,8 @@ const InstallerDetails = ({ formData, updateFormData, onNext, isPublic, installe
     }
 
     if (formData.storeName) {
+      // If we are initializing and already have a manpowerId, don't let fetchManpower 
+      // overwrite other details if it doesn't have to, but we still need the list.
       fetchManpower();
     }
   }, [formData.storeName, stores, isPublic, installers]);
@@ -196,24 +199,33 @@ const InstallerDetails = ({ formData, updateFormData, onNext, isPublic, installe
           <Label htmlFor="installerName">
             Installer Name <span className="text-destructive">*</span>
           </Label>
-          <MobileSelect
-            value={formData.installerName}
-            onValueChange={(value) => {
-              const selectedManpower = manpowerList.find(mp => mp.name === value);
-              updateFormData({
-                installerName: value,
-                installerCode: selectedManpower?.manpower_id || "",
-                manpowerId: selectedManpower?.id
-              });
-            }}
-            disabled={!formData.storeName || manpowerList.length === 0}
-            placeholder={!formData.storeName ? "Select Store First" : manpowerList.length === 0 ? "No Manpower Found" : "Select Installer"}
-            options={manpowerList.map((mp) => ({
-              value: mp.name,
-              label: `${mp.name} (${mp.applicator_type === 'seat_cover' ? 'Seat cover applicator' : mp.applicator_type === 'ppf_spf' ? 'PPF Applicator' : mp.applicator_type || 'Staff'})`
-            }))}
-            title="Select Installer"
-          />
+          {isEditing ? (
+            <Input
+              id="installerName"
+              value={formData.installerName}
+              readOnly
+              className="bg-muted"
+            />
+          ) : (
+            <MobileSelect
+              value={formData.manpowerId?.toString()}
+              onValueChange={(value) => {
+                const selectedManpower = manpowerList.find(mp => mp.id.toString() === value);
+                updateFormData({
+                  installerName: selectedManpower?.name || "",
+                  installerCode: selectedManpower?.manpower_id || "",
+                  manpowerId: selectedManpower?.id
+                });
+              }}
+              disabled={!formData.storeName || manpowerList.length === 0}
+              placeholder={!formData.storeName ? "Select Store First" : manpowerList.length === 0 ? "No Manpower Found" : "Select Installer"}
+              options={manpowerList.map((mp) => ({
+                value: mp.id.toString(),
+                label: `${mp.name} (${mp.applicator_type === 'seat_cover' ? 'Seat cover applicator' : mp.applicator_type === 'ppf_spf' ? 'PPF Applicator' : mp.applicator_type || 'Staff'})`
+              }))}
+              title="Select Installer"
+            />
+          )}
         </div>
 
         <div className="space-y-2">

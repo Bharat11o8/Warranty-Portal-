@@ -36,6 +36,8 @@ interface CameraCaptureProps {
     sampleImageUrl?: string;
     /** Label for the sample image (defaults to 'See Example') */
     sampleImageLabel?: string;
+    /** Optional existing image URL to show if no new file is selected */
+    existingImageUrl?: string | null;
 }
 
 /**
@@ -84,6 +86,7 @@ const CameraCapture = ({
     id,
     sampleImageUrl,
     sampleImageLabel = "See Example",
+    existingImageUrl,
 }: CameraCaptureProps) => {
     const [showWebcam, setShowWebcam] = useState(false);
     const [stream, setStream] = useState<MediaStream | null>(null);
@@ -91,6 +94,7 @@ const CameraCapture = ({
     const [cameraError, setCameraError] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
     const [showSample, setShowSample] = useState(false);
+    const [showExistingModal, setShowExistingModal] = useState(false);
     const videoRef = useRef<HTMLVideoElement>(null);
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -256,22 +260,51 @@ const CameraCapture = ({
                 </DialogContent>
             </Dialog>
 
+            {/* Existing Image Dialog */}
+            <Dialog open={showExistingModal} onOpenChange={setShowExistingModal}>
+                <DialogContent className="max-w-sm p-0 overflow-hidden">
+                    <DialogHeader className="px-4 pt-4 pb-2">
+                        <DialogTitle className="text-sm font-semibold">{label} — Existing</DialogTitle>
+                        <DialogDescription className="text-xs">Previously uploaded image</DialogDescription>
+                    </DialogHeader>
+                    {existingImageUrl && (
+                        <img
+                            src={existingImageUrl.startsWith('http') ? existingImageUrl : `${window.location.origin}/uploads/${existingImageUrl}`}
+                            alt={`Existing ${label}`}
+                            className="w-full object-contain"
+                        />
+                    )}
+                </DialogContent>
+            </Dialog>
+
             {/* Upload Area */}
             <div className="space-y-3 md:col-span-2">
-                <div className="flex items-center justify-between">
-                    <label htmlFor={id} className="text-sm font-medium text-slate-700">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                    <label htmlFor={id} className="text-sm font-medium text-slate-700 shrink-0">
                         {label} {required && <span className="text-destructive">*</span>}
                     </label>
-                    {sampleImageUrl && (
-                        <button
-                            type="button"
-                            onClick={() => setShowSample(true)}
-                            className="flex items-center gap-1 text-xs text-orange-600 font-medium hover:text-orange-800 transition-colors"
-                        >
-                            <ImageIcon className="h-3 w-3" />
-                            {sampleImageLabel}
-                        </button>
-                    )}
+                    <div className="flex items-center gap-4">
+                        {existingImageUrl && (
+                            <button
+                                type="button"
+                                onClick={() => setShowExistingModal(true)}
+                                className="flex items-center gap-1 text-xs text-emerald-600 font-medium hover:text-emerald-800 transition-colors"
+                            >
+                                <ImageIcon className="h-3 w-3" />
+                                View Existing
+                            </button>
+                        )}
+                        {sampleImageUrl && (
+                            <button
+                                type="button"
+                                onClick={() => setShowSample(true)}
+                                className="flex items-center gap-1 text-xs text-orange-600 font-medium hover:text-orange-800 transition-colors"
+                            >
+                                <ImageIcon className="h-3 w-3" />
+                                {sampleImageLabel}
+                            </button>
+                        )}
+                    </div>
                 </div>
                 <div
                     className={`mt-2 border-2 border-dashed rounded-xl p-6 transition-all duration-200 text-center relative cursor-pointer ${value
@@ -323,6 +356,11 @@ const CameraCapture = ({
                                     <p className="text-xs text-muted-foreground">
                                         {description || (cameraOnly ? "Camera capture only" : "JPG, PNG, PDF (Max 5MB)")}
                                     </p>
+                                    {existingImageUrl && (
+                                        <p className="text-[10px] text-emerald-600 font-medium mt-1">
+                                            ✓ An image is already uploaded for this field
+                                        </p>
+                                    )}
                                 </div>
                             )}
                         </div>
