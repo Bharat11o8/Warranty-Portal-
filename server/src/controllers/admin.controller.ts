@@ -807,6 +807,12 @@ export class AdminController {
                     }
                 }
 
+                // Log the action to the immutable analytics_events table
+                await connection.execute(
+                    `INSERT INTO analytics_events (warranty_id, action_type, performed_by) VALUES (?, ?, ?)`,
+                    [warrantyData.id, status, 'system_admin']
+                );
+
                 await connection.commit();
             } catch (err) {
                 await connection.rollback();

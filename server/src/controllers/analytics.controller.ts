@@ -831,4 +831,67 @@ export class AnalyticsController {
             return res.status(500).json({ success: false, error: 'Failed to fetch geographic stats' });
         }
     }
+
+    /**
+     * Sync Analytics: Repair the ledger by backfilling missing events from the main table
+     */
+    static async syncAnalytics(req: Request, res: Response) {
+        try {
+            console.log('🔄 Analytics Sync Started...');
+            
+            // 1. Find missing registrations
+            const [missingReg]: any = await db.execute(`
+                INSERT INTO analytics_events (warranty_id, action_type, performed_by, created_at)
+                SELECT wr.id, 'registered', wr.customer_name, wr.created_at
+                FROM warranty_registrations wr
+                LEFT JOIN analytics_events ae ON (wr.id = ae.warranty_id AND ae.action_type = 'registered')
+                WHERE ae.id IS NULL
+            `);
+            console.log(`✅ Synced ${missingReg.affectedRows} missing registrations`);
+
+            // 2. Find missing approvals (Admin)
+            const [missingApp]: any = await db.execute(`
+                INSERT INTO analytics_events (warranty_id, action_type, performed_by, created_at)
+                SELECT wr.id, 'validated', 'system_admin', wr.validated_at
+                FROM warranty_registrations wr
+                LEFT JOIN analytics_events ae ON (wr.id = ae.warranty_id AND ae.action_type = 'validated')
+                WHERE wr.status = 'validated' AND wr.validated_at IS NOT NULL AND ae.id IS NULL
+            `);
+            console.log(`✅ Synced ${missingApp.affectedRows} missing approvals`);
+
+            // 3. Find missing vendor approvals
+            const [missingVend]: any = await db.execute(`
+                INSERT INTO analytics_events (warranty_id, action_type, performed_by, created_at)
+                SELECT wr.id, 'vendor_approved', wr.installer_name, wr.vendor_approved_at
+                FROM warranty_registrations wr
+                LEFT JOIN analytics_events ae ON (wr.id = ae.warranty_id AND ae.action_type = 'vendor_approved')
+                WHERE wr.vendor_approved_at IS NOT NULL AND ae.id IS NULL
+            `);
+            console.log(`✅ Synced ${missingVend.affectedRows} missing vendor approvals`);
+
+            // 4. Find missing rejections
+            const [missingRej]: any = await db.execute(`
+                INSERT INTO analytics_events (warranty_id, action_type, performed_by, created_at)
+                SELECT wr.id, 'rejected', 'system_admin', wr.rejected_at
+                FROM warranty_registrations wr
+                LEFT JOIN analytics_events ae ON (wr.id = ae.warranty_id AND ae.action_type = 'rejected')
+                WHERE wr.status = 'rejected' AND wr.rejected_at IS NOT NULL AND ae.id IS NULL
+            `);
+            console.log(`✅ Synced ${missingRej.affectedRows} missing rejections`);
+
+            return res.json({
+                success: true,
+                message: 'Analytics synchronized successfully',
+                data: {
+                    newRegistrations: missingReg.affectedRows,
+                    newApprovals: missingApp.affectedRows,
+                    newVendorApprovals: missingVend.affectedRows,
+                    newRejections: missingRej.affectedRows
+                }
+            });
+        } catch (error: any) {
+            console.error('Analytics sync error:', error);
+            return res.status(500).json({ success: false, error: 'Failed to sync analytics' });
+        }
+    }
 }

@@ -14,5 +14,6 @@ router.get('/franchises', ...adminAuth, AnalyticsController.getFranchiseStats);
 router.get('/fraud', ...adminAuth, AnalyticsController.getFraudAnalytics);
 router.get('/fraud/franchise/:franchiseName', ...adminAuth, AnalyticsController.getFranchiseFraudDrilldown);
 router.get('/geographic', ...adminAuth, AnalyticsController.getGeographicStats);
+router.post('/sync', ...adminAuth, AnalyticsController.syncAnalytics);
 
 export default router;

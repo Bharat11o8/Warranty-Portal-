@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import api from '@/lib/api';
 import {
-    ShieldCheck, MessageSquare, Package, Box
+    ShieldCheck, MessageSquare, Package, Box, RefreshCw
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -137,6 +137,26 @@ export const AdminAnalytics = ({ onNavigate }: { onNavigate: (module: AdminModul
         }
     };
 
+    const handleSync = async () => {
+        try {
+            setTrendLoading(true);
+            const response = await api.post('/admin/analytics/sync');
+            if (response.data.success) {
+                // Refresh all data
+                await fetchTrendData();
+                await fetchFraudData();
+                await fetchProdData();
+                await fetchGeoData();
+                alert('Analytics synchronized successfully!');
+            }
+        } catch (error) {
+            console.error('Sync failed:', error);
+            alert('Failed to synchronize analytics.');
+        } finally {
+            setTrendLoading(false);
+        }
+    };
+
     const fetchFraudData = async () => {
         try {
             setFraudLoading(true);
@@ -267,6 +287,20 @@ export const AdminAnalytics = ({ onNavigate }: { onNavigate: (module: AdminModul
 
     return (
         <div className="space-y-8 pb-20">
+            <div className="flex justify-between items-center bg-white p-6 rounded-[32px] border border-slate-100 shadow-sm">
+                <div>
+                    <h1 className="text-2xl font-black text-slate-800">Analytics Command Center</h1>
+                    <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Strategic Performance & Fraud Monitoring</p>
+                </div>
+                <Button 
+                    onClick={handleSync}
+                    disabled={trendLoading}
+                    className="rounded-2xl bg-orange-500 hover:bg-orange-600 text-white font-bold flex items-center gap-2 px-6"
+                >
+                    <RefreshCw className={`h-4 w-4 ${trendLoading ? 'animate-spin' : ''}`} />
+                    Sync Data
+                </Button>
+            </div>
             {/* Top Stats Row */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 <StatsCard
