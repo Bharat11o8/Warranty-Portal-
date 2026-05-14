@@ -7,18 +7,111 @@ import {
 } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Download, FileText, ExternalLink, XCircle } from "lucide-react";
+import { Download, FileText, ExternalLink, XCircle, Loader2, Pencil, Save, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn, getWarrantyExpiration, formatToIST } from "@/lib/utils";
+import { useState, useEffect, createContext, useContext } from "react";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import api from "@/lib/api";
+import { useToast } from "@/hooks/use-toast";
 
 interface WarrantySpecSheetProps {
     isOpen: boolean;
     onClose: () => void;
     warranty: any;
     isMobile?: boolean;
+    isAdmin?: boolean;
+    onRefresh?: () => void;
 }
 
-export const WarrantySpecSheet = ({ isOpen, onClose, warranty }: WarrantySpecSheetProps) => {
+const EditContext = createContext<any>(null);
+
+const SpecRow = ({ label, value, mono = false, editField }: { label: string, value: string | React.ReactNode, mono?: boolean, editField?: string }) => {
+    const { isEditing, editData, setEditData, products } = useContext(EditContext);
+    
+    return (
+        <div className="flex justify-between items-center py-3 border-b border-orange-100 last:border-0 hover:bg-orange-50/50 px-3 rounded-lg transition-colors">
+            <span className="text-sm text-muted-foreground font-medium whitespace-nowrap mr-4">{label}</span>
+            {isEditing && editField ? (
+                editField === 'product_type' ? (
+                    <Select value={editData.product_type} onValueChange={(val) => {
+                        const selected = products.find((p: any) => p.name === val);
+                        setEditData({ ...editData, product_type: val, warranty_type: selected?.warranty_years || editData.warranty_type });
+                    }}>
+                        <SelectTrigger className="w-[200px] h-8 text-sm"><SelectValue placeholder="Select Product" /></SelectTrigger>
+                        <SelectContent>
+                            {products.map((p: any) => <SelectItem key={p.id} value={p.name}>{p.name}</SelectItem>)}
+                        </SelectContent>
+                    </Select>
+                ) : editField === 'warranty_type' ? (
+                    <span className={cn("text-sm text-foreground text-right", mono && "font-mono tracking-tight")}>{editData[editField] || "N/A"}</span>
+                ) : (
+                    <Input 
+                        type={editField === 'purchase_date' ? 'date' : 'text'}
+                        value={editData[editField] || ''} 
+                        onChange={e => setEditData({ ...editData, [editField]: e.target.value })} 
+                        className="w-[200px] h-8 text-sm text-right bg-white"
+                    />
+                )
+            ) : (
+                <span className={cn("text-sm text-foreground text-right", mono && "font-mono tracking-tight")}>{value || "N/A"}</span>
+            )}
+        </div>
+    );
+};
+
+export const WarrantySpecSheet = ({ isOpen, onClose, warranty, isAdmin, onRefresh }: WarrantySpecSheetProps) => {
+    const { toast } = useToast();
+    const [isEditing, setIsEditing] = useState(false);
+    const [saving, setSaving] = useState(false);
+    const [products, setProducts] = useState<any[]>([]);
+    const [editData, setEditData] = useState<any>({});
+
+    useEffect(() => {
+        if (!isOpen) setIsEditing(false);
+    }, [isOpen]);
+
+    useEffect(() => {
+        if (isEditing && products.length === 0) {
+            api.get('/public/products').then(res => {
+                if (res.data.success) setProducts(res.data.products);
+            }).catch(err => console.error("Failed to load products", err));
+        }
+        if (isEditing && warranty) {
+            const pd = typeof warranty.product_details === 'string'
+                ? JSON.parse(warranty.product_details || '{}')
+                : warranty.product_details || {};
+            setEditData({
+                customer_name: warranty.customer_name || pd.customerName || '',
+                customer_email: warranty.customer_email || pd.customerEmail || '',
+                customer_phone: warranty.customer_phone || pd.customerPhone || '',
+                car_make: warranty.car_make || '',
+                car_model: warranty.car_model || '',
+                registration_number: warranty.registration_number || pd.carRegistration || '',
+                product_type: pd.product || pd.productName || warranty.product_type || '',
+                warranty_type: warranty.warranty_type || '',
+                purchase_date: warranty.purchase_date ? new Date(warranty.purchase_date).toISOString().split('T')[0] : ''
+            });
+        }
+    }, [isEditing, warranty]);
+
+    const handleSave = async () => {
+        setSaving(true);
+        try {
+            const res = await api.put(`/admin/warranties/${warranty.uid}/details`, editData);
+            if (res.data.success) {
+                toast({ title: "Success", description: "Warranty details updated" });
+                setIsEditing(false);
+                if (onRefresh) onRefresh();
+            }
+        } catch (err: any) {
+            toast({ title: "Error", description: err.response?.data?.error || "Failed to update details", variant: "destructive" });
+        } finally {
+            setSaving(false);
+        }
+    };
+
     if (!warranty) return null;
 
     const toTitleCase = (str: string) => {
@@ -35,20 +128,15 @@ export const WarrantySpecSheet = ({ isOpen, onClose, warranty }: WarrantySpecShe
         'sun-protection': 'Sun Protection Films',
     };
 
-    const rawProductName = productDetails.product || productDetails.productName || warranty.product_type;
-    const productName = productNameMapping[rawProductName] || toTitleCase(rawProductName);
+    const rawProductName = isEditing ? editData.product_type : (productDetails.product || productDetails.productName || warranty.product_type);
+    const productName = productNameMapping[rawProductName || ''] || toTitleCase(rawProductName || '') || 'Unknown Product';
 
-    // Helper for Data Rows
-    const SpecRow = ({ label, value, mono = false }: { label: string, value: string | React.ReactNode, mono?: boolean }) => (
-        <div className="flex justify-between items-center py-3 border-b border-orange-100 last:border-0 hover:bg-orange-50/50 px-3 rounded-lg transition-colors">
-            <span className="text-sm text-muted-foreground font-medium">{label}</span>
-            <span className={cn("text-sm text-foreground text-right", mono && "font-mono tracking-tight")}>{value || "N/A"}</span>
-        </div>
-    );
+
 
     return (
-        <Sheet open={isOpen} onOpenChange={onClose}>
-            <SheetContent side="bottom" className="h-[85vh] rounded-t-[24px] p-0 overflow-hidden flex flex-col bg-white border-t border-orange-200">
+        <EditContext.Provider value={{ isEditing, editData, setEditData, products }}>
+            <Sheet open={isOpen} onOpenChange={onClose}>
+                <SheetContent side="bottom" className="h-[85vh] rounded-t-[24px] p-0 overflow-hidden flex flex-col bg-white border-t border-orange-200">
                 {/* Header Section */}
                 <div className="p-6 pb-4 border-b border-orange-100 bg-gradient-to-r from-orange-50 to-white">
                     <div className="w-12 h-1.5 bg-orange-300 rounded-full mx-auto mb-6" /> {/* Drag Handle */}
@@ -57,25 +145,43 @@ export const WarrantySpecSheet = ({ isOpen, onClose, warranty }: WarrantySpecShe
                             <Badge variant="outline" className="uppercase tracking-widest text-[10px] py-0.5 px-2.5 border-orange-200 text-orange-600 bg-orange-50 font-semibold">
                                 Warranty Details
                             </Badge>
-                            <Badge variant={warranty.status === 'validated' ? 'default' : 'secondary'} className={cn(
-                                "capitalize shadow-sm font-semibold",
-                                warranty.status === 'validated' && "bg-green-100 text-green-700 hover:bg-green-100 border-green-200",
-                                warranty.status === 'pending' && "bg-amber-100 text-amber-700 hover:bg-amber-100 border-amber-200",
-                                warranty.status === 'pending_vendor' && "bg-blue-100 text-blue-700 hover:bg-blue-100 border-blue-200",
-                                warranty.status === 'rejected' && "bg-red-100 text-red-700 hover:bg-red-100 border-red-200"
-                            )}>
-                                {warranty.status === 'validated' ? 'Approved' :
-                                    warranty.status === 'pending_vendor' ? 'In Review' :
-                                        warranty.status === 'pending' ? 'Pending' :
-                                            warranty.status === 'rejected' ? 'Action Required' :
-                                                warranty.status}
-                            </Badge>
+                            <div className="flex items-center gap-2">
+                                <Badge variant={warranty.status === 'validated' ? 'default' : 'secondary'} className={cn(
+                                    "capitalize shadow-sm font-semibold",
+                                    warranty.status === 'validated' && "bg-green-100 text-green-700 hover:bg-green-100 border-green-200",
+                                    warranty.status === 'pending' && "bg-amber-100 text-amber-700 hover:bg-amber-100 border-amber-200",
+                                    warranty.status === 'pending_vendor' && "bg-blue-100 text-blue-700 hover:bg-blue-100 border-blue-200",
+                                    warranty.status === 'rejected' && "bg-red-100 text-red-700 hover:bg-red-100 border-red-200"
+                                )}>
+                                    {warranty.status === 'validated' ? 'Approved' :
+                                        warranty.status === 'pending_vendor' ? 'In Review' :
+                                            warranty.status === 'pending' ? 'Pending' :
+                                                warranty.status === 'rejected' ? 'Action Required' :
+                                                    warranty.status}
+                                </Badge>
+                                {isAdmin && (
+                                    <>
+                                        {isEditing ? (
+                                            <div className="flex gap-1 ml-2">
+                                                <Button size="sm" variant="outline" className="h-6 px-2 text-[10px] uppercase font-bold" onClick={() => setIsEditing(false)}>Cancel</Button>
+                                                <Button size="sm" className="h-6 px-2 text-[10px] uppercase font-bold bg-orange-600 hover:bg-orange-700" onClick={handleSave} disabled={saving}>
+                                                    {saving ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Save className="h-3 w-3 mr-1" />} Save
+                                                </Button>
+                                            </div>
+                                        ) : (
+                                            <Button size="sm" variant="outline" className="h-6 px-2 text-[10px] uppercase font-bold ml-2 text-orange-600 border-orange-200 hover:bg-orange-50" onClick={() => setIsEditing(true)}>
+                                                <Pencil className="h-3 w-3 mr-1" /> Edit
+                                            </Button>
+                                        )}
+                                    </>
+                                )}
+                            </div>
                         </div>
                         <SheetTitle className="text-2xl font-bold tracking-tight text-foreground/90">
                             {warranty.registration_number || productDetails.carRegistration || 'N/A'}
                         </SheetTitle>
                         <SheetDescription className="text-muted-foreground font-medium">
-                            {productName.replace(/-/g, ' ')} • {warranty.warranty_type} Warranty
+                            {(productName || '').replace(/-/g, ' ')} • {warranty.warranty_type} Warranty
                         </SheetDescription>
                     </SheetHeader>
                 </div>
@@ -106,15 +212,18 @@ export const WarrantySpecSheet = ({ isOpen, onClose, warranty }: WarrantySpecShe
                             Vehicle & Product
                         </h4>
                         <div className="bg-white rounded-xl p-2 border border-orange-100 shadow-sm">
-                            <SpecRow label="Registration Number" value={warranty.registration_number || productDetails.carRegistration || "N/A"} mono />
+                            <SpecRow label="Registration Number" value={warranty.registration_number || productDetails.carRegistration || "N/A"} mono editField="registration_number" />
                             {(warranty.car_make && String(warranty.car_make).toLowerCase() !== 'null' || warranty.car_model && String(warranty.car_model).toLowerCase() !== 'null') && (
-                                <SpecRow label="Make & Model" value={`${toTitleCase(warranty.car_make || '')} ${toTitleCase(warranty.car_model || '')}`} />
+                                <>
+                                    <SpecRow label="Car Make" value={toTitleCase(warranty.car_make || '')} editField="car_make" />
+                                    <SpecRow label="Car Model" value={toTitleCase(warranty.car_model || '')} editField="car_model" />
+                                </>
                             )}
                             {warranty.product_type !== 'seat-cover' && (warranty.car_year || productDetails.carYear) && (
                                 <SpecRow label="Vehicle Year" value={warranty.car_year || productDetails.carYear} />
                             )}
-                            <SpecRow label="Product Name" value={productName} />
-                            <SpecRow label="Warranty Type" value={warranty.warranty_type} />
+                            <SpecRow label="Product Name" value={productName} editField="product_type" />
+                            <SpecRow label="Warranty Type" value={isEditing ? editData.warranty_type : warranty.warranty_type} editField="warranty_type" />
 
                             {/* Seat Cover Specific Fields */}
                             {warranty.product_type === 'seat-cover' && (
@@ -142,9 +251,9 @@ export const WarrantySpecSheet = ({ isOpen, onClose, warranty }: WarrantySpecShe
                             Customer Details
                         </h4>
                         <div className="bg-white rounded-xl p-2 border border-orange-100 shadow-sm">
-                            <SpecRow label="Customer Name" value={toTitleCase(warranty.customer_name || productDetails.customerName) || "N/A"} />
-                            <SpecRow label="Customer Email" value={warranty.customer_email || productDetails.customerEmail || "N/A"} />
-                            <SpecRow label="Customer Phone" value={warranty.customer_phone || productDetails.customerPhone || "N/A"} />
+                            <SpecRow label="Customer Name" value={toTitleCase(warranty.customer_name || productDetails.customerName) || "N/A"} editField="customer_name" />
+                            <SpecRow label="Customer Email" value={warranty.customer_email || productDetails.customerEmail || "N/A"} editField="customer_email" />
+                            <SpecRow label="Customer Phone" value={warranty.customer_phone || productDetails.customerPhone || "N/A"} editField="customer_phone" />
                         </div>
                     </div>
 
@@ -155,7 +264,7 @@ export const WarrantySpecSheet = ({ isOpen, onClose, warranty }: WarrantySpecShe
                             Important Dates
                         </h4>
                         <div className="bg-white rounded-xl p-2 border border-orange-100 shadow-sm">
-                            <SpecRow label="Purchase Date" value={formatToIST(warranty.purchase_date).split(',')[0]} />
+                            <SpecRow label="Purchase Date" value={formatToIST(warranty.purchase_date).split(',')[0]} editField="purchase_date" />
                             <SpecRow label="Registered Date" value={formatToIST(warranty.created_at).split(',')[0]} />
                             {warranty.status === 'validated' && (
                                 <>
@@ -385,5 +494,6 @@ export const WarrantySpecSheet = ({ isOpen, onClose, warranty }: WarrantySpecShe
                 </div>
             </SheetContent>
         </Sheet>
+        </EditContext.Provider>
     );
 };
