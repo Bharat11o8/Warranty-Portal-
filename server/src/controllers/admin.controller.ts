@@ -1106,6 +1106,101 @@ export class AdminController {
         }
     }
 
+    static async updateWarrantyDetails(req: Request, res: Response) {
+        try {
+            const { uid } = req.params;
+            const { 
+                customer_name, customer_email, customer_phone, 
+                car_make, car_model, 
+                registration_number, product_type, warranty_type,
+                purchase_date
+            } = req.body;
+
+            const [existingRows]: any = await db.execute(
+                'SELECT * FROM warranty_registrations WHERE uid = ?',
+                [uid]
+            );
+
+            if (existingRows.length === 0) {
+                return res.status(404).json({ error: 'Warranty not found' });
+            }
+
+            const existing = existingRows[0];
+            
+            // Update the JSON product_details to keep the frontend in sync
+            let productDetails: any = {};
+            try {
+                productDetails = typeof existing.product_details === 'string' 
+                    ? JSON.parse(existing.product_details) 
+                    : (existing.product_details || {});
+            } catch (e) {
+                console.error('Failed to parse product_details', e);
+            }
+
+            if (customer_name !== undefined) productDetails.customerName = customer_name;
+            if (customer_email !== undefined) productDetails.customerEmail = customer_email;
+            if (customer_phone !== undefined) productDetails.customerPhone = customer_phone;
+            if (registration_number !== undefined) productDetails.carRegistration = registration_number;
+            if (product_type !== undefined) productDetails.productName = product_type;
+
+            await db.execute(
+                `UPDATE warranty_registrations SET
+                    customer_name = ?,
+                    customer_email = ?,
+                    customer_phone = ?,
+                    car_make = ?,
+                    car_model = ?,
+                    registration_number = ?,
+                    product_type = ?,
+                    warranty_type = ?,
+                    purchase_date = ?,
+                    product_details = ?
+                 WHERE uid = ?`,
+                [
+                    customer_name !== undefined ? customer_name : existing.customer_name,
+                    customer_email !== undefined ? customer_email : existing.customer_email,
+                    customer_phone !== undefined ? customer_phone : existing.customer_phone,
+                    car_make !== undefined ? car_make : existing.car_make,
+                    car_model !== undefined ? car_model : existing.car_model,
+                    registration_number !== undefined ? registration_number : existing.registration_number,
+                    product_type !== undefined ? product_type : existing.product_type,
+                    warranty_type !== undefined ? warranty_type : existing.warranty_type,
+                    purchase_date !== undefined ? purchase_date : existing.purchase_date,
+                    JSON.stringify(productDetails),
+                    uid
+                ]
+            );
+
+            const admin = (req as any).user;
+            await ActivityLogService.log({
+                adminId: admin.id,
+                adminName: admin.name,
+                adminEmail: admin.email,
+                actionType: 'WARRANTY_UPDATED',
+                targetType: 'WARRANTY',
+                targetId: uid,
+                targetName: uid,
+                details: { 
+                    customer_name, 
+                    car_make,
+                    car_model,
+                    registration_number,
+                    product_type
+                },
+                ipAddress: req.ip || req.socket?.remoteAddress
+            });
+
+            res.json({
+                success: true,
+                message: 'Warranty details updated successfully'
+            });
+
+        } catch (error: any) {
+            console.error('Update warranty details error:', error);
+            res.status(500).json({ error: 'Failed to update warranty details' });
+        }
+    }
+
     static async getAllWarranties(req: Request, res: Response) {
         try {
             // Pagination parameters

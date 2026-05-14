@@ -559,6 +559,7 @@ export const AdminWarranties = () => {
                                 }}
                                  onMoveToPending={(id) => handleUpdateStatus(id, 'pending')}
                                 processingWarranty={processingId}
+                                onRefresh={() => fetchWarranties(false)}
                             />
                         </div>
                     )}

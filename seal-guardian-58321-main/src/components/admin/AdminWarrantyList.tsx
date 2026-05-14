@@ -47,6 +47,7 @@ interface AdminWarrantyListProps {
     onApprove?: (warrantyId: string) => void;
     onReject?: (warrantyId: string) => void;
     onMoveToPending?: (warrantyId: string) => void;
+    onRefresh?: () => void;
 }
 
 export const AdminWarrantyList = ({
@@ -56,7 +57,8 @@ export const AdminWarrantyList = ({
     processingWarranty,
     onApprove,
     onReject,
-    onMoveToPending
+    onMoveToPending,
+    onRefresh
 }: AdminWarrantyListProps) => {
     const [selectedWarranty, setSelectedWarranty] = useState<any>(null);
     const [expandedFraud, setExpandedFraud] = useState<Set<string>>(new Set());
@@ -629,6 +631,8 @@ export const AdminWarrantyList = ({
                 onClose={() => setSelectedWarranty(null)}
                 warranty={selectedWarranty}
                 isMobile={false} // Adapted for unified view
+                isAdmin={true}
+                onRefresh={onRefresh}
             />
         </div >
     );
