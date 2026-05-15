@@ -642,6 +642,9 @@ export const AdminWarrantyList = ({
                 isMobile={false} // Adapted for unified view
                 isAdmin={true}
                 onRefresh={onRefresh}
+                onApprove={onApprove}
+                onReject={onReject}
+                processingWarranty={processingWarranty}
             />
         </div >
     );
