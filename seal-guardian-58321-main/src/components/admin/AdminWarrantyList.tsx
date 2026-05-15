@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -62,6 +62,15 @@ export const AdminWarrantyList = ({
 }: AdminWarrantyListProps) => {
     const [selectedWarranty, setSelectedWarranty] = useState<any>(null);
     const [expandedFraud, setExpandedFraud] = useState<Set<string>>(new Set());
+
+    // When items refresh (e.g. after an admin edit), sync the open SpecSheet
+    // with the updated warranty data so photos & fields don't go stale.
+    useEffect(() => {
+        if (selectedWarranty) {
+            const refreshed = items.find((w: any) => w.uid === selectedWarranty.uid);
+            if (refreshed) setSelectedWarranty(refreshed);
+        }
+    }, [items]);
 
     const toggleFraudDetails = (id: string) => {
         setExpandedFraud(prev => {

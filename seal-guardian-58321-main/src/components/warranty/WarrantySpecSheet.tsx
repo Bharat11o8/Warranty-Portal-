@@ -34,10 +34,10 @@ const SpecRow = ({ label, value, mono = false, editField }: { label: string, val
         <div className="flex justify-between items-center py-3 border-b border-orange-100 last:border-0 hover:bg-orange-50/50 px-3 rounded-lg transition-colors">
             <span className="text-sm text-muted-foreground font-medium whitespace-nowrap mr-4">{label}</span>
             {isEditing && editField ? (
-                editField === 'product_type' ? (
-                    <Select value={editData.product_type} onValueChange={(val) => {
+                editField === 'product_name' ? (
+                    <Select value={editData.product_name} onValueChange={(val) => {
                         const selected = products.find((p: any) => p.name === val);
-                        setEditData({ ...editData, product_type: val, warranty_type: selected?.warranty_years || editData.warranty_type });
+                        setEditData({ ...editData, product_name: val, warranty_type: selected?.warranty_years || editData.warranty_type });
                     }}>
                         <SelectTrigger className="w-[200px] h-8 text-sm"><SelectValue placeholder="Select Product" /></SelectTrigger>
                         <SelectContent>
@@ -89,7 +89,7 @@ export const WarrantySpecSheet = ({ isOpen, onClose, warranty, isAdmin, onRefres
                 car_make: warranty.car_make || '',
                 car_model: warranty.car_model || '',
                 registration_number: warranty.registration_number || pd.carRegistration || '',
-                product_type: pd.product || pd.productName || warranty.product_type || '',
+                product_name: pd.product || pd.productName || '',
                 warranty_type: warranty.warranty_type || '',
                 purchase_date: warranty.purchase_date ? new Date(warranty.purchase_date).toISOString().split('T')[0] : ''
             });
@@ -128,7 +128,7 @@ export const WarrantySpecSheet = ({ isOpen, onClose, warranty, isAdmin, onRefres
         'sun-protection': 'Sun Protection Films',
     };
 
-    const rawProductName = isEditing ? editData.product_type : (productDetails.product || productDetails.productName || warranty.product_type);
+    const rawProductName = isEditing ? editData.product_name : (productDetails.product || productDetails.productName || warranty.product_type);
     const productName = productNameMapping[rawProductName || ''] || toTitleCase(rawProductName || '') || 'Unknown Product';
 
 
@@ -168,11 +168,11 @@ export const WarrantySpecSheet = ({ isOpen, onClose, warranty, isAdmin, onRefres
                                                     {saving ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Save className="h-3 w-3 mr-1" />} Save
                                                 </Button>
                                             </div>
-                                        ) : (
+                                        ) : warranty.status !== 'validated' ? (
                                             <Button size="sm" variant="outline" className="h-6 px-2 text-[10px] uppercase font-bold ml-2 text-orange-600 border-orange-200 hover:bg-orange-50" onClick={() => setIsEditing(true)}>
                                                 <Pencil className="h-3 w-3 mr-1" /> Edit
                                             </Button>
-                                        )}
+                                        ) : null}
                                     </>
                                 )}
                             </div>
@@ -222,7 +222,7 @@ export const WarrantySpecSheet = ({ isOpen, onClose, warranty, isAdmin, onRefres
                             {warranty.product_type !== 'seat-cover' && (warranty.car_year || productDetails.carYear) && (
                                 <SpecRow label="Vehicle Year" value={warranty.car_year || productDetails.carYear} />
                             )}
-                            <SpecRow label="Product Name" value={productName} editField="product_type" />
+                            <SpecRow label="Product Name" value={productName} editField="product_name" />
                             <SpecRow label="Warranty Type" value={isEditing ? editData.warranty_type : warranty.warranty_type} editField="warranty_type" />
 
                             {/* Seat Cover Specific Fields */}

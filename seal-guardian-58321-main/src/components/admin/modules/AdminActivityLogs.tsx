@@ -223,6 +223,20 @@ export const AdminActivityLogs = () => {
                                             if (log.action_type === 'BROADCAST_SENT') {
                                                 return <div className="text-xs text-slate-500 mt-1">To: {details.targetRole}</div>;
                                             }
+                                            if (log.action_type === 'WARRANTY_UPDATED' && details.changes && Object.keys(details.changes).length > 0) {
+                                                return (
+                                                    <div className="mt-1.5 space-y-0.5">
+                                                        {Object.entries(details.changes).map(([field, val]: [string, any]) => (
+                                                            <div key={field} className="text-xs flex items-center gap-1.5 flex-wrap">
+                                                                <span className="font-medium text-slate-600">{field}:</span>
+                                                                <span className="line-through text-red-400">{String(val.before ?? '—')}</span>
+                                                                <span className="text-slate-400">→</span>
+                                                                <span className="text-green-600 font-medium">{String(val.after ?? '—')}</span>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                );
+                                            }
                                             return null;
                                         };
 

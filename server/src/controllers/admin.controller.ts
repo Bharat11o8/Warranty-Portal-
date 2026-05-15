@@ -1112,7 +1112,7 @@ export class AdminController {
             const { 
                 customer_name, customer_email, customer_phone, 
                 car_make, car_model, 
-                registration_number, product_type, warranty_type,
+                registration_number, product_name, warranty_type,
                 purchase_date
             } = req.body;
 
@@ -1126,6 +1126,10 @@ export class AdminController {
             }
 
             const existing = existingRows[0];
+
+            if (existing.status === 'validated') {
+                return res.status(403).json({ error: 'Approved warranties cannot be edited.' });
+            }
             
             // Update the JSON product_details to keep the frontend in sync
             let productDetails: any = {};
@@ -1141,7 +1145,7 @@ export class AdminController {
             if (customer_email !== undefined) productDetails.customerEmail = customer_email;
             if (customer_phone !== undefined) productDetails.customerPhone = customer_phone;
             if (registration_number !== undefined) productDetails.carRegistration = registration_number;
-            if (product_type !== undefined) productDetails.productName = product_type;
+            if (product_name !== undefined) productDetails.productName = product_name;
 
             await db.execute(
                 `UPDATE warranty_registrations SET
@@ -1151,7 +1155,6 @@ export class AdminController {
                     car_make = ?,
                     car_model = ?,
                     registration_number = ?,
-                    product_type = ?,
                     warranty_type = ?,
                     purchase_date = ?,
                     product_details = ?
@@ -1163,7 +1166,6 @@ export class AdminController {
                     car_make !== undefined ? car_make : existing.car_make,
                     car_model !== undefined ? car_model : existing.car_model,
                     registration_number !== undefined ? registration_number : existing.registration_number,
-                    product_type !== undefined ? product_type : existing.product_type,
                     warranty_type !== undefined ? warranty_type : existing.warranty_type,
                     purchase_date !== undefined ? purchase_date : existing.purchase_date,
                     JSON.stringify(productDetails),
@@ -1172,6 +1174,29 @@ export class AdminController {
             );
 
             const admin = (req as any).user;
+
+            // Build a before/after diff for the audit trail
+            const changes: Record<string, { before: any, after: any }> = {};
+            const fieldMap: Record<string, string> = {
+                customer_name: 'Customer Name',
+                customer_email: 'Customer Email',
+                customer_phone: 'Customer Phone',
+                car_make: 'Car Make',
+                car_model: 'Car Model',
+                registration_number: 'Registration Number',
+                warranty_type: 'Warranty Type',
+                purchase_date: 'Purchase Date',
+            };
+            for (const [key, label] of Object.entries(fieldMap)) {
+                const bodyVal = req.body[key];
+                if (bodyVal !== undefined && String(bodyVal) !== String(existing[key] ?? '')) {
+                    changes[label] = { before: existing[key] ?? null, after: bodyVal };
+                }
+            }
+            if (product_name !== undefined && product_name !== productDetails.productName) {
+                changes['Product Name'] = { before: productDetails.productName ?? null, after: product_name };
+            }
+
             await ActivityLogService.log({
                 adminId: admin.id,
                 adminName: admin.name,
@@ -1179,13 +1204,10 @@ export class AdminController {
                 actionType: 'WARRANTY_UPDATED',
                 targetType: 'WARRANTY',
                 targetId: uid,
-                targetName: uid,
-                details: { 
-                    customer_name, 
-                    car_make,
-                    car_model,
-                    registration_number,
-                    product_type
+                targetName: `${existing.customer_name} (${uid})`,
+                details: {
+                    summary: `Admin edited warranty details for ${existing.customer_name}`,
+                    changes
                 },
                 ipAddress: req.ip || req.socket?.remoteAddress
             });
