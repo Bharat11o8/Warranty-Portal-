@@ -7,7 +7,7 @@ import {
 } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Download, FileText, ExternalLink, XCircle, Loader2, Pencil, Save, X } from "lucide-react";
+import { Download, FileText, ExternalLink, XCircle, Loader2, Pencil, Save, X, CheckCircle2, AlertTriangle, ZoomIn } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn, getWarrantyExpiration, formatToIST } from "@/lib/utils";
 import { useState, useEffect, createContext, useContext } from "react";
@@ -23,6 +23,9 @@ interface WarrantySpecSheetProps {
     isMobile?: boolean;
     isAdmin?: boolean;
     onRefresh?: () => void;
+    onApprove?: (uid: string) => void;
+    onReject?: (uid: string) => void;
+    processingWarranty?: string | null;
 }
 
 const EditContext = createContext<any>(null);
@@ -61,12 +64,14 @@ const SpecRow = ({ label, value, mono = false, editField }: { label: string, val
     );
 };
 
-export const WarrantySpecSheet = ({ isOpen, onClose, warranty, isAdmin, onRefresh }: WarrantySpecSheetProps) => {
+export const WarrantySpecSheet = ({ isOpen, onClose, warranty, isAdmin, onRefresh, onApprove, onReject, processingWarranty }: WarrantySpecSheetProps) => {
     const { toast } = useToast();
     const [isEditing, setIsEditing] = useState(false);
     const [saving, setSaving] = useState(false);
     const [products, setProducts] = useState<any[]>([]);
     const [editData, setEditData] = useState<any>({});
+    const [viewingPhoto, setViewingPhoto] = useState<string | null>(null);
+    const [actionLoading, setActionLoading] = useState<'approve' | 'reject' | null>(null);
 
     useEffect(() => {
         if (!isOpen) setIsEditing(false);
@@ -331,169 +336,176 @@ export const WarrantySpecSheet = ({ isOpen, onClose, warranty, isAdmin, onRefres
 
                     {/* Documents & Photos Section - Seat Cover */}
                     {warranty.product_type === 'seat-cover' && (
-                        <div className="space-y-4">
-                            {/* Documentation */}
-                            {(productDetails.invoiceFileName || productDetails.photos?.warranty) && (
-                                <div className="space-y-1">
-                                    <h4 className="text-xs font-bold text-orange-500 uppercase tracking-widest mb-3 pl-1 flex items-center gap-2">
-                                        <div className="w-1 h-4 bg-gradient-to-b from-orange-500 to-orange-400 rounded-full" />
-                                        Documentation
-                                    </h4>
-                                    <Button variant="outline" className="w-full justify-between h-12 bg-background/50 hover:bg-blue-50 hover:border-blue-200 border-input/50 transition-colors" onClick={() => {
-                                        const file = productDetails.invoiceFileName || productDetails.photos?.warranty;
-                                        const url = typeof file === 'string' && file.startsWith('http')
-                                            ? file
-                                            : `http://localhost:3000/uploads/${file}`;
-                                        window.open(url, '_blank');
-                                    }}>
-                                        <span className="flex items-center gap-2">
-                                            <FileText className="h-4 w-4 text-blue-600" />
-                                            <span className="text-blue-700">View Invoice / MRP Sticker</span>
-                                        </span>
-                                        <ExternalLink className="h-4 w-4 text-blue-500" />
-                                    </Button>
-                                </div>
-                            )}
+                        <div className="space-y-2">
+                            <h4 className="text-xs font-bold text-orange-500 uppercase tracking-widest mb-2 pl-1 flex items-center gap-2">
+                                <div className="w-1 h-4 bg-gradient-to-b from-orange-500 to-orange-400 rounded-full" />
+                                Documentation & Photos
+                            </h4>
+                            <div className="flex overflow-x-auto gap-3 pb-2 scrollbar-thin">
+                                {/* Invoice */}
+                                {(() => {
+                                    const raw = productDetails.invoiceFileName || productDetails.photos?.warranty;
+                                    if (!raw) return null;
+                                    const url = typeof raw === 'string' && raw.startsWith('http') ? raw : `http://localhost:3000/uploads/${raw}`;
+                                    const isPdf = typeof raw === 'string' && raw.toLowerCase().endsWith('.pdf');
+                                    return (
+                                        <div className="relative group cursor-pointer rounded-xl overflow-hidden border border-orange-100 shadow-sm bg-slate-50 shrink-0 w-28 h-28" onClick={() => isPdf ? window.open(url, '_blank') : setViewingPhoto(raw)}>
+                                            {isPdf ? (
+                                                <div className="w-full h-full flex flex-col items-center justify-center bg-blue-50 text-blue-500">
+                                                    <FileText className="h-8 w-8 mb-1" />
+                                                    <span className="text-[10px] font-medium px-2 text-center">PDF Document</span>
+                                                </div>
+                                            ) : (
+                                                <img src={url} alt="Invoice" className="w-full h-full object-cover transition-transform group-hover:scale-105" />
+                                            )}
+                                            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center">
+                                                {isPdf ? <ExternalLink className="h-6 w-6 text-white opacity-0 group-hover:opacity-100 transition-opacity" /> : <ZoomIn className="h-6 w-6 text-white opacity-0 group-hover:opacity-100 transition-opacity" />}
+                                            </div>
+                                            <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent px-2 py-1">
+                                                <span className="text-white text-[10px] font-medium leading-tight block">Invoice / MRP</span>
+                                            </div>
+                                        </div>
+                                    );
+                                })()}
 
-                            {/* Installation Photos */}
-                            {productDetails.photos && (
-                                <div className="space-y-1">
-                                    <h4 className="text-xs font-bold text-orange-500 uppercase tracking-widest mb-3 pl-1 flex items-center gap-2">
-                                        <div className="w-1 h-4 bg-gradient-to-b from-orange-500 to-orange-400 rounded-full" />
-                                        Installation Photos
-                                    </h4>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                                        {productDetails.photos.vehicle && (
-                                            <Button variant="outline" size="sm" className="justify-between h-10 bg-background/50 hover:bg-orange-50 hover:border-orange-200 border-input/50 transition-colors" onClick={() => {
-                                                const url = typeof productDetails.photos.vehicle === 'string' && productDetails.photos.vehicle.startsWith('http') ? productDetails.photos.vehicle : `http://localhost:3000/uploads/${productDetails.photos.vehicle}`;
-                                                window.open(url, '_blank');
-                                            }}>
-                                                <span className="flex items-center gap-2">
-                                                    <ExternalLink className="h-3 w-3 text-orange-600" />
-                                                    <span className="text-orange-700 text-xs">Car Exterior with Number Plate</span>
-                                                </span>
-                                                <ExternalLink className="h-3 w-3 text-orange-500" />
-                                            </Button>
-                                        )}
-                                        {productDetails.photos.seatCover && (
-                                            <Button variant="outline" size="sm" className="justify-between h-10 bg-background/50 hover:bg-orange-50 hover:border-orange-200 border-input/50 transition-colors" onClick={() => {
-                                                const url = typeof productDetails.photos.seatCover === 'string' && productDetails.photos.seatCover.startsWith('http') ? productDetails.photos.seatCover : `http://localhost:3000/uploads/${productDetails.photos.seatCover}`;
-                                                window.open(url, '_blank');
-                                            }}>
-                                                <span className="flex items-center gap-2">
-                                                    <ExternalLink className="h-3 w-3 text-orange-600" />
-                                                    <span className="text-orange-700 text-xs">Seat Cover</span>
-                                                </span>
-                                                <ExternalLink className="h-3 w-3 text-orange-500" />
-                                            </Button>
-                                        )}
-                                        {productDetails.photos.carOuter && (
-                                            <Button variant="outline" size="sm" className="justify-between h-10 bg-background/50 hover:bg-orange-50 hover:border-orange-200 border-input/50 transition-colors" onClick={() => {
-                                                const url = typeof productDetails.photos.carOuter === 'string' && productDetails.photos.carOuter.startsWith('http') ? productDetails.photos.carOuter : `http://localhost:3000/uploads/${productDetails.photos.carOuter}`;
-                                                window.open(url, '_blank');
-                                            }}>
-                                                <span className="flex items-center gap-2">
-                                                    <ExternalLink className="h-3 w-3 text-orange-600" />
-                                                    <span className="text-orange-700 text-xs">Car Exterior</span>
-                                                </span>
-                                                <ExternalLink className="h-3 w-3 text-orange-500" />
-                                            </Button>
-                                        )}
-                                    </div>
-                                </div>
-                            )}
+                                {/* Photos */}
+                                {productDetails.photos && [{key:'vehicle',label:'Car Exterior'},{key:'seatCover',label:'Seat Cover'},{key:'carOuter',label:'Car Outer'}]
+                                    .filter(({key}) => productDetails.photos[key])
+                                    .map(({key, label}) => {
+                                        const raw = productDetails.photos[key];
+                                        const url = typeof raw === 'string' && raw.startsWith('http') ? raw : `http://localhost:3000/uploads/${raw}`;
+                                        return (
+                                            <div key={key} className="relative group cursor-pointer rounded-xl overflow-hidden border border-orange-100 shadow-sm bg-slate-50 shrink-0 w-28 h-28" onClick={() => setViewingPhoto(raw)}>
+                                                <img src={url} alt={label} className="w-full h-full object-cover transition-transform group-hover:scale-105" />
+                                                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center">
+                                                    <ZoomIn className="h-6 w-6 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                                                </div>
+                                                <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent px-2 py-1">
+                                                    <span className="text-white text-[10px] font-medium leading-tight block">{label}</span>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                            </div>
                         </div>
                     )}
 
                     {/* Documents & Photos Section - EV/PPF */}
-                    {warranty.product_type === 'ev-products' && productDetails.photos && (
-                        <div className="space-y-4">
-                            <div className="space-y-1">
-                                <h4 className="text-xs font-bold text-orange-500 uppercase tracking-widest mb-3 pl-1 flex items-center gap-2">
-                                    <div className="w-1 h-4 bg-gradient-to-b from-orange-500 to-orange-400 rounded-full" />
-                                    Installation Photos
-                                </h4>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                                    {productDetails.photos.lhs && (
-                                        <Button variant="outline" size="sm" className="justify-between h-10 bg-background/50 hover:bg-blue-50 hover:border-blue-200 border-input/50 transition-colors" onClick={() => {
-                                            const url = typeof productDetails.photos.lhs === 'string' && productDetails.photos.lhs.startsWith('http') ? productDetails.photos.lhs : `http://localhost:3000/uploads/${productDetails.photos.lhs}`;
-                                            window.open(url, '_blank');
-                                        }}>
-                                            <span className="flex items-center gap-2">
-                                                <FileText className="h-3 w-3 text-blue-600" />
-                                                <span className="text-blue-700 text-xs">LHS View</span>
-                                            </span>
-                                            <ExternalLink className="h-3 w-3 text-blue-500" />
-                                        </Button>
-                                    )}
-                                    {productDetails.photos.rhs && (
-                                        <Button variant="outline" size="sm" className="justify-between h-10 bg-background/50 hover:bg-blue-50 hover:border-blue-200 border-input/50 transition-colors" onClick={() => {
-                                            const url = typeof productDetails.photos.rhs === 'string' && productDetails.photos.rhs.startsWith('http') ? productDetails.photos.rhs : `http://localhost:3000/uploads/${productDetails.photos.rhs}`;
-                                            window.open(url, '_blank');
-                                        }}>
-                                            <span className="flex items-center gap-2">
-                                                <FileText className="h-3 w-3 text-blue-600" />
-                                                <span className="text-blue-700 text-xs">RHS View</span>
-                                            </span>
-                                            <ExternalLink className="h-3 w-3 text-blue-500" />
-                                        </Button>
-                                    )}
-                                    {productDetails.photos.frontReg && (
-                                        <Button variant="outline" size="sm" className="justify-between h-10 bg-background/50 hover:bg-blue-50 hover:border-blue-200 border-input/50 transition-colors" onClick={() => {
-                                            const url = typeof productDetails.photos.frontReg === 'string' && productDetails.photos.frontReg.startsWith('http') ? productDetails.photos.frontReg : `http://localhost:3000/uploads/${productDetails.photos.frontReg}`;
-                                            window.open(url, '_blank');
-                                        }}>
-                                            <span className="flex items-center gap-2">
-                                                <FileText className="h-3 w-3 text-blue-600" />
-                                                <span className="text-blue-700 text-xs">Front Reg</span>
-                                            </span>
-                                            <ExternalLink className="h-3 w-3 text-blue-500" />
-                                        </Button>
-                                    )}
-                                    {productDetails.photos.backReg && (
-                                        <Button variant="outline" size="sm" className="justify-between h-10 bg-background/50 hover:bg-blue-50 hover:border-blue-200 border-input/50 transition-colors" onClick={() => {
-                                            const url = typeof productDetails.photos.backReg === 'string' && productDetails.photos.backReg.startsWith('http') ? productDetails.photos.backReg : `http://localhost:3000/uploads/${productDetails.photos.backReg}`;
-                                            window.open(url, '_blank');
-                                        }}>
-                                            <span className="flex items-center gap-2">
-                                                <FileText className="h-3 w-3 text-blue-600" />
-                                                <span className="text-blue-700 text-xs">Back Reg</span>
-                                            </span>
-                                            <ExternalLink className="h-3 w-3 text-blue-500" />
-                                        </Button>
-                                    )}
-                                </div>
-                            </div>
+                    {warranty.product_type === 'ev-products' && (
+                        <div className="space-y-2">
+                            <h4 className="text-xs font-bold text-orange-500 uppercase tracking-widest mb-2 pl-1 flex items-center gap-2">
+                                <div className="w-1 h-4 bg-gradient-to-b from-orange-500 to-orange-400 rounded-full" />
+                                Documentation & Photos
+                            </h4>
+                            <div className="flex overflow-x-auto gap-3 pb-2 scrollbar-thin">
+                                {/* Invoice */}
+                                {(() => {
+                                    const raw = productDetails.photos?.warranty;
+                                    if (!raw) return null;
+                                    const url = typeof raw === 'string' && raw.startsWith('http') ? raw : `http://localhost:3000/uploads/${raw}`;
+                                    const isPdf = typeof raw === 'string' && raw.toLowerCase().endsWith('.pdf');
+                                    return (
+                                        <div className="relative group cursor-pointer rounded-xl overflow-hidden border border-orange-100 shadow-sm bg-slate-50 shrink-0 w-28 h-28" onClick={() => isPdf ? window.open(url, '_blank') : setViewingPhoto(raw)}>
+                                            {isPdf ? (
+                                                <div className="w-full h-full flex flex-col items-center justify-center bg-blue-50 text-blue-500">
+                                                    <FileText className="h-8 w-8 mb-1" />
+                                                    <span className="text-[10px] font-medium px-2 text-center">PDF Document</span>
+                                                </div>
+                                            ) : (
+                                                <img src={url} alt="Invoice" className="w-full h-full object-cover transition-transform group-hover:scale-105" />
+                                            )}
+                                            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center">
+                                                {isPdf ? <ExternalLink className="h-6 w-6 text-white opacity-0 group-hover:opacity-100 transition-opacity" /> : <ZoomIn className="h-6 w-6 text-white opacity-0 group-hover:opacity-100 transition-opacity" />}
+                                            </div>
+                                            <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent px-2 py-1">
+                                                <span className="text-white text-[10px] font-medium leading-tight block">Invoice / MRP</span>
+                                            </div>
+                                        </div>
+                                    );
+                                })()}
 
-                            {/* Documentation */}
-                            {productDetails.photos?.warranty && (
-                                <div className="space-y-1">
-                                    <h4 className="text-xs font-bold text-orange-500 uppercase tracking-widest mb-3 pl-1 flex items-center gap-2">
-                                        <div className="w-1 h-4 bg-gradient-to-b from-orange-500 to-orange-400 rounded-full" />
-                                        Documentation
-                                    </h4>
-                                    <Button variant="outline" className="w-full justify-between h-12 bg-background/50 hover:bg-blue-50 hover:border-blue-200 border-input/50 transition-colors" onClick={() => {
-                                        const url = typeof productDetails.photos.warranty === 'string' && productDetails.photos.warranty.startsWith('http') ? productDetails.photos.warranty : `http://localhost:3000/uploads/${productDetails.photos.warranty}`;
-                                        window.open(url, '_blank');
-                                    }}>
-                                        <span className="flex items-center gap-2">
-                                            <FileText className="h-4 w-4 text-blue-600" />
-                                            <span className="text-blue-700">View Invoice</span>
-                                        </span>
-                                        <ExternalLink className="h-4 w-4 text-blue-500" />
-                                    </Button>
-                                </div>
-                            )}
+                                {/* Photos */}
+                                {productDetails.photos && [{key:'lhs',label:'LHS View'},{key:'rhs',label:'RHS View'},{key:'frontReg',label:'Front Reg'},{key:'backReg',label:'Back Reg'}]
+                                    .filter(({key}) => productDetails.photos[key])
+                                    .map(({key, label}) => {
+                                        const raw = productDetails.photos[key];
+                                        const url = typeof raw === 'string' && raw.startsWith('http') ? raw : `http://localhost:3000/uploads/${raw}`;
+                                        return (
+                                            <div key={key} className="relative group cursor-pointer rounded-xl overflow-hidden border border-orange-100 shadow-sm bg-slate-50 shrink-0 w-28 h-28" onClick={() => setViewingPhoto(raw)}>
+                                                <img src={url} alt={label} className="w-full h-full object-cover transition-transform group-hover:scale-105" />
+                                                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center">
+                                                    <ZoomIn className="h-6 w-6 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                                                </div>
+                                                <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent px-2 py-1">
+                                                    <span className="text-white text-[10px] font-medium leading-tight block">{label}</span>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                            </div>
                         </div>
                     )}
 
                 </div>
-                {/* Footer Area (Close) */}
-                <div className="p-6 border-t border-orange-100 bg-gradient-to-r from-orange-50/50 to-white">
-                    <Button className="w-full h-12 text-base font-semibold border-2 border-orange-200 text-orange-600 bg-white hover:bg-orange-50 hover:border-orange-300 transition-all rounded-xl" onClick={onClose} variant="outline">Done</Button>
+                {/* Footer Area */}
+                <div className="p-4 border-t border-orange-100 bg-gradient-to-r from-orange-50/50 to-white flex gap-3">
+                    {isAdmin && onApprove && onReject && (warranty?.status === 'pending' || warranty?.status === 'pending_vendor') && (
+                        <>
+                            <Button
+                                className="flex-1 h-11 font-semibold bg-green-600 hover:bg-green-700 text-white rounded-xl gap-2"
+                                onClick={() => { setActionLoading('approve'); onApprove(warranty.uid); }}
+                                disabled={processingWarranty === warranty?.uid}
+                            >
+                                {processingWarranty === warranty?.uid && actionLoading === 'approve'
+                                    ? <Loader2 className="h-4 w-4 animate-spin" />
+                                    : <CheckCircle2 className="h-4 w-4" />}
+                                Approve
+                            </Button>
+                            <Button
+                                className="flex-1 h-11 font-semibold bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 rounded-xl gap-2"
+                                variant="outline"
+                                onClick={() => { setActionLoading('reject'); onReject(warranty.uid); }}
+                                disabled={processingWarranty === warranty?.uid}
+                            >
+                                {processingWarranty === warranty?.uid && actionLoading === 'reject'
+                                    ? <Loader2 className="h-4 w-4 animate-spin" />
+                                    : <AlertTriangle className="h-4 w-4" />}
+                                Reject
+                            </Button>
+                        </>
+                    )}
+                    <Button className="flex-1 h-11 text-base font-semibold border-2 border-orange-200 text-orange-600 bg-white hover:bg-orange-50 hover:border-orange-300 transition-all rounded-xl" onClick={onClose} variant="outline">Done</Button>
                 </div>
             </SheetContent>
         </Sheet>
+        
+        <Dialog open={!!viewingPhoto} onOpenChange={(open) => !open && setViewingPhoto(null)}>
+            <DialogContent className="max-w-4xl p-0 bg-black/95 border-none overflow-hidden flex flex-col sm:rounded-xl">
+                <DialogHeader className="p-4 bg-black/50 absolute top-0 left-0 right-0 z-10 flex flex-row items-center justify-between">
+                    <DialogTitle className="text-white text-sm font-medium">Image Preview</DialogTitle>
+                    <div className="flex items-center gap-2">
+                        <Button variant="outline" size="sm" className="bg-white/10 hover:bg-white/20 border-white/20 text-white font-medium" onClick={() => {
+                            if (viewingPhoto) {
+                                const url = viewingPhoto.startsWith('http') ? viewingPhoto : `http://localhost:3000/uploads/${viewingPhoto}`;
+                                window.open(url, '_blank');
+                            }
+                        }}>
+                            <ExternalLink className="h-4 w-4 mr-2" />
+                            Open in New Tab
+                        </Button>
+                    </div>
+                </DialogHeader>
+                <div className="flex-1 flex items-center justify-center p-4 min-h-[60vh] mt-12">
+                    {viewingPhoto && (
+                        <img 
+                            src={viewingPhoto.startsWith('http') ? viewingPhoto : `http://localhost:3000/uploads/${viewingPhoto}`}
+                            className="max-w-full max-h-[80vh] object-contain rounded-md shadow-2xl"
+                            alt="Preview"
+                        />
+                    )}
+                </div>
+            </DialogContent>
+        </Dialog>
         </EditContext.Provider>
     );
 };
