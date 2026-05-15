@@ -242,7 +242,28 @@ export const AdminCustomers = () => {
                         {/* Reusing AdminWarrantyList for the details */}
                         <AdminWarrantyList
                             items={selectedCustomer.warranties || []}
-                            showActions={false}
+                            showActions={true}
+                            onApprove={(id) => {
+                                api.put(`/admin/warranties/${id}/status`, { status: 'validated' })
+                                    .then(() => {
+                                        toast({ title: "Approved", className: "bg-green-600 text-white" });
+                                        handleViewCustomer(selectedCustomer.customer_email);
+                                    });
+                            }}
+                            onReject={(id) => {
+                                api.put(`/admin/warranties/${id}/status`, { status: 'rejected', rejectionReason: 'Admin Override' })
+                                    .then(() => {
+                                        toast({ title: "Rejected", className: "bg-red-600 text-white" });
+                                        handleViewCustomer(selectedCustomer.customer_email);
+                                    });
+                            }}
+                            onMoveToPending={(id) => {
+                                api.put(`/admin/warranties/${id}/status`, { status: 'pending' })
+                                    .then(() => {
+                                        toast({ title: "Moved to Pending", className: "bg-orange-600 text-white" });
+                                        handleViewCustomer(selectedCustomer.customer_email);
+                                    });
+                            }}
                         />
                     </CardContent>
                 </Card>

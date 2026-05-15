@@ -202,7 +202,21 @@ export const AdminWarranties = () => {
             } else {
                 const response = await api.put(`/admin/warranties/${id}/status`, { status, rejectionReason: reason });
                 if (response.data.success) {
-                    toast({ title: status === 'validated' ? "Approved" : "Rejected", className: status === 'validated' ? "bg-green-600 text-white" : "bg-red-600 text-white" });
+                    let toastTitle = "Status Updated";
+                    let toastClass = "bg-slate-800 text-white";
+                    
+                    if (status === 'validated') {
+                        toastTitle = "Approved";
+                        toastClass = "bg-green-600 text-white";
+                    } else if (status === 'rejected') {
+                        toastTitle = "Rejected";
+                        toastClass = "bg-red-600 text-white";
+                    } else if (status === 'pending') {
+                        toastTitle = "Moved to Pending";
+                        toastClass = "bg-orange-600 text-white";
+                    }
+
+                    toast({ title: toastTitle, className: toastClass });
                     // Optimistic update
                     setWarranties(prev => prev.map(w => w.id === id || w.uid === id ? { ...w, status, rejection_reason: reason } : w));
                 }
@@ -550,7 +564,7 @@ export const AdminWarranties = () => {
                         <div key={refreshKey}>
                             <AdminWarrantyList
                                 items={paginatedWarranties}
-                                showActions={statusFilter !== 'all'}
+                                showActions={true}
                                 onApprove={(id) => handleUpdateStatus(id, 'validated')}
                                 onReject={(id) => {
                                     setRejectingWarrantyId(id);

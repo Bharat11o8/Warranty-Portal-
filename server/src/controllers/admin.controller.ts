@@ -764,7 +764,8 @@ export class AdminController {
             }
 
             // SHIELD: Prevent invalid state transitions
-            if (status === 'pending' && !['rejected', 'pending_vendor'].includes(warrantyData.status)) {
+            // Only allow moving back to pending from 'rejected' status
+            if (status === 'pending' && warrantyData.status !== 'rejected') {
                 return res.status(400).json({ error: `Cannot move to pending from ${warrantyData.status} status. Only rejected warranties can be overridden.` });
             }
 

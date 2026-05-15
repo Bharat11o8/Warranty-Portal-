@@ -607,6 +607,7 @@ export const AdminWarrantyList = ({
                                         {warranty.status === 'rejected' && (
                                             <div className="flex items-center gap-2">
                                                 <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-tight bg-slate-50 px-2 py-1 rounded-md border border-slate-100">Waiting for Resubmission</span>
+                                                
                                                 {onMoveToPending && (
                                                     <Button
                                                         size="sm"

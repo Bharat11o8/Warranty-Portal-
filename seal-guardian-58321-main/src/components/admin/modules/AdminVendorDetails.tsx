@@ -232,7 +232,7 @@ export const AdminVendorDetails = ({ vendor: initialVendor, onBack }: AdminVendo
     };
 
 
-    const handleUpdateStatus = async (warrantyId: string, status: 'validated' | 'rejected', reason?: string) => {
+    const handleUpdateStatus = async (warrantyId: string, status: 'validated' | 'rejected' | 'pending', reason?: string) => {
         setProcessingWarranty(warrantyId);
         try {
             const response = await api.put(`/admin/warranties/${warrantyId}/status`, {
@@ -241,10 +241,18 @@ export const AdminVendorDetails = ({ vendor: initialVendor, onBack }: AdminVendo
             });
 
             if (response.data.success) {
+                let toastTitle = `Warranty ${status === 'validated' ? 'Approved' : 'Declined'}`;
+                let toastVariant: "default" | "destructive" = status === 'validated' ? "default" : "destructive";
+
+                if (status === 'pending') {
+                    toastTitle = "Moved to Pending";
+                    toastVariant = "default";
+                }
+
                 toast({
-                    title: `Warranty ${status === 'validated' ? 'Approved' : 'Declined'}`,
+                    title: toastTitle,
                     description: response.data.message,
-                    variant: status === 'validated' ? "default" : "destructive"
+                    variant: toastVariant
                 });
 
                 // Update local state
@@ -709,6 +717,7 @@ export const AdminVendorDetails = ({ vendor: initialVendor, onBack }: AdminVendo
                                         processingWarranty={processingWarranty}
                                         onApprove={(id) => handleUpdateStatus(id, 'validated')}
                                         onReject={(id) => openRejectDialog(id)}
+                                        onMoveToPending={(id) => handleUpdateStatus(id, 'pending')}
                                         showActions={true}
                                         showRejectionReason={true}
                                     />
