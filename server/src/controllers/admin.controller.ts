@@ -725,6 +725,7 @@ export class AdminController {
                     wr.car_model,
                     wr.registration_number,
                     wr.product_details,
+                    wr.purchase_date,
                     wr.created_at,
                     wr.manpower_id,
                     vd.store_name,
@@ -821,8 +822,8 @@ export class AdminController {
                         let approvalWaSent = false;
                         if (process.env.ENABLE_WHATSAPP === 'true' && warrantyData.customer_phone) {
                             try {
-                                const purchaseDate = warrantyData.created_at
-                                    ? new Date(warrantyData.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
+                                const purchaseDate = (warrantyData.purchase_date || warrantyData.created_at)
+                                    ? new Date(warrantyData.purchase_date || warrantyData.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
                                     : 'N/A';
                                 const productName = (productDetails as any)?.product || (productDetails as any)?.productName || warrantyData.product_type || 'Autoform Product';
                                 approvalWaSent = await WhatsAppService.sendWarrantyApprovedCustomer(
@@ -855,7 +856,10 @@ export class AdminController {
                             warrantyData.store_name,
                             storeFullAddress,
                             warrantyData.store_email,
-                            warrantyData.applicator_name
+                            warrantyData.applicator_name,
+                            (warrantyData.purchase_date || warrantyData.created_at)
+                                ? new Date(warrantyData.purchase_date || warrantyData.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
+                                : 'N/A'
                         );
                         console.log(`✓ Warranty approval email sent to customer: ${warrantyData.customer_email}`);
                     } else if (status === 'rejected') {
@@ -863,8 +867,8 @@ export class AdminController {
                         let rejectionWaSent = false;
                         if (process.env.ENABLE_WHATSAPP === 'true' && warrantyData.customer_phone) {
                             try {
-                                const purchaseDate = warrantyData.created_at
-                                    ? new Date(warrantyData.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
+                                const purchaseDate = (warrantyData.purchase_date || warrantyData.created_at)
+                                    ? new Date(warrantyData.purchase_date || warrantyData.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
                                     : 'N/A';
                                 const productName = (productDetails as any)?.product || (productDetails as any)?.productName || warrantyData.product_type || 'Autoform Product';
                                 rejectionWaSent = await WhatsAppService.sendWarrantyRejectedCustomer(

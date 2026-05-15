@@ -46,8 +46,9 @@ export function downloadCSV(data: any[], filename: string = 'export.csv') {
   }
 }
 
-export function getWarrantyExpiration(createdAt: string | Date | null | undefined, warrantyType?: string) {
-  if (!createdAt) return { expirationDate: null, daysLeft: 0, isExpired: false };
+export function getWarrantyExpiration(createdAt: string | Date | undefined, warrantyType?: string, purchaseDate?: string | Date | undefined) {
+  const baseDate = purchaseDate || createdAt;
+  if (!baseDate) return { expirationDate: null, daysLeft: 0, isExpired: false };
 
   // Parse warranty duration from type (e.g., "5", "2+3", "1+1")
   let warrantyYears = 1; // Default
@@ -63,7 +64,7 @@ export function getWarrantyExpiration(createdAt: string | Date | null | undefine
     }
   }
 
-  const registeredDate = new Date(createdAt);
+  const registeredDate = new Date(baseDate);
   const expirationDate = new Date(registeredDate);
   expirationDate.setFullYear(expirationDate.getFullYear() + warrantyYears);
 

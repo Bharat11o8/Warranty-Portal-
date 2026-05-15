@@ -444,7 +444,8 @@ export class EmailService {
     storeName?: string,
     storeAddress?: string,
     storePhone?: string,
-    applicatorName?: string
+    applicatorName?: string,
+    purchaseDate?: string
   ): Promise<void> {
     if (!customerEmail || customerEmail.trim() === '') return;
     const productName = productDetails?.product || productDetails?.productName || productType;
@@ -485,6 +486,7 @@ export class EmailService {
         <p><strong>Vehicle Registration:</strong> ${registrationNumber || productDetails?.carRegistration || 'N/A'}</p>
         ${(productType !== 'seat-cover' && ((carMake && String(carMake).toLowerCase() !== 'null') || (carModel && String(carModel).toLowerCase() !== 'null'))) ? `<p><strong>Vehicle:</strong> ${carMake || ''} ${carModel || ''}</p>` : ''}
         <p><strong>Approval Date:</strong> ${formatDateIST()}</p>
+        ${purchaseDate ? `<p><strong>Purchase Date:</strong> ${purchaseDate}</p>` : ''}
         <p><strong>Status:</strong> <span style="color: #28a745; font-weight: bold;">ACTIVE</span></p>
       </div>
       
