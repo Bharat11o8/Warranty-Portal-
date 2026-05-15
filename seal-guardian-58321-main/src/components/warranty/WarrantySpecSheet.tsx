@@ -278,12 +278,12 @@ export const WarrantySpecSheet = ({ isOpen, onClose, warranty, isAdmin, onRefres
                                     )}
                                     <SpecRow
                                         label="Expiration Date"
-                                        value={formatToIST(getWarrantyExpiration(warranty.validated_at || warranty.created_at, warranty.warranty_type).expirationDate).split(',')[0]}
+                                        value={formatToIST(getWarrantyExpiration(warranty.validated_at || warranty.created_at, warranty.warranty_type, warranty.purchase_date).expirationDate).split(',')[0]}
                                     />
                                     <div className="flex justify-between items-center py-3 px-2 rounded-sm bg-green-500/5 mt-1 border border-green-500/10">
                                         <span className="text-sm text-green-700 font-medium">Days Remaining</span>
                                         <span className="text-sm text-green-700 font-bold">
-                                            {getWarrantyExpiration(warranty.validated_at || warranty.created_at, warranty.warranty_type).daysLeft} Days
+                                            {getWarrantyExpiration(warranty.validated_at || warranty.created_at, warranty.warranty_type, warranty.purchase_date).daysLeft} Days
                                         </span>
                                     </div>
                                 </>

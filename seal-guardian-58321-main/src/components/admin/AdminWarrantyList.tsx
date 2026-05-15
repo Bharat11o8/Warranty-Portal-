@@ -111,7 +111,7 @@ export const AdminWarrantyList = ({
                 const productName = productNameMapping[rawProductName] || rawProductName;
 
                 // Calculate warranty expiration
-                const { expirationDate, daysLeft, isExpired } = getWarrantyExpiration(warranty.created_at, warranty.warranty_type);
+                const { expirationDate, daysLeft, isExpired } = getWarrantyExpiration(warranty.created_at, warranty.warranty_type, warranty.purchase_date);
 
                 return (
                     <Card key={warranty.uid || warranty.id} className="hover:shadow-sm transition-shadow border-slate-200">

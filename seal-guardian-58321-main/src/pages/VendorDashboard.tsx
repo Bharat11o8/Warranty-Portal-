@@ -59,7 +59,7 @@ const WarrantyList = ({ items, showReason = false, user, onEditWarranty, onVerif
                 const productName = productNameMapping[rawProductName] || rawProductName;
 
                 // Calculate warranty expiration
-                const { daysLeft, isExpired } = getWarrantyExpiration(warranty.created_at, warranty.warranty_type);
+                const { daysLeft, isExpired } = getWarrantyExpiration(warranty.created_at, warranty.warranty_type, warranty.purchase_date);
 
                 const toTitleCase = (str: string) => {
                     if (!str) return str;
