@@ -865,27 +865,27 @@ export class AnalyticsController {
             // 2. Find missing approvals (Admin)
             const [missingApp]: any = await db.execute(`
                 INSERT INTO analytics_events (warranty_id, action_type, performed_by, created_at)
-                SELECT wr.id, 'validated', 'system_admin', COALESCE(wr.validated_at, NOW())
+                SELECT wr.id, 'validated', 'system_admin', COALESCE(wr.validated_at, wr.created_at)
                 FROM warranty_registrations wr
                 LEFT JOIN analytics_events ae ON (wr.id = ae.warranty_id AND ae.action_type = 'validated')
                 WHERE wr.status = 'validated' AND ae.id IS NULL
             `);
             console.log(`✅ Synced ${missingApp.affectedRows} missing approvals`);
-
+ 
             // 3. Find missing vendor approvals
             const [missingVend]: any = await db.execute(`
                 INSERT INTO analytics_events (warranty_id, action_type, performed_by, created_at)
-                SELECT wr.id, 'vendor_approved', COALESCE(wr.installer_name, 'Unknown Vendor'), COALESCE(wr.vendor_approved_at, NOW())
+                SELECT wr.id, 'vendor_approved', COALESCE(wr.installer_name, 'Unknown Vendor'), COALESCE(wr.vendor_approved_at, wr.created_at)
                 FROM warranty_registrations wr
                 LEFT JOIN analytics_events ae ON (wr.id = ae.warranty_id AND ae.action_type = 'vendor_approved')
                 WHERE (wr.status = 'pending' OR wr.vendor_approved_at IS NOT NULL) AND ae.id IS NULL
             `);
             console.log(`✅ Synced ${missingVend.affectedRows} missing vendor approvals`);
-
+ 
             // 4. Find missing rejections
             const [missingRej]: any = await db.execute(`
                 INSERT INTO analytics_events (warranty_id, action_type, performed_by, created_at)
-                SELECT wr.id, 'rejected', 'system_admin', COALESCE(wr.rejected_at, NOW())
+                SELECT wr.id, 'rejected', 'system_admin', COALESCE(wr.rejected_at, wr.created_at)
                 FROM warranty_registrations wr
                 LEFT JOIN analytics_events ae ON (wr.id = ae.warranty_id AND ae.action_type = 'rejected')
                 WHERE wr.status = 'rejected' AND ae.id IS NULL
