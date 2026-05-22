@@ -197,13 +197,7 @@ export class WarrantyController {
             }
 
             const currentRetryCount = existingDetails.retryCount || 0;
-            if (currentRetryCount >= 1) {
-              return res.status(400).json({
-                error: 'Maximum resubmission limit reached. You can only edit and resubmit a rejected warranty once. Please submit a new warranty.'
-              });
-            }
-
-            // Increment retry count for the new submission
+            // Increment retry count for audit tracking (no limit enforced)
             warrantyData.productDetails.retryCount = currentRetryCount + 1;
 
             // Merge logic: Preserve old photos if new ones are not provided

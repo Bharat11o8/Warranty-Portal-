@@ -216,7 +216,7 @@ const CustomerDashboard = () => {
 
                     const rawProductName = productDetails.product || productDetails.productName || warranty.product_type;
                     const productName = productNameMapping[rawProductName] || toTitleCase(rawProductName);
-                    const { daysLeft, isExpired } = getWarrantyExpiration(warranty.created_at, warranty.warranty_type);
+                    const { daysLeft, isExpired } = getWarrantyExpiration(warranty.created_at, warranty.warranty_type, warranty.purchase_date);
 
                     if (viewMode === 'card') {
                         return (

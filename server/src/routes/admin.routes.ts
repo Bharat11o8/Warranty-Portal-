@@ -28,6 +28,7 @@ router.post('/warranties/resubmissions/:id/approve', ...adminAuth, requirePermis
 router.post('/warranties/resubmissions/:id/reject', ...adminAuth, requirePermission('warranties', 'write'), AdminController.rejectResubmission);
 router.get('/warranties/:id',             ...adminAuth, requirePermission('warranties', 'read'),  AdminController.getWarrantyById);
 router.put('/warranties/:uid/status',     ...adminAuth, requirePermission('warranties', 'write'), AdminController.updateWarrantyStatus);
+router.put('/warranties/:uid/details',    ...adminAuth, requirePermission('warranties', 'write'), AdminController.updateWarrantyDetails);
 
 // ── Customers ────────────────────────────────────────────────────────────────
 router.get('/customers',                  ...adminAuth, requirePermission('customers', 'read'),  AdminController.getCustomers);

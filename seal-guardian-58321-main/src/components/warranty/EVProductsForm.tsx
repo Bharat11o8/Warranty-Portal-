@@ -10,7 +10,7 @@ import CustomerDetails from "./steps/CustomerDetails";
 import CarDetails from "./steps/CarDetails";
 import ProductInfo from "./steps/ProductInfo";
 import { CheckCircle2, Car, User, Settings, ShieldCheck } from "lucide-react";
-import { getISTTodayISO } from "@/lib/utils";
+import { getISTTodayISO, formatToISTDateISO } from "@/lib/utils";
 import fpPromise from '@fingerprintjs/fingerprintjs';
 
 export interface EVFormData {
@@ -129,6 +129,7 @@ const EVProductsForm = ({ initialData, warrantyId, onSuccess, isUniversal, isEdi
     if (initialData) {
       // Pre-fill form with initial data for editing
       const pd = initialData.product_details || {};
+      console.log('[EVProductsForm] Initializing with initialData:', { initialData, pd });
       const customerNameParts = initialData.customer_name?.split(' ') || [];
       const dealerAddressParts = pd.dealerAddress?.split(',') || [];
       const custAddressParts = initialData.customer_address?.split(',') || [];
@@ -150,11 +151,11 @@ const EVProductsForm = ({ initialData, warrantyId, onSuccess, isUniversal, isEdi
 
 
 
-        installerName: initialData.installer_name || "",
-        installerCode: "", // Not stored in DB?
+        installerName: pd.manpowerName || "",
+        installerCode: pd.installerCode || "",
         manpowerId: initialData.manpower_id || "",
 
-        installationDate: initialData.purchase_date ? new Date(initialData.purchase_date).toISOString().split('T')[0] : "",
+        installationDate: initialData.purchase_date ? formatToISTDateISO(initialData.purchase_date) : "",
         carModel: initialData.car_model || "",
         carReg: initialData.registration_number || "",
         carMake: initialData.car_make || "",
@@ -604,6 +605,7 @@ const EVProductsForm = ({ initialData, warrantyId, onSuccess, isUniversal, isEdi
                   updateFormData={updateFormData}
                   onNext={handleNext}
                   isPublic={isPublic}
+                  isEditing={isEditing}
                   installers={installers}
                   storeDetails={isPublic ? storeDetails : { owner_name: vendorOwnerName }}
                 />
@@ -663,6 +665,7 @@ const EVProductsForm = ({ initialData, warrantyId, onSuccess, isUniversal, isEdi
                   onPrev={handlePrev}
                   onSubmit={handleSubmit}
                   loading={loading}
+                  existingPhotos={isEditing && initialData?.product_details?.photos ? initialData.product_details.photos : undefined}
                 />
               </div>
             )}

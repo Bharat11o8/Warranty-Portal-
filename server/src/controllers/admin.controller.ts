@@ -725,6 +725,7 @@ export class AdminController {
                     wr.car_model,
                     wr.registration_number,
                     wr.product_details,
+                    wr.purchase_date,
                     wr.created_at,
                     wr.manpower_id,
                     vd.store_name,
@@ -763,7 +764,8 @@ export class AdminController {
             }
 
             // SHIELD: Prevent invalid state transitions
-            if (status === 'pending' && !['rejected', 'pending_vendor'].includes(warrantyData.status)) {
+            // Only allow moving back to pending from 'rejected' status
+            if (status === 'pending' && warrantyData.status !== 'rejected') {
                 return res.status(400).json({ error: `Cannot move to pending from ${warrantyData.status} status. Only rejected warranties can be overridden.` });
             }
 
@@ -837,8 +839,8 @@ export class AdminController {
                         let approvalWaSent = false;
                         if (process.env.ENABLE_WHATSAPP === 'true' && warrantyData.customer_phone) {
                             try {
-                                const purchaseDate = warrantyData.created_at
-                                    ? new Date(warrantyData.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
+                                const purchaseDate = (warrantyData.purchase_date || warrantyData.created_at)
+                                    ? new Date(warrantyData.purchase_date || warrantyData.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
                                     : 'N/A';
                                 const productName = (productDetails as any)?.product || (productDetails as any)?.productName || warrantyData.product_type || 'Autoform Product';
                                 approvalWaSent = await WhatsAppService.sendWarrantyApprovedCustomer(
@@ -871,7 +873,10 @@ export class AdminController {
                             warrantyData.store_name,
                             storeFullAddress,
                             warrantyData.store_email,
-                            warrantyData.applicator_name
+                            warrantyData.applicator_name,
+                            (warrantyData.purchase_date || warrantyData.created_at)
+                                ? new Date(warrantyData.purchase_date || warrantyData.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
+                                : 'N/A'
                         );
                         console.log(`✓ Warranty approval email sent to customer: ${warrantyData.customer_email}`);
                     } else if (status === 'rejected') {
@@ -879,8 +884,8 @@ export class AdminController {
                         let rejectionWaSent = false;
                         if (process.env.ENABLE_WHATSAPP === 'true' && warrantyData.customer_phone) {
                             try {
-                                const purchaseDate = warrantyData.created_at
-                                    ? new Date(warrantyData.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
+                                const purchaseDate = (warrantyData.purchase_date || warrantyData.created_at)
+                                    ? new Date(warrantyData.purchase_date || warrantyData.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
                                     : 'N/A';
                                 const productName = (productDetails as any)?.product || (productDetails as any)?.productName || warrantyData.product_type || 'Autoform Product';
                                 rejectionWaSent = await WhatsAppService.sendWarrantyRejectedCustomer(
@@ -1053,7 +1058,7 @@ export class AdminController {
                 if (vendorUserId) {
                     let title = 'Warranty Pending ⏳';
                     let message = `The warranty for ${warrantyData.customer_name} (${warrantyData.uid}) is pending review.`;
-                    
+
                     if (status === 'validated') {
                         title = 'Warranty Approved! ✓';
                         message = `The warranty for ${warrantyData.customer_name} (${warrantyData.uid}) has been approved.`;
@@ -1073,7 +1078,7 @@ export class AdminController {
                 if (warrantyData.user_id) {
                     let title = 'Warranty Pending ⏳';
                     let message = `Your warranty for ${warrantyData.uid} is now under review by AutoForm.`;
-                    
+
                     if (status === 'validated') {
                         title = 'Warranty Validated! ✓';
                         message = `Your warranty for ${warrantyData.uid} has been validated by AutoForm.`;
@@ -1099,8 +1104,8 @@ export class AdminController {
                 adminId: admin.id,
                 adminName: admin.name,
                 adminEmail: admin.email,
-                actionType: status === 'validated' ? 'WARRANTY_APPROVED' : 
-                           status === 'pending' ? 'WARRANTY_OVERRIDDEN' : 'WARRANTY_REJECTED',
+                actionType: status === 'validated' ? 'WARRANTY_APPROVED' :
+                    status === 'pending' ? 'WARRANTY_OVERRIDDEN' : 'WARRANTY_REJECTED',
                 targetType: 'WARRANTY',
                 targetId: warrantyData.uid,
                 targetName: warrantyData.uid,
@@ -1119,6 +1124,123 @@ export class AdminController {
         } catch (error: any) {
             console.error('Update warranty status error:', error);
             res.status(500).json({ error: 'Failed to update warranty status' });
+        }
+    }
+
+    static async updateWarrantyDetails(req: Request, res: Response) {
+        try {
+            const { uid } = req.params;
+            const { 
+                customer_name, customer_email, customer_phone, 
+                car_make, car_model, 
+                registration_number, product_name, warranty_type,
+                purchase_date
+            } = req.body;
+
+            const [existingRows]: any = await db.execute(
+                'SELECT * FROM warranty_registrations WHERE uid = ?',
+                [uid]
+            );
+
+            if (existingRows.length === 0) {
+                return res.status(404).json({ error: 'Warranty not found' });
+            }
+
+            const existing = existingRows[0];
+
+            if (existing.status === 'validated') {
+                return res.status(403).json({ error: 'Approved warranties cannot be edited.' });
+            }
+            
+            // Update the JSON product_details to keep the frontend in sync
+            let productDetails: any = {};
+            try {
+                productDetails = typeof existing.product_details === 'string' 
+                    ? JSON.parse(existing.product_details) 
+                    : (existing.product_details || {});
+            } catch (e) {
+                console.error('Failed to parse product_details', e);
+            }
+
+            if (customer_name !== undefined) productDetails.customerName = customer_name;
+            if (customer_email !== undefined) productDetails.customerEmail = customer_email;
+            if (customer_phone !== undefined) productDetails.customerPhone = customer_phone;
+            if (registration_number !== undefined) productDetails.carRegistration = registration_number;
+            if (product_name !== undefined) productDetails.productName = product_name;
+
+            await db.execute(
+                `UPDATE warranty_registrations SET
+                    customer_name = ?,
+                    customer_email = ?,
+                    customer_phone = ?,
+                    car_make = ?,
+                    car_model = ?,
+                    registration_number = ?,
+                    warranty_type = ?,
+                    purchase_date = ?,
+                    product_details = ?
+                 WHERE uid = ?`,
+                [
+                    customer_name !== undefined ? customer_name : existing.customer_name,
+                    customer_email !== undefined ? customer_email : existing.customer_email,
+                    customer_phone !== undefined ? customer_phone : existing.customer_phone,
+                    car_make !== undefined ? car_make : existing.car_make,
+                    car_model !== undefined ? car_model : existing.car_model,
+                    registration_number !== undefined ? registration_number : existing.registration_number,
+                    warranty_type !== undefined ? warranty_type : existing.warranty_type,
+                    purchase_date !== undefined ? purchase_date : existing.purchase_date,
+                    JSON.stringify(productDetails),
+                    uid
+                ]
+            );
+
+            const admin = (req as any).user;
+
+            // Build a before/after diff for the audit trail
+            const changes: Record<string, { before: any, after: any }> = {};
+            const fieldMap: Record<string, string> = {
+                customer_name: 'Customer Name',
+                customer_email: 'Customer Email',
+                customer_phone: 'Customer Phone',
+                car_make: 'Car Make',
+                car_model: 'Car Model',
+                registration_number: 'Registration Number',
+                warranty_type: 'Warranty Type',
+                purchase_date: 'Purchase Date',
+            };
+            for (const [key, label] of Object.entries(fieldMap)) {
+                const bodyVal = req.body[key];
+                if (bodyVal !== undefined && String(bodyVal) !== String(existing[key] ?? '')) {
+                    changes[label] = { before: existing[key] ?? null, after: bodyVal };
+                }
+            }
+            if (product_name !== undefined && product_name !== productDetails.productName) {
+                changes['Product Name'] = { before: productDetails.productName ?? null, after: product_name };
+            }
+
+            await ActivityLogService.log({
+                adminId: admin.id,
+                adminName: admin.name,
+                adminEmail: admin.email,
+                actionType: 'WARRANTY_UPDATED',
+                targetType: 'WARRANTY',
+                targetId: uid,
+                targetName: `${existing.customer_name} (${uid})`,
+                details: {
+                    summary: `Admin edited warranty details for ${existing.customer_name}`,
+                    changes
+                },
+                ipAddress: req.ip || req.socket?.remoteAddress
+            });
+
+            res.json({
+                success: true,
+                message: 'Warranty details updated successfully'
+            });
+
+        } catch (error: any) {
+            console.error('Update warranty details error:', error);
+            res.status(500).json({ error: 'Failed to update warranty details' });
         }
     }
 
@@ -1636,21 +1758,21 @@ export class AdminController {
 
             // Normalize permissions — default all to false if not provided
             const defaultPermissions = {
-                overview:          { read: false, write: false },
-                warranties:        { read: false, write: false },
+                overview: { read: false, write: false },
+                warranties: { read: false, write: false },
                 warranty_products: { read: false, write: false },
-                uid_management:    { read: false, write: false },
-                warranty_form:     { read: false, write: false },
-                vendors:           { read: false, write: false },
-                customers:         { read: false, write: false },
-                products:          { read: false, write: false },
-                announcements:     { read: false, write: false },
-                grievances:        { read: false, write: false },
-                posm:              { read: false, write: false },
-                ecatalogue:        { read: false, write: false },
-                terms:             { read: false, write: false },
-                old_warranties:    { read: false, write: false },
-                activity_logs:     { read: false, write: false },
+                uid_management: { read: false, write: false },
+                warranty_form: { read: false, write: false },
+                vendors: { read: false, write: false },
+                customers: { read: false, write: false },
+                products: { read: false, write: false },
+                announcements: { read: false, write: false },
+                grievances: { read: false, write: false },
+                posm: { read: false, write: false },
+                ecatalogue: { read: false, write: false },
+                terms: { read: false, write: false },
+                old_warranties: { read: false, write: false },
+                activity_logs: { read: false, write: false },
             };
             const resolvedPermissions = permissions || defaultPermissions;
 
@@ -1932,15 +2054,13 @@ export class AdminController {
             const { id } = req.params;
             const sql = 'SELECT * FROM warranty_resubmissions WHERE id = ? AND status = "pending_review"';
             const [rows]: any = await db.execute(sql, [id]);
-            
+
             if (rows.length === 0) {
                 return res.status(404).json({ error: 'Resubmission not found or already processed' });
             }
-            
+
             const staging = rows[0];
-            console.log(`[Admin Approval] Approving resubmission ID: ${id}, for UID: ${staging.original_uid}`);
-            console.log(`[Admin Approval] Photo URLs in staging: SeatCover=${staging.seat_cover_photo_url}, CarOuter=${staging.car_outer_photo_url}`);
-            
+
             // Using a transaction to ensure atomic update of both tables
             connection = await db.getConnection();
             await connection.beginTransaction();
@@ -1979,7 +2099,7 @@ export class AdminController {
             await connection.commit();
 
             // Send Email logic can be triggered here if needed, but keeping it simple for DB sync first
-            
+
             const admin = (req as any).user;
             await ActivityLogService.log({
                 adminId: admin.id,
@@ -2006,10 +2126,10 @@ export class AdminController {
         try {
             const { id } = req.params;
             const { notes } = req.body;
-            
+
             const [rows]: any = await db.execute('SELECT original_uid FROM warranty_resubmissions WHERE id = ?', [id]);
             if (rows.length === 0) return res.status(404).json({ error: 'Resubmission not found' });
-            
+
             await db.execute(
                 'UPDATE warranty_resubmissions SET status = "rejected", admin_notes = ? WHERE id = ?',
                 [notes || 'Rejected by admin', id]

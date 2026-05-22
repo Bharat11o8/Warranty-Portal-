@@ -18,9 +18,10 @@ interface ProductInfoProps {
   onPrev: () => void;
   onSubmit: () => void;
   loading: boolean;
+  existingPhotos?: any;
 }
 
-const ProductInfo = ({ formData, updateFormData, onPrev, onSubmit, loading }: ProductInfoProps) => {
+const ProductInfo = ({ formData, updateFormData, onPrev, onSubmit, loading, existingPhotos }: ProductInfoProps) => {
   const { toast } = useToast();
   const [products, setProducts] = useState<any[]>([]);
   const [termsModalOpen, setTermsModalOpen] = useState(false);
@@ -113,23 +114,23 @@ const ProductInfo = ({ formData, updateFormData, onPrev, onSubmit, loading }: Pr
       toast({ title: "Installation Area Required", description: "Please enter the area of installation", variant: "destructive" });
       return;
     }
-    if (!formData.lhsPhoto) {
+    if (!formData.lhsPhoto && !existingPhotos?.lhs) {
       toast({ title: "LHS Photo Required", description: "Please upload left hand side photo", variant: "destructive" });
       return;
     }
-    if (!formData.rhsPhoto) {
+    if (!formData.rhsPhoto && !existingPhotos?.rhs) {
       toast({ title: "RHS Photo Required", description: "Please upload right hand side photo", variant: "destructive" });
       return;
     }
-    if (!formData.frontRegPhoto) {
+    if (!formData.frontRegPhoto && !existingPhotos?.frontReg) {
       toast({ title: "Front Photo Required", description: "Please upload front photo with registration number", variant: "destructive" });
       return;
     }
-    if (!formData.backRegPhoto) {
+    if (!formData.backRegPhoto && !existingPhotos?.backReg) {
       toast({ title: "Back Photo Required", description: "Please upload back photo with registration number", variant: "destructive" });
       return;
     }
-    if (!formData.warrantyPhoto) {
+    if (!formData.warrantyPhoto && !existingPhotos?.warranty) {
       toast({ title: "Warranty Card Required", description: "Please upload warranty card photo with dealer stamp", variant: "destructive" });
       return;
     }
@@ -233,70 +234,95 @@ const ProductInfo = ({ formData, updateFormData, onPrev, onSubmit, loading }: Pr
         <div className="grid md:grid-cols-2 gap-4">
           <div className="space-y-2">
             <Label htmlFor="lhsPhoto">
-              Left Hand Side <span className="text-destructive">*</span>
+              Left Hand Side {(!existingPhotos?.lhs || formData.lhsPhoto === null) && <span className="text-destructive">*</span>}
             </Label>
+            {existingPhotos?.lhs && !formData.lhsPhoto && (
+              <div className="mb-2 w-24 h-24 rounded-lg overflow-hidden border-2 border-emerald-100 shadow-sm">
+                 <img src={existingPhotos.lhs.startsWith('http') ? existingPhotos.lhs : `${window.location.origin}/uploads/${existingPhotos.lhs}`} alt="Existing LHS" className="w-full h-full object-cover" />
+              </div>
+            )}
             <Input
               id="lhsPhoto"
               type="file"
               accept="image/jpeg,image/png,image/heic,image/heif"
               onChange={(e) => handleFileChange("lhsPhoto", e.target.files?.[0] || null)}
-              required
+              required={!existingPhotos?.lhs}
               disabled={loading}
             />
           </div>
 
           <div className="space-y-2">
             <Label htmlFor="rhsPhoto">
-              Right Hand Side <span className="text-destructive">*</span>
+              Right Hand Side {(!existingPhotos?.rhs || formData.rhsPhoto === null) && <span className="text-destructive">*</span>}
             </Label>
+            {existingPhotos?.rhs && !formData.rhsPhoto && (
+              <div className="mb-2 w-24 h-24 rounded-lg overflow-hidden border-2 border-emerald-100 shadow-sm">
+                 <img src={existingPhotos.rhs.startsWith('http') ? existingPhotos.rhs : `${window.location.origin}/uploads/${existingPhotos.rhs}`} alt="Existing RHS" className="w-full h-full object-cover" />
+              </div>
+            )}
             <Input
               id="rhsPhoto"
               type="file"
               accept="image/jpeg,image/png,image/heic,image/heif"
               onChange={(e) => handleFileChange("rhsPhoto", e.target.files?.[0] || null)}
-              required
+              required={!existingPhotos?.rhs}
               disabled={loading}
             />
           </div>
 
           <div className="space-y-2">
             <Label htmlFor="frontRegPhoto">
-              Front with Reg. No. <span className="text-destructive">*</span>
+              Front with Reg. No. {(!existingPhotos?.frontReg || formData.frontRegPhoto === null) && <span className="text-destructive">*</span>}
             </Label>
+            {existingPhotos?.frontReg && !formData.frontRegPhoto && (
+              <div className="mb-2 w-24 h-24 rounded-lg overflow-hidden border-2 border-emerald-100 shadow-sm">
+                 <img src={existingPhotos.frontReg.startsWith('http') ? existingPhotos.frontReg : `${window.location.origin}/uploads/${existingPhotos.frontReg}`} alt="Existing Front" className="w-full h-full object-cover" />
+              </div>
+            )}
             <Input
               id="frontRegPhoto"
               type="file"
               accept="image/jpeg,image/png,image/heic,image/heif"
               onChange={(e) => handleFileChange("frontRegPhoto", e.target.files?.[0] || null)}
-              required
+              required={!existingPhotos?.frontReg}
               disabled={loading}
             />
           </div>
 
           <div className="space-y-2">
             <Label htmlFor="backRegPhoto">
-              Back with Reg. No. <span className="text-destructive">*</span>
+              Back with Reg. No. {(!existingPhotos?.backReg || formData.backRegPhoto === null) && <span className="text-destructive">*</span>}
             </Label>
+            {existingPhotos?.backReg && !formData.backRegPhoto && (
+              <div className="mb-2 w-24 h-24 rounded-lg overflow-hidden border-2 border-emerald-100 shadow-sm">
+                 <img src={existingPhotos.backReg.startsWith('http') ? existingPhotos.backReg : `${window.location.origin}/uploads/${existingPhotos.backReg}`} alt="Existing Back" className="w-full h-full object-cover" />
+              </div>
+            )}
             <Input
               id="backRegPhoto"
               type="file"
               accept="image/jpeg,image/png,image/heic,image/heif"
               onChange={(e) => handleFileChange("backRegPhoto", e.target.files?.[0] || null)}
-              required
+              required={!existingPhotos?.backReg}
               disabled={loading}
             />
           </div>
 
           <div className="space-y-2 md:col-span-2">
             <Label htmlFor="warrantyPhoto">
-              Warranty Card (Dealer Stamp) <span className="text-destructive">*</span>
+              Warranty Card (Dealer Stamp) {(!existingPhotos?.warranty || formData.warrantyPhoto === null) && <span className="text-destructive">*</span>}
             </Label>
+            {existingPhotos?.warranty && !formData.warrantyPhoto && (
+              <div className="mb-2 w-24 h-24 rounded-lg overflow-hidden border-2 border-emerald-100 shadow-sm">
+                 <img src={existingPhotos.warranty.startsWith('http') ? existingPhotos.warranty : `${window.location.origin}/uploads/${existingPhotos.warranty}`} alt="Existing Warranty Card" className="w-full h-full object-cover" />
+              </div>
+            )}
             <Input
               id="warrantyPhoto"
               type="file"
               accept="image/jpeg,image/png,image/heic,image/heif"
               onChange={(e) => handleFileChange("warrantyPhoto", e.target.files?.[0] || null)}
-              required
+              required={!existingPhotos?.warranty}
               disabled={loading}
             />
           </div>

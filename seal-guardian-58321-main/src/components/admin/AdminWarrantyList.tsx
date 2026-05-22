@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -47,6 +47,7 @@ interface AdminWarrantyListProps {
     onApprove?: (warrantyId: string) => void;
     onReject?: (warrantyId: string) => void;
     onMoveToPending?: (warrantyId: string) => void;
+    onRefresh?: () => void;
 }
 
 export const AdminWarrantyList = ({
@@ -56,10 +57,20 @@ export const AdminWarrantyList = ({
     processingWarranty,
     onApprove,
     onReject,
-    onMoveToPending
+    onMoveToPending,
+    onRefresh
 }: AdminWarrantyListProps) => {
     const [selectedWarranty, setSelectedWarranty] = useState<any>(null);
     const [expandedFraud, setExpandedFraud] = useState<Set<string>>(new Set());
+
+    // When items refresh (e.g. after an admin edit), sync the open SpecSheet
+    // with the updated warranty data so photos & fields don't go stale.
+    useEffect(() => {
+        if (selectedWarranty) {
+            const refreshed = items.find((w: any) => w.uid === selectedWarranty.uid);
+            if (refreshed) setSelectedWarranty(refreshed);
+        }
+    }, [items]);
 
     const toggleFraudDetails = (id: string) => {
         setExpandedFraud(prev => {
@@ -100,7 +111,7 @@ export const AdminWarrantyList = ({
                 const productName = productNameMapping[rawProductName] || rawProductName;
 
                 // Calculate warranty expiration
-                const { expirationDate, daysLeft, isExpired } = getWarrantyExpiration(warranty.created_at, warranty.warranty_type);
+                const { expirationDate, daysLeft, isExpired } = getWarrantyExpiration(warranty.created_at, warranty.warranty_type, warranty.purchase_date);
 
                 return (
                     <Card key={warranty.uid || warranty.id} className="hover:shadow-sm transition-shadow border-slate-200">
@@ -596,6 +607,7 @@ export const AdminWarrantyList = ({
                                         {warranty.status === 'rejected' && (
                                             <div className="flex items-center gap-2">
                                                 <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-tight bg-slate-50 px-2 py-1 rounded-md border border-slate-100">Waiting for Resubmission</span>
+                                                
                                                 {onMoveToPending && (
                                                     <Button
                                                         size="sm"
@@ -629,6 +641,11 @@ export const AdminWarrantyList = ({
                 onClose={() => setSelectedWarranty(null)}
                 warranty={selectedWarranty}
                 isMobile={false} // Adapted for unified view
+                isAdmin={true}
+                onRefresh={onRefresh}
+                onApprove={onApprove}
+                onReject={onReject}
+                processingWarranty={processingWarranty}
             />
         </div >
     );

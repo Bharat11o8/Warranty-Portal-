@@ -366,7 +366,7 @@ export const WarrantyManagement = ({
                                                 </div>
                                                 {warranty.status === 'validated' && (
                                                     <span className="hidden lg:inline text-[8px] font-black opacity-70">
-                                                        {getWarrantyExpiration(warranty.validated_at || warranty.created_at, warranty.warranty_type).daysLeft} Days Left
+                                                        {getWarrantyExpiration(warranty.validated_at || warranty.created_at, warranty.warranty_type, warranty.purchase_date).daysLeft} Days Left
                                                     </span>
                                                 )}
                                             </div>
@@ -510,7 +510,7 @@ export const WarrantyManagement = ({
                                             </div>
                                             {warranty.status === 'validated' && (
                                                 <span className="hidden lg:inline text-[8px] font-black opacity-70">
-                                                    {getWarrantyExpiration(warranty.validated_at || warranty.created_at, warranty.warranty_type).daysLeft} Days Left
+                                                    {getWarrantyExpiration(warranty.validated_at || warranty.created_at, warranty.warranty_type, warranty.purchase_date).daysLeft} Days Left
                                                 </span>
                                             )}
                                         </div>
