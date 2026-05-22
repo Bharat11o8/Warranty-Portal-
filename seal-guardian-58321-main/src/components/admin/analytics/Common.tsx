@@ -1,4 +1,4 @@
-import { Package, Download } from 'lucide-react';
+import { Package, Download, RefreshCw } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
 export const exportToExcel = (data: any[], fileName: string) => {
@@ -16,6 +16,17 @@ export const ExportButton = ({ onClick, loading }: { onClick: () => void, loadin
     >
         <Download className="h-3.5 w-3.5" />
         Export
+    </button>
+);
+
+export const SyncButton = ({ onClick, loading }: { onClick: () => void, loading?: boolean }) => (
+    <button
+        onClick={onClick}
+        disabled={loading}
+        className="flex items-center gap-2 px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg shadow-orange-100 disabled:opacity-50 active:scale-95"
+    >
+        <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
+        Sync Data
     </button>
 );
 

@@ -2,7 +2,7 @@ import { Activity, ChevronDown } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { ResponsiveContainer, AreaChart, Area, CartesianGrid, XAxis, YAxis, Tooltip } from 'recharts';
 import { ModernSelect } from './ModernSelect';
-import { LoadingOverlay, EmptyState, ExportButton, exportToExcel } from './Common';
+import { LoadingOverlay, EmptyState, ExportButton, exportToExcel, SyncButton } from './Common';
 import { cn } from '@/lib/utils';
 
 interface TrendSectionProps {
@@ -25,6 +25,8 @@ interface TrendSectionProps {
     lineConfig: any[];
     years: string[];
     months: string[];
+    onSync: () => void;
+    isSyncing?: boolean;
 }
 
 export const TrendSection = ({
@@ -41,7 +43,9 @@ export const TrendSection = ({
     setVisibleLines,
     lineConfig,
     years,
-    months
+    months,
+    onSync,
+    isSyncing
 }: TrendSectionProps) => {
     return (
         <Card className="rounded-[40px] border-none bg-white shadow-[0_20px_50px_rgba(0,0,0,0.04)] overflow-hidden relative">
@@ -170,6 +174,11 @@ export const TrendSection = ({
                                 </div>
                             </div>
                         </div>
+
+                        <SyncButton 
+                            onClick={onSync}
+                            loading={isSyncing}
+                        />
 
                         <ExportButton 
                             onClick={() => exportToExcel(

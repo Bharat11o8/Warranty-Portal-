@@ -292,14 +292,6 @@ export const AdminAnalytics = ({ onNavigate }: { onNavigate: (module: AdminModul
                     <h1 className="text-2xl font-black text-slate-800">Analytics Command Center</h1>
                     <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Strategic Performance & Fraud Monitoring</p>
                 </div>
-                <Button 
-                    onClick={handleSync}
-                    disabled={trendLoading}
-                    className="rounded-2xl bg-orange-500 hover:bg-orange-600 text-white font-bold flex items-center gap-2 px-6"
-                >
-                    <RefreshCw className={`h-4 w-4 ${trendLoading ? 'animate-spin' : ''}`} />
-                    Sync Data
-                </Button>
             </div>
             {/* Top Stats Row */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -386,6 +378,8 @@ export const AdminAnalytics = ({ onNavigate }: { onNavigate: (module: AdminModul
                     lineConfig={LINE_CONFIG}
                     years={YEARS}
                     months={MONTHS}
+                    onSync={handleSync}
+                    isSyncing={trendLoading}
                 />
 
                 <ProductDistributionSection
@@ -398,6 +392,8 @@ export const AdminAnalytics = ({ onNavigate }: { onNavigate: (module: AdminModul
                     products={products}
                     years={YEARS}
                     months={MONTHS}
+                    onSync={handleSync}
+                    isSyncing={trendLoading}
                 />
 
                 <GeographicSection
@@ -413,17 +409,25 @@ export const AdminAnalytics = ({ onNavigate }: { onNavigate: (module: AdminModul
                     expandedItem={expandedItem} setExpandedItem={setExpandedItem}
                     years={YEARS}
                     months={MONTHS}
+                    onSync={handleSync}
+                    isSyncing={trendLoading}
                 />
             </div>
 
             <div className="space-y-8">
-                <FranchiseLeaderboard franchises={franchises} />
+                <FranchiseLeaderboard 
+                    franchises={franchises} 
+                    onSync={handleSync}
+                    isSyncing={trendLoading}
+                />
                 
                 <FraudAnalysisSection
                     fraudData={fraudData}
                     fraudFlag={fraudFlag}
                     setFraudFlag={setFraudFlag}
                     fetchFranchiseDrilldown={fetchFranchiseDrilldown}
+                    onSync={handleSync}
+                    isSyncing={trendLoading}
                 />
             </div>
 
