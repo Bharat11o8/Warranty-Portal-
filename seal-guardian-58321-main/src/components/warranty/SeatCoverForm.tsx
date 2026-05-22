@@ -1052,7 +1052,7 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
 
               <div className="space-y-3">
                 <Label htmlFor="customerEmail" className="text-sm font-medium text-slate-700">
-                  Email {(isPublic || user?.role !== 'vendor') && <span className="text-destructive">*</span>}
+                  Email
                 </Label>
                 <div className="relative">
                   <Mail className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
@@ -1062,15 +1062,12 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
                     placeholder="customer@example.com"
                     value={formData.customerEmail}
                     onChange={(e) => handleChange("customerEmail", e.target.value)}
-                    required={isPublic || user?.role !== 'vendor'}
                     readOnly={user?.role === 'customer'}
                     disabled={loading}
                     className={`pl-9 border-slate-200 ${user?.role === 'customer' ? 'bg-slate-50 cursor-not-allowed' : 'bg-white'}`}
                   />
                 </div>
-                {(!isPublic && user?.role === 'vendor') && (
-                  <p className="text-xs text-muted-foreground">Optional for notification</p>
-                )}
+                <p className="text-xs text-muted-foreground">Optional for notification</p>
               </div>
 
               <div className="space-y-3 md:col-span-2">

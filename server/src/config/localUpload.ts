@@ -7,7 +7,8 @@
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
-import { Request } from 'express';
+import { Request, Response, NextFunction } from 'express';
+import sharp from 'sharp';
 
 const UPLOADS_BASE_DIR = process.env.UPLOADS_BASE_DIR || '/home/deploy/uploads';
 const APP_URL = process.env.APP_URL || 'https://api.autoformindia.co.in';
@@ -109,23 +110,76 @@ function genericFileName(
  * with its public HTTPS URL. This means existing controllers that read file.path
  * continue to work without any changes.
  */
-export function attachPublicUrls(req: any, _res: any, next: any): void {
+export async function attachPublicUrls(req: any, res: Response, next: NextFunction): Promise<void> {
+    // 1. Gather all files
+    const allFiles: Express.Multer.File[] = [];
+    if (req.file) allFiles.push(req.file);
+    if (req.files) {
+        if (Array.isArray(req.files)) {
+            allFiles.push(...req.files);
+        } else {
+            Object.values(req.files as Record<string, Express.Multer.File[]>).forEach(arr => {
+                allFiles.push(...arr);
+            });
+        }
+    }
+
+    // 2. Validate Image Integrity
+    let hasCorruption = false;
+    for (const file of allFiles) {
+        if (!file?.path || !fs.existsSync(file.path)) continue;
+
+        // Only validate images (skip PDFs, Excel, etc.)
+        const isImage = /\.(jpg|jpeg|png|webp|heic|heif)$/i.test(file.originalname);
+        if (isImage) {
+            if (file.size === 0) {
+                hasCorruption = true;
+                break;
+            }
+
+            // HEIC/HEIF: the server's sharp build does not include the HEIF codec,
+            // so we can only size-check these files — not decode them with sharp.
+            const isHeif = /\.(heic|heif)$/i.test(file.originalname);
+            if (!isHeif) {
+                try {
+                    // .stats() forces sharp to decode the image, immediately throwing
+                    // if the file was truncated by a dropped network connection.
+                    await sharp(file.path).stats();
+                } catch (error) {
+                    console.error(`[Upload] Image corrupted during transit: ${file.originalname}`, error);
+                    hasCorruption = true;
+                    break;
+                }
+            }
+        }
+    }
+
+    // 3. Reject if corrupted
+    if (hasCorruption) {
+        // Cleanup all files from this request.
+        // Use async unlink with try/catch — unlinkSync can throw EPERM if multer's
+        // WriteStream hasn't fully released the file handle yet.
+        await Promise.allSettled(
+            allFiles
+                .filter(file => file?.path && fs.existsSync(file.path))
+                .map(file => fs.promises.unlink(file.path).catch(err =>
+                    console.warn(`[Upload] Cleanup failed for ${file.path}:`, err.message)
+                ))
+        );
+        res.status(400).json({
+            success: false,
+            error: "Submission failed due to slow or dropped internet connection. Please check your connection and try again."
+        });
+        return;
+    }
+
+    // 4. Attach Public URLs for successful uploads
     const patchFile = (file: any) => {
         if (file?.path) {
             file.path = diskPathToUrl(file.path);
         }
     };
-
-    if (req.file) patchFile(req.file);
-
-    if (req.files) {
-        if (Array.isArray(req.files)) {
-            req.files.forEach(patchFile);
-        } else {
-            Object.values(req.files as Record<string, any[]>)
-                .forEach(arr => arr.forEach(patchFile));
-        }
-    }
+    allFiles.forEach(patchFile);
 
     next();
 }
