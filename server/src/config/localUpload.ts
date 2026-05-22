@@ -136,25 +136,36 @@ export async function attachPublicUrls(req: any, res: Response, next: NextFuncti
                 hasCorruption = true;
                 break;
             }
-            try {
-                // .stats() forces sharp to decode the image, immediately throwing if it was truncated by a network drop
-                await sharp(file.path).stats();
-            } catch (error) {
-                console.error(`[Upload] Image corrupted during transit: ${file.originalname}`, error);
-                hasCorruption = true;
-                break;
+
+            // HEIC/HEIF: the server's sharp build does not include the HEIF codec,
+            // so we can only size-check these files — not decode them with sharp.
+            const isHeif = /\.(heic|heif)$/i.test(file.originalname);
+            if (!isHeif) {
+                try {
+                    // .stats() forces sharp to decode the image, immediately throwing
+                    // if the file was truncated by a dropped network connection.
+                    await sharp(file.path).stats();
+                } catch (error) {
+                    console.error(`[Upload] Image corrupted during transit: ${file.originalname}`, error);
+                    hasCorruption = true;
+                    break;
+                }
             }
         }
     }
 
     // 3. Reject if corrupted
     if (hasCorruption) {
-        // Cleanup all files from this request
-        for (const file of allFiles) {
-            if (file?.path && fs.existsSync(file.path)) {
-                fs.unlinkSync(file.path);
-            }
-        }
+        // Cleanup all files from this request.
+        // Use async unlink with try/catch — unlinkSync can throw EPERM if multer's
+        // WriteStream hasn't fully released the file handle yet.
+        await Promise.allSettled(
+            allFiles
+                .filter(file => file?.path && fs.existsSync(file.path))
+                .map(file => fs.promises.unlink(file.path).catch(err =>
+                    console.warn(`[Upload] Cleanup failed for ${file.path}:`, err.message)
+                ))
+        );
         res.status(400).json({
             success: false,
             error: "Submission failed due to slow or dropped internet connection. Please check your connection and try again."

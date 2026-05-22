@@ -20,7 +20,8 @@ import {
     Calendar as CalendarIcon,
     ArrowUpDown,
     Check,
-    X
+    X,
+    Loader2
 } from "lucide-react";
 import {
     Select,
@@ -218,7 +219,7 @@ export const AdminWarranties = () => {
 
                     toast({ title: toastTitle, className: toastClass });
                     // Optimistic update
-                    setWarranties(prev => prev.map(w => w.id === id || w.uid === id ? { ...w, status, rejection_reason: reason } : w));
+                    setWarranties(prev => prev.map(w => String(w.id) === String(id) || w.uid === id ? { ...w, status, rejection_reason: reason } : w));
                 }
             }
         } catch (error) {
@@ -570,8 +571,12 @@ export const AdminWarranties = () => {
                                     setRejectingWarrantyId(id);
                                     setRejectReason("");
                                     setRejectDialogOpen(true);
+                                    return new Promise<void>((resolve) => {
+                                        // Resolve will be called after the reject dialog submits
+                                        (window as any).__rejectResolve = resolve;
+                                    });
                                 }}
-                                 onMoveToPending={(id) => handleUpdateStatus(id, 'pending')}
+                                onMoveToPending={(id) => handleUpdateStatus(id, 'pending')}
                                 processingWarranty={processingId}
                                 onRefresh={() => fetchWarranties(false)}
                             />
@@ -676,23 +681,36 @@ export const AdminWarranties = () => {
                                     setRejectDialogOpen(false);
                                     setRejectReason("");
                                     setRejectingWarrantyId(null);
+                                    if ((window as any).__rejectResolve) {
+                                        (window as any).__rejectResolve();
+                                        (window as any).__rejectResolve = null;
+                                    }
                                 }}
+                                disabled={processingId === rejectingWarrantyId}
                             >
                                 Cancel
                             </Button>
                             <Button
                                 variant="destructive"
-                                onClick={() => {
+                                onClick={async () => {
                                     if (rejectingWarrantyId && rejectReason.trim()) {
-                                        handleUpdateStatus(rejectingWarrantyId, 'rejected', rejectReason.trim());
+                                        await handleUpdateStatus(rejectingWarrantyId, 'rejected', rejectReason.trim());
                                         setRejectDialogOpen(false);
                                         setRejectReason("");
                                         setRejectingWarrantyId(null);
+                                        if ((window as any).__rejectResolve) {
+                                            (window as any).__rejectResolve();
+                                            (window as any).__rejectResolve = null;
+                                        }
                                     }
                                 }}
-                                disabled={!rejectReason.trim()}
+                                disabled={!rejectReason.trim() || processingId === rejectingWarrantyId}
                             >
-                                Decline Warranty
+                                {processingId === rejectingWarrantyId ? (
+                                    <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Declining...</>
+                                ) : (
+                                    "Decline Warranty"
+                                )}
                             </Button>
                         </div>
                     </div>

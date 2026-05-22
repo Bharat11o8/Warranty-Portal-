@@ -67,7 +67,10 @@ export const AdminWarrantyList = ({
     // with the updated warranty data so photos & fields don't go stale.
     useEffect(() => {
         if (selectedWarranty) {
-            const refreshed = items.find((w: any) => w.uid === selectedWarranty.uid);
+            const refreshed = items.find((w: any) =>
+                w.uid === selectedWarranty.uid ||
+                String(w.id) === String(selectedWarranty.id)
+            );
             if (refreshed) setSelectedWarranty(refreshed);
         }
     }, [items]);
