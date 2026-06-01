@@ -76,7 +76,12 @@ export class NotificationController {
             const { id } = req.params;
             if (!userId) return res.status(401).json({ error: 'Unauthorized' });
 
-            await NotificationService.markAsRead(Number(id), userId);
+            const notificationId = Number(id);
+            if (isNaN(notificationId)) {
+                return res.status(400).json({ error: 'Invalid notification ID' });
+            }
+
+            await NotificationService.markAsRead(notificationId, userId);
             res.json({ success: true });
         } catch (error) {
             console.error('Mark read error:', error);
@@ -116,7 +121,12 @@ export class NotificationController {
             const { id } = req.params;
             if (!userId) return res.status(401).json({ error: 'Unauthorized' });
 
-            await NotificationService.clearById(Number(id), userId);
+            const notificationId = Number(id);
+            if (isNaN(notificationId)) {
+                return res.status(400).json({ error: 'Invalid notification ID' });
+            }
+
+            await NotificationService.clearById(notificationId, userId);
             res.json({ success: true, message: 'Notification cleared from view' });
         } catch (error) {
             console.error('Clear notification error:', error);
@@ -130,7 +140,12 @@ export class NotificationController {
             const { id } = req.params;
             if (!userId) return res.status(401).json({ error: 'Unauthorized' });
 
-            await NotificationService.restoreById(Number(id), userId);
+            const notificationId = Number(id);
+            if (isNaN(notificationId)) {
+                return res.status(400).json({ error: 'Invalid notification ID' });
+            }
+
+            await NotificationService.restoreById(notificationId, userId);
             res.json({ success: true, message: 'Notification restored to view' });
         } catch (error) {
             console.error('Restore notification error:', error);

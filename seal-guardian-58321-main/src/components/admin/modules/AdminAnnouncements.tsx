@@ -621,7 +621,7 @@ export const AdminAnnouncements = () => {
                                 <div className="flex items-start gap-3">
                                     <Info className="h-3.5 w-3.5 text-muted-foreground mt-0.5 shrink-0" />
                                     <p className="text-muted-foreground">
-                                        WhatsApp messages send <strong>after</strong> the in-app notification, throttled at 1 per 200ms. Delivery runs in the background.
+                                        WhatsApp messages will send automatically in the background (about 5 messages per second) after the announcement is posted.
                                     </p>
                                 </div>
                                 <Button

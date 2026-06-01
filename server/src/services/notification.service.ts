@@ -129,33 +129,28 @@ export class NotificationService {
             const insertValues = userIds.map(id => [id, data.title, data.message, type, link, metadataStr]);
 
             // mysql2 supports bulk insert: INSERT INTO table (cols) VALUES (?,?,?), (?,?,?)
-            await db.query(
+            const [result]: any = await db.query(
                 'INSERT INTO notifications (user_id, title, message, type, link, metadata) VALUES ?',
                 [insertValues]
             );
 
+            const startId = result.insertId;
+
             // 3. Emit via Socket.io
             const io = getIO();
-            const notificationPayload = {
-                title: data.title,
-                message: data.message,
-                type,
-                link,
-                metadata: data.metadata,
-                created_at: getISTTimestamp(),
-                is_read: false
-            };
-
-            if (data.targetRole && !data.targetUsers) {
-                // Efficiently broadcast to the entire role room
-                console.log(`[Broadcast] Emitting to role room: role_${data.targetRole}`);
-                io.to(`role_${data.targetRole}`).emit('notification:new', notificationPayload);
-            } else {
-                // Emit to individual user rooms
-                userIds.forEach(id => {
-                    io.to(`user_${id}`).emit('notification:new', notificationPayload);
-                });
-            }
+            userIds.forEach((userId, index) => {
+                const userNotificationPayload = {
+                    id: startId + index,
+                    title: data.title,
+                    message: data.message,
+                    type,
+                    link,
+                    metadata: data.metadata,
+                    created_at: getISTTimestamp(),
+                    is_read: false
+                };
+                io.to(`user_${userId}`).emit('notification:new', userNotificationPayload);
+            });
 
             return { success: true, count: userIds.length };
         } catch (error) {
