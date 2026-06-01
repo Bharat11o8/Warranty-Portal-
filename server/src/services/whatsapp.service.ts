@@ -54,7 +54,8 @@ export class WhatsAppService {
         bodyValues: string[],
         context: string,
         referenceId?: string,
-        buttonValues?: string[]  // For templates with variable buttons (e.g., OTP copy button)
+        buttonValues?: string[],  // For templates with variable buttons (e.g., OTP copy button)
+        headerValues?: string[]   // For templates with text or media (image/video) headers
     ): Promise<boolean> {
         const logId = uuidv4();
         const { countryCode, phoneNumber } = this.formatPhoneNumber(phone);
@@ -87,8 +88,16 @@ export class WhatsAppService {
             };
 
             // Only include bodyValues if there are variables in the template
+            // WhatsApp/Interakt rejects values containing tabs, newlines, or 3+ consecutive spaces.
+            // Also strip non-breaking spaces (\u00A0) and other Unicode whitespace that
+            // toLocaleDateString() can inject depending on the Node.js/ICU version.
             if (bodyValues.length > 0) {
-                payload.template.bodyValues = bodyValues.map(val => String(val));
+                payload.template.bodyValues = bodyValues.map(val =>
+                    String(val)
+                        .replace(/[\t\r\n\u00A0\u2000-\u200B\u202F\u205F\u3000]+/g, ' ') // tabs, newlines, unicode spaces → single space
+                        .replace(/ {3,}/g, '  ')       // collapse 3+ consecutive spaces to max 2
+                        .trim()
+                );
             }
 
             // Include buttonValues if the template has variable buttons (e.g., OTP copy button)
@@ -99,6 +108,12 @@ export class WhatsAppService {
                     buttonValuesObj[String(index)] = [String(val)];
                 });
                 payload.template.buttonValues = buttonValuesObj;
+            }
+
+            // Include headerValues for templates with a text header variable or a dynamic media
+            // (image/video/document) header. For image headers, headerValues[0] is the public image URL.
+            if (headerValues && headerValues.length > 0) {
+                payload.template.headerValues = headerValues;
             }
 
             const response = await axios.post(
@@ -143,6 +158,103 @@ export class WhatsAppService {
             return false;
         }
     }
+
+    // ---------------------------------------------------------------------------
+    // Admin Broadcast kill-switch
+    // ---------------------------------------------------------------------------
+
+    /** Set to true mid-broadcast to stop sending any further messages. */
+    private static broadcastAborted = false;
+
+    /** Call this to immediately halt any in-progress admin broadcast. */
+    static abortBroadcast(): void {
+        this.broadcastAborted = true;
+        console.warn('[WhatsApp] Admin broadcast ABORTED by admin request.');
+    }
+
+    /**
+     * Sends a broadcast announcement to a list of franchise phone numbers.
+     *
+     * Template selection:
+     *   • imageUrl provided  → af_admin_broadcast_img  (Marketing, image header)
+     *   • imageUrl absent    → af_admin_broadcast_2  (Utility, no header)
+     *
+     * Sends are throttled at 200 ms per phone to stay within Interakt rate limits.
+     * Can be stopped mid-flight by calling WhatsAppService.abortBroadcast().
+     *
+     * @param phones   - Array of raw phone numbers (any format; formatPhoneNumber handles normalisation)
+     * @param title    - Announcement heading (used as text header on the text-only template)
+     * @param message  - Announcement body (truncated to 1000 chars if too long)
+     * @param imageUrl - Optional publicly-accessible HTTPS image URL
+     * @returns        - { sent, failed, aborted } counts
+     */
+    static async sendAdminBroadcast(
+        phones: string[],
+        title: string,
+        message: string,
+        imageUrl?: string
+    ): Promise<{ sent: number; failed: number; aborted: boolean }> {
+        const MAX_MESSAGE_LENGTH = 1000;
+
+        // Reset kill-switch for this new broadcast run
+        this.broadcastAborted = false;
+
+        // Sanitise inputs ─ same rules as sendTemplateMessage body sanitisation
+        const sanitise = (val: string) =>
+            String(val)
+                .replace(/[\t\r\n\u00A0\u2000-\u200B\u202F\u205F\u3000]+/g, ' ')
+                .replace(/ {3,}/g, '  ')
+                .trim();
+
+        const cleanTitle   = sanitise(title);
+        const rawMessage   = sanitise(message);
+        const cleanMessage = rawMessage.length > MAX_MESSAGE_LENGTH
+            ? rawMessage.substring(0, MAX_MESSAGE_LENGTH - 1) + '\u2026'  // …
+            : rawMessage;
+
+        const useImageTemplate = !!(imageUrl && imageUrl.trim());
+        const templateName     = useImageTemplate ? 'af_admin_broadcast_img' : 'af_admin_broadcast_2';
+
+        // headerValues:
+        //   image template → [imageUrl]  (Interakt passes this as the dynamic media header)
+        //   text  template → no header (subject/title removed as per user request)
+        const headerValues = useImageTemplate ? [imageUrl!.trim()] : undefined;
+        const bodyValues   = [cleanMessage];
+
+        let sent   = 0;
+        let failed = 0;
+
+        for (const phone of phones) {
+            // Check kill-switch before every send
+            if (this.broadcastAborted) {
+                console.warn(`[WhatsApp] Broadcast aborted after ${sent} sent, ${phones.length - sent - failed} remaining.`);
+                break;
+            }
+
+            if (!phone || !phone.trim()) continue;
+
+            const ok = await this.sendTemplateMessage(
+                phone,
+                templateName,
+                bodyValues,
+                'admin_broadcast',
+                undefined,   // no referenceId for broadcasts
+                undefined,   // no buttonValues
+                headerValues
+            );
+
+            ok ? sent++ : failed++;
+
+            // Throttle: 200 ms between sends to avoid Interakt rate limits
+            if (phones.indexOf(phone) < phones.length - 1) {
+                await new Promise(resolve => setTimeout(resolve, 200));
+            }
+        }
+
+        console.log(`[WhatsApp] Admin broadcast complete — sent: ${sent}, failed: ${failed}, aborted: ${this.broadcastAborted}, template: ${templateName}`);
+        return { sent, failed, aborted: this.broadcastAborted };
+    }
+
 
     /**
      * Logs communication activity to the database
@@ -213,10 +325,12 @@ export class WhatsAppService {
             : productType === 'ev-products' ? 'Paint Protection Film'
                 : productType;
 
-        // Format date as DD-MMM-YYYY
-        const formattedDate = new Date(purchaseDate).toLocaleDateString('en-IN', {
-            day: '2-digit', month: 'short', year: 'numeric'
-        });
+        // Format date as DD-MMM-YYYY using a safe manual formatter.
+        // NOTE: toLocaleDateString('en-IN') can produce non-breaking spaces (\u00A0)
+        // or locale-specific separators on some Node.js/ICU versions which WhatsApp rejects.
+        const _d = new Date(purchaseDate);
+        const _months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+        const formattedDate = `${String(_d.getDate()).padStart(2, '0')}-${_months[_d.getMonth()]}-${_d.getFullYear()}`;
 
         return this.sendTemplateMessage(
             phone,

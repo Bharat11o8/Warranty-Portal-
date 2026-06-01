@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Megaphone, Users, ShieldCheck, AlertTriangle, ChevronRight, ImageIcon, Video, X, Send, Check, ChevronsUpDown, Upload, Loader2 } from "lucide-react";
+import { Megaphone, Users, ShieldCheck, AlertTriangle, ChevronRight, ImageIcon, Video, X, Send, Check, ChevronsUpDown, Upload, Loader2, MessageCircle, Info, AlertCircle } from "lucide-react";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -20,6 +20,7 @@ import React from "react";
 export const AdminAnnouncements = () => {
     const { toast } = useToast();
     const [loading, setLoading] = useState(false);
+    const [aborting, setAborting] = useState(false);
     const [vendors, setVendors] = useState<any[]>([]);
     const [loadingVendors, setLoadingVendors] = useState(false);
     const [uploading, setUploading] = useState<{ image: boolean; video: boolean }>({ image: false, video: false });
@@ -36,16 +37,22 @@ export const AdminAnnouncements = () => {
         audience: "all", // 'all' or 'specific'
         targetUsers: [] as string[],
         images: [] as string[],
-        videos: [] as string[]
+        videos: [] as string[],
+        whatsapp: false
     });
 
     const [mediaInput, setMediaInput] = useState({ image: "", video: "" });
+    const [previewTab, setPreviewTab] = useState<'app' | 'whatsapp'>('app');
 
     useEffect(() => {
-        if (formData.audience === 'specific') {
-            fetchVendors();
+        if (!formData.whatsapp) {
+            setPreviewTab('app');
         }
-    }, [formData.audience]);
+    }, [formData.whatsapp]);
+
+    useEffect(() => {
+        fetchVendors();
+    }, []);
 
     const fetchVendors = async () => {
         setLoadingVendors(true);
@@ -129,6 +136,26 @@ export const AdminAnnouncements = () => {
         }
     };
 
+    const handleAbort = async () => {
+        setAborting(true);
+        try {
+            await api.post("/notifications/broadcast/abort");
+            toast({
+                title: "Broadcast Aborted! 🛑",
+                description: "WhatsApp sending queue has been stopped. Remaining messages will not be delivered.",
+            });
+        } catch (error) {
+            console.error("Failed to abort broadcast:", error);
+            toast({
+                title: "Abort Failed",
+                description: "Could not stop the broadcast. It might have already completed.",
+                variant: "destructive"
+            });
+        } finally {
+            setAborting(false);
+        }
+    };
+
     const handleSend = async () => {
         if (!formData.title || !formData.message) {
             toast({
@@ -159,7 +186,7 @@ export const AdminAnnouncements = () => {
             await api.post("/notifications/broadcast", payload);
             toast({
                 title: "Broadcast Sent! ✓",
-                description: `Your announcement has been delivered to ${formData.audience === 'all' ? 'all franchises' : `${formData.targetUsers.length} specific franchises`} in real-time.`,
+                description: `Delivered to ${formData.audience === 'all' ? 'all franchises' : `${formData.targetUsers.length} specific franchises`} in real-time.${formData.whatsapp ? ' WhatsApp messages are being queued in the background.' : ''}`,
             });
             setFormData({
                 title: "",
@@ -169,7 +196,8 @@ export const AdminAnnouncements = () => {
                 audience: "all",
                 targetUsers: [],
                 images: [],
-                videos: []
+                videos: [],
+                whatsapp: false
             });
         } catch (error) {
             console.error("Broadcast failed:", error);
@@ -469,6 +497,148 @@ export const AdminAnnouncements = () => {
                     )}
                 </div>
 
+                {/* WhatsApp Broadcast Toggle */}
+                <div className="space-y-3">
+                    <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground ml-1">WhatsApp Delivery</Label>
+
+                    <div
+                        onClick={() => setFormData(prev => ({ ...prev, whatsapp: !prev.whatsapp }))}
+                        className={cn(
+                            "relative flex items-start gap-4 p-4 rounded-xl border-2 cursor-pointer transition-all duration-200",
+                            formData.whatsapp
+                                ? "border-green-500/60 bg-green-500/5"
+                                : "border-border/40 bg-muted/20 hover:border-border/70"
+                        )}
+                    >
+                        <div className={cn(
+                            "mt-0.5 h-5 w-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-all",
+                            formData.whatsapp ? "border-green-500 bg-green-500" : "border-border"
+                        )}>
+                            {formData.whatsapp && <Check className="h-3 w-3 text-white" />}
+                        </div>
+
+                        <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                                <MessageCircle className={cn("h-4 w-4", formData.whatsapp ? "text-green-500" : "text-muted-foreground")} />
+                                <span className={cn("text-sm font-bold", formData.whatsapp ? "text-green-600" : "text-foreground")}>
+                                    Also send via WhatsApp
+                                </span>
+                                {formData.whatsapp && (
+                                    <span className="text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded bg-green-500/10 text-green-600 border border-green-500/20">
+                                        {formData.images.length > 0 ? 'Marketing template' : 'Utility template'}
+                                    </span>
+                                )}
+                            </div>
+                            <p className="text-xs text-muted-foreground mt-1">
+                                Sends a WhatsApp message to each franchise's registered phone number using approved Meta templates.
+                            </p>
+                        </div>
+                    </div>
+
+                    {formData.whatsapp && (
+                        <div className="animate-in slide-in-from-top-2 fade-in duration-300 rounded-xl border border-border/50 bg-background/40 divide-y divide-border/40 text-xs">
+
+                            <div className="flex items-start gap-3 px-4 py-3">
+                                <Info className="h-3.5 w-3.5 text-blue-500 mt-0.5 shrink-0" />
+                                <div>
+                                    <span className="font-bold text-foreground">Announcement Title</span>
+                                    <p className="text-muted-foreground mt-0.5">
+                                        Used as the <strong>WhatsApp message header</strong> (text-only mode). Keep it under 60 characters. No line breaks allowed.
+                                    </p>
+                                </div>
+                            </div>
+
+                            <div className="flex items-start gap-3 px-4 py-3">
+                                <Info className="h-3.5 w-3.5 text-blue-500 mt-0.5 shrink-0" />
+                                <div className="flex-1">
+                                    <div className="flex items-center justify-between">
+                                        <span className="font-bold text-foreground">Message Content</span>
+                                        <span className={cn(
+                                            "font-mono font-bold",
+                                            formData.message.length > 1000 ? "text-red-500" :
+                                                formData.message.length > 850 ? "text-amber-500" : "text-muted-foreground"
+                                        )}>
+                                            {formData.message.length} / 1000
+                                        </span>
+                                    </div>
+                                    <p className="text-muted-foreground mt-0.5">
+                                        WhatsApp caps variable values at <strong>1000 characters</strong>. Messages over this limit are auto-truncated with "&#8230;". Line breaks are stripped — the message appears as a single paragraph.
+                                    </p>
+                                    {formData.message.length > 1000 && (
+                                        <div className="flex items-center gap-1.5 mt-2 text-red-500 font-bold">
+                                            <AlertCircle className="h-3 w-3" />
+                                            Message will be truncated at 1000 characters
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+
+                            <div className="flex items-start gap-3 px-4 py-3">
+                                <Info className="h-3.5 w-3.5 text-blue-500 mt-0.5 shrink-0" />
+                                <div>
+                                    <span className="font-bold text-foreground">Image (Optional)</span>
+                                    <p className="text-muted-foreground mt-0.5">
+                                        An attached image appears as the <strong>WhatsApp image header</strong>. Must be under 5 MB.
+                                    </p>
+
+                                    {formData.images.length > 0 && (
+                                        <div className="flex items-center gap-1.5 mt-2 text-amber-600 font-bold">
+                                            <AlertTriangle className="h-3 w-3" />
+                                            Image detected — using Marketing template (slightly higher Meta cost per message)
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+
+                            <div className="flex items-start gap-3 px-4 py-3 bg-green-500/10 text-green-700 dark:text-green-400 font-medium">
+                                <MessageCircle className="h-3.5 w-3.5 mt-0.5 shrink-0 text-green-600 dark:text-green-400" />
+                                <div className="flex-1">
+                                    <span className="font-bold text-green-800 dark:text-green-300 text-xs">Broadcast Cost Estimation</span>
+                                    <div className="mt-1.5 flex flex-col gap-1 text-[11px] text-green-700/90 dark:text-green-400/90">
+                                        <div className="flex justify-between">
+                                            <span>Target Recipients:</span>
+                                            <span className="font-mono font-bold">
+                                                {formData.audience === 'all' ? vendors.length : formData.targetUsers.length} franchise(s)
+                                            </span>
+                                        </div>
+                                        <div className="flex justify-between">
+                                            <span>Meta Template Rate:</span>
+                                            <span className="font-mono font-bold">
+                                                {formData.images.length > 0 ? '₹0.949 (Marketing)' : '₹0.140 (Utility)'}
+                                            </span>
+                                        </div>
+                                        <div className="border-t border-green-500/20 my-1 pt-1 flex justify-between text-xs font-black">
+                                            <span>Total Estimated Cost:</span>
+                                            <span className="font-mono text-sm underline">
+                                                ₹{((formData.audience === 'all' ? vendors.length : formData.targetUsers.length) * (formData.images.length > 0 ? 0.949 : 0.140)).toFixed(2)}
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="flex items-center justify-between gap-4 px-4 py-3 bg-muted/30 rounded-b-xl">
+                                <div className="flex items-start gap-3">
+                                    <Info className="h-3.5 w-3.5 text-muted-foreground mt-0.5 shrink-0" />
+                                    <p className="text-muted-foreground">
+                                        WhatsApp messages send <strong>after</strong> the in-app notification, throttled at 1 per 200ms. Delivery runs in the background.
+                                    </p>
+                                </div>
+                                <Button
+                                    type="button"
+                                    variant="destructive"
+                                    size="sm"
+                                    onClick={handleAbort}
+                                    disabled={aborting}
+                                    className="shrink-0 text-[9px] h-7 px-2 font-black uppercase tracking-wider bg-red-600 hover:bg-red-700 text-white"
+                                >
+                                    {aborting ? <Loader2 className="h-3 w-3 animate-spin" /> : "Abort Send"}
+                                </Button>
+                            </div>
+                        </div>
+                    )}
+                </div>
+
                 {/* 5. Live Preview */}
                 <div className="space-y-4 pt-6 border-t border-dashed">
                     <div className="flex items-center justify-between">
@@ -476,73 +646,163 @@ export const AdminAnnouncements = () => {
                         <Badge variant="outline" className="text-[9px] font-bold py-0 h-4 border-primary/20 text-primary uppercase">Draft</Badge>
                     </div>
 
-                    <div className="relative rounded-2xl border bg-background/30 p-5 shadow-inner overflow-hidden group/preview">
-                        <div className="absolute top-0 right-0 p-3 opacity-20 capitalize text-[10px] font-bold italic tracking-tighter">
-                            {formData.type}
-                        </div>
-
-                        <div className="flex gap-4">
-                            <div className={cn(
-                                "h-12 w-12 rounded-xl flex items-center justify-center shrink-0 border shadow-sm bg-white",
-                                formData.type === 'product' ? "text-purple-600 border-purple-100" :
-                                    formData.type === 'alert' ? "text-amber-600 border-amber-100" :
-                                        "text-blue-600 border-blue-100"
-                            )}>
-                                {formData.type === 'product' ? <Megaphone className="h-6 w-6" /> :
-                                    formData.type === 'alert' ? <AlertTriangle className="h-6 w-6" /> :
-                                        <ShieldCheck className="h-6 w-6" />}
+                    {formData.whatsapp && (
+                            <div className="flex gap-2 mb-2">
+                                <button
+                                    type="button"
+                                    onClick={() => setPreviewTab('app')}
+                                    className={cn(
+                                        "px-3 py-1.5 rounded-lg text-xs font-bold transition-all border",
+                                        previewTab === 'app'
+                                            ? "bg-primary text-white border-primary shadow-sm"
+                                            : "bg-background text-muted-foreground hover:text-foreground border-border/40"
+                                    )}
+                                >
+                                    In-App Notification
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setPreviewTab('whatsapp')}
+                                    className={cn(
+                                        "px-3 py-1.5 rounded-lg text-xs font-bold transition-all border flex items-center gap-1.5",
+                                        previewTab === 'whatsapp'
+                                            ? "bg-green-600 text-white border-green-600 shadow-sm"
+                                            : "bg-background text-muted-foreground hover:text-foreground border-border/40"
+                                    )}
+                                >
+                                    <MessageCircle className="h-3.5 w-3.5" />
+                                    WhatsApp Preview
+                                </button>
                             </div>
+                        )}
 
-                            <div className="flex-1 min-w-0">
-                                <div className="flex items-center justify-between mb-1">
-                                    <h4 className="text-sm border-0 bg-transparent font-black truncate text-foreground/90">
-                                        {formData.title || "Announcement Heading"}
-                                    </h4>
-                                    <span className="text-[9px] font-bold text-muted-foreground/60 uppercase tracking-tighter">Just Now</span>
+                        {previewTab === 'whatsapp' ? (
+                            <div className="rounded-2xl border overflow-hidden shadow-md flex flex-col font-sans bg-[#efeae2] dark:bg-zinc-900 border-border/60">
+                                {/* WhatsApp Header */}
+                                <div className="bg-[#075e54] text-white px-4 py-2 flex items-center justify-between shadow-sm">
+                                    <div className="flex items-center gap-2">
+                                        <div className="h-7 w-7 rounded-full bg-white/20 flex items-center justify-center text-xs font-bold text-white uppercase shadow-inner">
+                                            AI
+                                        </div>
+                                        <div>
+                                            <h4 className="text-xs font-black leading-tight text-white">Autoform India Pvt Ltd</h4>
+                                            <span className="text-[9px] opacity-75 text-white">Online</span>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-3 opacity-80 text-white">
+                                        <span className="text-xs font-bold cursor-pointer">📞</span>
+                                        <span className="text-xs font-bold cursor-pointer">⋮</span>
+                                    </div>
                                 </div>
-                                <p className="text-xs text-muted-foreground/80 leading-relaxed line-clamp-2">
-                                    {formData.message || "Enter a message above to see how it will appear on franchise dashboards..."}
-                                </p>
 
-                                {(formData.images.length > 0 || formData.videos.length > 0) && (
-                                    <div className="mt-4 flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
-                                        {formData.images.map((img, i) => (
-                                            <div key={i} className="h-14 w-14 rounded-lg border bg-muted shrink-0 overflow-hidden shadow-sm transition-transform hover:scale-105 cursor-help">
-                                                <img src={optimizeCloudinaryUrl(img, { width: 100 })} loading="lazy" className="h-full w-full object-cover" alt="" />
-                                            </div>
-                                        ))}
-                                        {formData.videos.map((vid, i) => (
-                                            <div key={i} className="h-14 w-14 rounded-lg border bg-primary/5 flex flex-col items-center justify-center shrink-0 shadow-sm border-primary/10">
-                                                <Video className="h-4 w-4 text-primary mb-1" />
-                                                <span className="text-[8px] font-black uppercase text-primary/60">MP4</span>
-                                            </div>
-                                        ))}
-                                    </div>
-                                )}
+                                {/* WhatsApp Message Body Area */}
+                                <div className="p-4 flex flex-col min-h-[160px] justify-start relative">
+                                    <div className="relative self-start max-w-[85%] bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 p-3 rounded-lg rounded-tl-none shadow-sm text-xs flex flex-col gap-1.5">
+                                        {/* Speech bubble pointer */}
+                                        <div className="absolute top-0 -left-1.5 w-0 h-0 border-t-[8px] border-t-white dark:border-t-zinc-800 border-l-[8px] border-l-transparent"></div>
 
-                                {formData.link && (
-                                    <div className="mt-3 flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest text-primary opacity-60">
-                                        Link Attached <ChevronRight className="h-3 w-3" />
+                                        {/* Template Media Header (for af_admin_broadcast_img) */}
+                                        {formData.images.length > 0 ? (
+                                            <div className="rounded-md overflow-hidden border border-muted/30 bg-muted/10 mb-1 max-h-40">
+                                                <img
+                                                    src={optimizeCloudinaryUrl(formData.images[0])}
+                                                    alt="WhatsApp Header Media"
+                                                    className="w-full h-full object-cover"
+                                                />
+                                            </div>
+                                        ) : null}
+
+                                        {/* Template Body */}
+                                        <div className="space-y-2 leading-relaxed">
+                                            <p className="font-bold text-zinc-900 dark:text-zinc-100">📢 New announcement from the Autoform India:</p>
+                                            <p className="whitespace-pre-wrap text-zinc-600 dark:text-zinc-300">
+                                                {formData.message || "Enter a message above..."}
+                                            </p>
+                                            <p className="font-semibold text-zinc-900 dark:text-zinc-100">Thank you for your attention!</p>
+                                        </div>
+
+                                        {/* Footer */}
+                                        <div className="text-[9px] text-zinc-400 dark:text-zinc-500 border-t border-zinc-100 dark:border-zinc-700/50 pt-1 mt-1 font-semibold uppercase tracking-wider">
+                                            Autoform India
+                                        </div>
+
+                                        {/* Time and Checkmarks */}
+                                        <div className="self-end flex items-center gap-1 mt-1 text-[8px] text-zinc-400 dark:text-zinc-500 select-none">
+                                            <span>12:22 pm</span>
+                                            <span className="text-green-500 font-bold">✓✓</span>
+                                        </div>
                                     </div>
-                                )}
+                                </div>
                             </div>
-                        </div>
-                    </div>
-                </div>
+                        ) : (
+                            <div className="relative rounded-2xl border bg-background/30 p-5 shadow-inner overflow-hidden group/preview">
+                                <div className="absolute top-0 right-0 p-3 opacity-20 capitalize text-[10px] font-bold italic tracking-tighter">
+                                    {formData.type}
+                                </div>
 
-                <Button
-                    className="w-full h-12 text-sm font-black uppercase tracking-[0.2em] shadow-lg shadow-primary/20 mt-4 group"
-                    onClick={handleSend}
-                    disabled={loading}
-                >
-                    {loading ? (
-                        "Transmitting Alert..."
-                    ) : (
-                        <>
-                            Fire Broadcast <Send className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1 group-hover:-translate-y-1" />
-                        </>
-                    )}
-                </Button>
+                                <div className="flex gap-4">
+                                    <div className={cn(
+                                        "h-12 w-12 rounded-xl flex items-center justify-center shrink-0 border shadow-sm bg-white",
+                                        formData.type === 'product' ? "text-purple-600 border-purple-100" :
+                                            formData.type === 'alert' ? "text-amber-600 border-amber-100" :
+                                                "text-blue-600 border-blue-100"
+                                    )}>
+                                        {formData.type === 'product' ? <Megaphone className="h-6 w-6" /> :
+                                            formData.type === 'alert' ? <AlertTriangle className="h-6 w-6" /> :
+                                                <ShieldCheck className="h-6 w-6" />}
+                                    </div>
+
+                                    <div className="flex-1 min-w-0">
+                                        <div className="flex items-center justify-between mb-1">
+                                            <h4 className="text-sm border-0 bg-transparent font-black truncate text-foreground/90">
+                                                {formData.title || "Announcement Heading"}
+                                            </h4>
+                                            <span className="text-[9px] font-bold text-muted-foreground/60 uppercase tracking-tighter">Just Now</span>
+                                        </div>
+                                        <p className="text-xs text-muted-foreground/80 leading-relaxed line-clamp-2">
+                                            {formData.message || "Enter a message above to see how it will appear on franchise dashboards..."}
+                                        </p>
+
+                                        {(formData.images.length > 0 || formData.videos.length > 0) && (
+                                            <div className="mt-4 flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
+                                                {formData.images.map((img, i) => (
+                                                    <div key={i} className="h-14 w-14 rounded-lg border bg-muted shrink-0 overflow-hidden shadow-sm transition-transform hover:scale-105 cursor-help">
+                                                        <img src={optimizeCloudinaryUrl(img, { width: 100 })} loading="lazy" className="h-full w-full object-cover" alt="" />
+                                                    </div>
+                                                ))}
+                                                {formData.videos.map((vid, i) => (
+                                                    <div key={i} className="h-14 w-14 rounded-lg border bg-primary/5 flex flex-col items-center justify-center shrink-0 shadow-sm border-primary/10">
+                                                        <Video className="h-4 w-4 text-primary mb-1" />
+                                                        <span className="text-[8px] font-black uppercase text-primary/60">MP4</span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+
+                                        {formData.link && (
+                                            <div className="mt-3 flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest text-primary opacity-60">
+                                                Link Attached <ChevronRight className="h-3 w-3" />
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+
+                    <Button
+                        className="w-full h-12 text-sm font-black uppercase tracking-[0.2em] shadow-lg shadow-primary/20 mt-4 group"
+                        onClick={handleSend}
+                        disabled={loading}
+                    >
+                        {loading ? (
+                            "Transmitting Alert..."
+                        ) : (
+                            <>
+                                Fire Broadcast <Send className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1 group-hover:-translate-y-1" />
+                            </>
+                        )}
+                    </Button>
             </CardContent>
         </Card>
     );
