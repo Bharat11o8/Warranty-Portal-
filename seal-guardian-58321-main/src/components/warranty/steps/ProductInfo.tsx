@@ -73,14 +73,23 @@ const ProductInfo = ({ formData, updateFormData, onPrev, onSubmit, loading, exis
         return;
       }
 
-      // Compress image if > 1MB
+      // Compress (and structurally validate) image via canvas re-encode.
+      // Always runs regardless of size — this guarantees a clean JPEG output
+      // and catches corrupt/truncated files before they reach the server.
       let processedFile = file;
-      if (isCompressibleImage(file) && file.size > 1024 * 1024) {
+      if (isCompressibleImage(file)) {
         setCompressing(true);
         try {
           processedFile = await compressImage(file, { maxSizeKB: 1024, quality: 0.8 });
-        } catch (err) {
-          console.error('Compression failed:', err);
+        } catch (err: any) {
+          console.error('Compression/validation failed:', err);
+          toast({
+            title: "Invalid Photo",
+            description: err?.message || "This photo could not be read. Please retake or choose a different image.",
+            variant: "destructive",
+          });
+          setCompressing(false);
+          return;
         } finally {
           setCompressing(false);
         }

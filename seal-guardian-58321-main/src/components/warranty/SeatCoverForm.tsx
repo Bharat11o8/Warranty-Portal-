@@ -739,17 +739,23 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
         }
       }
 
-      let processedFile = file;
-
-      // Compress image if it's a compressible type (not PDF)
+      // Compress (and structurally validate) image before storing
       if (isCompressibleImage(file)) {
         try {
           setLoading(true);
           processedFile = await compressImage(file, { maxSizeKB: 1024, quality: 0.8 });
-          // Silent compression - no need to inform customer
-        } catch (err) {
-          // Continue with original file if compression fails
-          console.warn("Image compression failed, using original:", err);
+        } catch (err: any) {
+          // compressImage now throws on corrupt files — surface this to the user
+          // rather than silently uploading the broken original.
+          console.error("Image compression/validation failed:", err);
+          toast({
+            title: "Invalid Photo",
+            description: err?.message || "This photo could not be read. Please retake or choose a different image.",
+            variant: "destructive",
+          });
+          e.target.value = ''; // Reset input so the same file can be retried
+          setLoading(false);
+          return;
         } finally {
           setLoading(false);
         }
@@ -843,14 +849,20 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
       console.warn(`[FraudDetection] EXIF extraction failed for ${field}:`, err);
     }
 
-    // 3. Compress the image
+    // 3. Compress (and structurally validate) the image
     let processedFile = file;
     if (isCompressibleImage(file)) {
       try {
         processedFile = await compressImage(file, { maxSizeKB: 800, quality: 0.7 });
         console.log(`[FraudDetection] Compressed ${field}: ${file.size} -> ${processedFile.size}`);
-      } catch (err) {
-        console.warn("Camera image compression failed, using original:", err);
+      } catch (err: any) {
+        console.error("Camera image compression/validation failed:", err);
+        toast({
+          title: "Invalid Photo",
+          description: err?.message || "This photo could not be processed. Please retake the photo.",
+          variant: "destructive",
+        });
+        return; // Do NOT store the broken file
       }
     }
 

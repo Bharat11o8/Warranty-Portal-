@@ -144,7 +144,8 @@ export async function attachPublicUrls(req: any, res: Response, next: NextFuncti
                 try {
                     // .stats() forces sharp to decode the image, immediately throwing
                     // if the file was truncated by a dropped network connection.
-                    await sharp(file.path).stats();
+                    // Pass failOn: 'warning' to enforce strict validation against truncation/corruption warnings.
+                    await sharp(file.path, { failOn: 'warning' }).stats();
                 } catch (error) {
                     console.error(`[Upload] Image corrupted during transit: ${file.originalname}`, error);
                     hasCorruption = true;
