@@ -138,11 +138,7 @@ export const submitWarranty = async (data: WarrantyData) => {
 
   if (hasFiles) {
     const response = await api.post('/warranty/submit', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-      // 2-minute timeout for image uploads on slow mobile connections.
-      // The server's sharp validation will catch partial files; this ensures
-      // stalled uploads don't hang the UI indefinitely.
-      timeout: 120_000,
+      headers: { 'Content-Type': 'multipart/form-data' }
     });
     console.log('[DEBUG warrantyApi] Response received:', response.data);
     return response.data;
@@ -204,8 +200,7 @@ export const updateWarranty = async (id: string, data: WarrantyData) => {
 
   if (hasFiles) {
     const response = await api.put(`/warranty/${id}`, formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-      timeout: 120_000,
+      headers: { 'Content-Type': 'multipart/form-data' }
     });
     return response.data;
   } else {
