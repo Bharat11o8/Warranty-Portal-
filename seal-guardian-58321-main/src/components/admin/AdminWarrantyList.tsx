@@ -48,6 +48,9 @@ interface AdminWarrantyListProps {
     onReject?: (warrantyId: string) => void;
     onMoveToPending?: (warrantyId: string) => void;
     onRefresh?: () => void;
+    isSplitScreen?: boolean;
+    activeUid?: string;
+    onSelect?: (warranty: any) => void;
 }
 
 export const AdminWarrantyList = ({
@@ -58,7 +61,10 @@ export const AdminWarrantyList = ({
     onApprove,
     onReject,
     onMoveToPending,
-    onRefresh
+    onRefresh,
+    isSplitScreen = false,
+    activeUid,
+    onSelect
 }: AdminWarrantyListProps) => {
     const [selectedWarranty, setSelectedWarranty] = useState<any>(null);
     const [expandedFraud, setExpandedFraud] = useState<Set<string>>(new Set());
@@ -115,6 +121,62 @@ export const AdminWarrantyList = ({
 
                 // Calculate warranty expiration
                 const { expirationDate, daysLeft, isExpired } = getWarrantyExpiration(warranty.created_at, warranty.warranty_type, warranty.purchase_date);
+
+                if (isSplitScreen) {
+                    const isActive = warranty.uid === activeUid || String(warranty.id) === String(activeUid);
+                    return (
+                        <Card 
+                            key={warranty.uid || warranty.id} 
+                            className={cn(
+                                "cursor-pointer transition-all border duration-200 hover:-translate-y-0.5", 
+                                isActive 
+                                    ? "border-orange-500 ring-1 ring-orange-500/20 bg-orange-50/10 shadow-sm" 
+                                    : "hover:shadow-sm border-slate-200 hover:border-slate-300"
+                            )}
+                            onClick={() => onSelect && onSelect(warranty)}
+                        >
+                            <CardContent className="p-3">
+                                <div className="flex justify-between items-start gap-2">
+                                    <div className="min-w-0">
+                                        <div className="flex items-center gap-1.5 flex-wrap">
+                                            <h4 className="text-sm font-extrabold text-slate-800 uppercase tracking-tight truncate max-w-[150px]">
+                                                {productName.replace(/-/g, ' ')}
+                                            </h4>
+                                            <Badge variant="outline" className="bg-blue-50/50 text-blue-700 border-blue-200 text-[9px] px-1 py-0 h-4 shrink-0 font-bold">
+                                                {warranty.warranty_type || '1 Year'}
+                                            </Badge>
+                                        </div>
+                                        <p className="text-xs font-semibold text-slate-600 mt-1 flex items-center gap-1">
+                                            <User className="h-3 w-3 text-slate-400 shrink-0" /> {warranty.customer_name}
+                                        </p>
+                                        <p className="text-[10px] text-slate-400 mt-0.5">
+                                            Reg: <span className="font-bold text-slate-600 font-mono">{warranty.registration_number || 'N/A'}</span>
+                                        </p>
+                                    </div>
+                                    <div className="flex flex-col items-end gap-1.5 shrink-0">
+                                        <Badge variant={
+                                            warranty.status === 'validated' ? 'default' :
+                                                warranty.status === 'rejected' ? 'destructive' : 'secondary'
+                                        } className={cn(
+                                            "text-[9px] px-1.5 py-0 h-4.5 font-bold",
+                                            warranty.status === 'validated' && "bg-green-600 hover:bg-green-700 text-white",
+                                            warranty.status === 'rejected' && "bg-red-600 hover:bg-red-700 text-white",
+                                            warranty.status === 'pending' && "bg-amber-600 hover:bg-amber-700 text-white",
+                                            warranty.status === 'pending_vendor' && "bg-orange-600 hover:bg-orange-700 text-white"
+                                        )}>
+                                            {warranty.status === 'validated' ? 'Approved' :
+                                                warranty.status === 'rejected' ? 'Action Req' :
+                                                    warranty.status === 'pending_vendor' ? 'Pending Vendor' : 'Pending'}
+                                        </Badge>
+                                        <span className="text-[9px] text-slate-400 font-medium">
+                                            {formatToIST(warranty.created_at).split(',')[0]}
+                                        </span>
+                                    </div>
+                                </div>
+                            </CardContent>
+                        </Card>
+                    );
+                }
 
                 return (
                     <Card key={warranty.uid || warranty.id} className="hover:shadow-sm transition-shadow border-slate-200">
@@ -638,18 +700,20 @@ export const AdminWarrantyList = ({
             })}
 
 
-            {/* Details Sheet (Desktop & Mobile) */}
-            <WarrantySpecSheet
-                isOpen={!!selectedWarranty}
-                onClose={() => setSelectedWarranty(null)}
-                warranty={selectedWarranty}
-                isMobile={false} // Adapted for unified view
-                isAdmin={true}
-                onRefresh={onRefresh}
-                onApprove={onApprove}
-                onReject={onReject}
-                processingWarranty={processingWarranty}
-            />
+            {/* Details Sheet (Desktop & Mobile) - only when not in split screen */}
+            {!isSplitScreen && (
+                <WarrantySpecSheet
+                    isOpen={!!selectedWarranty}
+                    onClose={() => setSelectedWarranty(null)}
+                    warranty={selectedWarranty}
+                    isMobile={false} // Adapted for unified view
+                    isAdmin={true}
+                    onRefresh={onRefresh}
+                    onApprove={onApprove}
+                    onReject={onReject}
+                    processingWarranty={processingWarranty}
+                />
+            )}
         </div >
     );
 };

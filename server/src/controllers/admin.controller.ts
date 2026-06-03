@@ -5,6 +5,34 @@ import { ActivityLogService } from '../services/activity-log.service.js';
 import { NotificationService } from '../services/notification.service.js';
 import { WhatsAppService } from '../services/whatsapp.service.js';
 
+/**
+ * Run a promise-returning function with retries and exponential backoff
+ */
+async function runWithRetry<T>(
+    fn: () => Promise<T>,
+    retries = 3,
+    initialDelay = 5000,
+    description = 'operation'
+): Promise<T> {
+    let lastError: any;
+    let delay = initialDelay;
+    for (let attempt = 1; attempt <= retries; attempt++) {
+        try {
+            return await fn();
+        } catch (error: any) {
+            lastError = error;
+            console.warn(`[Retry] Attempt ${attempt} failed for ${description}. Error: ${error?.message || error}`);
+            if (attempt < retries) {
+                console.log(`[Retry] Waiting ${delay}ms before next attempt...`);
+                await new Promise(resolve => setTimeout(resolve, delay));
+                delay *= 3; // Exponential backoff: 5s, 15s, 45s...
+            }
+        }
+    }
+    console.error(`[Retry] All ${retries} attempts failed for ${description}. Final error:`, lastError);
+    throw lastError;
+}
+
 export class AdminController {
     static async getDashboardStats(_req: Request, res: Response) {
         try {
@@ -827,300 +855,341 @@ export class AdminController {
                 connection.release();
             }
 
-            // Send email notification to customer only if email is provided
-            if (warrantyData.customer_email && warrantyData.customer_email.trim()) {
-                try {
-                    // Prepare store address string
-                    const storeFullAddress = [warrantyData.store_address, warrantyData.store_city, warrantyData.store_state]
-                        .filter(Boolean).join(', ');
-
-                    if (status === 'validated') {
-                        // ── Customer Approval: WhatsApp first, email fallback ──
-                        let approvalWaSent = false;
-                        if (process.env.ENABLE_WHATSAPP === 'true' && warrantyData.customer_phone) {
-                            try {
-                                const purchaseDate = (warrantyData.purchase_date || warrantyData.created_at)
-                                    ? new Date(warrantyData.purchase_date || warrantyData.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
-                                    : 'N/A';
-                                const productName = (productDetails as any)?.product || (productDetails as any)?.productName || warrantyData.product_type || 'Autoform Product';
-                                approvalWaSent = await WhatsAppService.sendWarrantyApprovedCustomer(
-                                    warrantyData.customer_phone,
-                                    warrantyData.customer_name,
-                                    productName,
-                                    warrantyData.registration_number || 'N/A',
-                                    warrantyData.uid,
-                                    warrantyData.store_name || warrantyData.installer_name || 'Autoform Store',
-                                    'Active',
-                                    purchaseDate,
-                                    warrantyData.warranty_type || 'Standard'
-                                );
-                                console.log(`[WhatsApp] Warranty approval sent to customer: ${warrantyData.customer_phone}`);
-                            } catch (waErr) {
-                                console.error('[WhatsApp] Failed to send approval to customer:', waErr);
-                            }
-                        }
-                        // Send Email (always live alongside WhatsApp)
-                        await EmailService.sendWarrantyApprovalToCustomer(
-                            warrantyData.customer_email,
-                            warrantyData.customer_name,
-                            warrantyData.uid,
-                            warrantyData.product_type,
-                            warrantyData.registration_number,
-                            warrantyData.car_make,
-                            warrantyData.car_model,
-                            productDetails,
-                            warrantyData.warranty_type,
-                            warrantyData.store_name,
-                            storeFullAddress,
-                            warrantyData.store_email,
-                            warrantyData.applicator_name,
-                            (warrantyData.purchase_date || warrantyData.created_at)
-                                ? new Date(warrantyData.purchase_date || warrantyData.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
-                                : 'N/A'
-                        );
-                        console.log(`✓ Warranty approval email sent to customer: ${warrantyData.customer_email}`);
-                    } else if (status === 'rejected') {
-                        // ── Customer Rejection: WhatsApp first, email fallback ──
-                        let rejectionWaSent = false;
-                        if (process.env.ENABLE_WHATSAPP === 'true' && warrantyData.customer_phone) {
-                            try {
-                                const purchaseDate = (warrantyData.purchase_date || warrantyData.created_at)
-                                    ? new Date(warrantyData.purchase_date || warrantyData.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
-                                    : 'N/A';
-                                const productName = (productDetails as any)?.product || (productDetails as any)?.productName || warrantyData.product_type || 'Autoform Product';
-                                rejectionWaSent = await WhatsAppService.sendWarrantyRejectedCustomer(
-                                    warrantyData.customer_phone,
-                                    warrantyData.customer_name,
-                                    productName,
-                                    warrantyData.registration_number || 'N/A',
-                                    warrantyData.uid,
-                                    warrantyData.store_name || warrantyData.installer_name || 'Autoform Store',
-                                    'Not Approved',
-                                    purchaseDate,
-                                    warrantyData.warranty_type || 'Standard',
-                                    rejectionReason
-                                );
-                                console.log(`[WhatsApp] Warranty rejection sent to customer: ${warrantyData.customer_phone}`);
-                            } catch (waErr) {
-                                console.error('[WhatsApp] Failed to send rejection to customer:', waErr);
-                            }
-                        }
-                        // Send Email (always live alongside WhatsApp)
-                        await EmailService.sendWarrantyRejectionToCustomer(
-                            warrantyData.customer_email,
-                            warrantyData.customer_name,
-                            warrantyData.uid,
-                            warrantyData.product_type,
-                            warrantyData.registration_number,
-                            rejectionReason,
-                            warrantyData.car_make,
-                            warrantyData.car_model,
-                            productDetails,
-                            warrantyData.warranty_type,
-                            warrantyData.store_name,
-                            storeFullAddress,
-                            warrantyData.store_email,
-                            warrantyData.applicator_name
-                        );
-                        console.log(`✓ Warranty rejection email sent to customer: ${warrantyData.customer_email}`);
-                    }
-                } catch (emailError: any) {
-                    console.error('Customer email sending error:', emailError);
-                    // Don't fail the request if email fails
-                }
-            } else {
-                console.log(`ℹ️ No customer email provided, skipping email notification for warranty ${warrantyData.uid}`);
-            }
-
-            // Send email + notification to franchise/vendor
-            // Strategy: try manpower lookup first, fall back to installer_name (store name)
-            try {
-                let vendorEmail: string | null = null;
-                let vendorName: string | null = warrantyData.store_name || null;
-                let vendorUserId: string | null = null;
-                let applicatorName: string | null = warrantyData.applicator_name || null;
-
-                // 1. Try manpower lookup (real DB manpower ID)
-                const manpowerId = warrantyData.manpower_id;
-                if (manpowerId && manpowerId !== 'owner') {
-                    const [vendorInfo]: any = await db.execute(
-                        `SELECT 
-                            p.email as vendor_email,
-                            p.id as vendor_user_id,
-                            vd.store_name as vendor_name,
-                            m.name as manpower_name
-                        FROM manpower m
-                        JOIN vendor_details vd ON m.vendor_id = vd.id
-                        JOIN profiles p ON vd.user_id = p.id
-                        WHERE m.id = ?`,
-                        [manpowerId]
-                    );
-                    if (vendorInfo.length > 0) {
-                        vendorEmail = vendorInfo[0].vendor_email;
-                        vendorName = vendorInfo[0].vendor_name;
-                        vendorUserId = vendorInfo[0].vendor_user_id;
-                        applicatorName = vendorInfo[0].manpower_name || applicatorName;
-                    }
-                }
-
-                // 2. Fallback: find vendor by installer_name (catches QR/direct/owner submissions)
-                if (!vendorEmail && warrantyData.installer_name) {
-                    const [vendorByName]: any = await db.execute(
-                        `SELECT p.email as vendor_email, p.id as vendor_user_id, vd.store_name as vendor_name
-                         FROM vendor_details vd
-                         JOIN profiles p ON vd.user_id = p.id
-                         WHERE vd.store_name = ? AND vd.store_email = ?
-                         LIMIT 1`,
-                        [warrantyData.installer_name, warrantyData.installer_contact]
-                    );
-                    if (vendorByName.length > 0) {
-                        vendorEmail = vendorByName[0].vendor_email;
-                        vendorName = vendorByName[0].vendor_name;
-                        vendorUserId = vendorByName[0].vendor_user_id;
-                    }
-                }
-
-                // 3. Send vendor notification if we found one
-                if (vendorEmail && vendorName) {
-                    if (status === 'validated') {
-                        // Vendor approval: no WhatsApp template, email stays primary
-                        await EmailService.sendWarrantyApprovalToVendor(
-                            vendorEmail,
-                            vendorName,
-                            warrantyData.customer_name,
-                            warrantyData.customer_phone,
-                            warrantyData.product_type,
-                            warrantyData.registration_number,
-                            applicatorName ?? '',
-                            warrantyData.uid,
-                            warrantyData.car_make,
-                            warrantyData.car_model,
-                            productDetails,
-                            warrantyData.warranty_type
-                        );
-                        console.log(`✓ Warranty approval email sent to vendor: ${vendorEmail}`);
-                    } else if (status === 'rejected') {
-                        // ── Vendor Rejection: WhatsApp first, email fallback ──
-                        let vendorRejWaSent = false;
-                        if (process.env.ENABLE_WHATSAPP === 'true') {
-                            try {
-                                const [vendorPhone]: any = await db.execute(
-                                    `SELECT p.phone_number FROM profiles p
-                                     JOIN vendor_details vd ON vd.user_id = p.id
-                                     WHERE p.email = ? LIMIT 1`,
-                                    [vendorEmail]
-                                );
-                                if (vendorPhone.length > 0 && vendorPhone[0].phone_number) {
-                                    const purchaseDate = warrantyData.created_at
-                                        ? new Date(warrantyData.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
-                                        : 'N/A';
-                                    const productName = (productDetails as any)?.product || (productDetails as any)?.productName || warrantyData.product_type || 'Autoform Product';
-                                    vendorRejWaSent = await WhatsAppService.sendVendorRejected(
-                                        vendorPhone[0].phone_number,
-                                        vendorName ?? 'Franchise Partner',
-                                        productName,
-                                        warrantyData.registration_number || 'N/A',
-                                        warrantyData.uid,
-                                        'Not Approved',
-                                        purchaseDate,
-                                        warrantyData.warranty_type || 'Standard',
-                                        rejectionReason
-                                    );
-                                    console.log(`[WhatsApp] Vendor rejection notice sent to: ${vendorPhone[0].phone_number}`);
-                                }
-                            } catch (waErr) {
-                                console.error('[WhatsApp] Failed to send vendor rejection notice:', waErr);
-                            }
-                        }
-                        // Send Email (always live alongside WhatsApp)
-                        await EmailService.sendWarrantyRejectionToVendor(
-                            vendorEmail,
-                            vendorName,
-                            warrantyData.customer_name,
-                            warrantyData.customer_phone,
-                            warrantyData.product_type,
-                            warrantyData.registration_number,
-                            applicatorName ?? '',
-                            rejectionReason,
-                            warrantyData.uid,
-                            warrantyData.car_make,
-                            warrantyData.car_model,
-                            productDetails,
-                            warrantyData.warranty_type
-                        );
-                        console.log(`✓ Warranty rejection email sent to vendor: ${vendorEmail}`);
-                    }
-                } else {
-                    console.log(`ℹ️ No vendor email found for warranty ${warrantyData.uid}, skipping vendor email`);
-                }
-
-                // 4. Send real-time notification to vendor
-                if (vendorUserId) {
-                    let title = 'Warranty Pending ⏳';
-                    let message = `The warranty for ${warrantyData.customer_name} (${warrantyData.uid}) is pending review.`;
-
-                    if (status === 'validated') {
-                        title = 'Warranty Approved! ✓';
-                        message = `The warranty for ${warrantyData.customer_name} (${warrantyData.uid}) has been approved.`;
-                    } else if (status === 'rejected') {
-                        message = `The warranty for ${warrantyData.customer_name} (${warrantyData.uid}) has been rejected. Reason: ${rejectionReason}`;
-                    }
-
-                    await NotificationService.notify(vendorUserId, {
-                        title,
-                        message,
-                        type: 'warranty',
-                        link: `/dashboard/vendor`
-                    });
-                }
-
-                // 5. Notify Customer
-                if (warrantyData.user_id) {
-                    let title = 'Warranty Pending ⏳';
-                    let message = `Your warranty for ${warrantyData.uid} is now under review by AutoForm.`;
-
-                    if (status === 'validated') {
-                        title = 'Warranty Validated! ✓';
-                        message = `Your warranty for ${warrantyData.uid} has been validated by AutoForm.`;
-                    } else if (status === 'rejected') {
-                        message = `Your warranty for ${warrantyData.uid} has been rejected. Reason: ${rejectionReason}`;
-                    }
-
-                    await NotificationService.notify(warrantyData.user_id, {
-                        title,
-                        message,
-                        type: 'warranty',
-                        link: `/dashboard/customer`
-                    });
-                }
-            } catch (notifError: any) {
-                console.error('Failed to send vendor/customer notifications:', notifError);
-                // Don't fail the request if notifications fail
-            }
-
-            // Log the activity
-            const admin = (req as any).user;
-            await ActivityLogService.log({
-                adminId: admin.id,
-                adminName: admin.name,
-                adminEmail: admin.email,
-                actionType: status === 'validated' ? 'WARRANTY_APPROVED' :
-                    status === 'pending' ? 'WARRANTY_OVERRIDDEN' : 'WARRANTY_REJECTED',
-                targetType: 'WARRANTY',
-                targetId: warrantyData.uid,
-                targetName: warrantyData.uid,
-                details: {
-                    customer_name: warrantyData.customer_name,
-                    product_type: warrantyData.product_type,
-                    rejection_reason: rejectionReason || null
-                },
-                ipAddress: req.ip || req.socket?.remoteAddress
-            });
-
+            // Return success response to admin immediately to prevent UI lag
             res.json({
                 success: true,
                 message: `Warranty ${status} successfully`
             });
+
+            // Send notifications and log activities asynchronously in the background
+            (async () => {
+                try {
+                    // Send email notification to customer only if email is provided
+                    if (warrantyData.customer_email && warrantyData.customer_email.trim()) {
+                        try {
+                            // Prepare store address string
+                            const storeFullAddress = [warrantyData.store_address, warrantyData.store_city, warrantyData.store_state]
+                                .filter(Boolean).join(', ');
+
+                            if (status === 'validated') {
+                                // ── Customer Approval: WhatsApp first, email fallback ──
+                                let approvalWaSent = false;
+                                if (process.env.ENABLE_WHATSAPP === 'true' && warrantyData.customer_phone) {
+                                    try {
+                                        const purchaseDate = (warrantyData.purchase_date || warrantyData.created_at)
+                                            ? new Date(warrantyData.purchase_date || warrantyData.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
+                                            : 'N/A';
+                                        const productName = (productDetails as any)?.product || (productDetails as any)?.productName || warrantyData.product_type || 'Autoform Product';
+                                        approvalWaSent = await runWithRetry(
+                                            () => WhatsAppService.sendWarrantyApprovedCustomer(
+                                                warrantyData.customer_phone,
+                                                warrantyData.customer_name,
+                                                productName,
+                                                warrantyData.registration_number || 'N/A',
+                                                warrantyData.uid,
+                                                warrantyData.store_name || warrantyData.installer_name || 'Autoform Store',
+                                                'Active',
+                                                purchaseDate,
+                                                warrantyData.warranty_type || 'Standard'
+                                            ),
+                                            3,
+                                            5000,
+                                            `WhatsApp Customer Approval (${warrantyData.uid})`
+                                        );
+                                        console.log(`[WhatsApp] Warranty approval sent to customer: ${warrantyData.customer_phone}`);
+                                    } catch (waErr) {
+                                        console.error('[WhatsApp] Failed to send approval to customer:', waErr);
+                                    }
+                                }
+                                // Send Email (always live alongside WhatsApp)
+                                await runWithRetry(
+                                    () => EmailService.sendWarrantyApprovalToCustomer(
+                                        warrantyData.customer_email,
+                                        warrantyData.customer_name,
+                                        warrantyData.uid,
+                                        warrantyData.product_type,
+                                        warrantyData.registration_number,
+                                        warrantyData.car_make,
+                                        warrantyData.car_model,
+                                        productDetails,
+                                        warrantyData.warranty_type,
+                                        warrantyData.store_name,
+                                        storeFullAddress,
+                                        warrantyData.store_email,
+                                        warrantyData.applicator_name,
+                                        (warrantyData.purchase_date || warrantyData.created_at)
+                                            ? new Date(warrantyData.purchase_date || warrantyData.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
+                                            : 'N/A'
+                                    ),
+                                    3,
+                                    5000,
+                                    `Email Customer Approval (${warrantyData.uid})`
+                                );
+                                console.log(`✓ Warranty approval email sent to customer: ${warrantyData.customer_email}`);
+                            } else if (status === 'rejected') {
+                                // ── Customer Rejection: WhatsApp first, email fallback ──
+                                let rejectionWaSent = false;
+                                if (process.env.ENABLE_WHATSAPP === 'true' && warrantyData.customer_phone) {
+                                    try {
+                                        const purchaseDate = (warrantyData.purchase_date || warrantyData.created_at)
+                                            ? new Date(warrantyData.purchase_date || warrantyData.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
+                                            : 'N/A';
+                                        const productName = (productDetails as any)?.product || (productDetails as any)?.productName || warrantyData.product_type || 'Autoform Product';
+                                        rejectionWaSent = await runWithRetry(
+                                            () => WhatsAppService.sendWarrantyRejectedCustomer(
+                                                warrantyData.customer_phone,
+                                                warrantyData.customer_name,
+                                                productName,
+                                                warrantyData.registration_number || 'N/A',
+                                                warrantyData.uid,
+                                                warrantyData.store_name || warrantyData.installer_name || 'Autoform Store',
+                                                'Not Approved',
+                                                purchaseDate,
+                                                warrantyData.warranty_type || 'Standard',
+                                                rejectionReason
+                                            ),
+                                            3,
+                                            5000,
+                                            `WhatsApp Customer Rejection (${warrantyData.uid})`
+                                        );
+                                        console.log(`[WhatsApp] Warranty rejection sent to customer: ${warrantyData.customer_phone}`);
+                                    } catch (waErr) {
+                                        console.error('[WhatsApp] Failed to send rejection to customer:', waErr);
+                                    }
+                                }
+                                // Send Email (always live alongside WhatsApp)
+                                await runWithRetry(
+                                    () => EmailService.sendWarrantyRejectionToCustomer(
+                                        warrantyData.customer_email,
+                                        warrantyData.customer_name,
+                                        warrantyData.uid,
+                                        warrantyData.product_type,
+                                        warrantyData.registration_number,
+                                        rejectionReason,
+                                        warrantyData.car_make,
+                                        warrantyData.car_model,
+                                        productDetails,
+                                        warrantyData.warranty_type,
+                                        warrantyData.store_name,
+                                        storeFullAddress,
+                                        warrantyData.store_email,
+                                        warrantyData.applicator_name
+                                    ),
+                                    3,
+                                    5000,
+                                    `Email Customer Rejection (${warrantyData.uid})`
+                                );
+                                console.log(`✓ Warranty rejection email sent to customer: ${warrantyData.customer_email}`);
+                            }
+                        } catch (emailError: any) {
+                            console.error('Customer email sending error:', emailError);
+                        }
+                    } else {
+                        console.log(`ℹ️ No customer email provided, skipping email notification for warranty ${warrantyData.uid}`);
+                    }
+
+                    // Send email + notification to franchise/vendor
+                    // Strategy: try manpower lookup first, fall back to installer_name (store name)
+                    try {
+                        let vendorEmail: string | null = null;
+                        let vendorName: string | null = warrantyData.store_name || null;
+                        let vendorUserId: string | null = null;
+                        let applicatorName: string | null = warrantyData.applicator_name || null;
+
+                        // 1. Try manpower lookup (real DB manpower ID)
+                        const manpowerId = warrantyData.manpower_id;
+                        if (manpowerId && manpowerId !== 'owner') {
+                            const [vendorInfo]: any = await db.execute(
+                                `SELECT 
+                                    p.email as vendor_email,
+                                    p.id as vendor_user_id,
+                                    vd.store_name as vendor_name,
+                                    m.name as manpower_name
+                                FROM manpower m
+                                JOIN vendor_details vd ON m.vendor_id = vd.id
+                                JOIN profiles p ON vd.user_id = p.id
+                                WHERE m.id = ?`,
+                                [manpowerId]
+                            );
+                            if (vendorInfo.length > 0) {
+                                vendorEmail = vendorInfo[0].vendor_email;
+                                vendorName = vendorInfo[0].vendor_name;
+                                vendorUserId = vendorInfo[0].vendor_user_id;
+                                applicatorName = vendorInfo[0].manpower_name || applicatorName;
+                            }
+                        }
+
+                        // 2. Fallback: find vendor by installer_name (catches QR/direct/owner submissions)
+                        if (!vendorEmail && warrantyData.installer_name) {
+                            const [vendorByName]: any = await db.execute(
+                                `SELECT p.email as vendor_email, p.id as vendor_user_id, vd.store_name as vendor_name
+                                 FROM vendor_details vd
+                                 JOIN profiles p ON vd.user_id = p.id
+                                 WHERE vd.store_name = ? AND vd.store_email = ?
+                                 LIMIT 1`,
+                                [warrantyData.installer_name, warrantyData.installer_contact]
+                            );
+                            if (vendorByName.length > 0) {
+                                vendorEmail = vendorByName[0].vendor_email;
+                                vendorName = vendorByName[0].vendor_name;
+                                vendorUserId = vendorByName[0].vendor_user_id;
+                            }
+                        }
+
+                        // 3. Send vendor notification if we found one
+                        if (vendorEmail && vendorName) {
+                            if (status === 'validated') {
+                                // Vendor approval: no WhatsApp template, email stays primary
+                                await runWithRetry(
+                                    () => EmailService.sendWarrantyApprovalToVendor(
+                                        vendorEmail!,
+                                        vendorName!,
+                                        warrantyData.customer_name,
+                                        warrantyData.customer_phone,
+                                        warrantyData.product_type,
+                                        warrantyData.registration_number,
+                                        applicatorName ?? '',
+                                        warrantyData.uid,
+                                        warrantyData.car_make,
+                                        warrantyData.car_model,
+                                        productDetails,
+                                        warrantyData.warranty_type
+                                    ),
+                                    3,
+                                    5000,
+                                    `Email Vendor Approval (${warrantyData.uid})`
+                                );
+                                console.log(`✓ Warranty approval email sent to vendor: ${vendorEmail}`);
+                            } else if (status === 'rejected') {
+                                // ── Vendor Rejection: WhatsApp first, email fallback ──
+                                let vendorRejWaSent = false;
+                                if (process.env.ENABLE_WHATSAPP === 'true') {
+                                    try {
+                                        const [vendorPhone]: any = await db.execute(
+                                            `SELECT p.phone_number FROM profiles p
+                                             JOIN vendor_details vd ON vd.user_id = p.id
+                                             WHERE p.email = ? LIMIT 1`,
+                                            [vendorEmail]
+                                        );
+                                        if (vendorPhone.length > 0 && vendorPhone[0].phone_number) {
+                                            const purchaseDate = warrantyData.created_at
+                                                ? new Date(warrantyData.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
+                                                : 'N/A';
+                                            const productName = (productDetails as any)?.product || (productDetails as any)?.productName || warrantyData.product_type || 'Autoform Product';
+                                            vendorRejWaSent = await runWithRetry(
+                                                () => WhatsAppService.sendVendorRejected(
+                                                    vendorPhone[0].phone_number,
+                                                    vendorName ?? 'Franchise Partner',
+                                                    productName,
+                                                    warrantyData.registration_number || 'N/A',
+                                                    warrantyData.uid,
+                                                    'Not Approved',
+                                                    purchaseDate,
+                                                    warrantyData.warranty_type || 'Standard',
+                                                    rejectionReason
+                                                ),
+                                                3,
+                                                5000,
+                                                `WhatsApp Vendor Rejection (${warrantyData.uid})`
+                                            );
+                                            console.log(`[WhatsApp] Vendor rejection notice sent to: ${vendorPhone[0].phone_number}`);
+                                        }
+                                    } catch (waErr) {
+                                        console.error('[WhatsApp] Failed to send vendor rejection notice:', waErr);
+                                    }
+                                }
+                                // Send Email (always live alongside WhatsApp)
+                                await runWithRetry(
+                                    () => EmailService.sendWarrantyRejectionToVendor(
+                                        vendorEmail!,
+                                        vendorName!,
+                                        warrantyData.customer_name,
+                                        warrantyData.customer_phone,
+                                        warrantyData.product_type,
+                                        warrantyData.registration_number,
+                                        applicatorName ?? '',
+                                        rejectionReason,
+                                        warrantyData.uid,
+                                        warrantyData.car_make,
+                                        warrantyData.car_model,
+                                        productDetails,
+                                        warrantyData.warranty_type
+                                    ),
+                                    3,
+                                    5000,
+                                    `Email Vendor Rejection (${warrantyData.uid})`
+                                );
+                                console.log(`✓ Warranty rejection email sent to vendor: ${vendorEmail}`);
+                            }
+                        } else {
+                            console.log(`ℹ️ No vendor email found for warranty ${warrantyData.uid}, skipping vendor email`);
+                        }
+
+                        // 4. Send real-time notification to vendor
+                        if (vendorUserId) {
+                            let title = 'Warranty Pending ⏳';
+                            let message = `The warranty for ${warrantyData.customer_name} (${warrantyData.uid}) is pending review.`;
+
+                            if (status === 'validated') {
+                                title = 'Warranty Approved! ✓';
+                                message = `The warranty for ${warrantyData.customer_name} (${warrantyData.uid}) has been approved.`;
+                            } else if (status === 'rejected') {
+                                message = `The warranty for ${warrantyData.customer_name} (${warrantyData.uid}) has been rejected. Reason: ${rejectionReason}`;
+                            }
+
+                            await NotificationService.notify(vendorUserId, {
+                                title,
+                                message,
+                                type: 'warranty',
+                                link: `/dashboard/vendor`
+                            });
+                        }
+
+                        // 5. Notify Customer
+                        if (warrantyData.user_id) {
+                            let title = 'Warranty Pending ⏳';
+                            let message = `Your warranty for ${warrantyData.uid} is now under review by AutoForm.`;
+
+                            if (status === 'validated') {
+                                title = 'Warranty Validated! ✓';
+                                message = `Your warranty for ${warrantyData.uid} has been validated by AutoForm.`;
+                            } else if (status === 'rejected') {
+                                message = `Your warranty for ${warrantyData.uid} has been rejected. Reason: ${rejectionReason}`;
+                            }
+
+                            await NotificationService.notify(warrantyData.user_id, {
+                                title,
+                                message,
+                                type: 'warranty',
+                                link: `/dashboard/customer`
+                            });
+                        }
+                    } catch (notifError: any) {
+                        console.error('Failed to send vendor/customer notifications:', notifError);
+                    }
+
+                    // Log the activity
+                    const admin = (req as any).user;
+                    await ActivityLogService.log({
+                        adminId: admin.id,
+                        adminName: admin.name,
+                        adminEmail: admin.email,
+                        actionType: status === 'validated' ? 'WARRANTY_APPROVED' :
+                            status === 'pending' ? 'WARRANTY_OVERRIDDEN' : 'WARRANTY_REJECTED',
+                        targetType: 'WARRANTY',
+                        targetId: warrantyData.uid,
+                        targetName: warrantyData.uid,
+                        details: {
+                            customer_name: warrantyData.customer_name,
+                            product_type: warrantyData.product_type,
+                            rejection_reason: rejectionReason || null
+                        },
+                        ipAddress: req.ip || req.socket?.remoteAddress
+                    });
+                } catch (bgError) {
+                    console.error('[Background] Failed to process background warranty notifications:', bgError);
+                }
+            })();
         } catch (error: any) {
             console.error('Update warranty status error:', error);
             res.status(500).json({ error: 'Failed to update warranty status' });
