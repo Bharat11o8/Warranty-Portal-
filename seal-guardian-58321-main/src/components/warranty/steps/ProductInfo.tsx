@@ -244,7 +244,7 @@ const ProductInfo = ({ formData, updateFormData, onPrev, onSubmit, loading, exis
             <Input
               id="lhsPhoto"
               type="file"
-              accept="image/jpeg,image/png,image/heic,image/heif"
+              accept="image/*"
               onChange={(e) => handleFileChange("lhsPhoto", e.target.files?.[0] || null)}
               required={!existingPhotos?.lhs}
               disabled={loading}
@@ -263,7 +263,7 @@ const ProductInfo = ({ formData, updateFormData, onPrev, onSubmit, loading, exis
             <Input
               id="rhsPhoto"
               type="file"
-              accept="image/jpeg,image/png,image/heic,image/heif"
+              accept="image/*"
               onChange={(e) => handleFileChange("rhsPhoto", e.target.files?.[0] || null)}
               required={!existingPhotos?.rhs}
               disabled={loading}
@@ -282,7 +282,7 @@ const ProductInfo = ({ formData, updateFormData, onPrev, onSubmit, loading, exis
             <Input
               id="frontRegPhoto"
               type="file"
-              accept="image/jpeg,image/png,image/heic,image/heif"
+              accept="image/*"
               onChange={(e) => handleFileChange("frontRegPhoto", e.target.files?.[0] || null)}
               required={!existingPhotos?.frontReg}
               disabled={loading}
@@ -301,7 +301,7 @@ const ProductInfo = ({ formData, updateFormData, onPrev, onSubmit, loading, exis
             <Input
               id="backRegPhoto"
               type="file"
-              accept="image/jpeg,image/png,image/heic,image/heif"
+              accept="image/*"
               onChange={(e) => handleFileChange("backRegPhoto", e.target.files?.[0] || null)}
               required={!existingPhotos?.backReg}
               disabled={loading}
@@ -320,7 +320,7 @@ const ProductInfo = ({ formData, updateFormData, onPrev, onSubmit, loading, exis
             <Input
               id="warrantyPhoto"
               type="file"
-              accept="image/jpeg,image/png,image/heic,image/heif"
+              accept="image/*"
               onChange={(e) => handleFileChange("warrantyPhoto", e.target.files?.[0] || null)}
               required={!existingPhotos?.warranty}
               disabled={loading}
