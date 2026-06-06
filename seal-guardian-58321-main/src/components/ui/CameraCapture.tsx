@@ -80,7 +80,7 @@ const CameraCapture = ({
     cameraOnly = false,
     value,
     onChange,
-    accept = "image/jpeg,image/png,image/heic,image/heif",
+    accept = "image/*",
     selectedIcon,
     defaultIcon,
     id,
