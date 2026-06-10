@@ -27,8 +27,8 @@ export const compressImage = async (
 ): Promise<File> => {
     const opts = { ...DEFAULT_OPTIONS, ...options };
 
-    // Skip if already small enough (under target size)
-    if (file.size <= (opts.maxSizeKB || 1024) * 1024) {
+    // Skip if already small enough (under 500KB — no meaningful compression possible)
+    if (file.size <= 500 * 1024) {
         console.log(`[ImageCompression] File ${file.name} already small (${(file.size / 1024).toFixed(0)}KB), skipping`);
         return file;
     }

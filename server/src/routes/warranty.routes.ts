@@ -1,17 +1,39 @@
-import { Router } from 'express';
+import { Router, Request, Response, NextFunction } from 'express';
 import { WarrantyController } from '../controllers/warranty.controller.js';
 import { authenticateToken } from '../middleware/auth.js';
 import { warrantyUpload, attachPublicUrls } from '../config/localUpload.js';
 
 const router = Router();
 
-
+/**
+ * Multer error-catching middleware for warranty uploads.
+ * Without this wrapper, multer's LIMIT_FILE_SIZE error propagates as an
+ * unhandled 500, causing a white screen on the client.
+ */
+const handleWarrantyUpload = (req: Request, res: Response, next: NextFunction) => {
+    warrantyUpload.any()(req, res, (err: any) => {
+        if (err) {
+            console.error('[Warranty Upload] Multer error:', err.code || err.message);
+            if (err.code === 'LIMIT_FILE_SIZE') {
+                return res.status(413).json({
+                    success: false,
+                    error: 'File too large. Maximum allowed size is 5 MB per file. Please use smaller images or compress them before uploading.'
+                });
+            }
+            return res.status(400).json({
+                success: false,
+                error: err.message || 'File upload failed'
+            });
+        }
+        attachPublicUrls(req, res, next);
+    });
+};
 
 // Use upload.any() to handle multiple files with different field names
-router.post('/submit', authenticateToken, warrantyUpload.any(), attachPublicUrls, WarrantyController.submitWarranty);
+router.post('/submit', authenticateToken, handleWarrantyUpload, WarrantyController.submitWarranty);
 router.get('/', authenticateToken, WarrantyController.getWarranties);
 router.get('/stats', authenticateToken, WarrantyController.getDashboardStats);
 router.get('/:uid', authenticateToken, WarrantyController.getWarrantyById);
-router.put('/:uid', authenticateToken, warrantyUpload.any(), attachPublicUrls, WarrantyController.updateWarranty);
+router.put('/:uid', authenticateToken, handleWarrantyUpload, WarrantyController.updateWarranty);
 
 export default router;

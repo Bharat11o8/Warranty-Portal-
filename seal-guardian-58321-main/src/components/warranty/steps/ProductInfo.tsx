@@ -73,9 +73,9 @@ const ProductInfo = ({ formData, updateFormData, onPrev, onSubmit, loading, exis
         return;
       }
 
-      // Compress image if > 1MB
+      // Compress image (imageCompression.ts skips files already < 500KB)
       let processedFile = file;
-      if (isCompressibleImage(file) && file.size > 1024 * 1024) {
+      if (isCompressibleImage(file)) {
         setCompressing(true);
         try {
           processedFile = await compressImage(file, { maxSizeKB: 1024, quality: 0.8 });

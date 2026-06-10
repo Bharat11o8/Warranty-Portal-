@@ -94,6 +94,18 @@ export const globalErrorHandler = (
         });
     }
 
+    // Handle Multer file-upload errors (safety net for routes that don't catch locally)
+    if (err.name === 'MulterError' || (err as any).code === 'LIMIT_FILE_SIZE') {
+        const status = (err as any).code === 'LIMIT_FILE_SIZE' ? 413 : 400;
+        return res.status(status).json({
+            success: false,
+            error: (err as any).code === 'LIMIT_FILE_SIZE'
+                ? 'File too large. Maximum allowed size is 5 MB per file. Please use smaller images.'
+                : err.message,
+            requestId,
+        });
+    }
+
     // Default: Internal Server Error
     return res.status(500).json({
         success: false,

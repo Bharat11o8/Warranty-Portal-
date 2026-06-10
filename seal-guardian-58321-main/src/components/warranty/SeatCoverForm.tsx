@@ -60,6 +60,7 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
   const { user } = useAuth();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
+  const [processingCapture, setProcessingCapture] = useState(false);
   const [stores, setStores] = useState<any[]>([]);
   const [products, setProducts] = useState<any[]>([]);
   const [manpowerList, setManpowerList] = useState<any[]>([]);
@@ -623,9 +624,28 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
 
     } catch (error: any) {
       console.error("Warranty submission error:", error);
+
+      let errorTitle = "Submission Failed";
+      let errorMessage = "Failed to submit warranty registration";
+
+      if (error.code === "ERR_NETWORK" || error.message?.includes("Network Error")) {
+        errorTitle = "Network Error";
+        errorMessage = "Unable to connect to server. Please check your internet connection and try again.";
+      } else if (error.code === "ECONNABORTED" || error.message?.includes("timeout")) {
+        errorTitle = "Upload Timeout";
+        errorMessage = "The upload took too long. Try using smaller photos or a faster internet connection.";
+      } else if (error.response?.status === 413) {
+        errorTitle = "Files Too Large";
+        errorMessage = "One or more files exceed the 5 MB limit. Please use smaller images.";
+      } else if (error.response?.data?.error) {
+        errorMessage = error.response.data.error;
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+
       toast({
-        title: "Submission Failed",
-        description: error.response?.data?.error || "Failed to submit warranty registration",
+        title: errorTitle,
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {
@@ -777,110 +797,117 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
       return;
     }
 
-    // Set the file immediately in component state so validation passes and the UI updates instantly
+    // Set the file immediately so the UI updates and validation sees a file selected.
+    // This will be replaced with the compressed version once processing finishes.
     setFormData(prev => ({ ...prev, [field]: file }));
+    setProcessingCapture(true);
 
     console.log(`[FraudDetection] Camera file received for ${field}:`, {
       name: file.name, type: file.type, size: file.size
     });
 
-    // Start geolocation, EXIF extraction, and compression concurrently in the background
-    Promise.all([
-      // 1. Get GPS via Geolocation API (iOS strips GPS from camera captures for privacy)
-      (async () => {
-        try {
-          const position = await new Promise<GeolocationPosition>((resolve, reject) => {
-            navigator.geolocation.getCurrentPosition(resolve, reject, {
-              enableHighAccuracy: true,
-              timeout: 5000,
-              maximumAge: 60000
-            });
-          });
-          console.log(`[FraudDetection] Geolocation GPS:`, position.coords.latitude, position.coords.longitude);
-          
-          // Only update if the user hasn't selected a different file in the meantime
-          setFormData(prev => {
-            if (prev[field] !== file) return prev;
-            return {
-              ...prev,
-              exifData: {
-                ...(prev.exifData || {}),
-                lat: position.coords.latitude,
-                lng: position.coords.longitude,
-              }
-            };
-          });
-        } catch (err) {
-          console.warn(`[FraudDetection] Geolocation failed (user denied or unavailable):`, err);
-        }
-      })(),
-
-      // 2. Extract EXIF for device make/model/timestamp (GPS will be null on iOS, that's OK)
-      // CRITICAL FIX: Only read the first 128KB of the file! Reading the full 5-10MB 4K photo 
-      // into an ArrayBuffer causes iOS Safari to crash (OOM) and forcibly refresh the page.
-      (async () => {
-        try {
-          const exifChunk = file.slice(0, 128 * 1024); // 128KB is plenty for EXIF metadata headers
-          const arrayBuffer = await exifChunk.arrayBuffer();
-          const exif = await exifr.parse(arrayBuffer, {
-            gps: true, exif: true, tiff: true, mergeOutput: true,
-          });
-          console.log(`[FraudDetection] EXIF for ${field}:`, exif ? {
-            Make: exif.Make, Model: exif.Model, DateTimeOriginal: exif.DateTimeOriginal
-          } : 'NULL');
-
-          if (exif) {
-            setFormData(prev => {
-              // Only update if the user hasn't selected a different file in the meantime
-              if (prev[field] !== file) return prev;
-
-              const currentExif = prev.exifData || {};
-              const fieldExif = {
-                lat: currentExif.lat || exif.latitude || null,
-                lng: currentExif.lng || exif.longitude || null,
-                timestamp: exif.DateTimeOriginal || exif.CreateDate || currentExif.timestamp || null,
-                deviceMake: exif.Make || currentExif.deviceMake || null,
-                deviceModel: exif.Model || currentExif.deviceModel || null
-              };
-
-              return {
-                ...prev,
-                exifData: {
-                  ...fieldExif
-                },
-                allExifData: {
-                  ...prev.allExifData,
-                  [field]: fieldExif
-                }
-              };
-            });
-          }
-        } catch (err) {
-          console.warn(`[FraudDetection] EXIF extraction failed for ${field}:`, err);
-        }
-      })(),
-
-      // 3. Compress the image
-      (async () => {
-        let processedFile = file;
-        if (isCompressibleImage(file)) {
+    // Await all three tasks so the submit button stays disabled until compression is done.
+    // Geolocation and EXIF run concurrently with compression for speed.
+    try {
+      await Promise.all([
+        // 1. Get GPS via Geolocation API (iOS strips GPS from camera captures for privacy)
+        (async () => {
           try {
-            processedFile = await compressImage(file, { maxSizeKB: 800, quality: 0.7 });
-            console.log(`[FraudDetection] Compressed ${field}: ${file.size} -> ${processedFile.size}`);
+            const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+              navigator.geolocation.getCurrentPosition(resolve, reject, {
+                enableHighAccuracy: true,
+                timeout: 5000,
+                maximumAge: 60000
+              });
+            });
+            console.log(`[FraudDetection] Geolocation GPS:`, position.coords.latitude, position.coords.longitude);
             
             // Only update if the user hasn't selected a different file in the meantime
             setFormData(prev => {
-              if (prev[field] === file) {
-                return { ...prev, [field]: processedFile };
-              }
-              return prev;
+              if (prev[field] !== file) return prev;
+              return {
+                ...prev,
+                exifData: {
+                  ...(prev.exifData || {}),
+                  lat: position.coords.latitude,
+                  lng: position.coords.longitude,
+                }
+              };
             });
           } catch (err) {
-            console.warn("Camera image compression failed, using original:", err);
+            console.warn(`[FraudDetection] Geolocation failed (user denied or unavailable):`, err);
           }
-        }
-      })()
-    ]);
+        })(),
+
+        // 2. Extract EXIF for device make/model/timestamp (GPS will be null on iOS, that's OK)
+        // CRITICAL FIX: Only read the first 128KB of the file! Reading the full 5-10MB 4K photo 
+        // into an ArrayBuffer causes iOS Safari to crash (OOM) and forcibly refresh the page.
+        (async () => {
+          try {
+            const exifChunk = file.slice(0, 128 * 1024); // 128KB is plenty for EXIF metadata headers
+            const arrayBuffer = await exifChunk.arrayBuffer();
+            const exif = await exifr.parse(arrayBuffer, {
+              gps: true, exif: true, tiff: true, mergeOutput: true,
+            });
+            console.log(`[FraudDetection] EXIF for ${field}:`, exif ? {
+              Make: exif.Make, Model: exif.Model, DateTimeOriginal: exif.DateTimeOriginal
+            } : 'NULL');
+
+            if (exif) {
+              setFormData(prev => {
+                // Only update if the user hasn't selected a different file in the meantime
+                if (prev[field] !== file) return prev;
+
+                const currentExif = prev.exifData || {};
+                const fieldExif = {
+                  lat: currentExif.lat || exif.latitude || null,
+                  lng: currentExif.lng || exif.longitude || null,
+                  timestamp: exif.DateTimeOriginal || exif.CreateDate || currentExif.timestamp || null,
+                  deviceMake: exif.Make || currentExif.deviceMake || null,
+                  deviceModel: exif.Model || currentExif.deviceModel || null
+                };
+
+                return {
+                  ...prev,
+                  exifData: {
+                    ...fieldExif
+                  },
+                  allExifData: {
+                    ...prev.allExifData,
+                    [field]: fieldExif
+                  }
+                };
+              });
+            }
+          } catch (err) {
+            console.warn(`[FraudDetection] EXIF extraction failed for ${field}:`, err);
+          }
+        })(),
+
+        // 3. Compress the image
+        (async () => {
+          let processedFile = file;
+          if (isCompressibleImage(file)) {
+            try {
+              processedFile = await compressImage(file, { maxSizeKB: 800, quality: 0.7 });
+              console.log(`[FraudDetection] Compressed ${field}: ${file.size} -> ${processedFile.size}`);
+              
+              // Only update if the user hasn't selected a different file in the meantime
+              setFormData(prev => {
+                if (prev[field] === file) {
+                  return { ...prev, [field]: processedFile };
+                }
+                return prev;
+              });
+            } catch (err) {
+              console.warn("Camera image compression failed, using original:", err);
+            }
+          }
+        })()
+      ]);
+    } finally {
+      setProcessingCapture(false);
+    }
   };
 
   return (
@@ -1449,12 +1476,17 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
                 type="submit"
                 size="lg"
                 className="w-full text-lg h-12 shadow-orange-200 shadow-lg hover:shadow-xl transition-all"
-                disabled={loading || !formData.termsAccepted}
+                disabled={loading || processingCapture || !formData.termsAccepted}
               >
                 {loading ? (
                   <>
                     <Loader2 className="mr-2 h-5 w-5 animate-spin" />
                     Processing Registration...
+                  </>
+                ) : processingCapture ? (
+                  <>
+                    <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                    Compressing photos...
                   </>
                 ) : (
                   "Complete Registration"
