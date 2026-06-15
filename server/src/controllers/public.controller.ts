@@ -179,7 +179,7 @@ export class PublicController {
 
             // Check pre_generated_uids table
             const [uidRows]: any = await db.execute(
-                'SELECT uid, is_used FROM pre_generated_uids WHERE uid = ?',
+                'SELECT uid, is_used, product_name FROM pre_generated_uids WHERE uid = ?',
                 [uid]
             );
 
@@ -221,7 +221,8 @@ export class PublicController {
 
             res.json({
                 success: true,
-                valid: true
+                valid: true,
+                productName: uidRows[0].product_name || null
             });
         } catch (error: any) {
             console.error('UID check error:', error);

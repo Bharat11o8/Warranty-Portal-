@@ -30,8 +30,9 @@ x-api-key: <YOUR_SECRET_API_KEY>
 
 ## 📦 3. Request Format (JSON)
 
-Send a batch of UIDs as an array of strings.
+Send a batch of UIDs as an array. The array elements can be either **plain strings** (backward compatible) or **JSON objects** containing the UID and corresponding product design name.
 
+### Format 1: Array of Plain Strings (Backward Compatible)
 ```json
 {
   "uids": [
@@ -42,11 +43,33 @@ Send a batch of UIDs as an array of strings.
 }
 ```
 
+### Format 2: Array of Objects with Product Details (Recommended)
+```json
+{
+  "uids": [
+    { "uid": "23101002211185", "product_name": "Amaze Duo +" },
+    { "uid": "23101002211186", "product_name": "Amaze Duo +" },
+    { "uid": "23101002211187", "product_name": "Rover Special" }
+  ]
+}
+```
+
+### Format 3: Mixed Array (Supported)
+```json
+{
+  "uids": [
+    "23101002211185",
+    { "uid": "23101002211186", "product_name": "Amaze Duo +" }
+  ]
+}
+```
+
 ### 📋 UID Rules:
 *   **Format**: Digits only (`0-9`). No letters or special characters.
 *   **Length**: Must be between **13 and 16 digits**.
+*   **Product Name (Optional)**: If the product design name does not exist in the portal's catalogue, the backend will **automatically register** it as a seat cover product with a default warranty of `1 Year` and issue a real-time notification to the admins.
 *   **Batching**: Recommended batch size is **100 - 500 UIDs** per request.
-*   **Idempotent**: If you send a UID that already exists, the system will simply skip it without error. It is safe to retry a failed batch.
+*   **Idempotent**: If you send a UID that already exists, the system will update its associated `product_name` if it is still unused, and skip duplicate operations without error. It is safe to retry a failed batch.
 
 ---
 

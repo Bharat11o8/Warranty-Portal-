@@ -1,5 +1,7 @@
 import { Request, Response } from 'express';
 import db, { getISTTimestamp } from '../config/database.js';
+import { v4 as uuidv4 } from 'uuid';
+import { NotificationService } from '../services/notification.service.js';
 
 export class UIDController {
     /**
@@ -14,7 +16,7 @@ export class UIDController {
             // Case 6: Batch Size Limit
             const MAX_BATCH_SIZE = 1000;
             if (!uids || !Array.isArray(uids) || uids.length === 0) {
-                return res.status(400).json({ error: 'uids must be a non-empty array of strings' });
+                return res.status(400).json({ error: 'uids must be a non-empty array of strings or objects' });
             }
             if (uids.length > MAX_BATCH_SIZE) {
                 return res.status(400).json({ error: `Batch size exceeds limit of ${MAX_BATCH_SIZE} UIDs` });
@@ -32,10 +34,24 @@ export class UIDController {
             };
 
             const processedInBatch = new Set<string>();
-            const validUidsInRequest: string[] = [];
+            const validUidsInRequest: { uid: string; productName: string | null }[] = [];
 
             // Step 1: Basic validation and intra-batch duplicate check
-            for (const uid of uids) {
+            for (const entry of uids) {
+                let uid: string;
+                let productName: string | null = null;
+
+                if (typeof entry === 'string') {
+                    uid = entry;
+                } else if (entry && typeof entry === 'object') {
+                    uid = entry.uid;
+                    productName = entry.product_name || entry.productName || null;
+                } else {
+                    results.push({ uid: String(entry), status: 'invalid_format', message: 'UID must be a string or an object with uid property' });
+                    stats.invalid_format++;
+                    continue;
+                }
+
                 // Updated validation: Strictly 13-16 digits to match frontend and guide
                 if (typeof uid !== 'string' || !/^\d{13,16}$/.test(uid)) {
                     results.push({ uid, status: 'invalid_format', message: 'UID must be a 13-16 digit number string' });
@@ -51,34 +67,68 @@ export class UIDController {
                 }
 
                 processedInBatch.add(uid);
-                validUidsInRequest.push(uid);
+                validUidsInRequest.push({ uid, productName: productName ? productName.trim() : null });
             }
 
             if (validUidsInRequest.length === 0) {
                 return res.json({ success: true, message: 'No valid UIDs to process', stats, details: results });
             }
 
+            // Step 1b: Auto-register unknown products
+            const uniqueProductNames = Array.from(new Set(
+                validUidsInRequest
+                    .map(v => v.productName)
+                    .filter((name): name is string => typeof name === 'string' && name.trim().length > 0)
+            ));
+
+            for (const name of uniqueProductNames) {
+                const [existingProduct]: any = await db.execute(
+                    'SELECT id FROM products WHERE LOWER(TRIM(name)) = LOWER(TRIM(?))',
+                    [name]
+                );
+                if (existingProduct.length === 0) {
+                    const newId = uuidv4();
+                    await db.execute(
+                        "INSERT INTO products (id, name, type, warranty_years) VALUES (?, ?, 'seat_cover', '1 Year')",
+                        [newId, name]
+                    );
+                    // Broadcast notification to admins
+                    try {
+                        await NotificationService.broadcast({
+                            title: 'New Product Registered',
+                            message: `Product "${name}" was automatically added to catalog (Source: API Sync).`,
+                            type: 'product',
+                            targetRole: 'admin'
+                        });
+                    } catch (notifError) {
+                        console.error('Failed to broadcast auto-registration notification:', notifError);
+                    }
+                }
+            }
+
             // Step 2: Check database for existing UIDs and their usage status
             const placeholders = validUidsInRequest.map(() => '?').join(',');
+            const uidsQuery = validUidsInRequest.map(v => v.uid);
             const [existingRows]: any = await db.execute(
-                `SELECT uid, is_used, used_at FROM pre_generated_uids WHERE uid IN (${placeholders})`,
-                validUidsInRequest
+                `SELECT uid, is_used, used_at, product_name FROM pre_generated_uids WHERE uid IN (${placeholders})`,
+                uidsQuery
             );
 
             const existingMap = new Map();
             existingRows.forEach((row: any) => existingMap.set(row.uid, row));
 
-            const uidsToInsert: string[] = [];
+            const uidsToInsert: { uid: string; productName: string | null }[] = [];
+            const uidsToUpdate: { uid: string; productName: string | null }[] = [];
 
             // Step 3: Categorize UIDs
-            for (const uid of validUidsInRequest) {
-                const existing = existingMap.get(uid);
+            for (const item of validUidsInRequest) {
+                const existing = existingMap.get(item.uid);
 
                 if (existing) {
                     if (existing.is_used) {
                         // Case 3: Already Exists (Used)
                         results.push({
-                            uid,
+                            uid: item.uid,
                             status: 'already_exists_used',
                             message: 'UID is already registered to a warranty',
                             used_at: existing.used_at
@@ -87,18 +137,22 @@ export class UIDController {
                     } else {
                         // Case 2: Already Exists (Available)
                         results.push({
-                            uid,
+                            uid: item.uid,
                             status: 'already_exists_available',
                             message: 'UID already exists in the system and is available'
                         });
                         stats.already_exists_available++;
+                        // If product name is provided and is different, update it
+                        if (item.productName !== existing.product_name) {
+                            uidsToUpdate.push(item);
+                        }
                     }
                 } else {
-                    uidsToInsert.push(uid);
+                    uidsToInsert.push(item);
                 }
             }
 
-            // Step 4: Batch insert new UIDs (using INSERT IGNORE to handle any edge-case duplicates)
+            // Step 4: Batch insert new UIDs
             if (uidsToInsert.length > 0) {
                 connection = await db.getConnection();
                 await connection.beginTransaction();
@@ -108,27 +162,46 @@ export class UIDController {
                 let totalInserted = 0;
                 for (let i = 0; i < uidsToInsert.length; i += batchSize) {
                     const batch = uidsToInsert.slice(i, i + batchSize);
-                    const insertPlaceholders = batch.map(() => '(?, FALSE, NULL, ?, \'api_sync\')').join(', ');
-                    const insertValues = batch.flatMap(uid => [uid, timestamp]);
+                    const insertPlaceholders = batch.map(() => '(?, FALSE, NULL, ?, \'api_sync\', ?)').join(', ');
+                    const insertValues = batch.flatMap(item => [item.uid, timestamp, item.productName]);
 
                     const [result]: any = await connection.execute(
-                        `INSERT IGNORE INTO pre_generated_uids (uid, is_used, used_at, created_at, source) VALUES ${insertPlaceholders}`,
+                        `INSERT INTO pre_generated_uids (uid, is_used, used_at, created_at, source, product_name) VALUES ${insertPlaceholders}`,
                         insertValues
                     );
                     totalInserted += result.affectedRows;
                 }
 
                 await connection.commit();
+                connection.release();
+                connection = null;
 
                 // Case 1: New (Inserted)
-                uidsToInsert.forEach(uid => {
+                uidsToInsert.forEach(item => {
                     results.push({
-                        uid,
+                        uid: item.uid,
                         status: 'inserted',
                         message: 'UID successfully synced'
                     });
                 });
                 stats.inserted = totalInserted;
+            }
+
+            // Step 5: Update product names of existing, unused UIDs
+            if (uidsToUpdate.length > 0) {
+                connection = await db.getConnection();
+                await connection.beginTransaction();
+
+                for (const item of uidsToUpdate) {
+                    await connection.execute(
+                        'UPDATE pre_generated_uids SET product_name = ? WHERE uid = ? AND is_used = FALSE',
+                        [item.productName, item.uid]
+                    );
+                }
+
+                await connection.commit();
+                connection.release();
+                connection = null;
             }
 
             console.log(`✓ UID Sync Complete: ${stats.inserted} new, ${stats.already_exists_available} existing, ${stats.already_exists_used} used`);
@@ -165,7 +238,7 @@ export class UIDController {
             }
 
             const [rows]: any = await db.execute(
-                'SELECT uid, is_used FROM pre_generated_uids WHERE uid = ?',
+                'SELECT uid, is_used, product_name FROM pre_generated_uids WHERE uid = ?',
                 [uid]
             );
 
@@ -182,6 +255,7 @@ export class UIDController {
                 return res.json({
                     valid: true,
                     available: false,
+                    productName: uidRecord.product_name || null,
                     message: 'UID already used'
                 });
             }
@@ -189,6 +263,7 @@ export class UIDController {
             return res.json({
                 valid: true,
                 available: true,
+                productName: uidRecord.product_name || null,
                 message: 'Valid UID'
             });
         } catch (error: any) {
@@ -272,6 +347,7 @@ export class UIDController {
                     p.used_at, 
                     p.created_at,
                     p.source,
+                    p.product_name,
                     w.customer_name,
                     w.customer_email,
                     w.customer_phone,
@@ -366,6 +442,7 @@ export class UIDController {
                     p.source,
                     p.created_at,
                     p.used_at,
+                    p.product_name,
                     w.customer_name,
                     w.customer_email,
                     w.customer_phone,
@@ -386,7 +463,7 @@ export class UIDController {
 
             // Generate CSV
             const headers = [
-                'UID', 'Status', 'Source', 'Created At', 'Used At',
+                'UID', 'Status', 'Source', 'Created At', 'Used At', 'Product Name',
                 'Customer Name', 'Customer Email', 'Customer Phone',
                 'Reg Number', 'Product Type', 'Warranty Type',
                 'Warranty Status', 'Purchase Date', 'Installer Name', 'Installer Contact', 'Car Year'
@@ -401,6 +478,7 @@ export class UIDController {
                     row.source,
                     row.created_at ? new Date(row.created_at).toISOString() : '',
                     row.used_at ? new Date(row.used_at).toISOString() : '',
+                    row.product_name || '',
                     row.customer_name || '',
                     row.customer_email || '',
                     row.customer_phone || '',
@@ -432,7 +510,7 @@ export class UIDController {
      */
     static async addUID(req: Request, res: Response) {
         try {
-            const { uid } = req.body;
+            const { uid, productName } = req.body;
 
             if (!uid || !/^\d{13,16}$/.test(uid)) {
                 return res.status(400).json({ error: 'UID must be a 13-16 digit number' });
@@ -448,10 +526,36 @@ export class UIDController {
                 return res.status(409).json({ error: 'This UID already exists in the system' });
             }
 
+            let finalProductName = productName ? String(productName).trim() : null;
+            if (finalProductName) {
+                const [existingProduct]: any = await db.execute(
+                    'SELECT id FROM products WHERE LOWER(TRIM(name)) = LOWER(TRIM(?))',
+                    [finalProductName]
+                );
+                if (existingProduct.length === 0) {
+                    const newId = uuidv4();
+                    await db.execute(
+                        "INSERT INTO products (id, name, type, warranty_years) VALUES (?, ?, 'seat_cover', '1 Year')",
+                        [newId, finalProductName]
+                    );
+                    // Broadcast notification to admins
+                    try {
+                        await NotificationService.broadcast({
+                            title: 'New Product Registered',
+                            message: `Product "${finalProductName}" was automatically added to catalog (Source: Manual Entry).`,
+                            type: 'product',
+                            targetRole: 'admin'
+                        });
+                    } catch (notifError) {
+                        console.error('Failed to broadcast auto-registration notification:', notifError);
+                    }
+                }
+            }
+
             const timestamp = getISTTimestamp();
             await db.execute(
-                'INSERT INTO pre_generated_uids (uid, is_used, used_at, created_at, source) VALUES (?, FALSE, NULL, ?, \'manual\')',
-                [uid, timestamp]
+                'INSERT INTO pre_generated_uids (uid, is_used, used_at, created_at, source, product_name) VALUES (?, FALSE, NULL, ?, \'manual\', ?)',
+                [uid, timestamp, finalProductName]
             );
 
             const admin = (req as any).user;
@@ -460,7 +564,7 @@ export class UIDController {
             res.status(201).json({
                 success: true,
                 message: 'UID added successfully',
-                uid: { uid, is_used: false, created_at: timestamp }
+                uid: { uid, is_used: false, created_at: timestamp, product_name: finalProductName }
             });
         } catch (error: any) {
             console.error('Add UID error:', error);
@@ -513,7 +617,7 @@ export class UIDController {
 
             const [rows]: any = await db.execute(
                 `SELECT 
-                    p.uid, p.is_used, p.used_at, p.created_at, p.source,
+                    p.uid, p.is_used, p.used_at, p.created_at, p.source, p.product_name,
                     w.customer_name, w.customer_email, w.customer_phone,
                     w.registration_number, w.product_type, w.warranty_type,
                     w.status as warranty_status, w.purchase_date,
