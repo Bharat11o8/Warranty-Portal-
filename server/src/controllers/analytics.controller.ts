@@ -1,7 +1,66 @@
-import { Request, Response } from 'express';
+import { Request, Response, NextFunction } from 'express';
 import db, { getISTDate } from '../config/database.js';
 
 export class AnalyticsController {
+    private static isSyncing = false;
+    private static lastSyncTime = 0;
+
+    /**
+     * Middleware to automatically sync analytics events from the main registrations table.
+     */
+    static async autoSyncMiddleware(req: Request, res: Response, next: NextFunction) {
+        const now = Date.now();
+        if (AnalyticsController.isSyncing || (now - AnalyticsController.lastSyncTime < 5000)) {
+            return next();
+        }
+
+        AnalyticsController.isSyncing = true;
+        try {
+            // 1. Find missing registrations
+            await db.execute(`
+                INSERT INTO analytics_events (warranty_id, action_type, performed_by, created_at)
+                SELECT wr.id, 'registered', wr.customer_name, wr.created_at
+                FROM warranty_registrations wr
+                LEFT JOIN analytics_events ae ON (wr.id = ae.warranty_id AND ae.action_type = 'registered')
+                WHERE ae.id IS NULL
+            `);
+
+            // 2. Find missing approvals (Admin)
+            await db.execute(`
+                INSERT INTO analytics_events (warranty_id, action_type, performed_by, created_at)
+                SELECT wr.id, 'validated', 'system_admin', COALESCE(wr.validated_at, wr.created_at)
+                FROM warranty_registrations wr
+                LEFT JOIN analytics_events ae ON (wr.id = ae.warranty_id AND ae.action_type = 'validated')
+                WHERE wr.status = 'validated' AND ae.id IS NULL
+            `);
+
+            // 3. Find missing vendor approvals
+            await db.execute(`
+                INSERT INTO analytics_events (warranty_id, action_type, performed_by, created_at)
+                SELECT wr.id, 'vendor_approved', COALESCE(wr.installer_name, 'Unknown Vendor'), COALESCE(wr.vendor_approved_at, wr.created_at)
+                FROM warranty_registrations wr
+                LEFT JOIN analytics_events ae ON (wr.id = ae.warranty_id AND ae.action_type = 'vendor_approved')
+                WHERE (wr.status = 'pending' OR wr.vendor_approved_at IS NOT NULL) AND ae.id IS NULL
+            `);
+
+            // 4. Find missing rejections
+            await db.execute(`
+                INSERT INTO analytics_events (warranty_id, action_type, performed_by, created_at)
+                SELECT wr.id, 'rejected', 'system_admin', COALESCE(wr.rejected_at, wr.created_at)
+                FROM warranty_registrations wr
+                LEFT JOIN analytics_events ae ON (wr.id = ae.warranty_id AND ae.action_type = 'rejected')
+                WHERE wr.status = 'rejected' AND ae.id IS NULL
+            `);
+            
+            AnalyticsController.lastSyncTime = Date.now();
+        } catch (error) {
+            console.error('Error during autoSyncMiddleware:', error);
+        } finally {
+            AnalyticsController.isSyncing = false;
+        }
+        next();
+    }
+
     /**
      * Get high-level summary statistics
      */
@@ -78,9 +137,9 @@ export class AnalyticsController {
                 db.execute(`
                     SELECT 
                         (SELECT COUNT(*) FROM warranty_registrations WHERE ${whereClause}) as registrations,
-                        (SELECT COUNT(*) FROM warranty_registrations WHERE ${whereClause.replace(/created_at/g, 'validated_at')}) as approvals,
-                        (SELECT COUNT(*) FROM warranty_registrations WHERE ${whereClause.replace(/created_at/g, 'rejected_at')}) as rejections,
-                        (SELECT COUNT(*) FROM warranty_registrations WHERE ${whereClause.replace(/created_at/g, 'vendor_approved_at')}) as vendor_approvals
+                        (SELECT COUNT(*) FROM warranty_registrations WHERE ${whereClause.replace(/created_at/g, 'COALESCE(validated_at, created_at)')}) as approvals,
+                        (SELECT COUNT(*) FROM warranty_registrations WHERE ${whereClause.replace(/created_at/g, 'COALESCE(rejected_at, created_at)')}) as rejections,
+                        (SELECT COUNT(*) FROM warranty_registrations WHERE ${whereClause.replace(/created_at/g, 'COALESCE(vendor_approved_at, created_at)')}) as vendor_approvals
                 `, [...params, ...params, ...params, ...params]),
                 // 5. Overall Totals for other modules
                 db.execute(`
@@ -198,10 +257,20 @@ export class AnalyticsController {
                 WHERE ${whereClause}
             `, params);
 
+            const formattedResults = results.map((row: any) => ({
+                label: row.label,
+                sort_date: row.sort_date,
+                total: Number(row.total || 0),
+                approved: Number(row.approved || 0),
+                pending_admin: Number(row.pending_admin || 0),
+                pending_vendor: Number(row.pending_vendor || 0),
+                rejected: Number(row.rejected || 0)
+            }));
+
             return res.json({
                 success: true,
                 data: {
-                    warranties: results,
+                    warranties: formattedResults,
                     totals: periodTotals[0]
                 }
             });
@@ -254,8 +323,8 @@ export class AnalyticsController {
                     COUNT(*) as count
                 FROM warranty_registrations
                 WHERE (
-                    -- Items approved in this period
-                    (status = 'validated' AND ${whereClause.replace(/created_at/g, 'validated_at')})
+                    -- Items approved in this period (fallback to created_at when validated_at is NULL)
+                    (status = 'validated' AND ${whereClause.replace(/created_at/g, 'COALESCE(validated_at, created_at)')})
                     OR
                     -- OR Items registered in this period (that aren't approved yet)
                     (status != 'validated' AND ${whereClause})
@@ -693,8 +762,8 @@ export class AnalyticsController {
                 FROM warranty_registrations w
                 ${joinLogic}
                 WHERE (
-                    -- Items approved in this period
-                    (w.status = 'validated' AND ${whereClause.replace(/w.created_at/g, 'w.validated_at')})
+                    -- Items approved in this period (fallback to created_at when validated_at is NULL)
+                    (w.status = 'validated' AND ${whereClause.replace(/w\.created_at/g, 'COALESCE(w.validated_at, w.created_at)')})
                     OR
                     -- OR Items registered in this period (that aren't approved yet)
                     (w.status != 'validated' AND ${whereClause})
@@ -714,8 +783,8 @@ export class AnalyticsController {
                 FROM warranty_registrations w
                 ${joinLogic}
                 WHERE (
-                    -- Items approved in this period
-                    (w.status = 'validated' AND ${whereClause.replace(/w.created_at/g, 'w.validated_at')})
+                    -- Items approved in this period (fallback to created_at when validated_at is NULL)
+                    (w.status = 'validated' AND ${whereClause.replace(/w\.created_at/g, 'COALESCE(w.validated_at, w.created_at)')})
                     OR
                     -- OR Items registered in this period (that aren't approved yet)
                     (w.status != 'validated' AND ${whereClause})
