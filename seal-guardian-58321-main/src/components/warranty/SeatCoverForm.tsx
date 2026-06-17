@@ -790,15 +790,17 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
     }
   };
 
-  // Handle camera captures: extract EXIF then compress before storing
+  // Handle camera captures: geolocation and EXIF are fire-and-forget fraud metadata
+  // (they update state whenever they complete). Only compression is awaited — it's
+  // the only thing that affects upload size and must finish before submission.
   const handleCameraCapture = async (file: File | null, field: 'vehicleFile' | 'seatCoverPhoto') => {
     if (!file) {
       setFormData(prev => ({ ...prev, [field]: null }));
       return;
     }
 
-    // Set the file immediately so the UI updates and validation sees a file selected.
-    // This will be replaced with the compressed version once processing finishes.
+    // Set file immediately so UI updates and validation sees a file selected.
+    // Will be replaced with the compressed version once compression finishes.
     setFormData(prev => ({ ...prev, [field]: file }));
     setProcessingCapture(true);
 
@@ -806,105 +808,81 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
       name: file.name, type: file.type, size: file.size
     });
 
-    // Await all three tasks so the submit button stays disabled until compression is done.
-    // Geolocation and EXIF run concurrently with compression for speed.
+    // 1. Geolocation — fire-and-forget using the native callback API.
+    //    IMPORTANT: never wrap in a Promise and await it. The Geolocation API's
+    //    `timeout` option only starts AFTER the user grants permission. If the user
+    //    ignores the permission prompt, a wrapped Promise hangs forever, keeping
+    //    processingCapture=true and the submit button stuck permanently.
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        console.log(`[FraudDetection] Geolocation GPS:`, position.coords.latitude, position.coords.longitude);
+        setFormData(prev => {
+          if (prev[field] !== file) return prev;
+          return {
+            ...prev,
+            exifData: {
+              ...(prev.exifData || {}),
+              lat: position.coords.latitude,
+              lng: position.coords.longitude,
+            }
+          };
+        });
+      },
+      (err) => console.warn(`[FraudDetection] Geolocation failed (user denied or unavailable):`, err),
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
+    );
+
+    // 2. EXIF extraction — fire-and-forget async IIFE.
+    //    CRITICAL: Only read the first 128KB of the file — reading a full 5-10MB photo
+    //    into an ArrayBuffer causes iOS Safari to crash (OOM) and forcibly refresh the page.
+    (async () => {
+      try {
+        const exifChunk = file.slice(0, 128 * 1024);
+        const arrayBuffer = await exifChunk.arrayBuffer();
+        const exif = await exifr.parse(arrayBuffer, {
+          gps: true, exif: true, tiff: true, mergeOutput: true,
+        });
+        console.log(`[FraudDetection] EXIF for ${field}:`, exif ? {
+          Make: exif.Make, Model: exif.Model, DateTimeOriginal: exif.DateTimeOriginal
+        } : 'NULL');
+
+        if (exif) {
+          setFormData(prev => {
+            if (prev[field] !== file) return prev;
+            const currentExif = prev.exifData || {};
+            const fieldExif = {
+              lat: currentExif.lat || exif.latitude || null,
+              lng: currentExif.lng || exif.longitude || null,
+              timestamp: exif.DateTimeOriginal || exif.CreateDate || currentExif.timestamp || null,
+              deviceMake: exif.Make || currentExif.deviceMake || null,
+              deviceModel: exif.Model || currentExif.deviceModel || null
+            };
+            return {
+              ...prev,
+              exifData: { ...fieldExif },
+              allExifData: { ...prev.allExifData, [field]: fieldExif }
+            };
+          });
+        }
+      } catch (err) {
+        console.warn(`[FraudDetection] EXIF extraction failed for ${field}:`, err);
+      }
+    })();
+
+    // 3. Compression — the only awaited operation.
+    //    processingCapture stays true until this completes (or fails), then the
+    //    submit button unlocks. Geolocation/EXIF continue in the background.
     try {
-      await Promise.all([
-        // 1. Get GPS via Geolocation API (iOS strips GPS from camera captures for privacy)
-        (async () => {
-          try {
-            const position = await new Promise<GeolocationPosition>((resolve, reject) => {
-              navigator.geolocation.getCurrentPosition(resolve, reject, {
-                enableHighAccuracy: true,
-                timeout: 5000,
-                maximumAge: 60000
-              });
-            });
-            console.log(`[FraudDetection] Geolocation GPS:`, position.coords.latitude, position.coords.longitude);
-            
-            // Only update if the user hasn't selected a different file in the meantime
-            setFormData(prev => {
-              if (prev[field] !== file) return prev;
-              return {
-                ...prev,
-                exifData: {
-                  ...(prev.exifData || {}),
-                  lat: position.coords.latitude,
-                  lng: position.coords.longitude,
-                }
-              };
-            });
-          } catch (err) {
-            console.warn(`[FraudDetection] Geolocation failed (user denied or unavailable):`, err);
-          }
-        })(),
-
-        // 2. Extract EXIF for device make/model/timestamp (GPS will be null on iOS, that's OK)
-        // CRITICAL FIX: Only read the first 128KB of the file! Reading the full 5-10MB 4K photo 
-        // into an ArrayBuffer causes iOS Safari to crash (OOM) and forcibly refresh the page.
-        (async () => {
-          try {
-            const exifChunk = file.slice(0, 128 * 1024); // 128KB is plenty for EXIF metadata headers
-            const arrayBuffer = await exifChunk.arrayBuffer();
-            const exif = await exifr.parse(arrayBuffer, {
-              gps: true, exif: true, tiff: true, mergeOutput: true,
-            });
-            console.log(`[FraudDetection] EXIF for ${field}:`, exif ? {
-              Make: exif.Make, Model: exif.Model, DateTimeOriginal: exif.DateTimeOriginal
-            } : 'NULL');
-
-            if (exif) {
-              setFormData(prev => {
-                // Only update if the user hasn't selected a different file in the meantime
-                if (prev[field] !== file) return prev;
-
-                const currentExif = prev.exifData || {};
-                const fieldExif = {
-                  lat: currentExif.lat || exif.latitude || null,
-                  lng: currentExif.lng || exif.longitude || null,
-                  timestamp: exif.DateTimeOriginal || exif.CreateDate || currentExif.timestamp || null,
-                  deviceMake: exif.Make || currentExif.deviceMake || null,
-                  deviceModel: exif.Model || currentExif.deviceModel || null
-                };
-
-                return {
-                  ...prev,
-                  exifData: {
-                    ...fieldExif
-                  },
-                  allExifData: {
-                    ...prev.allExifData,
-                    [field]: fieldExif
-                  }
-                };
-              });
-            }
-          } catch (err) {
-            console.warn(`[FraudDetection] EXIF extraction failed for ${field}:`, err);
-          }
-        })(),
-
-        // 3. Compress the image
-        (async () => {
-          let processedFile = file;
-          if (isCompressibleImage(file)) {
-            try {
-              processedFile = await compressImage(file, { maxSizeKB: 800, quality: 0.7 });
-              console.log(`[FraudDetection] Compressed ${field}: ${file.size} -> ${processedFile.size}`);
-              
-              // Only update if the user hasn't selected a different file in the meantime
-              setFormData(prev => {
-                if (prev[field] === file) {
-                  return { ...prev, [field]: processedFile };
-                }
-                return prev;
-              });
-            } catch (err) {
-              console.warn("Camera image compression failed, using original:", err);
-            }
-          }
-        })()
-      ]);
+      if (isCompressibleImage(file)) {
+        const processedFile = await compressImage(file, { maxSizeKB: 800, quality: 0.7 });
+        console.log(`[FraudDetection] Compressed ${field}: ${file.size} -> ${processedFile.size}`);
+        setFormData(prev => {
+          if (prev[field] === file) return { ...prev, [field]: processedFile };
+          return prev;
+        });
+      }
+    } catch (err) {
+      console.warn('Camera image compression failed, using original:', err);
     } finally {
       setProcessingCapture(false);
     }
