@@ -1,16 +1,14 @@
 import { TrendingUp, MapPin, ChevronRight, MessageSquare, Package } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { LoadingOverlay, EmptyState, ExportButton, exportToExcel, SyncButton } from './Common';
+import { LoadingOverlay, EmptyState, ExportButton, exportToExcel } from './Common';
 import { cn } from '@/lib/utils';
 
 interface FranchiseLeaderboardProps {
     franchises: any[];
-    onSync: () => void;
-    isSyncing?: boolean;
 }
 
-export const FranchiseLeaderboard = ({ franchises, onSync, isSyncing }: FranchiseLeaderboardProps) => {
+export const FranchiseLeaderboard = ({ franchises }: FranchiseLeaderboardProps) => {
     return (
         <Card className="rounded-[40px] border-slate-100 shadow-[0_20px_60px_rgba(0,0,0,0.03)] overflow-hidden">
             <CardHeader className="p-8 border-b border-slate-50 bg-white/50 backdrop-blur-sm">
@@ -23,10 +21,6 @@ export const FranchiseLeaderboard = ({ franchises, onSync, isSyncing }: Franchis
                         <CardDescription className="text-slate-400 text-[11px] font-bold uppercase tracking-widest mt-1">Real-time performance across all service modules</CardDescription>
                     </div>
                     <div className="flex items-center gap-4">
-                        <SyncButton 
-                            onClick={onSync}
-                            loading={isSyncing}
-                        />
                         <ExportButton 
                             onClick={() => exportToExcel(
                                 franchises?.map(f => ({

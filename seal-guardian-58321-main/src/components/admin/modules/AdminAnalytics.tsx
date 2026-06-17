@@ -137,26 +137,6 @@ export const AdminAnalytics = ({ onNavigate }: { onNavigate: (module: AdminModul
         }
     };
 
-    const handleSync = async () => {
-        try {
-            setTrendLoading(true);
-            const response = await api.post('/admin/analytics/sync');
-            if (response.data.success) {
-                // Refresh all data
-                await fetchTrendData();
-                await fetchFraudData();
-                await fetchProdData();
-                await fetchGeoData();
-                alert('Analytics synchronized successfully!');
-            }
-        } catch (error) {
-            console.error('Sync failed:', error);
-            alert('Failed to synchronize analytics.');
-        } finally {
-            setTrendLoading(false);
-        }
-    };
-
     const fetchFraudData = async () => {
         try {
             setFraudLoading(true);
@@ -378,8 +358,6 @@ export const AdminAnalytics = ({ onNavigate }: { onNavigate: (module: AdminModul
                     lineConfig={LINE_CONFIG}
                     years={YEARS}
                     months={MONTHS}
-                    onSync={handleSync}
-                    isSyncing={trendLoading}
                 />
 
                 <ProductDistributionSection
@@ -392,8 +370,6 @@ export const AdminAnalytics = ({ onNavigate }: { onNavigate: (module: AdminModul
                     products={products}
                     years={YEARS}
                     months={MONTHS}
-                    onSync={handleSync}
-                    isSyncing={trendLoading}
                 />
 
                 <GeographicSection
@@ -409,16 +385,12 @@ export const AdminAnalytics = ({ onNavigate }: { onNavigate: (module: AdminModul
                     expandedItem={expandedItem} setExpandedItem={setExpandedItem}
                     years={YEARS}
                     months={MONTHS}
-                    onSync={handleSync}
-                    isSyncing={trendLoading}
                 />
             </div>
 
             <div className="space-y-8">
                 <FranchiseLeaderboard 
                     franchises={franchises} 
-                    onSync={handleSync}
-                    isSyncing={trendLoading}
                 />
                 
                 <FraudAnalysisSection
@@ -426,8 +398,6 @@ export const AdminAnalytics = ({ onNavigate }: { onNavigate: (module: AdminModul
                     fraudFlag={fraudFlag}
                     setFraudFlag={setFraudFlag}
                     fetchFranchiseDrilldown={fetchFranchiseDrilldown}
-                    onSync={handleSync}
-                    isSyncing={trendLoading}
                 />
             </div>
 

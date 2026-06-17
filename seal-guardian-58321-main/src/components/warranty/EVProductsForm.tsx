@@ -395,7 +395,7 @@ const EVProductsForm = ({ initialData, warrantyId, onSuccess, isUniversal, isEdi
         purchaseDate: formData.installationDate,
         warrantyType: formData.warrantyType || "1 Year", // Use selected warranty type from product
         installerName: formData.storeName,
-        installerContact: `${formData.storeEmail} | ${formData.dealerMobile}`,
+        installerContact: formData.storeEmail,
         manpowerId: formData.manpowerId || null,
         productDetails: {
           product: formData.product,

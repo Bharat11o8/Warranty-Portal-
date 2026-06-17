@@ -225,6 +225,52 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
     loadFingerprint();
   }, []);
 
+  const handleProductAutoPopulate = async (returnedProductName: string) => {
+    if (!returnedProductName) return;
+    
+    // First try to find in existing products list
+    let matchedProduct = products.find(
+      p => p.name.toLowerCase().trim() === returnedProductName.toLowerCase().trim()
+    );
+
+    if (!matchedProduct) {
+      // If not found, let's re-fetch products from server
+      try {
+        const response = await api.get('/public/products');
+        if (response.data.success) {
+          const freshProducts = response.data.products.filter((p: any) => p.type === 'seat_cover');
+          setProducts(freshProducts);
+          matchedProduct = freshProducts.find(
+            (p: any) => p.name.toLowerCase().trim() === returnedProductName.toLowerCase().trim()
+          );
+        }
+      } catch (err) {
+        console.error("Failed to re-fetch products", err);
+      }
+    }
+
+    if (matchedProduct) {
+      setFormData(prev => ({
+        ...prev,
+        productName: matchedProduct.name,
+        warrantyType: matchedProduct.warranty_years
+      }));
+      toast({
+        title: "Product Auto-filled",
+        description: `Product "${matchedProduct.name}" and "${matchedProduct.warranty_years}" warranty auto-filled!`,
+      });
+    } else {
+      setFormData(prev => ({
+        ...prev,
+        productName: returnedProductName
+      }));
+      toast({
+        title: "Product Detected",
+        description: `Product "${returnedProductName}" detected. Please select it from the list or refresh the page.`,
+      });
+    }
+  };
+
   // Auto-fill store details for public QR flow
   useEffect(() => {
     if (isPublic && storeDetails) {
@@ -1222,31 +1268,49 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
                       // Validate UID on blur if it has the right length
                       const uidVal = formData.uid;
                       if (/^\d{13,16}$/.test(uidVal)) {
-                        // Skip real-time UID validation in public QR flow (no auth token)
-                        // Server validates during submission anyway
-                        if (isPublic) {
-                          setUidStatus('idle');
-                          return;
-                        }
                         setUidStatus('checking');
-                        api.get(`/uid/validate/${uidVal}`)
-                          .then(res => {
-                            const data = res.data;
-                            if (data.valid && data.available) {
-                              setUidStatus('valid');
-                              setUidMessage('UID is valid and available');
-                            } else if (data.valid && !data.available) {
-                              setUidStatus('used');
-                              setUidMessage(data.message || 'UID has already been used');
-                            } else {
-                              setUidStatus('invalid');
-                              setUidMessage(data.message || 'UID not found in the system');
-                            }
-                          })
-                          .catch(() => {
-                            setUidStatus('idle');
-                            setUidMessage('');
-                          });
+                        if (isPublic) {
+                          api.get(`/public/warranty/check-uid?uid=${uidVal}`)
+                            .then(res => {
+                              const data = res.data;
+                              if (data.valid) {
+                                setUidStatus('valid');
+                                setUidMessage('UID is valid and available');
+                                if (data.productName) {
+                                  handleProductAutoPopulate(data.productName);
+                                }
+                              } else {
+                                setUidStatus('invalid');
+                                setUidMessage(data.reason || 'UID not valid');
+                              }
+                            })
+                            .catch(() => {
+                              setUidStatus('idle');
+                              setUidMessage('');
+                            });
+                        } else {
+                          api.get(`/uid/validate/${uidVal}`)
+                            .then(res => {
+                              const data = res.data;
+                              if (data.valid && data.available) {
+                                setUidStatus('valid');
+                                setUidMessage('UID is valid and available');
+                                if (data.productName) {
+                                  handleProductAutoPopulate(data.productName);
+                                }
+                              } else if (data.valid && !data.available) {
+                                setUidStatus('used');
+                                setUidMessage(data.message || 'UID has already been used');
+                              } else {
+                                setUidStatus('invalid');
+                                setUidMessage(data.message || 'UID not found in the system');
+                              }
+                            })
+                            .catch(() => {
+                              setUidStatus('idle');
+                              setUidMessage('');
+                            });
+                        }
                       }
                     }}
                     required

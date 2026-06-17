@@ -4,8 +4,8 @@ import { authenticateToken, requireRole } from '../middleware/auth.js';
 
 const router = Router();
 
-// All analytics routes require admin authentication
-const adminAuth = [authenticateToken, requireRole('admin')];
+// All analytics routes require admin authentication and auto-synchronization
+const adminAuth = [authenticateToken, requireRole('admin'), AnalyticsController.autoSyncMiddleware];
 
 router.get('/summary', ...adminAuth, AnalyticsController.getSummaryStats);
 router.get('/time-series', ...adminAuth, AnalyticsController.getTimeSeriesData);

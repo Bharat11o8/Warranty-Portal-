@@ -2,7 +2,7 @@ import { ShieldAlert } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { ModernSelect } from './ModernSelect';
-import { LoadingOverlay, EmptyState, ExportButton, exportToExcel, SyncButton } from './Common';
+import { LoadingOverlay, EmptyState, ExportButton, exportToExcel } from './Common';
 import { cn } from '@/lib/utils';
 
 interface FraudAnalysisSectionProps {
@@ -10,17 +10,13 @@ interface FraudAnalysisSectionProps {
     fraudFlag: string;
     setFraudFlag: (val: string) => void;
     fetchFranchiseDrilldown: (name: string) => void;
-    onSync: () => void;
-    isSyncing?: boolean;
 }
 
 export const FraudAnalysisSection = ({ 
     fraudData, 
     fraudFlag, 
     setFraudFlag, 
-    fetchFranchiseDrilldown,
-    onSync,
-    isSyncing
+    fetchFranchiseDrilldown
 }: FraudAnalysisSectionProps) => {
     return (
         <Card className="rounded-[40px] border-red-50 bg-red-50/5 shadow-[0_15px_40px_rgba(239,68,68,0.03)] overflow-hidden">
@@ -46,10 +42,6 @@ export const FraudAnalysisSection = ({
                                 { value: 'time', label: 'Time/Speed Abuse' },
                                 { value: 'consistency', label: 'Consistency Flags' }
                             ]}
-                        />
-                        <SyncButton 
-                            onClick={onSync}
-                            loading={isSyncing}
                         />
                         <ExportButton 
                             onClick={() => {
