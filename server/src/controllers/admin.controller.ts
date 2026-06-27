@@ -160,10 +160,19 @@ export class AdminController {
         }
     }
 
-    static async getAllVendors(_req: Request, res: Response) {
+    static async getAllVendors(req: Request, res: Response) {
         try {
+            const { startDate, endDate, dateField } = req.query as { startDate?: string; endDate?: string; dateField?: string };
+            const hasRange = Boolean(startDate && endDate);
+            const rangeColumn = dateField === 'purchase_date' ? 'wr.purchase_date' : 'wr.created_at';
+
+            const rangeWarrantyJoin = hasRange
+                ? `AND ${rangeColumn} BETWEEN ? AND ?`
+                : '';
+            const rangeParams = hasRange ? [`${startDate} 00:00:00`, `${endDate} 23:59:59`] : [];
+
             const query = `
-                SELECT 
+                SELECT
                     p.id,
                     p.name as contact_name,
                     p.email,
@@ -181,29 +190,56 @@ export class AdminController {
                     vv.verified_at,
                     (SELECT COUNT(*) FROM manpower WHERE vendor_id = vd.id) as manpower_count,
                     (SELECT GROUP_CONCAT(name SEPARATOR ', ') FROM manpower WHERE vendor_id = vd.id) as manpower_names,
-                    (SELECT COUNT(*) FROM warranty_registrations wr 
+                    (SELECT COUNT(*) FROM warranty_registrations wr
                      WHERE (wr.manpower_id IN (SELECT id FROM manpower WHERE vendor_id = vd.id)
                         OR (wr.installer_name = vd.store_name AND wr.installer_contact = vd.store_email)
                         OR wr.user_id = p.id)
                     ) as total_warranties,
-                    (SELECT COUNT(*) FROM warranty_registrations wr 
+                    (SELECT COUNT(*) FROM warranty_registrations wr
                      WHERE (wr.manpower_id IN (SELECT id FROM manpower WHERE vendor_id = vd.id)
                         OR (wr.installer_name = vd.store_name AND wr.installer_contact = vd.store_email)
                         OR wr.user_id = p.id)
                      AND wr.status = 'validated'
                     ) as validated_warranties,
-                     (SELECT COUNT(*) FROM warranty_registrations wr 
+                     (SELECT COUNT(*) FROM warranty_registrations wr
                       WHERE (wr.manpower_id IN (SELECT id FROM manpower WHERE vendor_id = vd.id)
                         OR (wr.installer_name = vd.store_name AND wr.installer_contact = vd.store_email)
                         OR wr.user_id = p.id)
                       AND wr.status IN ('pending', 'pending_vendor')
                      ) as pending_warranties,
-                    (SELECT COUNT(*) FROM warranty_registrations wr 
+                    (SELECT COUNT(*) FROM warranty_registrations wr
                      WHERE (wr.manpower_id IN (SELECT id FROM manpower WHERE vendor_id = vd.id)
                         OR (wr.installer_name = vd.store_name AND wr.installer_contact = vd.store_email)
                         OR wr.user_id = p.id)
                      AND wr.status = 'rejected'
-                    ) as rejected_warranties
+                    ) as rejected_warranties,
+                    (SELECT COUNT(*) FROM warranty_registrations wr
+                     WHERE (wr.manpower_id IN (SELECT id FROM manpower WHERE vendor_id = vd.id)
+                        OR (wr.installer_name = vd.store_name AND wr.installer_contact = vd.store_email)
+                        OR wr.user_id = p.id)
+                     ${rangeWarrantyJoin}
+                    ) as range_total_warranties,
+                    (SELECT COUNT(*) FROM warranty_registrations wr
+                     WHERE (wr.manpower_id IN (SELECT id FROM manpower WHERE vendor_id = vd.id)
+                        OR (wr.installer_name = vd.store_name AND wr.installer_contact = vd.store_email)
+                        OR wr.user_id = p.id)
+                     AND wr.status = 'validated'
+                     ${rangeWarrantyJoin}
+                    ) as range_validated_warranties,
+                    (SELECT COUNT(*) FROM warranty_registrations wr
+                     WHERE (wr.manpower_id IN (SELECT id FROM manpower WHERE vendor_id = vd.id)
+                        OR (wr.installer_name = vd.store_name AND wr.installer_contact = vd.store_email)
+                        OR wr.user_id = p.id)
+                     AND wr.status IN ('pending', 'pending_vendor')
+                     ${rangeWarrantyJoin}
+                    ) as range_pending_warranties,
+                    (SELECT COUNT(*) FROM warranty_registrations wr
+                     WHERE (wr.manpower_id IN (SELECT id FROM manpower WHERE vendor_id = vd.id)
+                        OR (wr.installer_name = vd.store_name AND wr.installer_contact = vd.store_email)
+                        OR wr.user_id = p.id)
+                     AND wr.status = 'rejected'
+                     ${rangeWarrantyJoin}
+                    ) as range_rejected_warranties
                 FROM profiles p
                 JOIN user_roles ur ON p.id = ur.user_id
                 LEFT JOIN vendor_details vd ON p.id = vd.user_id
@@ -212,7 +248,8 @@ export class AdminController {
                 ORDER BY p.created_at DESC
             `;
 
-            const [vendorsList]: any = await db.execute(query);
+            const queryParams = hasRange ? [...rangeParams, ...rangeParams, ...rangeParams, ...rangeParams] : [];
+            const [vendorsList]: any = await db.execute(query, queryParams);
 
             console.log(`[Admin] Fetched ${vendorsList.length} vendors`);
 
