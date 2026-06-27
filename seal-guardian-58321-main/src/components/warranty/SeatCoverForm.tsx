@@ -1518,7 +1518,7 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
                 type="submit"
                 size="lg"
                 className="w-full text-lg h-12 shadow-orange-200 shadow-lg hover:shadow-xl transition-all"
-                disabled={loading || processingCapture || !formData.termsAccepted}
+                disabled={loading || processingCapture || !formData.termsAccepted || (!warrantyId && (!formData.invoiceFile || !formData.vehicleFile || !formData.seatCoverPhoto))}
               >
                 {loading ? (
                   <>
