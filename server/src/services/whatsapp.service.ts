@@ -199,15 +199,26 @@ export class WhatsAppService {
         // Reset kill-switch for this new broadcast run
         this.broadcastAborted = false;
 
-        // Sanitise inputs ─ same rules as sendTemplateMessage body sanitisation
-        const sanitise = (val: string) =>
+        // Sanitise the title (single-line field — strip newlines)
+        const sanitiseTitle = (val: string) =>
             String(val)
                 .replace(/[\t\r\n\u00A0\u2000-\u200B\u202F\u205F\u3000]+/g, ' ')
                 .replace(/ {3,}/g, '  ')
                 .trim();
 
-        const cleanTitle   = sanitise(title);
-        const rawMessage   = sanitise(message);
+        // Sanitise the body — PRESERVE \n so multi-line messages keep their formatting.
+        // Only strip: \r (Windows line endings), unusual Unicode spaces, and 3+ consecutive blank lines.
+        const sanitiseBody = (val: string) =>
+            String(val)
+                .replace(/\r\n/g, '\n')              // normalise Windows CRLF → LF
+                .replace(/\r/g, '\n')                // stray \r → \n
+                .replace(/[\t\u00A0\u2000-\u200B\u202F\u205F\u3000]+/g, ' ') // unusual spaces/tabs → space
+                .replace(/ {3,}/g, '  ')             // 3+ consecutive spaces → 2 spaces
+                .replace(/\n{4,}/g, '\n\n\n')        // collapse 4+ blank lines to 3
+                .trim();
+
+        const cleanTitle   = sanitiseTitle(title);
+        const rawMessage   = sanitiseBody(message);
         const cleanMessage = rawMessage.length > MAX_MESSAGE_LENGTH
             ? rawMessage.substring(0, MAX_MESSAGE_LENGTH - 1) + '\u2026'  // …
             : rawMessage;
