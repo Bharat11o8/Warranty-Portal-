@@ -100,7 +100,7 @@ export const AdminVendors = () => {
                 allowed_brands: brand,
                 target: 'franchise'
             });
-            // Update local state directly â€” no re-fetch needed
+            // Update local state directly — no re-fetch needed
             setVendors(prev => prev.map(v =>
                 v.id === vendor.id ? { ...v, franchise_allowed_brands: brand } : v
             ));
@@ -455,7 +455,7 @@ export const AdminVendors = () => {
                                     <Button variant="outline" className="flex-1 sm:flex-none flex items-center gap-2 border-orange-100 h-11 sm:h-10">
                                         <ArrowUpDown className="h-4 w-4 text-orange-500" />
                                         {sortField === 'store_name' ? 'Name' : sortField === 'total_warranties' ? 'Stats' : sortField === 'city' ? 'Location' : sortField === 'status' ? 'Status' : 'Date'}
-                                        {sortOrder === 'asc' ? 'â†‘' : 'â†“'}
+                                        {sortOrder === 'asc' ? '↑' : '↓'}
                                     </Button>
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent className="rounded-2xl border-orange-100 shadow-xl p-2 w-48">
@@ -530,7 +530,7 @@ export const AdminVendors = () => {
                                 {leaderboardMode ? (
                                     <>
                                         <CalendarRange className="h-3.5 w-3.5" />
-                                        Ranked by {filter === 'all' ? 'total' : filter === 'disapproved' ? 'rejected' : filter} warranties ({dateField === 'purchase_date' ? 'purchase date' : 'registered date'}), {new Date(startDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })} â€“ {new Date(endDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+                                        Ranked by {filter === 'all' ? 'total' : filter === 'disapproved' ? 'rejected' : filter} warranties ({dateField === 'purchase_date' ? 'purchase date' : 'registered date'}), {new Date(startDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })} – {new Date(endDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
                                     </>
                                 ) : "Manage your network partners"}
                             </CardDescription>
