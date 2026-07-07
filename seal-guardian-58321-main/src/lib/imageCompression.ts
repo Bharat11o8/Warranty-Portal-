@@ -32,12 +32,9 @@ export const compressImage = async (
     const opts = { ...DEFAULT_OPTIONS, ...options };
     const isHeic = /\.(heic|heif)$/i.test(file.name) || /^image\/hei[cf]$/i.test(file.type);
 
-    // Skip if already small enough (under target size) â€” but HEIC files always need
+    // Skip if already small enough (under target size) — but HEIC files always need
     // format conversion regardless of size, so never skip those.
     if (!isHeic && file.size <= (opts.maxSizeKB || 1024) * 1024) {
-=======
-    // Skip if already small enough (under 500KB â€” no meaningful compression possible)
-    if (file.size <= 500 * 1024) {
         console.log(`[ImageCompression] File ${file.name} already small (${(file.size / 1024).toFixed(0)}KB), skipping`);
         return file;
     }

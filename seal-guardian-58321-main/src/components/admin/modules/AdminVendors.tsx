@@ -598,6 +598,170 @@ export const AdminVendors = () => {
                                                         />
                                                     </div>
                                                 )}
+                                                {!leaderboardMode && !vendor.is_verified && (
+                                                    <div className="flex gap-2">
+                                                        <Button
+                                                            size="icon"
+                                                            className="h-10 w-10 bg-green-500 text-white rounded-xl shadow-sm"
+                                                            onClick={() => handleVendorVerification(vendor.id, true)}
+                                                        >
+                                                            <Check className="h-5 w-5" />
+                                                        </Button>
+                                                        <Button
+                                                            size="icon"
+                                                            variant="destructive"
+                                                            className="h-10 w-10 rounded-xl shadow-sm"
+                                                            onClick={() => {
+                                                                setSelectedVendor(vendor);
+                                                                setRejectDialogOpen(true);
+                                                            }}
+                                                        >
+                                                            <X className="h-5 w-5" />
+                                                        </Button>
+                                                    </div>
+                                                )}
+
+                                            </div>
+                                        </div>
+
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div className="space-y-1">
+                                                <div className="text-[10px] uppercase tracking-wider text-slate-400 font-bold">Contact</div>
+                                                <div className="text-sm font-medium text-slate-700">{vendor.contact_name}</div>
+                                                <div className="text-[11px] text-slate-500 flex items-center gap-1">
+                                                    <Phone className="h-3 w-3" /> {vendor.phone_number}
+                                                </div>
+                                            </div>
+                                            <div className="space-y-1 text-right">
+                                                <div className="text-[10px] uppercase tracking-wider text-slate-400 font-bold">Location</div>
+                                                <div className="text-sm font-medium text-slate-700">{vendor.city}</div>
+                                                <div className="text-[11px] text-slate-500 truncate">{vendor.state}</div>
+                                                {(vendor.latitude || vendor.longitude) && (
+                                                    <div className="text-[9px] text-slate-400">Lat: {vendor.latitude || 'N/A'}, Lng: {vendor.longitude || 'N/A'}</div>
+                                                )}
+                                            </div>
+                                        </div>
+
+                                        <div className="flex items-center justify-between pt-2 border-t border-orange-50">
+                                            <div className="space-y-1">
+                                                <div className="text-[10px] uppercase tracking-wider text-slate-400 font-bold">Status</div>
+                                                {leaderboardMode ? (
+                                                    <Badge variant="outline" className="bg-slate-50 text-slate-600 border-slate-200">In Range</Badge>
+                                                ) : vendor.is_verified ? (
+                                                    <Badge className="bg-green-100 text-green-700 hover:bg-green-100 border-green-200">Active</Badge>
+                                                ) : vendor.verified_at ? (
+                                                    <Badge variant="destructive" className="bg-red-100 text-red-700 hover:bg-red-100 border-red-200">Rejected</Badge>
+                                                ) : (
+                                                    <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100 border-amber-200">Pending</Badge>
+                                                )}
+                                            </div>
+                                            <div className="flex gap-4">
+                                                <div className="text-center">
+                                                    <div className="text-green-600 font-bold text-sm">{leaderboardMode ? (vendor.range_validated_warranties || 0) : (vendor.validated_warranties || 0)}</div>
+                                                    <div className="text-[8px] uppercase tracking-tighter text-slate-400">Approved</div>
+                                                </div>
+                                                <div className="text-center">
+                                                    <div className="text-slate-700 font-bold text-sm">{leaderboardMode ? (vendor.range_total_warranties || 0) : (vendor.total_warranties || 0)}</div>
+                                                    <div className="text-[8px] uppercase tracking-tighter text-slate-400">Total</div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+
+                            {/* Desktop View: Table */}
+                            <table className="w-full text-sm text-left hidden md:table">
+                                <thead className="bg-slate-50 text-slate-500 font-medium border-b border-slate-100">
+                                    <tr>
+                                        {leaderboardMode && <th className="px-6 py-4 text-center">Rank</th>}
+                                        <th className="px-6 py-4">Store Details</th>
+                                        <th className="px-6 py-4">Contact</th>
+                                        <th className="px-6 py-4">Location</th>
+                                        {!leaderboardMode && <th className="px-6 py-4 text-center">Status</th>}
+                                        <th className="px-6 py-4 text-center">Stats</th>
+                                        {!leaderboardMode && <th className="px-6 py-4 text-right">Actions</th>}
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100">
+                                    {paginatedVendors.map((vendor, index) => (
+                                        <tr key={vendor.id} className="hover:bg-orange-50/50 transition-colors group cursor-pointer" onClick={() => handleViewVendor(vendor)}>
+                                            {leaderboardMode && (
+                                                <td className="px-6 py-4 text-center">
+                                                    <span className={`inline-flex items-center justify-center h-7 w-7 rounded-full font-bold text-xs ${startIndex + index === 0 ? "bg-orange-100 text-orange-700" : startIndex + index === 1 ? "bg-slate-200 text-slate-700" : startIndex + index === 2 ? "bg-amber-100 text-amber-800" : "bg-slate-50 text-slate-500"}`}>
+                                                        {startIndex + index + 1}
+                                                    </span>
+                                                </td>
+                                            )}
+                                            <td className="px-6 py-4">
+                                                <div className="flex items-center gap-2">
+                                                    <span className="font-bold text-slate-800 group-hover:text-orange-600 transition-colors">{vendor.store_name}</span>
+                                                    {(vendor.franchise_allowed_brands || 'AF') === 'AFAC' ? (
+                                                        <Badge className="bg-purple-100 text-purple-700 border-purple-200 text-[10px] px-2 py-0.5 font-bold whitespace-nowrap">AF+AC</Badge>
+                                                    ) : (vendor.franchise_allowed_brands || 'AF') === 'AC' ? (
+                                                        <Badge className="bg-blue-100 text-blue-700 border-blue-200 text-[10px] px-2 py-0.5 font-bold whitespace-nowrap">AC</Badge>
+                                                    ) : (
+                                                        <Badge className="bg-orange-100 text-orange-700 border-orange-200 text-[10px] px-2 py-0.5 font-bold whitespace-nowrap">AF</Badge>
+                                                    )}
+                                                </div>
+                                                <div className="text-xs text-slate-500 flex items-center gap-1 mt-1">
+                                                    <Mail className="h-3 w-3" /> {vendor.store_email}
+                                                </div>
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                <div className="font-medium text-slate-700">{vendor.contact_name}</div>
+                                                <div className="text-xs text-slate-500 flex items-center gap-1 mt-1">
+                                                    <Phone className="h-3 w-3" /> {vendor.phone_number}
+                                                </div>
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                <div className="flex items-center gap-1 text-slate-700">
+                                                    <MapPin className="h-3.5 w-3.5 text-slate-400" />
+                                                    {vendor.city}
+                                                </div>
+                                                <div className="text-xs text-slate-400 ml-4.5">{vendor.state}</div>
+                                                {(vendor.latitude || vendor.longitude) && (
+                                                    <div className="text-[10px] text-slate-400 ml-4.5 mt-0.5">Lat: {vendor.latitude || 'N/A'}, Lng: {vendor.longitude || 'N/A'}</div>
+                                                )}
+                                            </td>
+                                            {!leaderboardMode && (
+                                                <td className="px-6 py-4 text-center">
+                                                    {vendor.is_verified ? (
+                                                        <Badge className="bg-green-100 text-green-700 hover:bg-green-100 border-green-200">Active</Badge>
+                                                    ) : vendor.verified_at ? (
+                                                        <Badge variant="destructive" className="bg-red-100 text-red-700 hover:bg-red-100 border-red-200">Rejected</Badge>
+                                                    ) : (
+                                                        <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100 border-amber-200">Pending</Badge>
+                                                    )}
+                                                </td>
+                                            )}
+                                            <td className="px-6 py-4">
+                                                <div className="flex justify-center gap-3 text-xs font-medium">
+                                                    <div className="text-center">
+                                                        <div className="text-green-600">{leaderboardMode ? (vendor.range_validated_warranties || 0) : (vendor.validated_warranties || 0)}</div>
+                                                        <div className="text-[10px] text-slate-400">Approved</div>
+                                                    </div>
+                                                    <div className="text-center">
+                                                        <div className="text-red-600">{leaderboardMode ? (vendor.range_rejected_warranties || 0) : (vendor.rejected_warranties || 0)}</div>
+                                                        <div className="text-[10px] text-slate-400">Rejected</div>
+                                                    </div>
+                                                    <div className="text-center">
+                                                        <div className="text-amber-600">{leaderboardMode ? (vendor.range_pending_warranties || 0) : (vendor.pending_warranties || 0)}</div>
+                                                        <div className="text-[10px] text-slate-400">Pending</div>
+                                                    </div>
+                                                    <div className="text-center">
+                                                        <div className="text-slate-700">{leaderboardMode ? (vendor.range_total_warranties || 0) : (vendor.total_warranties || 0)}</div>
+                                                        <div className="text-[10px] text-slate-400">Total</div>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            {!leaderboardMode && (
+                                                <td className="px-6 py-4 text-right" onClick={(e) => e.stopPropagation()}>
+                                                    <div className="flex justify-end items-center gap-4">
+                                                        {/* Activate/Deactivate Toggle - only for verified vendors */}
+                                                        {vendor.is_verified && (
+                                                            <div className="flex items-center gap-2 px-1" title={vendor.is_active ? "Deactivate Store" : "Activate Store"}>
+                                                                <span className="text-xs font-bold text-slate-500">Active</span>
                                                                 <Switch
                                                                     checked={vendor.is_active}
                                                                     onCheckedChange={(checked) => handleVendorActivation(vendor.id, checked)}
