@@ -12,17 +12,19 @@ import api from "@/lib/api";
 import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { QRCodeSVG } from "qrcode.react";
+import { useB2BCart } from "@/contexts/B2BCartContext";
 
 const QR_BASE_URL = "https://warranty2.autoformindia.co.in";
 
 const Profile = ({ embedded }: { embedded?: boolean }) => {
     const { user, loading, refreshUser } = useAuth();
     const { toast } = useToast();
+    const { isDistributor, isFranchise } = useB2BCart();
     const [name, setName] = useState(user?.name || "");
     const [email, setEmail] = useState(user?.email || "");
     const [phoneNumber, setPhoneNumber] = useState(user?.phoneNumber || "");
     const [saving, setSaving] = useState(false);
-    const [vendorDetails, setVendorDetails] = useState<{ store_code?: string; store_name?: string } | null>(null);
+    const [vendorDetails, setVendorDetails] = useState<{ store_code?: string; store_name?: string; allowed_brands?: string } | null>(null);
 
     // Fetch vendor details for QR code
     useEffect(() => {
@@ -55,9 +57,15 @@ const Profile = ({ embedded }: { embedded?: boolean }) => {
                     color: "from-accent/20 to-accent/10",
                 };
             case "vendor":
+                let vendorLabel = "Franchise";
+                if (isDistributor && isFranchise) {
+                    vendorLabel = "Distributor / Franchise";
+                } else if (isDistributor) {
+                    vendorLabel = "Distributor";
+                }
                 return {
                     icon: Store,
-                    label: "Franchise",
+                    label: vendorLabel,
                     badgeVariant: "secondary" as const,
                     color: "from-secondary/20 to-secondary/10",
                 };
@@ -217,10 +225,25 @@ const Profile = ({ embedded }: { embedded?: boolean }) => {
                                 <CardDescription>Update your personal information</CardDescription>
                             </div>
                         </div>
-                        <Badge variant={roleConfig.badgeVariant} className="w-fit">
-                            <RoleIcon className="mr-1 h-3 w-3" />
-                            {roleConfig.label}
-                        </Badge>
+                        <div className="flex flex-wrap items-center gap-2">
+                            <Badge variant={roleConfig.badgeVariant} className="w-fit">
+                                <RoleIcon className="mr-1 h-3 w-3" />
+                                {roleConfig.label}
+                            </Badge>
+                            {user.role === 'vendor' && vendorDetails?.allowed_brands && (
+                                <Badge className={
+                                    vendorDetails.allowed_brands === 'AFAC'
+                                        ? 'bg-purple-100 text-purple-700 border-purple-200 hover:bg-purple-100'
+                                        : vendorDetails.allowed_brands === 'AC'
+                                        ? 'bg-blue-100 text-blue-700 border-blue-200 hover:bg-blue-100'
+                                        : 'bg-orange-100 text-orange-700 border-orange-200 hover:bg-orange-100'
+                                }>
+                                    {vendorDetails.allowed_brands === 'AF' ? 'Autoform (AF)'
+                                        : vendorDetails.allowed_brands === 'AC' ? 'Autocruze (AC)'
+                                        : 'AFAC'}
+                                </Badge>
+                            )}
+                        </div>
                     </CardHeader>
                     <CardContent>
                         <form onSubmit={handleSave} className="space-y-6">
@@ -295,7 +318,12 @@ const Profile = ({ embedded }: { embedded?: boolean }) => {
 
                             {user.role === 'vendor' ? (
                                 <div className="p-4 mt-6 bg-orange-50/50 border border-orange-200 rounded-xl text-orange-800 text-sm text-center font-medium">
-                                    Franchise profile details can only be updated by administrators. If you need to make changes, please contact support.
+                                    {isDistributor && isFranchise
+                                        ? "Distributor/Franchise"
+                                        : isDistributor
+                                        ? "Distributor"
+                                        : "Franchise"}{" "}
+                                    profile details can only be updated by administrators. If you need to make changes, please contact support.
                                 </div>
                             ) : (
                                 <Button type="submit" className="w-full h-12 rounded-xl bg-orange-600 hover:bg-orange-700 font-bold" disabled={saving}>

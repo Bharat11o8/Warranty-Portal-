@@ -9,6 +9,7 @@ import { NotificationService } from '../services/notification.service.js';
 import { WhatsAppService } from '../services/whatsapp.service.js';
 import { geolocateIP, getClientIP } from '../utils/ipGeolocation.js';
 import { calculateFraudScore } from '../utils/fraudScoring.js';
+import { matchFallbackUidSequence, resolveFallbackUid } from '../utils/customerMobileLimits.js';
 
 
 // Extending WarrantyData interface locally if not updated in types file yet
@@ -135,7 +136,32 @@ export class WarrantyController {
         }
       }
 
-      const uid = warrantyData.productDetails.uid || null;
+      let uid = warrantyData.productDetails.uid || null;
+      let isCustomerAddedUid = false;
+
+      // If the UID matches the fallback pattern (customer mobile + current
+      // year), resolve it to the next unused sequence for this mobile before
+      // any resubmission/duplicate checks run — otherwise a repeat customer
+      // re-entering the same base value would collide with their own prior
+      // (already-approved) warranty instead of getting a fresh UID.
+      if (warrantyData.productType === 'seat-cover' && uid) {
+        const currentYear = new Date().getFullYear();
+        const isFallbackPattern = matchFallbackUidSequence(uid, warrantyData.customerPhone, currentYear) !== null;
+
+        if (isFallbackPattern) {
+          const resolved = await resolveFallbackUid(uid, warrantyData.customerPhone, currentYear);
+
+          if (!resolved) {
+            return res.status(400).json({
+              error: 'This mobile number has no remaining warranty submissions allowed. Please contact admin to raise the limit.'
+            });
+          }
+
+          uid = resolved.uid;
+          warrantyData.productDetails.uid = resolved.uid;
+          isCustomerAddedUid = true;
+        }
+      }
 
       // ===== UID Pre-Validation for Seat Covers =====
       // --- RESUBMISSION DETECTION (must run BEFORE is_used check) ---
@@ -243,7 +269,8 @@ export class WarrantyController {
 
       // Check if the UID exists in the pre_generated_uids table and is available
       // SKIP this check for resubmissions (UID was already validated on original submission)
-      if (warrantyData.productType === 'seat-cover' && uid && !isResubmission) {
+      // SKIP for customer-added fallback UIDs (already resolved to a fresh, unused sequence above)
+      if (warrantyData.productType === 'seat-cover' && uid && !isResubmission && !isCustomerAddedUid) {
         const [uidRows]: any = await db.execute(
           'SELECT uid, is_used FROM pre_generated_uids WHERE uid = ?',
           [uid]
@@ -251,7 +278,7 @@ export class WarrantyController {
 
         if (uidRows.length === 0) {
           return res.status(400).json({
-            error: 'Invalid UID. This UID does not exist in our system. Please check the UID on your product packaging.'
+            error: 'Invalid UID. This UID does not exist in our system. Please check the UID on your product packaging, or enter your mobile number followed by the current year if the UID is missing/unreadable.'
           });
         }
 
@@ -498,6 +525,16 @@ export class WarrantyController {
       }
 
       // UID is checked but NOT marked as used until Admin approves it.
+
+      // Register customer-added fallback UID so it shows up in UID Management
+      // and so the admin-approval flow (which only UPDATEs pre_generated_uids)
+      // has a row to flip is_used on.
+      if (isCustomerAddedUid) {
+        await db.execute(
+          'INSERT INTO pre_generated_uids (uid, is_used, source) VALUES (?, FALSE, ?) ON DUPLICATE KEY UPDATE source = source',
+          [warrantyId, 'customer_added']
+        );
+      }
 
       // ── Franchise Verify Notification (pending_vendor only) ────────────────
       if (initialStatus === 'pending_vendor' && warrantyData.installerContact) {

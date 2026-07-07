@@ -3,6 +3,7 @@ import { cn } from "@/lib/utils";
 import { HelpPopover } from "./HelpPopover";
 import { Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useB2BCart } from "@/contexts/B2BCartContext";
 
 interface ModuleLayoutProps {
     title: string;
@@ -16,6 +17,16 @@ interface ModuleLayoutProps {
 }
 
 export const ModuleLayout = ({ title, description, children, actions, onNavigate, onMenuToggle }: ModuleLayoutProps) => {
+    const { isDistributor, isFranchise } = useB2BCart();
+
+    // Determine the role title dynamically
+    let roleText = "Franchise";
+    if (isDistributor && isFranchise) {
+        roleText = "Distributor / Franchise";
+    } else if (isDistributor) {
+        roleText = "Distributor";
+    }
+
     return (
         <div className="flex-1 min-h-0 flex flex-col min-w-0 relative bg-[#fffaf5]">
             <main
@@ -40,7 +51,7 @@ export const ModuleLayout = ({ title, description, children, actions, onNavigate
                                         </Button>
                                         <div className="flex flex-col">
                                             <h1 className="font-black tracking-tighter sm:tracking-tight leading-[0.95] text-lg sm:text-2xl md:text-4xl lg:text-5xl flex flex-col md:flex-row md:items-center">
-                                                <span className="bg-gradient-to-r from-slate-800 to-slate-900 bg-clip-text text-transparent uppercase">Franchise</span>
+                                                <span className="bg-gradient-to-r from-slate-800 to-slate-900 bg-clip-text text-transparent uppercase">{roleText}</span>
                                                 <span className="bg-gradient-to-r from-orange-500 to-orange-600 bg-clip-text text-transparent md:ml-3 uppercase">Dashboard</span>
                                             </h1>
                                             <p className="md:hidden text-[8px] font-black text-slate-400 uppercase tracking-[0.2em] mt-1 leading-none opacity-80">

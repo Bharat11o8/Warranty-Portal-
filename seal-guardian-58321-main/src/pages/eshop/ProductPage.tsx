@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { fetchProductById, getRelatedProducts, getCategory, Product, Category } from '@/lib/catalogService';
+import { useAuth } from '@/contexts/AuthContext';
 
 import ProductBreadcrumbs from '@/components/product/ProductBreadcrumbs';
 import ProductImageGallery from '@/components/product/ProductImageGallery';
@@ -21,6 +22,7 @@ const ProductPage: React.FC<ProductPageProps> = ({ productId: propProductId, emb
   const { productId: paramsProductId } = useParams<{ productId: string }>();
   const productId = propProductId || paramsProductId;
 
+  const { user } = useAuth();
   const navigate = useNavigate();
   const [product, setProduct] = useState<Product | null>(null);
   const [relatedProducts, setRelatedProducts] = useState<Product[]>([]);
@@ -150,44 +152,46 @@ const ProductPage: React.FC<ProductPageProps> = ({ productId: propProductId, emb
             </div>
 
             {/* Price display updated for variations */}
-            <div className="mb-8">
-              {selectedVariation ? (
-                <div className="flex items-baseline gap-2">
-                  <span className="text-[10px] font-black uppercase text-gray-400 tracking-widest">Price</span>
-                  <p className="text-2xl md:text-3xl font-black text-brand-orange">
-                    ₹{Number(selectedVariation.price).toLocaleString()}{' '}
-                    {showPriceOnward && (
-                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider align-middle ml-2">From</span>
-                    )}
-                  </p>
-                </div>
-              ) : typeof product.price === 'number' ? (
-                <div className="flex items-baseline gap-2">
-                  <span className="text-[10px] font-black uppercase text-gray-400 tracking-widest">Price</span>
-                  <p className="text-2xl md:text-3xl font-black text-brand-orange">
-                    ₹{Number(product.price).toLocaleString()}{' '}
-                    {showPriceOnward && (
-                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider align-middle ml-2">From</span>
-                    )}
-                  </p>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  <div className="flex items-center gap-4 bg-gray-50 p-4 rounded-2xl border border-gray-100">
-                    <span className="text-[10px] font-black uppercase text-gray-400 tracking-widest min-w-[60px]">2 Row</span>
-                    <p className="text-xl md:text-2xl font-black text-brand-orange">
-                      ₹{Number(product.price.twoRow).toLocaleString()}
+            {user?.role !== 'vendor' && (
+              <div className="mb-8">
+                {selectedVariation ? (
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-[10px] font-black uppercase text-gray-400 tracking-widest">Price</span>
+                    <p className="text-2xl md:text-3xl font-black text-brand-orange">
+                      ₹{Number(selectedVariation.price).toLocaleString()}{' '}
+                      {showPriceOnward && (
+                        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider align-middle ml-2">From</span>
+                      )}
                     </p>
                   </div>
-                  <div className="flex items-center gap-4 bg-gray-50 p-4 rounded-2xl border border-gray-100">
-                    <span className="text-[10px] font-black uppercase text-gray-400 tracking-widest min-w-[60px]">3 Row</span>
-                    <p className="text-xl md:text-2xl font-black text-brand-orange">
-                      ₹{Number(product.price.threeRow).toLocaleString()}
+                ) : typeof product.price === 'number' ? (
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-[10px] font-black uppercase text-gray-400 tracking-widest">Price</span>
+                    <p className="text-2xl md:text-3xl font-black text-brand-orange">
+                      ₹{Number(product.price).toLocaleString()}{' '}
+                      {showPriceOnward && (
+                        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider align-middle ml-2">From</span>
+                      )}
                     </p>
                   </div>
-                </div>
-              )}
-            </div>
+                ) : (
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-4 bg-gray-50 p-4 rounded-2xl border border-gray-100">
+                      <span className="text-[10px] font-black uppercase text-gray-400 tracking-widest min-w-[60px]">2 Row</span>
+                      <p className="text-xl md:text-2xl font-black text-brand-orange">
+                        ₹{Number(product.price.twoRow).toLocaleString()}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-4 bg-gray-50 p-4 rounded-2xl border border-gray-100">
+                      <span className="text-[10px] font-black uppercase text-gray-400 tracking-widest min-w-[60px]">3 Row</span>
+                      <p className="text-xl md:text-2xl font-black text-brand-orange">
+                        ₹{Number(product.price.threeRow).toLocaleString()}
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Variation Selector */}
             {product.variations && product.variations.length > 0 && (
@@ -242,6 +246,7 @@ const ProductPage: React.FC<ProductPageProps> = ({ productId: propProductId, emb
               productName={product.name}
               price={selectedVariation?.price || (typeof product.price === 'number' ? product.price : product.price.twoRow)}
               inStock={product.inStock}
+              selectedVariation={selectedVariation}
             />
           </div>
         </div>

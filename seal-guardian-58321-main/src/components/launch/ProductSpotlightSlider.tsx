@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { Product, ProductPrice } from '@/types/catalog';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import ScrollReveal from './ScrollReveal';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface ProductSpotlightSliderProps {
     products: Product[];
@@ -11,6 +12,7 @@ interface ProductSpotlightSliderProps {
 const ProductSpotlightSlider: React.FC<ProductSpotlightSliderProps> = ({
     products,
 }) => {
+    const { user } = useAuth();
     const [currentIndex, setCurrentIndex] = useState(0);
 
     // Auto-advance every 5 seconds
@@ -124,14 +126,16 @@ const ProductSpotlightSlider: React.FC<ProductSpotlightSliderProps> = ({
                                 )}
 
                                 {/* Price Display */}
-                                <div className="flex items-baseline gap-2 justify-center lg:justify-start pb-4">
-                                    <span className="text-sm text-gray-500">
-                                        {isMultiPrice(currentProduct) ? 'Starting at' : 'Price'}
-                                    </span>
-                                    <span className="text-xl sm:text-2xl md:text-3xl font-bold text-brand-orange">
-                                        ₹{getDisplayPrice(currentProduct)}
-                                    </span>
-                                </div>
+                                {user?.role !== 'vendor' && (
+                                    <div className="flex items-baseline gap-2 justify-center lg:justify-start pb-4">
+                                        <span className="text-sm text-gray-500">
+                                            {isMultiPrice(currentProduct) ? 'Starting at' : 'Price'}
+                                        </span>
+                                        <span className="text-xl sm:text-2xl md:text-3xl font-bold text-brand-orange">
+                                            ₹{getDisplayPrice(currentProduct)}
+                                        </span>
+                                    </div>
+                                )}
 
                                 {/* Features List - Hidden on mobile, shown on sm+ */}
                                 <div className="hidden sm:flex flex-wrap gap-2 sm:gap-3 justify-center lg:justify-start">

@@ -13,19 +13,22 @@ interface TermsModalProps {
     isOpen: boolean;
     onClose: () => void;
     onAccept: () => void;
+    settingKey?: string;
 }
 
-export const TermsModal = ({ isOpen, onClose }: TermsModalProps) => {
+export const TermsModal = ({ isOpen, onClose, settingKey = 'terms_conditions' }: TermsModalProps) => {
     const [content, setContent] = useState("");
     const [loading, setLoading] = useState(true);
 
-    // Fetch terms
     useEffect(() => {
+        setLoading(true);
         const fetchTerms = async () => {
             try {
-                const response = await api.get('/settings/public/terms_conditions');
+                const response = await api.get(`/settings/public/${settingKey}`);
                 if (response.data.success && response.data.value) {
                     setContent(response.data.value);
+                } else {
+                    setContent("");
                 }
             } catch (error) {
                 console.error("Failed to fetch terms", error);
@@ -34,7 +37,7 @@ export const TermsModal = ({ isOpen, onClose }: TermsModalProps) => {
             }
         };
         fetchTerms();
-    }, []);
+    }, [settingKey]);
 
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>

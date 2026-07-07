@@ -24,13 +24,49 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
-import { Upload, Loader2, HelpCircle, CheckCircle2, FileText, Building2, User, Car, Smartphone, Mail, Package, XCircle, AlertCircle, Armchair, ImageIcon } from "lucide-react";
+import { Upload, Loader2, HelpCircle, CheckCircle2, FileText, Building2, User, Car, Smartphone, Mail, Package, XCircle, AlertCircle, Armchair, ImageIcon, QrCode, Camera } from "lucide-react";
 import CameraCapture from "@/components/ui/CameraCapture";
 import { submitWarranty, updateWarranty } from "@/lib/warrantyApi";
 import { TermsModal } from "./TermsModal";
 import { compressImage, isCompressibleImage } from "@/lib/imageCompression";
 import exifr from 'exifr';
 import fpPromise from '@fingerprintjs/fingerprintjs';
+import jsQR from "jsqr";
+
+const UID_REFERENCE_STEPS = [
+  {
+    title: "Taffeta Label",
+    description: "Check the small stitched Taffeta label attached to the seat cover and scan the QR code to find the UID.",
+    image: "/images/warranty/uid-ref-03.jpeg",
+  },
+  {
+    title: "MRP Sticker",
+    description: "Look for the UID mentioned below the product and stitch details. You can also scan the code to find the UID.",
+    image: "/images/warranty/uid-ref-01.jpeg",
+  },
+  {
+    title: "Weight Sticker",
+    description: "Look for the UID Mentioned beside the barcode on the weight label.",
+    image: "/images/warranty/uid-ref-02.jpeg",
+  },
+];
+
+const extractUidFromQrValue = (value: string) => {
+  let decodedValue = value || "";
+  try {
+    decodedValue = decodeURIComponent(decodedValue);
+  } catch {
+    // Some QR values are not URI encoded. Keep the raw value.
+  }
+  const uidParam = decodedValue.match(/[?&](?:uid|productUid|product_uid)=([A-Za-z0-9-]{13,30})/i);
+  if (uidParam?.[1]) return uidParam[1].replace(/[^A-Za-z0-9]/g, "").slice(0, 16);
+
+  const labelledUid = decodedValue.match(/(?:uid|product uid|product_uid)\D{0,12}([A-Za-z0-9-]{13,30})/i);
+  if (labelledUid?.[1]) return labelledUid[1].replace(/[^A-Za-z0-9]/g, "").slice(0, 16);
+
+  const numericUid = decodedValue.match(/\d{13,16}/);
+  return numericUid?.[0] || "";
+};
 
 interface SeatCoverFormProps {
   initialData?: any;
@@ -64,10 +100,23 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
   const [products, setProducts] = useState<any[]>([]);
   const [manpowerList, setManpowerList] = useState<any[]>([]);
   const [termsModalOpen, setTermsModalOpen] = useState(false);
+  const [uidHelpOpen, setUidHelpOpen] = useState(false);
+  const [uidScannerOpen, setUidScannerOpen] = useState(false);
+  const [uidScannerError, setUidScannerError] = useState("");
+  const [uidScannerActive, setUidScannerActive] = useState(false);
+  const [uidScannerChecking, setUidScannerChecking] = useState(false);
   // UID Validation State
   const [uidStatus, setUidStatus] = useState<'idle' | 'checking' | 'valid' | 'invalid' | 'used'>('idle');
   const [uidMessage, setUidMessage] = useState('');
   const uidTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const mobileTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const uidRevalidateTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const uidScannerVideoRef = useRef<HTMLVideoElement | null>(null);
+  const uidScannerCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const uidScannerStreamRef = useRef<MediaStream | null>(null);
+  const uidScannerLoopRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const uidScannerCheckingRef = useRef(false);
+  const uidScannerLastValueRef = useRef("");
   const [showExistingInvoice, setShowExistingInvoice] = useState(false);
   const [deviceFingerprint, setDeviceFingerprint] = useState<string | null>(null);
   const [isBrandNew, setIsBrandNew] = useState(initialData?.registration_number === 'APPLIED-FOR');
@@ -346,20 +395,28 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
       }
 
       // ===== UID Validation against backend =====
+      let resolvedUid = formData.uid;
       try {
         setUidStatus('checking');
         const excludeParam = warrantyId ? `&excludeId=${warrantyId}` : '';
-        const uidCheckRes = await api.get(`/public/warranty/check-uid?uid=${formData.uid}${excludeParam}`);
+        const phoneParam = formData.customerMobile ? `&phone=${encodeURIComponent(formData.customerMobile)}` : '';
+        const uidCheckRes = await api.get(`/public/warranty/check-uid?uid=${formData.uid}${excludeParam}${phoneParam}`);
         if (uidCheckRes.data.success && !uidCheckRes.data.valid) {
           setUidStatus('invalid');
           setUidMessage(uidCheckRes.data.reason);
           toast({
             title: "Invalid UID",
-            description: uidCheckRes.data.reason,
+            description: uidCheckRes.data.reason || "If the product UID is missing or unreadable, enter your mobile number followed by the current year instead.",
             variant: "destructive",
           });
           setLoading(false);
           return;
+        }
+        // Backend may silently advance a repeated mobile+year UID to the next
+        // available sequence (e.g. ...01) — keep the form in sync.
+        if (uidCheckRes.data.resolvedUid && uidCheckRes.data.resolvedUid !== formData.uid) {
+          resolvedUid = uidCheckRes.data.resolvedUid;
+          setFormData(prev => ({ ...prev, uid: resolvedUid }));
         }
         setUidStatus('valid');
         setUidMessage('');
@@ -527,7 +584,7 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
         installerContact: formData.storeEmail,
         manpowerId: formData.manpowerId || null,
         productDetails: {
-          uid: formData.uid,
+          uid: resolvedUid,
           productName: formData.productName,
           storeName: formData.storeName,
           storeEmail: formData.storeEmail,
@@ -599,7 +656,7 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
         result = response;
         toast({
           title: "Warranty Registered",
-          description: `Warranty registered successfully. UID: ${result.uid || formData.uid}`,
+          description: `Warranty registered successfully. UID: ${result.uid || resolvedUid}`,
         });
       }
 
@@ -607,7 +664,7 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
       const submissionDetails = {
         customerName: formData.customerName,
         productType: "seat-cover",
-        registrationId: result?.uid || formData.uid || "PENDING",
+        registrationId: result?.uid || resolvedUid || "PENDING",
         role: user?.role || 'public',
         isPublic: isPublic
       };
@@ -631,6 +688,43 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
     } finally {
       setLoading(false);
     }
+  };
+
+  const validateUidField = (uidVal: string, mobileVal: string) => {
+    if (!/^\d{13,16}$/.test(uidVal)) return;
+
+    // Skip real-time UID validation in public QR flow (no auth token)
+    // Server validates during submission anyway
+    if (isPublic) {
+      setUidStatus('idle');
+      return;
+    }
+
+    setUidStatus('checking');
+    const phoneQuery = mobileVal ? `?phone=${encodeURIComponent(mobileVal)}` : '';
+    api.get(`/uid/validate/${uidVal}${phoneQuery}`)
+      .then(res => {
+        const data = res.data;
+        // Backend may silently advance a repeated mobile+year UID to the next
+        // available sequence (e.g. ...01) — keep the form in sync.
+        if (data.resolvedUid && data.resolvedUid !== uidVal) {
+          setFormData(prev => ({ ...prev, uid: data.resolvedUid }));
+        }
+        if (data.valid && data.available) {
+          setUidStatus('valid');
+          setUidMessage('UID is valid and available');
+        } else if (data.valid && !data.available) {
+          setUidStatus('used');
+          setUidMessage(data.message || 'UID has already been used');
+        } else {
+          setUidStatus('invalid');
+          setUidMessage(data.message || 'UID not found in the system');
+        }
+      })
+      .catch(() => {
+        setUidStatus('idle');
+        setUidMessage('');
+      });
   };
 
   const handleChange = (name: string, value: string) => {
@@ -674,7 +768,229 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
           .catch(err => console.error("Uniqueness check failed", err));
       }, 800);
     }
+
+    if (name === 'customerMobile' && processedValue.length === 10) {
+      if (mobileTimerRef.current) clearTimeout(mobileTimerRef.current);
+      mobileTimerRef.current = setTimeout(() => {
+        api.get(`/public/warranty/check-uniqueness?phone=${processedValue}&type=seat-cover`)
+          .then(res => {
+            if (!res.data.unique) {
+              toast({
+                title: "Mobile Number Already Used",
+                description: res.data.message,
+                variant: "destructive",
+              });
+            }
+          })
+          .catch(err => console.error("Mobile uniqueness check failed", err));
+      }, 600);
+    }
+
+    // Mobile number affects the fallback UID (mobile + year), so re-validate
+    // the UID whenever the mobile number changes and a UID is already entered.
+    if (name === 'customerMobile' && formData.uid) {
+      if (uidRevalidateTimerRef.current) clearTimeout(uidRevalidateTimerRef.current);
+      uidRevalidateTimerRef.current = setTimeout(() => {
+        validateUidField(formData.uid, processedValue);
+      }, 500);
+    }
   };
+
+  const stopUidScanner = () => {
+    if (uidScannerLoopRef.current) {
+      clearTimeout(uidScannerLoopRef.current);
+      uidScannerLoopRef.current = null;
+    }
+
+    if (uidScannerStreamRef.current) {
+      uidScannerStreamRef.current.getTracks().forEach(track => track.stop());
+      uidScannerStreamRef.current = null;
+    }
+
+    if (uidScannerVideoRef.current) {
+      uidScannerVideoRef.current.srcObject = null;
+    }
+
+    setUidScannerActive(false);
+    setUidScannerChecking(false);
+    uidScannerCheckingRef.current = false;
+  };
+
+  const validateScannedUid = async (uid: string) => {
+    if (!/^\d{13,16}$/.test(uid)) {
+      return {
+        valid: false,
+        message: "Scanned QR does not contain a valid 13-16 digit product UID.",
+      };
+    }
+
+    try {
+      if (isPublic) {
+        const excludeParam = warrantyId ? `&excludeId=${encodeURIComponent(warrantyId)}` : "";
+        const res = await api.get(`/public/warranty/check-uid?uid=${encodeURIComponent(uid)}${excludeParam}`);
+        return {
+          valid: Boolean(res.data?.success && res.data?.valid),
+          message: res.data?.reason || "Scanned UID is not valid or has already been used.",
+          resolvedUid: res.data?.resolvedUid,
+        };
+      }
+
+      const res = await api.get(`/uid/validate/${encodeURIComponent(uid)}`);
+      return {
+        valid: Boolean(res.data?.valid && res.data?.available),
+        message: res.data?.message || "Scanned UID is not valid or has already been used.",
+        resolvedUid: res.data?.resolvedUid,
+      };
+    } catch (error) {
+      console.error("Scanned UID validation failed:", error);
+      return {
+        valid: false,
+        message: "Could not verify this UID right now. Please try scanning again.",
+      };
+    }
+  };
+
+  useEffect(() => {
+    if (!uidScannerOpen) {
+      stopUidScanner();
+      return;
+    }
+
+    let cancelled = false;
+
+    const startScanner = async () => {
+      setUidScannerError("");
+      setUidScannerChecking(false);
+      uidScannerCheckingRef.current = false;
+      uidScannerLastValueRef.current = "";
+
+      if (!navigator.mediaDevices?.getUserMedia) {
+        setUidScannerError("Camera access is not available in this browser.");
+        return;
+      }
+
+      try {
+        const BarcodeDetectorApi = (window as any).BarcodeDetector;
+        let detector: any = null;
+
+        if (BarcodeDetectorApi?.getSupportedFormats) {
+          const supportedFormats = await BarcodeDetectorApi.getSupportedFormats();
+          if (supportedFormats.includes("qr_code")) {
+            detector = new BarcodeDetectorApi({ formats: ["qr_code"] });
+          }
+        } else if (BarcodeDetectorApi) {
+          detector = new BarcodeDetectorApi({ formats: ["qr_code"] });
+        }
+
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: { ideal: "environment" },
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+          },
+          audio: false,
+        });
+
+        if (cancelled) {
+          stream.getTracks().forEach(track => track.stop());
+          return;
+        }
+
+        uidScannerStreamRef.current = stream;
+
+        const video = uidScannerVideoRef.current;
+        if (!video) return;
+
+        video.srcObject = stream;
+        await video.play();
+        setUidScannerActive(true);
+
+        const scanFrame = async () => {
+          if (cancelled || !uidScannerVideoRef.current) return;
+
+          try {
+            let rawValue = "";
+
+            if (detector) {
+              const barcodes = await detector.detect(uidScannerVideoRef.current);
+              const qr = barcodes.find((barcode: any) => barcode.format === "qr_code") || barcodes[0];
+              rawValue = qr?.rawValue || "";
+            } else {
+              const video = uidScannerVideoRef.current;
+              const canvas = uidScannerCanvasRef.current;
+
+              if (canvas && video.videoWidth && video.videoHeight) {
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+                const context = canvas.getContext("2d", { willReadFrequently: true });
+
+                if (context) {
+                  context.drawImage(video, 0, 0, canvas.width, canvas.height);
+                  const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+                  rawValue = jsQR(imageData.data, imageData.width, imageData.height)?.data || "";
+                }
+              }
+            }
+
+            if (rawValue && rawValue !== uidScannerLastValueRef.current && !uidScannerCheckingRef.current) {
+              uidScannerLastValueRef.current = rawValue;
+              const scannedUid = extractUidFromQrValue(rawValue);
+
+              if (!scannedUid || !/^\d{13,16}$/.test(scannedUid)) {
+                setUidScannerError("This QR is not a valid product UID QR. Please scan the UID QR from the product label.");
+              } else {
+                uidScannerCheckingRef.current = true;
+                setUidScannerChecking(true);
+                setUidScannerError("");
+
+                const validation = await validateScannedUid(scannedUid);
+                uidScannerCheckingRef.current = false;
+                setUidScannerChecking(false);
+
+                if (cancelled) return;
+
+                if (!validation.valid) {
+                  setUidScannerError(validation.message);
+                } else {
+                  const acceptedUid = validation.resolvedUid || scannedUid;
+                  handleChange("uid", acceptedUid);
+                  setUidStatus('valid');
+                  setUidMessage('UID is valid and available');
+                  toast({
+                    title: "UID Scanned",
+                    description: "Valid product UID has been filled automatically.",
+                  });
+                  setUidScannerOpen(false);
+                  return;
+                }
+              }
+            }
+          } catch (scanError) {
+            console.error("QR scan failed:", scanError);
+          }
+
+          uidScannerLoopRef.current = setTimeout(scanFrame, 250);
+        };
+
+        scanFrame();
+      } catch (error: any) {
+        console.error("Camera scanner failed:", error);
+        setUidScannerError(error?.name === "NotAllowedError"
+          ? "Camera permission was blocked. Allow camera access to scan the QR."
+          : "Unable to start the camera. Please enter the UID manually."
+        );
+        setUidScannerActive(false);
+      }
+    };
+
+    startScanner();
+
+    return () => {
+      cancelled = true;
+      stopUidScanner();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [uidScannerOpen, formData.customerMobile]);
 
   const ALLOWED_FILE_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/heic', 'image/heif', 'application/pdf'];
   const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
@@ -858,16 +1174,16 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
   };
 
   return (
-    <div className="max-w-5xl mx-auto space-y-8 p-1 sm:p-4">
+    <div className="max-w-5xl mx-auto space-y-6 sm:space-y-8 px-3 py-2 sm:p-4">
       {/* Header Section */}
-      <div className="text-center space-y-2 mb-8">
-        <div className="inline-flex items-center justify-center p-3 bg-orange-100 rounded-full mb-4 ring-8 ring-orange-50">
-          <Car className="h-8 w-8 text-orange-600" />
+      <div className="text-center space-y-2 mb-6 sm:mb-8">
+        <div className="inline-flex items-center justify-center p-2.5 sm:p-3 bg-orange-100 rounded-full mb-3 sm:mb-4 ring-4 sm:ring-8 ring-orange-50">
+          <Car className="h-6 w-6 sm:h-8 sm:w-8 text-orange-600" />
         </div>
-        <h1 className="text-3xl font-bold tracking-tight bg-gradient-to-r from-gray-900 to-gray-600 bg-clip-text text-transparent">
+        <h1 className="text-xl sm:text-3xl font-bold tracking-tight bg-gradient-to-r from-gray-900 to-gray-600 bg-clip-text text-transparent px-2">
           {warrantyId ? "Edit Seat Cover Warranty" : "Seat Cover Warranty Registration"}
         </h1>
-        <p className="text-muted-foreground max-w-2xl mx-auto">
+        <p className="text-sm sm:text-base text-muted-foreground max-w-2xl mx-auto px-2">
           {warrantyId
             ? "Update the warranty details below and resubmit for approval."
             : "Complete the form below to register your premium seat cover warranty. Please ensure all details are accurate."}
@@ -906,10 +1222,123 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
           </DialogContent>
       </Dialog>
 
+      <Dialog open={uidHelpOpen} onOpenChange={setUidHelpOpen}>
+        <DialogContent className="w-[calc(100vw-24px)] max-w-4xl overflow-hidden p-4 sm:p-6">
+          <DialogHeader>
+            <DialogTitle className="text-base sm:text-lg font-semibold text-slate-900">Where to find your Product UID</DialogTitle>
+            <DialogDescription className="text-xs sm:text-sm">
+              Match the sticker on your product packaging, then enter only the printed digits in the UID field.
+            </DialogDescription>
+          </DialogHeader>
+          {/* Mobile: horizontal scroll strip; Desktop: 3-col grid */}
+          <div className="sm:hidden flex gap-3 overflow-x-auto pb-2 -mx-1 px-1 snap-x snap-mandatory">
+            {UID_REFERENCE_STEPS.map((step, index) => (
+              <div key={step.title} className="overflow-hidden rounded-xl border border-slate-200 bg-white shrink-0 w-[72vw] max-w-[260px] snap-start">
+                <img
+                  src={step.image}
+                  alt={step.title}
+                  className="aspect-square w-full bg-slate-50 object-contain"
+                />
+                <div className="space-y-1 p-3">
+                  <div className="flex items-center gap-2">
+                    <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-orange-100 text-[11px] font-bold text-orange-700">
+                      {index + 1}
+                    </span>
+                    <p className="text-sm font-semibold text-slate-800">{step.title}</p>
+                  </div>
+                  <p className="text-xs leading-relaxed text-slate-500">{step.description}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+          <p className="sm:hidden text-center text-[10px] text-slate-400 mt-1">Swipe to see more</p>
+          <div className="hidden sm:grid gap-4 sm:grid-cols-3">
+            {UID_REFERENCE_STEPS.map((step, index) => (
+              <div key={step.title} className="overflow-hidden rounded-lg border border-slate-200 bg-white">
+                <img
+                  src={step.image}
+                  alt={step.title}
+                  className="aspect-square w-full bg-slate-50 object-contain"
+                />
+                <div className="space-y-1 p-3">
+                  <div className="flex items-center gap-2">
+                    <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-orange-100 text-[11px] font-bold text-orange-700">
+                      {index + 1}
+                    </span>
+                    <p className="text-sm font-semibold text-slate-800">{step.title}</p>
+                  </div>
+                  <p className="text-xs leading-relaxed text-slate-500">{step.description}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={uidScannerOpen} onOpenChange={setUidScannerOpen}>
+        <DialogContent className="max-w-lg overflow-hidden">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-lg font-semibold text-slate-900">
+              <QrCode className="h-5 w-5 text-orange-600" />
+              Scan Product UID QR
+            </DialogTitle>
+            <DialogDescription>
+              Place the QR code inside the camera frame. The UID will fill automatically after scanning.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="relative overflow-hidden rounded-2xl border border-orange-100 bg-gradient-to-br from-orange-50 via-white to-slate-50 p-2 shadow-inner">
+              <div className="relative overflow-hidden rounded-xl bg-white">
+                <video
+                  ref={uidScannerVideoRef}
+                  className="aspect-square w-full object-cover"
+                  playsInline
+                  muted
+                />
+                <canvas ref={uidScannerCanvasRef} className="hidden" />
+                {!uidScannerActive && !uidScannerError && (
+                  <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-white/85 text-slate-700 backdrop-blur-sm">
+                    <Loader2 className="h-6 w-6 animate-spin text-orange-400" />
+                    <span className="text-sm font-medium">Starting camera...</span>
+                  </div>
+                )}
+                <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.18),rgba(255,255,255,0.04))]" />
+                <div className="pointer-events-none absolute inset-7 rounded-3xl border border-white/80 shadow-[0_0_0_999px_rgba(255,255,255,0.28)]">
+                  <div className="absolute -left-0.5 -top-0.5 h-12 w-12 rounded-tl-3xl border-l-[3px] border-t-[3px] border-orange-500" />
+                  <div className="absolute -right-0.5 -top-0.5 h-12 w-12 rounded-tr-3xl border-r-[3px] border-t-[3px] border-orange-500" />
+                  <div className="absolute -bottom-0.5 -left-0.5 h-12 w-12 rounded-bl-3xl border-b-[3px] border-l-[3px] border-orange-500" />
+                  <div className="absolute -bottom-0.5 -right-0.5 h-12 w-12 rounded-br-3xl border-b-[3px] border-r-[3px] border-orange-500" />
+                  <div className="absolute inset-0 rounded-3xl border border-orange-200/70" />
+                  <div className="absolute left-4 right-4 top-4 h-px animate-[qr-scan_2.6s_ease-in-out_infinite] rounded-full bg-gradient-to-r from-transparent via-orange-500 to-transparent shadow-[0_0_12px_rgba(249,115,22,0.55)]" />
+                </div>
+                <div className="pointer-events-none absolute bottom-3 left-1/2 -translate-x-1/2 rounded-full bg-white/90 px-3 py-1 text-[11px] font-semibold text-slate-600 shadow-sm ring-1 ring-slate-200">
+                  Align QR inside frame
+                </div>
+              </div>
+            </div>
+            {uidScannerError ? (
+              <div className="rounded-md border border-red-100 bg-red-50 px-3 py-2 text-sm text-red-600">
+                {uidScannerError}
+              </div>
+            ) : uidScannerChecking ? (
+              <div className="flex items-center gap-2 rounded-md bg-blue-50 px-3 py-2 text-sm text-blue-700">
+                <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
+                Verifying scanned UID...
+              </div>
+            ) : (
+              <div className="flex items-center gap-2 rounded-md bg-orange-50 px-3 py-2 text-sm text-orange-700">
+                <Camera className="h-4 w-4 shrink-0" />
+                Hold the QR steady for a moment.
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
       <form onSubmit={handleSubmit} className="space-y-8">
         {/* Section 1: Store & Installer Details */}
         <Card className="border-0 shadow-lg bg-white/80 backdrop-blur-sm ring-1 ring-slate-100">
-          <div className="bg-gradient-to-r from-orange-50 to-amber-50/30 px-6 py-4 border-b border-orange-100 flex items-center gap-3 rounded-t-xl">
+          <div className="bg-gradient-to-r from-orange-50 to-amber-50/30 px-4 sm:px-6 py-3 sm:py-4 border-b border-orange-100 flex items-center gap-3 rounded-t-xl">
             <div className="p-2 bg-white rounded-lg shadow-sm">
               <Building2 className="h-5 w-5 text-orange-600" />
             </div>
@@ -918,8 +1347,8 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
               <p className="text-xs text-muted-foreground">Store and manpower information</p>
             </div>
           </div>
-          <CardContent className="p-6 md:p-8">
-            <div className="grid md:grid-cols-2 gap-6 md:gap-8">
+          <CardContent className="p-4 sm:p-6 md:p-8">
+            <div className="grid md:grid-cols-2 gap-4 sm:gap-6 md:gap-8">
               {/* Store Selection */}
               <div className="space-y-3">
                 <Label htmlFor="storeName" className="text-sm font-medium text-slate-700">
@@ -1014,7 +1443,7 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
 
         {/* Section 2: Customer Information */}
         <Card className="border-0 shadow-lg bg-white/80 backdrop-blur-sm ring-1 ring-slate-100">
-          <div className="bg-gradient-to-r from-blue-50 to-indigo-50/30 px-6 py-4 border-b border-blue-100 flex items-center gap-3 rounded-t-xl">
+          <div className="bg-gradient-to-r from-blue-50 to-indigo-50/30 px-4 sm:px-6 py-3 sm:py-4 border-b border-blue-100 flex items-center gap-3 rounded-t-xl">
             <div className="p-2 bg-white rounded-lg shadow-sm">
               <User className="h-5 w-5 text-blue-600" />
             </div>
@@ -1023,8 +1452,8 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
               <p className="text-xs text-muted-foreground">Personal and contact details</p>
             </div>
           </div>
-          <CardContent className="p-6 md:p-8">
-            <div className="grid md:grid-cols-2 gap-6 md:gap-8">
+          <CardContent className="p-4 sm:p-6 md:p-8">
+            <div className="grid md:grid-cols-2 gap-4 sm:gap-6 md:gap-8">
               <div className="space-y-3">
                 <Label htmlFor="customerName" className="text-sm font-medium text-slate-700">
                   Name <span className="text-destructive">*</span>
@@ -1095,7 +1524,7 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
 
         {/* Section 3: Vehicle Details */}
         <Card className="border-0 shadow-lg bg-white/80 backdrop-blur-sm ring-1 ring-slate-100">
-          <div className="bg-gradient-to-r from-emerald-50 to-teal-50/30 px-6 py-4 border-b border-emerald-100 flex items-center gap-3 rounded-t-xl">
+          <div className="bg-gradient-to-r from-emerald-50 to-teal-50/30 px-4 sm:px-6 py-3 sm:py-4 border-b border-emerald-100 flex items-center gap-3 rounded-t-xl">
             <div className="p-2 bg-white rounded-lg shadow-sm">
               <Car className="h-5 w-5 text-emerald-600" />
             </div>
@@ -1104,8 +1533,8 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
               <p className="text-xs text-muted-foreground">Vehicle registration information</p>
             </div>
           </div>
-          <CardContent className="p-6 md:p-8">
-            <div className="grid gap-6">
+          <CardContent className="p-4 sm:p-6 md:p-8">
+            <div className="grid gap-4 sm:gap-6">
               <div className="space-y-3">
                 <Label htmlFor="carReg" className="text-sm font-medium text-slate-700">
                   Vehicle Registration Number <span className="text-destructive">*</span>
@@ -1164,7 +1593,7 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
 
         {/* Section 4: Product & Warranty */}
         <Card className="border-0 shadow-lg bg-white/80 backdrop-blur-sm ring-1 ring-slate-100">
-          <div className="bg-gradient-to-r from-purple-50 to-pink-50/30 px-6 py-4 border-b border-purple-100 flex items-center gap-3 rounded-t-xl">
+          <div className="bg-gradient-to-r from-purple-50 to-pink-50/30 px-4 sm:px-6 py-3 sm:py-4 border-b border-purple-100 flex items-center gap-3 rounded-t-xl">
             <div className="p-2 bg-white rounded-lg shadow-sm">
               <Package className="h-5 w-5 text-purple-600" />
             </div>
@@ -1173,69 +1602,51 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
               <p className="text-xs text-muted-foreground">Product UID and warranty details</p>
             </div>
           </div>
-          <CardContent className="p-6 md:p-8">
-            <div className="grid md:grid-cols-2 gap-6 md:gap-8">
+          <CardContent className="p-4 sm:p-6 md:p-8">
+            <div className="grid md:grid-cols-2 gap-4 sm:gap-6 md:gap-8">
               <div className="space-y-3 md:col-span-2">
                 <Label htmlFor="uid" className="text-sm font-medium text-slate-700">
                   Product UID (from MRP Sticker) <span className="text-destructive">*</span>
                 </Label>
-                <div className="relative">
-                  <div className="absolute left-3 top-2.5 bg-slate-100 rounded px-1.5 py-0.5 text-[10px] font-bold text-slate-500 tracking-wider">UID</div>
-                  <Input
-                    id="uid"
-                    type="text"
-                    placeholder="Enter 13-16 digit number"
-                    value={formData.uid}
-                    onChange={(e) => handleChange("uid", e.target.value)}
-                    onBlur={() => {
-                      // Validate UID on blur if it has the right length
-                      const uidVal = formData.uid;
-                      if (/^\d{13,16}$/.test(uidVal)) {
-                        // Skip real-time UID validation in public QR flow (no auth token)
-                        // Server validates during submission anyway
-                        if (isPublic) {
-                          setUidStatus('idle');
-                          return;
-                        }
-                        setUidStatus('checking');
-                        api.get(`/uid/validate/${uidVal}`)
-                          .then(res => {
-                            const data = res.data;
-                            if (data.valid && data.available) {
-                              setUidStatus('valid');
-                              setUidMessage('UID is valid and available');
-                            } else if (data.valid && !data.available) {
-                              setUidStatus('used');
-                              setUidMessage(data.message || 'UID has already been used');
-                            } else {
-                              setUidStatus('invalid');
-                              setUidMessage(data.message || 'UID not found in the system');
-                            }
-                          })
-                          .catch(() => {
-                            setUidStatus('idle');
-                            setUidMessage('');
-                          });
-                      }
-                    }}
-                    required
-                    maxLength={16}
-                    disabled={loading}
-                    pattern="[0-9]{13,16}"
-                    className={`pl-12 pr-10 font-mono tracking-wide bg-white ${uidStatus === 'valid'
-                      ? 'border-emerald-400 ring-1 ring-emerald-200 focus-visible:ring-emerald-300'
-                      : uidStatus === 'invalid' || uidStatus === 'used'
-                        ? 'border-red-400 ring-1 ring-red-200 focus-visible:ring-red-300'
-                        : 'border-slate-200'
-                      }`}
-                  />
-                  {/* Validation Status Icon */}
-                  <div className="absolute right-3 top-2.5">
-                    {uidStatus === 'checking' && <Loader2 className="h-4 w-4 animate-spin text-orange-500" />}
-                    {uidStatus === 'valid' && <CheckCircle2 className="h-4 w-4 text-emerald-500" />}
-                    {uidStatus === 'invalid' && <XCircle className="h-4 w-4 text-red-500" />}
-                    {uidStatus === 'used' && <AlertCircle className="h-4 w-4 text-red-500" />}
+                <div className="flex flex-col gap-2 sm:flex-row">
+                  <div className="relative min-w-0 flex-1">
+                    <div className="absolute left-3 top-2.5 bg-slate-100 rounded px-1.5 py-0.5 text-[10px] font-bold text-slate-500 tracking-wider">UID</div>
+                    <Input
+                      id="uid"
+                      type="text"
+                      placeholder="Enter 13-16 digit number"
+                      value={formData.uid}
+                      onChange={(e) => handleChange("uid", e.target.value)}
+                      onBlur={() => validateUidField(formData.uid, formData.customerMobile)}
+                      required
+                      maxLength={16}
+                      disabled={loading}
+                      pattern="[0-9]{13,16}"
+                      className={`pl-12 pr-10 font-mono tracking-wide bg-white ${uidStatus === 'valid'
+                        ? 'border-emerald-400 ring-1 ring-emerald-200 focus-visible:ring-emerald-300'
+                        : uidStatus === 'invalid' || uidStatus === 'used'
+                          ? 'border-red-400 ring-1 ring-red-200 focus-visible:ring-red-300'
+                          : 'border-slate-200'
+                        }`}
+                    />
+                    {/* Validation Status Icon */}
+                    <div className="absolute right-3 top-2.5">
+                      {uidStatus === 'checking' && <Loader2 className="h-4 w-4 animate-spin text-orange-500" />}
+                      {uidStatus === 'valid' && <CheckCircle2 className="h-4 w-4 text-emerald-500" />}
+                      {uidStatus === 'invalid' && <XCircle className="h-4 w-4 text-red-500" />}
+                      {uidStatus === 'used' && <AlertCircle className="h-4 w-4 text-red-500" />}
+                    </div>
                   </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setUidScannerOpen(true)}
+                    disabled={loading}
+                    className="h-10 shrink-0 border-orange-200 bg-orange-50 px-4 font-semibold text-orange-700 hover:bg-orange-100 hover:text-orange-800 sm:w-auto"
+                  >
+                    <QrCode className="mr-2 h-4 w-4" />
+                    Scan QR
+                  </Button>
                 </div>
                 <div className="flex justify-between text-xs px-1 mt-1">
                   <div className="flex items-center gap-2">
@@ -1261,10 +1672,7 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
                   </div>
                   <button
                     type="button"
-                    onClick={() => toast({
-                      title: "Where to find UID?",
-                      description: "Locate the sticker on the seat cover product packaging.",
-                    })}
+                    onClick={() => setUidHelpOpen(true)}
                     className="flex items-center gap-1 text-orange-600 font-medium hover:text-orange-700 transition-colors"
                   >
                     <HelpCircle className="h-3 w-3" /> Where to find?
@@ -1339,7 +1747,7 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
             <div className="space-y-3 mt-5 md:col-span-2">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <Label htmlFor="invoiceFile" className="text-sm font-medium text-slate-700 shrink-0">
-                  Proof of Purchase (Invoice / MRP Sticker) <span className="text-destructive">*</span>
+                  Proof of Purchase (GST Invoice / MRP Sticker) <span className="text-destructive">*</span>
                 </Label>
                 {isEditing && initialData?.product_details?.invoiceFileName && (
                   <button
@@ -1352,7 +1760,7 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
                   </button>
                 )}
               </div>
-              <div className={`mt-2 border-2 border-dashed rounded-xl p-6 transition-all duration-200 text-center relative ${formData.invoiceFile ? 'border-orange-300 bg-orange-50/30' : 'border-slate-200 hover:border-orange-300 hover:bg-slate-50'}`}>
+              <div className={`mt-2 border-2 border-dashed rounded-xl p-4 sm:p-6 transition-all duration-200 text-center relative ${formData.invoiceFile ? 'border-orange-300 bg-orange-50/30' : 'border-slate-200 hover:border-orange-300 hover:bg-slate-50'}`}>
                 <div className="flex flex-col items-center gap-2">
                   <div className={`p-3 rounded-full ${formData.invoiceFile ? 'bg-orange-100 text-orange-600' : 'bg-slate-100 text-slate-500'}`}>
                     {formData.invoiceFile ? <FileText className="h-6 w-6" /> : <Upload className="h-6 w-6" />}
@@ -1396,8 +1804,8 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
 
         {/* Terms & Submit */}
         <Card className="border-0 shadow-lg bg-white/80 backdrop-blur-sm ring-1 ring-slate-100">
-          <CardContent className="p-6 md:p-8">
-            <div className="flex flex-col gap-6">
+          <CardContent className="p-4 sm:p-6 md:p-8">
+            <div className="flex flex-col gap-4 sm:gap-6">
               {/* Simple Checkbox T&C */}
               <div className="flex items-start gap-3">
                 <input

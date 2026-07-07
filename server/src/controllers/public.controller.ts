@@ -7,6 +7,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { geolocateIP, getClientIP } from '../utils/ipGeolocation.js';
 import { calculateFraudScore } from '../utils/fraudScoring.js';
 import { WhatsAppService } from '../services/whatsapp.service.js';
+import { getMobileRegistrationUsage, normalizeCustomerMobile, matchFallbackUidSequence, resolveFallbackUid } from '../utils/customerMobileLimits.js';
 
 export class PublicController {
     static async getStores(req: Request, res: Response) {
@@ -129,31 +130,40 @@ export class PublicController {
             // Normalize type (frontend might send underscores or hyphens)
             const normalizedType = (type as string).replace('_', '-');
 
-            let conditions: string[] = ['product_type = ?', 'status != "rejected"'];
-            let params: any[] = [normalizedType];
-
             if (reg) {
                 if (reg === 'APPLIED-FOR') {
-                    return res.json({ success: true, unique: true });
+                    // Continue to phone check below if a phone number was supplied.
+                } else {
+                    const [existingReg]: any = await db.execute(
+                        'SELECT uid, customer_name FROM warranty_registrations WHERE product_type = ? AND status != "rejected" AND registration_number = ? LIMIT 1',
+                        [normalizedType, reg]
+                    );
+
+                    if (existingReg.length > 0) {
+                        const typeLabel = normalizedType === 'seat-cover' ? 'Seat Cover' : 'Paint Protection Film (PPF)';
+                        return res.json({
+                            success: true,
+                            unique: false,
+                            reason: 'registration_number',
+                            message: `Vehicle ${reg} is already registered for ${typeLabel}.`
+                        });
+                    }
                 }
-                conditions.push('registration_number = ?');
-                params.push(reg);
-            } else {
-                return res.json({ success: true, unique: true });
             }
 
-            const query = `SELECT uid, customer_name FROM warranty_registrations WHERE ${conditions.join(' AND ')} LIMIT 1`;
-            const [existing]: any = await db.execute(query, params);
-
-            if (existing.length > 0) {
-                const typeLabel = normalizedType === 'seat-cover' ? 'Seat Cover' : 'Paint Protection Film (PPF)';
-                return res.json({
-                    success: true,
-                    unique: false,
-                    message: reg
-                        ? `Vehicle ${reg} is already registered for ${typeLabel}.`
-                        : `Phone number ${phone} is already registered for ${typeLabel}.`
-                });
+            if (phone) {
+                const usage = await getMobileRegistrationUsage(phone as string);
+                if (usage.usedCount >= usage.allowedCount) {
+                    return res.json({
+                        success: true,
+                        unique: false,
+                        reason: 'customer_phone',
+                        usage,
+                        message: usage.hasOverride
+                            ? `Mobile number ${usage.mobileNumber} has already used all ${usage.allowedCount} allowed warranty submissions.`
+                            : `Mobile number ${usage.mobileNumber} is already registered. Please contact the store owner to request admin approval for another submission.`
+                    });
+                }
             }
 
             res.json({
@@ -171,10 +181,31 @@ export class PublicController {
      */
     static async checkUID(req: Request, res: Response) {
         try {
-            const { uid } = req.query;
+            const { uid, phone } = req.query;
 
             if (!uid || typeof uid !== 'string') {
                 return res.status(400).json({ error: 'UID is required' });
+            }
+
+            // If the UID matches the fallback pattern (customer mobile + current
+            // year), resolve it to the next unused sequence for this mobile —
+            // this also covers repeat submissions where the customer keeps
+            // typing the same base value and the system silently advances it
+            // (e.g. ...01, ...02) as long as their mobile limit allows it.
+            if (phone && typeof phone === 'string') {
+                const currentYear = new Date().getFullYear();
+                const resolved = await resolveFallbackUid(uid, phone, currentYear);
+                if (resolved) {
+                    return res.json({ success: true, valid: true, resolvedUid: resolved.uid });
+                }
+
+                if (matchFallbackUidSequence(uid, phone, currentYear) !== null) {
+                    return res.json({
+                        success: true,
+                        valid: false,
+                        reason: 'This mobile number has no remaining warranty submissions allowed. Please contact the store owner to request admin approval for another submission.'
+                    });
+                }
             }
 
             // Check pre_generated_uids table
@@ -187,7 +218,7 @@ export class PublicController {
                 return res.json({
                     success: true,
                     valid: false,
-                    reason: 'Invalid UID. This UID does not exist in our system. Please check the UID on your product packaging.'
+                    reason: 'Invalid UID. This UID does not exist in our system. Please check the UID on your product packaging, or enter your mobile number followed by the current year if the UID is missing/unreadable.'
                 });
             }
 
@@ -514,28 +545,51 @@ export class PublicController {
             }
 
             // ===== UID Pre-Validation for Seat Covers (against pre_generated_uids table) =====
-            const uid = warrantyData.productDetails?.uid || null;
+            let uid = warrantyData.productDetails?.uid || null;
+            let isCustomerAddedUid = false;
             if (warrantyData.productType === 'seat-cover' && uid) {
-                const [uidRows]: any = await db.execute(
-                    'SELECT uid, is_used FROM pre_generated_uids WHERE uid = ?',
-                    [uid]
-                );
+                // If the UID matches the fallback pattern (customer mobile + current
+                // year), resolve it to the next unused sequence for this mobile —
+                // this transparently handles repeat submissions where the customer
+                // re-enters the same base value.
+                const currentYear = new Date().getFullYear();
+                const isFallbackPattern = matchFallbackUidSequence(uid, warrantyData.customerPhone, currentYear) !== null;
 
-                if (uidRows.length === 0) {
-                    return res.status(400).json({
-                        error: 'Invalid UID. This UID does not exist in our system. Please check the UID on your product packaging.'
-                    });
-                }
+                if (isFallbackPattern) {
+                    const resolved = await resolveFallbackUid(uid, warrantyData.customerPhone, currentYear);
 
-                if (uidRows[0].is_used) {
-                    return res.status(400).json({
-                        error: 'This UID has already been used for another warranty registration.'
-                    });
+                    if (!resolved) {
+                        return res.status(400).json({
+                            error: 'This mobile number has no remaining warranty submissions allowed. Please contact the store owner to request admin approval for another submission.'
+                        });
+                    }
+
+                    uid = resolved.uid;
+                    warrantyData.productDetails.uid = resolved.uid;
+                    isCustomerAddedUid = true;
+                } else {
+                    const [uidRows]: any = await db.execute(
+                        'SELECT uid, is_used FROM pre_generated_uids WHERE uid = ?',
+                        [uid]
+                    );
+
+                    if (uidRows.length === 0) {
+                        return res.status(400).json({
+                            error: 'Invalid UID. This UID does not exist in our system. Please check the UID on your product packaging, or enter your mobile number followed by the current year if the UID is missing/unreadable.'
+                        });
+                    }
+
+                    if (uidRows[0].is_used) {
+                        return res.status(400).json({
+                            error: 'This UID has already been used for another warranty registration.'
+                        });
+                    }
                 }
             }
 
             const customerEmail = warrantyData.customerEmail ? warrantyData.customerEmail.toLowerCase().trim() : null;
             const customerPhone = warrantyData.customerPhone.trim();
+            const normalizedCustomerPhone = normalizeCustomerMobile(customerPhone);
             const customerName = warrantyData.customerName.trim();
 
             // Step 1: Find or create customer user (Phone-Number Centric)
@@ -543,12 +597,7 @@ export class PublicController {
             let isNewUser = false;
 
             // 1. Try to find existing user by Phone Number (Priority)
-            let cleanedPhone = customerPhone.replace(/[\s\-+]/g, '');
-            if (cleanedPhone.length === 12 && cleanedPhone.startsWith('91')) {
-                cleanedPhone = cleanedPhone.substring(2);
-            } else if (cleanedPhone.length === 11 && cleanedPhone.startsWith('0')) {
-                cleanedPhone = cleanedPhone.substring(1);
-            }
+            let cleanedPhone = normalizedCustomerPhone;
 
             let [existingUsers]: any = await db.execute(
                 'SELECT id, email FROM profiles WHERE phone_number = ?',
@@ -630,6 +679,17 @@ export class PublicController {
                         error: `This ${warrantyData.productDetails.uid ? 'UID' : 'Serial Number'} is already registered.`
                     });
                 }
+            }
+
+            const mobileUsage = await getMobileRegistrationUsage(cleanedPhone);
+            if (mobileUsage.usedCount >= mobileUsage.allowedCount) {
+                return res.status(400).json({
+                    error: mobileUsage.hasOverride
+                        ? `This mobile number has already used all ${mobileUsage.allowedCount} allowed warranty submissions.`
+                        : 'This mobile number is already registered. Please ask the store owner to contact admin for another submission.',
+                    reason: 'customer_phone_limit_reached',
+                    usage: mobileUsage
+                });
             }
 
 
@@ -748,6 +808,16 @@ export class PublicController {
             );
 
             // UID is checked but NOT marked as used until Admin approves it.
+
+            // Register customer-added fallback UID so it shows up in UID Management
+            // and so the admin-approval flow (which only UPDATEs pre_generated_uids)
+            // has a row to flip is_used on.
+            if (isCustomerAddedUid) {
+                await db.execute(
+                    'INSERT INTO pre_generated_uids (uid, is_used, source) VALUES (?, FALSE, ?) ON DUPLICATE KEY UPDATE source = source',
+                    [warrantyId, 'customer_added']
+                );
+            }
 
             // Step 4: Franchise Verify Notification (pending_vendor only)
             if (initialStatus === 'pending_vendor' && warrantyData.installerContact) {
@@ -868,6 +938,7 @@ export class PublicController {
             res.json({
                 success: true,
                 warrantyId,
+                uid: warrantyId,
                 message: 'Warranty submitted successfully. Awaiting store verification.',
                 isNewUser
             });

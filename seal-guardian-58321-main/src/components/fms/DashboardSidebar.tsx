@@ -22,6 +22,7 @@ import {
 import { useAuth } from "@/contexts/AuthContext";
 import { useNotifications } from "@/contexts/NotificationContext";
 import { Button } from "@/components/ui/button";
+import { useB2BCart } from "@/contexts/B2BCartContext";
 
 import {
     Tooltip,
@@ -171,7 +172,6 @@ export const menuGroups = [
                 id: 'orders' as const,
                 label: "Order Management",
                 icon: ShoppingBag,
-                comingSoon: true,
             },
             {
                 id: 'offers' as const,
@@ -205,6 +205,7 @@ export const menuGroups = [
 export const DashboardSidebar = ({ activeModule, onModuleChange, isCollapsed, onToggleCollapse }: DashboardSidebarProps) => {
     const { logout, user } = useAuth();
     const { notifications } = useNotifications();
+    const { isDistributor, isFranchise } = useB2BCart();
     const navigate = useNavigate();
 
     const getBadgeCount = (type: string | string[]) => {
@@ -228,6 +229,17 @@ export const DashboardSidebar = ({ activeModule, onModuleChange, isCollapsed, on
             return { ...item, badge };
         })
     }));
+
+    const filteredGroups = groupsWithBadges.map(group => {
+        if (isDistributor && !isFranchise) {
+            const filteredItems = group.items.filter(item => {
+                const franchiseOnly = ['warranty', 'register', 'manpower', 'posm', 'offers', 'audit', 'targets'];
+                return !franchiseOnly.includes(item.id);
+            });
+            return { ...group, items: filteredItems };
+        }
+        return group;
+    }).filter(group => group.items.length > 0);
 
     return (
         <aside
@@ -277,7 +289,7 @@ export const DashboardSidebar = ({ activeModule, onModuleChange, isCollapsed, on
                 "flex-1 py-8 custom-scrollbar transition-all duration-300 overflow-y-auto overflow-x-visible",
                 isCollapsed ? "px-2 space-y-6" : "px-4 space-y-10"
             )}>
-                {groupsWithBadges.map((group) => (
+                {filteredGroups.map((group) => (
                     <div key={group.label} className="space-y-4">
                         {!isCollapsed && (
                             <h2 className="px-4 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 animate-in-fade">
@@ -332,7 +344,13 @@ export const DashboardSidebar = ({ activeModule, onModuleChange, isCollapsed, on
                         </div>
                         <div className="flex-1 min-w-0 animate-in-fade">
                             <p className="text-xs font-black text-slate-800 truncate uppercase mt-0.5">{user?.name || "Partner"}</p>
-                            <p className="text-[10px] font-bold text-orange-500 tracking-tighter truncate uppercase leading-none">Franchise Portal</p>
+                            <p className="text-[10px] font-bold text-orange-500 tracking-tighter truncate uppercase leading-none">
+                                {isDistributor && isFranchise
+                                    ? "Distributor / Franchise Dashboard"
+                                    : isDistributor
+                                        ? "Distributor Portal"
+                                        : "Franchise Portal"}
+                            </p>
                         </div>
                     </div>
                 )}

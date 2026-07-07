@@ -9,6 +9,13 @@ const __dirname = path.dirname(__filename);
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
 async function setupCatalogSchema() {
+    if (!process.argv.includes('--confirm')) {
+        console.error('❌ Refusing to run: this DROPS store_reviews, store_product_images, store_product_variations, store_products, and store_categories before recreating them — the entire live product catalogue would be lost.');
+        console.error('   This script was for the original one-time setup; running it again against a live DB is destructive.');
+        console.error('   Re-run with --confirm if you are certain this is what you want: npx tsx setup_catalog_schema.ts --confirm');
+        process.exit(1);
+    }
+
     console.log('Starting catalog schema setup...');
 
     const connection = await mysql.createConnection({

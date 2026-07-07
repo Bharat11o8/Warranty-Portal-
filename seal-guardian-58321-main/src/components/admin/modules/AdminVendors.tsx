@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
+import { DatePicker } from "@/components/ui/date-picker";
 import {
     Search,
     Download,
@@ -26,6 +27,8 @@ import {
     Mail,
     ArrowUpDown,
     Power,
+    Trophy,
+    CalendarRange,
 } from "lucide-react";
 import {
     Dialog,
@@ -65,6 +68,12 @@ export const AdminVendors = () => {
     const [sortField, setSortField] = useState("created_at");
     const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
 
+    // Leaderboard mode (date range ranking)
+    const [leaderboardMode, setLeaderboardMode] = useState(false);
+    const [startDate, setStartDate] = useState("2026-05-15");
+    const [endDate, setEndDate] = useState(getISTTodayISO());
+    const [dateField, setDateField] = useState<'created_at' | 'purchase_date'>('created_at');
+
     // Pagination
     const [currentPage, setCurrentPage] = useState(1);
     const itemsPerPage = 10;
@@ -78,27 +87,63 @@ export const AdminVendors = () => {
     // View state
     const [viewingVendor, setViewingVendor] = useState<any>(null);
 
+    // Brand update
+    const [updatingBrand, setUpdatingBrand] = useState<string | null>(null);
+    const [pendingBrandChange, setPendingBrandChange] = useState<{ vendor: any; brand: "AF" | "AC" | "AFAC" } | null>(null);
+
+    const handleUpdateFranchiseBrand = async () => {
+        if (!pendingBrandChange) return;
+        const { vendor, brand } = pendingBrandChange;
+        setUpdatingBrand(vendor.id);
+        try {
+            await api.put(`/admin/vendors/${vendor.id}/allowed-brands`, {
+                allowed_brands: brand,
+                target: 'franchise'
+            });
+            // Update local state directly — no re-fetch needed
+            setVendors(prev => prev.map(v =>
+                v.id === vendor.id ? { ...v, franchise_allowed_brands: brand } : v
+            ));
+            toast({ title: "Brand Updated", description: `${vendor.store_name} set to ${brand}` });
+        } catch (error: any) {
+            toast({ title: "Update Failed", description: error.response?.data?.error || "Failed to update brand", variant: "destructive" });
+        } finally {
+            setUpdatingBrand(null);
+            setPendingBrandChange(null);
+        }
+    };
+
     useEffect(() => {
         fetchVendors();
     }, []);
 
+    useEffect(() => {
+        if (leaderboardMode) fetchVendors();
+    }, [leaderboardMode, startDate, endDate, dateField]);
+
     // Reset pagination
     useEffect(() => {
         setCurrentPage(1);
-    }, [filter, search]);
+    }, [filter, search, leaderboardMode]);
 
-    const fetchVendors = async () => {
-        setLoading(true);
+    const fetchVendors = async (silent = false) => {
+        if (!silent) setLoading(true);
         try {
-            const response = await api.get("/admin/vendors");
+            const params = leaderboardMode ? { startDate, endDate, dateField } : {};
+            const response = await api.get("/admin/vendors", { params });
             if (response.data.success) {
                 const parsedVendors = response.data.vendors.map((v: any) => ({
                     ...v,
                     manpower_count: Number(v.manpower_count || 0),
                     is_verified: Boolean(v.is_verified),
-                    is_active: v.is_active === 1 || v.is_active === true
+                    is_active: v.is_active === 1 || v.is_active === true,
+                    is_distributor: Boolean(v.is_distributor),
+                    is_franchise: v.is_franchise === undefined ? true : Boolean(v.is_franchise),
+                    franchise_allowed_brands: v.franchise_allowed_brands || 'AF',
+                    distributor_allowed_brands: v.distributor_allowed_brands || 'AF',
                 }));
-                setVendors(parsedVendors);
+                // Show only Franchises (includes franchises who are also distributors)
+                setVendors(parsedVendors.filter((v: any) => v.is_franchise));
             }
         } catch (error) {
             console.error("Failed to fetch vendors:", error);
@@ -126,7 +171,7 @@ export const AdminVendors = () => {
                     description: response.data.message,
                     variant: isVerified ? "default" : "destructive"
                 });
-                fetchVendors();
+                fetchVendors(true);
             }
         } catch (error: any) {
             console.error("Vendor verification error:", error);
@@ -156,7 +201,7 @@ export const AdminVendors = () => {
                     description: response.data.message,
                     variant: isActive ? "default" : "destructive"
                 });
-                fetchVendors();
+                fetchVendors(true);
             }
         } catch (error: any) {
             console.error("Vendor activation error:", error);
@@ -170,10 +215,53 @@ export const AdminVendors = () => {
         }
     };
 
+    const handleToggleDistributor = async (vendorId: string, isDistributor: boolean) => {
+        setProcessingVendor(vendorId);
+        try {
+            const response = await api.put(`/admin/vendors/${vendorId}/distributor-status`, {
+                is_distributor: isDistributor
+            });
+
+            if (response.data.success) {
+                toast({
+                    title: isDistributor ? "Distributor Status Assigned" : "Distributor Status Revoked",
+                    description: response.data.message,
+                    variant: "default"
+                });
+                fetchVendors(true);
+            }
+        } catch (error: any) {
+            console.error("Toggle distributor status error:", error);
+            toast({
+                title: "Failed to Update Distributor Status",
+                description: error.response?.data?.error || "Failed to update distributor status",
+                variant: "destructive"
+            });
+        } finally {
+            setProcessingVendor(null);
+        }
+    };
+
     const handleExportVendors = () => {
         try {
             if (filteredVendors.length === 0) {
                 toast({ description: "No franchises to export", variant: "destructive" });
+                return;
+            }
+
+            if (leaderboardMode) {
+                const exportData = filteredVendors.map((v, i) => ({
+                    "Rank": i + 1,
+                    "Store Name": v.store_name,
+                    "Contact Person": v.contact_name,
+                    "City": v.city,
+                    "State": v.state,
+                    "Total Warranties": v.range_total_warranties || 0,
+                    "Approved Warranties": v.range_validated_warranties || 0,
+                    "Pending Warranties": v.range_pending_warranties || 0,
+                    "Rejected Warranties": v.range_rejected_warranties || 0
+                }));
+                downloadCSV(exportData, `franchise_leaderboard_${startDate}_to_${endDate}.csv`);
                 return;
             }
 
@@ -215,8 +303,15 @@ export const AdminVendors = () => {
         setViewingVendor(vendor);
     };
 
+    // In leaderboard mode, the rank/filter column depends on the selected tab
+    const leaderboardCountField = filter === 'approved' ? 'range_validated_warranties'
+        : filter === 'pending' ? 'range_pending_warranties'
+        : filter === 'disapproved' ? 'range_rejected_warranties'
+        : 'range_total_warranties';
+
     const filteredVendors = vendors
         .filter((vendor) => {
+            if (leaderboardMode) return Number(vendor[leaderboardCountField] || 0) > 0;
             if (filter === 'approved') return vendor.is_verified;
             if (filter === 'disapproved') return !vendor.is_verified && vendor.verified_at; // Assuming verified_at + !is_verified = rejected
             if (filter === 'pending') return !vendor.is_verified && !vendor.verified_at;
@@ -234,6 +329,13 @@ export const AdminVendors = () => {
             );
         })
         .sort((a, b) => {
+            if (leaderboardMode) {
+                const aVal = Number(a[leaderboardCountField] || 0);
+                const bVal = Number(b[leaderboardCountField] || 0);
+                if (aVal !== bVal) return bVal - aVal;
+                return Number(b.range_total_warranties || 0) - Number(a.range_total_warranties || 0);
+            }
+
             let aVal = a[sortField];
             let bVal = b[sortField];
 
@@ -269,31 +371,60 @@ export const AdminVendors = () => {
     return (
         <div className="space-y-6">
             {/* Controls */}
-            <div className="flex flex-col md:flex-row gap-4 justify-between items-start md:items-center">
+            <div className="flex flex-col gap-4">
+                {leaderboardMode && (
+                    <div className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-center bg-orange-50/40 border border-orange-100 rounded-xl p-3">
+                        <div className="flex items-center bg-white border border-orange-100 rounded-md p-1 gap-1 text-xs font-bold">
+                            <button
+                                type="button"
+                                onClick={() => setDateField('created_at')}
+                                className={`px-3 py-1.5 rounded-sm transition-colors ${dateField === 'created_at' ? 'bg-orange-100 text-orange-700' : 'text-slate-500 hover:text-slate-700'}`}
+                            >
+                                Registered Date
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setDateField('purchase_date')}
+                                className={`px-3 py-1.5 rounded-sm transition-colors ${dateField === 'purchase_date' ? 'bg-orange-100 text-orange-700' : 'text-slate-500 hover:text-slate-700'}`}
+                            >
+                                Purchase Date
+                            </button>
+                        </div>
+                        <div className="w-full sm:w-40">
+                            <DatePicker value={startDate} onChange={setStartDate} maxDate={new Date()} placeholder="Start date" />
+                        </div>
+                        <span className="text-slate-400 text-sm hidden sm:inline">to</span>
+                        <div className="w-full sm:w-40">
+                            <DatePicker value={endDate} onChange={setEndDate} maxDate={new Date()} minDate={new Date(startDate)} placeholder="End date" />
+                        </div>
+                    </div>
+                )}
+
+                <div className="flex flex-col md:flex-row gap-4 justify-between items-start md:items-center">
                 <Tabs value={filter} onValueChange={setFilter} className="w-full md:w-auto">
                     <TabsList className="grid w-full grid-cols-4 md:inline-flex bg-white/50 border border-orange-100 p-1 h-auto">
                         <TabsTrigger value="all" className="gap-2">
                             All
                             <Badge variant="secondary" className="bg-slate-100 text-slate-600 border-none px-1.5 py-0 h-4 text-[10px] font-bold">
-                                {vendors.length}
+                                {leaderboardMode ? vendors.filter(v => Number(v.range_total_warranties || 0) > 0).length : vendors.length}
                             </Badge>
                         </TabsTrigger>
                         <TabsTrigger value="approved" className="gap-2 data-[state=active]:bg-green-50 data-[state=active]:text-green-700">
                             Approved
                             <Badge variant="secondary" className="bg-green-100/50 text-green-700 border-none px-1.5 py-0 h-4 text-[10px] font-bold">
-                                {vendors.filter(v => v.is_verified).length}
+                                {leaderboardMode ? vendors.filter(v => Number(v.range_validated_warranties || 0) > 0).length : vendors.filter(v => v.is_verified).length}
                             </Badge>
                         </TabsTrigger>
                         <TabsTrigger value="pending" className="gap-2 data-[state=active]:bg-amber-50 data-[state=active]:text-amber-700">
                             Pending
                             <Badge variant="secondary" className="bg-amber-100/50 text-amber-700 border-none px-1.5 py-0 h-4 text-[10px] font-bold">
-                                {vendors.filter(v => !v.is_verified && !v.verified_at).length}
+                                {leaderboardMode ? vendors.filter(v => Number(v.range_pending_warranties || 0) > 0).length : vendors.filter(v => !v.is_verified && !v.verified_at).length}
                             </Badge>
                         </TabsTrigger>
                         <TabsTrigger value="disapproved" className="gap-2 data-[state=active]:bg-red-50 data-[state=active]:text-red-700">
                             Rejected
                             <Badge variant="secondary" className="bg-red-100/50 text-red-700 border-none px-1.5 py-0 h-4 text-[10px] font-bold">
-                                {vendors.filter(v => !v.is_verified && v.verified_at).length}
+                                {leaderboardMode ? vendors.filter(v => Number(v.range_rejected_warranties || 0) > 0).length : vendors.filter(v => !v.is_verified && v.verified_at).length}
                             </Badge>
                         </TabsTrigger>
                     </TabsList>
@@ -310,63 +441,73 @@ export const AdminVendors = () => {
                         />
                     </div>
                     <div className="flex gap-2">
-                        <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                                <Button variant="outline" className="flex-1 sm:flex-none flex items-center gap-2 border-orange-100 h-11 sm:h-10">
-                                    <ArrowUpDown className="h-4 w-4 text-orange-500" />
-                                    {sortField === 'store_name' ? 'Name' : sortField === 'total_warranties' ? 'Stats' : sortField === 'city' ? 'Location' : sortField === 'status' ? 'Status' : 'Date'}
-                                    {sortOrder === 'asc' ? '↑' : '↓'}
-                                </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent className="rounded-2xl border-orange-100 shadow-xl p-2 w-48">
-                                <DropdownMenuLabel className="text-[10px] uppercase tracking-widest text-slate-400 px-3 py-2">Sort By</DropdownMenuLabel>
-                                <DropdownMenuSeparator className="bg-orange-50" />
-                                <DropdownMenuItem
-                                    onClick={() => { setSortField('created_at'); }}
-                                    className="flex items-center justify-between text-xs font-bold py-3 px-3 rounded-xl cursor-pointer hover:bg-orange-50 focus:bg-orange-50 group"
-                                >
-                                    Registration Date {sortField === 'created_at' && <Check className="h-4 w-4 text-orange-500" />}
-                                </DropdownMenuItem>
-                                <DropdownMenuItem
-                                    onClick={() => { setSortField('store_name'); }}
-                                    className="flex items-center justify-between text-xs font-bold py-3 px-3 rounded-xl cursor-pointer hover:bg-orange-50 focus:bg-orange-50 group"
-                                >
-                                    Store Name {sortField === 'store_name' && <Check className="h-4 w-4 text-orange-500" />}
-                                </DropdownMenuItem>
-                                <DropdownMenuItem
-                                    onClick={() => { setSortField('city'); }}
-                                    className="flex items-center justify-between text-xs font-bold py-3 px-3 rounded-xl cursor-pointer hover:bg-orange-50 focus:bg-orange-50 group"
-                                >
-                                    Location {sortField === 'city' && <Check className="h-4 w-4 text-orange-500" />}
-                                </DropdownMenuItem>
-                                <DropdownMenuItem
-                                    onClick={() => { setSortField('status'); }}
-                                    className="flex items-center justify-between text-xs font-bold py-3 px-3 rounded-xl cursor-pointer hover:bg-orange-50 focus:bg-orange-50 group"
-                                >
-                                    Status {sortField === 'status' && <Check className="h-4 w-4 text-orange-500" />}
-                                </DropdownMenuItem>
-                                <DropdownMenuItem
-                                    onClick={() => { setSortField('total_warranties'); }}
-                                    className="flex items-center justify-between text-xs font-bold py-3 px-3 rounded-xl cursor-pointer hover:bg-orange-50 focus:bg-orange-50 group"
-                                >
-                                    Total Warranties {sortField === 'total_warranties' && <Check className="h-4 w-4 text-orange-500" />}
-                                </DropdownMenuItem>
-                                <DropdownMenuSeparator className="bg-orange-50" />
-                                <DropdownMenuLabel className="text-[10px] uppercase tracking-widest text-slate-400 px-3 py-2">Order</DropdownMenuLabel>
-                                <DropdownMenuItem
-                                    onClick={() => setSortOrder('desc')}
-                                    className="flex items-center justify-between text-xs font-bold py-3 px-3 rounded-xl cursor-pointer hover:bg-orange-50 focus:bg-orange-50 group"
-                                >
-                                    Newest/Highest First {sortOrder === 'desc' && <Check className="h-4 w-4 text-orange-500" />}
-                                </DropdownMenuItem>
-                                <DropdownMenuItem
-                                    onClick={() => setSortOrder('asc')}
-                                    className="flex items-center justify-between text-xs font-bold py-3 px-3 rounded-xl cursor-pointer hover:bg-orange-50 focus:bg-orange-50 group"
-                                >
-                                    Oldest/Lowest First {sortOrder === 'asc' && <Check className="h-4 w-4 text-orange-500" />}
-                                </DropdownMenuItem>
-                            </DropdownMenuContent>
-                        </DropdownMenu>
+                        <Button
+                            variant="outline"
+                            onClick={() => setLeaderboardMode((v) => !v)}
+                            className={`flex-1 sm:flex-none flex items-center gap-2 h-11 sm:h-10 ${leaderboardMode ? "border-orange-300 bg-orange-50 text-orange-700" : "border-orange-100 text-slate-600"}`}
+                        >
+                            <Trophy className="h-4 w-4" />
+                            <span>Leaderboard</span>
+                        </Button>
+                        {!leaderboardMode && (
+                            <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                    <Button variant="outline" className="flex-1 sm:flex-none flex items-center gap-2 border-orange-100 h-11 sm:h-10">
+                                        <ArrowUpDown className="h-4 w-4 text-orange-500" />
+                                        {sortField === 'store_name' ? 'Name' : sortField === 'total_warranties' ? 'Stats' : sortField === 'city' ? 'Location' : sortField === 'status' ? 'Status' : 'Date'}
+                                        {sortOrder === 'asc' ? '↑' : '↓'}
+                                    </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent className="rounded-2xl border-orange-100 shadow-xl p-2 w-48">
+                                    <DropdownMenuLabel className="text-[10px] uppercase tracking-widest text-slate-400 px-3 py-2">Sort By</DropdownMenuLabel>
+                                    <DropdownMenuSeparator className="bg-orange-50" />
+                                    <DropdownMenuItem
+                                        onClick={() => { setSortField('created_at'); }}
+                                        className="flex items-center justify-between text-xs font-bold py-3 px-3 rounded-xl cursor-pointer hover:bg-orange-50 focus:bg-orange-50 group"
+                                    >
+                                        Registration Date {sortField === 'created_at' && <Check className="h-4 w-4 text-orange-500" />}
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem
+                                        onClick={() => { setSortField('store_name'); }}
+                                        className="flex items-center justify-between text-xs font-bold py-3 px-3 rounded-xl cursor-pointer hover:bg-orange-50 focus:bg-orange-50 group"
+                                    >
+                                        Store Name {sortField === 'store_name' && <Check className="h-4 w-4 text-orange-500" />}
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem
+                                        onClick={() => { setSortField('city'); }}
+                                        className="flex items-center justify-between text-xs font-bold py-3 px-3 rounded-xl cursor-pointer hover:bg-orange-50 focus:bg-orange-50 group"
+                                    >
+                                        Location {sortField === 'city' && <Check className="h-4 w-4 text-orange-500" />}
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem
+                                        onClick={() => { setSortField('status'); }}
+                                        className="flex items-center justify-between text-xs font-bold py-3 px-3 rounded-xl cursor-pointer hover:bg-orange-50 focus:bg-orange-50 group"
+                                    >
+                                        Status {sortField === 'status' && <Check className="h-4 w-4 text-orange-500" />}
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem
+                                        onClick={() => { setSortField('total_warranties'); }}
+                                        className="flex items-center justify-between text-xs font-bold py-3 px-3 rounded-xl cursor-pointer hover:bg-orange-50 focus:bg-orange-50 group"
+                                    >
+                                        Total Warranties {sortField === 'total_warranties' && <Check className="h-4 w-4 text-orange-500" />}
+                                    </DropdownMenuItem>
+                                    <DropdownMenuSeparator className="bg-orange-50" />
+                                    <DropdownMenuLabel className="text-[10px] uppercase tracking-widest text-slate-400 px-3 py-2">Order</DropdownMenuLabel>
+                                    <DropdownMenuItem
+                                        onClick={() => setSortOrder('desc')}
+                                        className="flex items-center justify-between text-xs font-bold py-3 px-3 rounded-xl cursor-pointer hover:bg-orange-50 focus:bg-orange-50 group"
+                                    >
+                                        Newest/Highest First {sortOrder === 'desc' && <Check className="h-4 w-4 text-orange-500" />}
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem
+                                        onClick={() => setSortOrder('asc')}
+                                        className="flex items-center justify-between text-xs font-bold py-3 px-3 rounded-xl cursor-pointer hover:bg-orange-50 focus:bg-orange-50 group"
+                                    >
+                                        Oldest/Lowest First {sortOrder === 'asc' && <Check className="h-4 w-4 text-orange-500" />}
+                                    </DropdownMenuItem>
+                                </DropdownMenuContent>
+                            </DropdownMenu>
+                        )}
                         <Button variant="outline" onClick={handleExportVendors} className="flex-1 sm:flex-none h-11 sm:h-10 text-slate-600">
                             <Download className="h-4 w-4 mr-2" />
                             <span>Export</span>
@@ -374,17 +515,28 @@ export const AdminVendors = () => {
                     </div>
                 </div>
             </div>
+            </div>
 
             {/* Content */}
             <Card className="border-orange-100 shadow-sm overflow-hidden">
                 <CardHeader className="bg-orange-50/30 border-b border-orange-50 pb-4">
                     <div className="flex items-center justify-between">
                         <div>
-                            <CardTitle className="text-lg font-bold text-slate-800">Registered Franchises</CardTitle>
-                            <CardDescription>Manage your network partners</CardDescription>
+                            <CardTitle className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                                {leaderboardMode && <Trophy className="h-5 w-5 text-orange-500" />}
+                                {leaderboardMode ? "Franchise Leaderboard" : "Registered Franchises"}
+                            </CardTitle>
+                            <CardDescription className="flex items-center gap-1.5">
+                                {leaderboardMode ? (
+                                    <>
+                                        <CalendarRange className="h-3.5 w-3.5" />
+                                        Ranked by {filter === 'all' ? 'total' : filter === 'disapproved' ? 'rejected' : filter} warranties ({dateField === 'purchase_date' ? 'purchase date' : 'registered date'}), {new Date(startDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })} – {new Date(endDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+                                    </>
+                                ) : "Manage your network partners"}
+                            </CardDescription>
                         </div>
                         <Badge variant="outline" className="bg-white text-slate-600 font-mono">
-                            {filteredVendors.length} Total
+                            {filteredVendors.length} {leaderboardMode ? "Active" : "Total"}
                         </Badge>
                     </div>
                 </CardHeader>
@@ -402,22 +554,30 @@ export const AdminVendors = () => {
                         <>
                             {/* Mobile View: Cards */}
                             <div className="grid grid-cols-1 gap-4 p-4 md:hidden">
-                                {paginatedVendors.map((vendor) => (
+                                {paginatedVendors.map((vendor, index) => (
                                     <div key={vendor.id} className="bg-white border border-orange-100 rounded-2xl p-5 shadow-sm space-y-4">
                                         <div className="flex justify-between items-start">
                                             <div
-                                                className="cursor-pointer flex-1"
+                                                className="cursor-pointer flex-1 flex items-start gap-3"
                                                 onClick={() => handleViewVendor(vendor)}
                                             >
-                                                <div className="font-bold text-slate-800 text-lg leading-tight hover:text-orange-600 transition-colors">{vendor.store_name}</div>
-                                                <div className="text-xs text-slate-500 flex items-center gap-1.5 mt-1.5">
-                                                    <Mail className="h-3.5 w-3.5" /> {vendor.store_email}
+                                                {leaderboardMode && (
+                                                    <span className={`shrink-0 inline-flex items-center justify-center h-7 w-7 rounded-full font-bold text-xs mt-0.5 ${startIndex + index === 0 ? "bg-orange-100 text-orange-700" : startIndex + index === 1 ? "bg-slate-200 text-slate-700" : startIndex + index === 2 ? "bg-amber-100 text-amber-800" : "bg-slate-50 text-slate-500"}`}>
+                                                        {startIndex + index + 1}
+                                                    </span>
+                                                )}
+                                                <div>
+                                                    <div className="font-bold text-slate-800 text-lg leading-tight hover:text-orange-600 transition-colors">{vendor.store_name}</div>
+                                                    <div className="text-xs text-slate-500 flex items-center gap-1.5 mt-1.5">
+                                                        <Mail className="h-3.5 w-3.5" /> {vendor.store_email}
+                                                    </div>
                                                 </div>
                                             </div>
-                                            <div className="flex gap-2">
+                                            <div className="flex gap-3 items-center">
                                                 {/* Activation Toggle - only for verified vendors */}
-                                                {vendor.is_verified && (
-                                                    <div className="flex items-center gap-1" title={vendor.is_active ? "Deactivate Franchise" : "Activate Franchise"}>
+                                                {!leaderboardMode && vendor.is_verified && (
+                                                    <div className="flex flex-col items-center gap-1" title={vendor.is_active ? "Deactivate Franchise" : "Activate Franchise"}>
+                                                        <span className="text-[9px] font-bold text-slate-400">Active</span>
                                                         <Switch
                                                             checked={vendor.is_active !== false}
                                                             onCheckedChange={(checked) => handleVendorActivation(vendor.id, checked)}
@@ -426,7 +586,19 @@ export const AdminVendors = () => {
                                                         />
                                                     </div>
                                                 )}
-                                                {!vendor.is_verified && (
+                                                {/* Distributor Toggle - only for verified vendors */}
+                                                {!leaderboardMode && vendor.is_verified && (
+                                                    <div className="flex flex-col items-center gap-1" title={vendor.is_distributor ? "Revoke Distributor Privileges" : "Make Distributor"}>
+                                                        <span className="text-[9px] font-bold text-slate-400">Distributor</span>
+                                                        <Switch
+                                                            checked={vendor.is_distributor}
+                                                            onCheckedChange={(checked) => handleToggleDistributor(vendor.id, checked)}
+                                                            disabled={processingVendor === vendor.id}
+                                                            className="data-[state=checked]:bg-orange-500 data-[state=unchecked]:bg-slate-300"
+                                                        />
+                                                    </div>
+                                                )}
+                                                {!leaderboardMode && !vendor.is_verified && (
                                                     <div className="flex gap-2">
                                                         <Button
                                                             size="icon"
@@ -473,7 +645,9 @@ export const AdminVendors = () => {
                                         <div className="flex items-center justify-between pt-2 border-t border-orange-50">
                                             <div className="space-y-1">
                                                 <div className="text-[10px] uppercase tracking-wider text-slate-400 font-bold">Status</div>
-                                                {vendor.is_verified ? (
+                                                {leaderboardMode ? (
+                                                    <Badge variant="outline" className="bg-slate-50 text-slate-600 border-slate-200">In Range</Badge>
+                                                ) : vendor.is_verified ? (
                                                     <Badge className="bg-green-100 text-green-700 hover:bg-green-100 border-green-200">Active</Badge>
                                                 ) : vendor.verified_at ? (
                                                     <Badge variant="destructive" className="bg-red-100 text-red-700 hover:bg-red-100 border-red-200">Rejected</Badge>
@@ -483,11 +657,11 @@ export const AdminVendors = () => {
                                             </div>
                                             <div className="flex gap-4">
                                                 <div className="text-center">
-                                                    <div className="text-green-600 font-bold text-sm">{vendor.validated_warranties || 0}</div>
+                                                    <div className="text-green-600 font-bold text-sm">{leaderboardMode ? (vendor.range_validated_warranties || 0) : (vendor.validated_warranties || 0)}</div>
                                                     <div className="text-[8px] uppercase tracking-tighter text-slate-400">Approved</div>
                                                 </div>
                                                 <div className="text-center">
-                                                    <div className="text-slate-700 font-bold text-sm">{vendor.total_warranties || 0}</div>
+                                                    <div className="text-slate-700 font-bold text-sm">{leaderboardMode ? (vendor.range_total_warranties || 0) : (vendor.total_warranties || 0)}</div>
                                                     <div className="text-[8px] uppercase tracking-tighter text-slate-400">Total</div>
                                                 </div>
                                             </div>
@@ -500,19 +674,36 @@ export const AdminVendors = () => {
                             <table className="w-full text-sm text-left hidden md:table">
                                 <thead className="bg-slate-50 text-slate-500 font-medium border-b border-slate-100">
                                     <tr>
+                                        {leaderboardMode && <th className="px-6 py-4 text-center">Rank</th>}
                                         <th className="px-6 py-4">Store Details</th>
                                         <th className="px-6 py-4">Contact</th>
                                         <th className="px-6 py-4">Location</th>
-                                        <th className="px-6 py-4 text-center">Status</th>
+                                        {!leaderboardMode && <th className="px-6 py-4 text-center">Status</th>}
                                         <th className="px-6 py-4 text-center">Stats</th>
-                                        <th className="px-6 py-4 text-right">Actions</th>
+                                        {!leaderboardMode && <th className="px-6 py-4 text-right">Actions</th>}
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-100">
-                                    {paginatedVendors.map((vendor) => (
+                                    {paginatedVendors.map((vendor, index) => (
                                         <tr key={vendor.id} className="hover:bg-orange-50/50 transition-colors group cursor-pointer" onClick={() => handleViewVendor(vendor)}>
+                                            {leaderboardMode && (
+                                                <td className="px-6 py-4 text-center">
+                                                    <span className={`inline-flex items-center justify-center h-7 w-7 rounded-full font-bold text-xs ${startIndex + index === 0 ? "bg-orange-100 text-orange-700" : startIndex + index === 1 ? "bg-slate-200 text-slate-700" : startIndex + index === 2 ? "bg-amber-100 text-amber-800" : "bg-slate-50 text-slate-500"}`}>
+                                                        {startIndex + index + 1}
+                                                    </span>
+                                                </td>
+                                            )}
                                             <td className="px-6 py-4">
-                                                <div className="font-bold text-slate-800 group-hover:text-orange-600 transition-colors">{vendor.store_name}</div>
+                                                <div className="flex items-center gap-2">
+                                                    <span className="font-bold text-slate-800 group-hover:text-orange-600 transition-colors">{vendor.store_name}</span>
+                                                    {(vendor.franchise_allowed_brands || 'AF') === 'AFAC' ? (
+                                                        <Badge className="bg-purple-100 text-purple-700 border-purple-200 text-[10px] px-2 py-0.5 font-bold whitespace-nowrap">AF+AC</Badge>
+                                                    ) : (vendor.franchise_allowed_brands || 'AF') === 'AC' ? (
+                                                        <Badge className="bg-blue-100 text-blue-700 border-blue-200 text-[10px] px-2 py-0.5 font-bold whitespace-nowrap">AC</Badge>
+                                                    ) : (
+                                                        <Badge className="bg-orange-100 text-orange-700 border-orange-200 text-[10px] px-2 py-0.5 font-bold whitespace-nowrap">AF</Badge>
+                                                    )}
+                                                </div>
                                                 <div className="text-xs text-slate-500 flex items-center gap-1 mt-1">
                                                     <Mail className="h-3 w-3" /> {vendor.store_email}
                                                 </div>
@@ -533,77 +724,116 @@ export const AdminVendors = () => {
                                                     <div className="text-[10px] text-slate-400 ml-4.5 mt-0.5">Lat: {vendor.latitude || 'N/A'}, Lng: {vendor.longitude || 'N/A'}</div>
                                                 )}
                                             </td>
-                                            <td className="px-6 py-4 text-center">
-                                                {vendor.is_verified ? (
-                                                    <Badge className="bg-green-100 text-green-700 hover:bg-green-100 border-green-200">Active</Badge>
-                                                ) : vendor.verified_at ? (
-                                                    <Badge variant="destructive" className="bg-red-100 text-red-700 hover:bg-red-100 border-red-200">Rejected</Badge>
-                                                ) : (
-                                                    <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100 border-amber-200">Pending</Badge>
-                                                )}
-                                            </td>
+                                            {!leaderboardMode && (
+                                                <td className="px-6 py-4 text-center">
+                                                    {vendor.is_verified ? (
+                                                        <Badge className="bg-green-100 text-green-700 hover:bg-green-100 border-green-200">Active</Badge>
+                                                    ) : vendor.verified_at ? (
+                                                        <Badge variant="destructive" className="bg-red-100 text-red-700 hover:bg-red-100 border-red-200">Rejected</Badge>
+                                                    ) : (
+                                                        <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100 border-amber-200">Pending</Badge>
+                                                    )}
+                                                </td>
+                                            )}
                                             <td className="px-6 py-4">
                                                 <div className="flex justify-center gap-3 text-xs font-medium">
                                                     <div className="text-center">
-                                                        <div className="text-green-600">{vendor.validated_warranties || 0}</div>
+                                                        <div className="text-green-600">{leaderboardMode ? (vendor.range_validated_warranties || 0) : (vendor.validated_warranties || 0)}</div>
                                                         <div className="text-[10px] text-slate-400">Approved</div>
                                                     </div>
                                                     <div className="text-center">
-                                                        <div className="text-red-600">{vendor.rejected_warranties || 0}</div>
+                                                        <div className="text-red-600">{leaderboardMode ? (vendor.range_rejected_warranties || 0) : (vendor.rejected_warranties || 0)}</div>
                                                         <div className="text-[10px] text-slate-400">Rejected</div>
                                                     </div>
                                                     <div className="text-center">
-                                                        <div className="text-amber-600">{vendor.pending_warranties || 0}</div>
+                                                        <div className="text-amber-600">{leaderboardMode ? (vendor.range_pending_warranties || 0) : (vendor.pending_warranties || 0)}</div>
                                                         <div className="text-[10px] text-slate-400">Pending</div>
                                                     </div>
                                                     <div className="text-center">
-                                                        <div className="text-slate-700">{vendor.total_warranties || 0}</div>
+                                                        <div className="text-slate-700">{leaderboardMode ? (vendor.range_total_warranties || 0) : (vendor.total_warranties || 0)}</div>
                                                         <div className="text-[10px] text-slate-400">Total</div>
                                                     </div>
                                                 </div>
                                             </td>
-                                            <td className="px-6 py-4 text-right" onClick={(e) => e.stopPropagation()}>
-                                                <div className="flex justify-end items-center gap-2">
-                                                    {/* Activate/Deactivate Toggle - only for verified vendors */}
-                                                    {vendor.is_verified && (
-                                                        <div className="flex items-center gap-1.5 px-2" title={vendor.is_active ? "Deactivate Store" : "Activate Store"}>
-                                                            <Switch
-                                                                checked={vendor.is_active}
-                                                                onCheckedChange={(checked) => handleVendorActivation(vendor.id, checked)}
-                                                                disabled={processingVendor === vendor.id}
-                                                                className="data-[state=checked]:bg-green-500 data-[state=unchecked]:bg-slate-300"
-                                                            />
-                                                        </div>
-                                                    )}
+                                            {!leaderboardMode && (
+                                                <td className="px-6 py-4 text-right" onClick={(e) => e.stopPropagation()}>
+                                                    <div className="flex justify-end items-center gap-4">
+                                                        {/* Activate/Deactivate Toggle - only for verified vendors */}
+                                                        {vendor.is_verified && (
+                                                            <div className="flex items-center gap-2 px-1" title={vendor.is_active ? "Deactivate Store" : "Activate Store"}>
+                                                                <span className="text-xs font-bold text-slate-500">Active</span>
+                                                                <Switch
+                                                                    checked={vendor.is_active}
+                                                                    onCheckedChange={(checked) => handleVendorActivation(vendor.id, checked)}
+                                                                    disabled={processingVendor === vendor.id}
+                                                                    className="data-[state=checked]:bg-green-500 data-[state=unchecked]:bg-slate-300"
+                                                                />
+                                                            </div>
+                                                        )}
 
-                                                    {!vendor.is_verified && (
-                                                        <>
-                                                            <Button
-                                                                size="icon"
-                                                                className="h-8 w-8 bg-green-500 hover:bg-green-600 text-white rounded-full shadow-sm"
-                                                                onClick={() => handleVendorVerification(vendor.id, true)}
-                                                                title="Approve"
-                                                            >
-                                                                <Check className="h-4 w-4" />
-                                                            </Button>
-                                                            <Button
-                                                                size="icon"
-                                                                variant="destructive"
-                                                                className="h-8 w-8 rounded-full shadow-sm"
-                                                                onClick={() => {
-                                                                    setSelectedVendor(vendor);
-                                                                    setRejectDialogOpen(true);
-                                                                }}
-                                                                title="Reject"
-                                                            >
-                                                                <X className="h-4 w-4" />
-                                                            </Button>
-                                                        </>
-                                                    )}
+                                                        {/* Distributor Toggle - only for verified vendors */}
+                                                        {vendor.is_verified && (
+                                                            <div className="flex items-center gap-2 px-1" title={vendor.is_distributor ? "Revoke Distributor Status" : "Make Distributor"}>
+                                                                <span className="text-xs font-bold text-slate-500">Distributor</span>
+                                                                <Switch
+                                                                    checked={vendor.is_distributor}
+                                                                    onCheckedChange={(checked) => handleToggleDistributor(vendor.id, checked)}
+                                                                    disabled={processingVendor === vendor.id}
+                                                                    className="data-[state=checked]:bg-orange-500 data-[state=unchecked]:bg-slate-300"
+                                                                />
+                                                            </div>
+                                                        )}
 
+                                                        {/* Franchise Brand selector */}
+                                                        {vendor.is_verified && (
+                                                            <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                                                                {(['AF', 'AC', 'AFAC'] as const).map(b => (
+                                                                    <button
+                                                                        key={b}
+                                                                        disabled={updatingBrand === vendor.id}
+                                                                        onClick={() => setPendingBrandChange({ vendor, brand: b })}
+                                                                        className={`text-[10px] font-bold px-2 py-0.5 rounded-full border transition-all ${
+                                                                            (vendor.franchise_allowed_brands || 'AF') === b
+                                                                                ? b === 'AF' ? 'bg-orange-500 text-white border-orange-500'
+                                                                                  : b === 'AC' ? 'bg-blue-500 text-white border-blue-500'
+                                                                                  : 'bg-purple-500 text-white border-purple-500'
+                                                                                : 'bg-white text-slate-400 border-slate-200 hover:border-slate-400'
+                                                                        }`}
+                                                                    >
+                                                                        {b}
+                                                                    </button>
+                                                                ))}
+                                                            </div>
+                                                        )}
 
-                                                </div>
-                                            </td>
+                                                        {!vendor.is_verified && (
+                                                            <>
+                                                                <Button
+                                                                    size="icon"
+                                                                    className="h-8 w-8 bg-green-500 hover:bg-green-600 text-white rounded-full shadow-sm"
+                                                                    onClick={() => handleVendorVerification(vendor.id, true)}
+                                                                    title="Approve"
+                                                                >
+                                                                    <Check className="h-4 w-4" />
+                                                                </Button>
+                                                                <Button
+                                                                    size="icon"
+                                                                    variant="destructive"
+                                                                    className="h-8 w-8 rounded-full shadow-sm"
+                                                                    onClick={() => {
+                                                                        setSelectedVendor(vendor);
+                                                                        setRejectDialogOpen(true);
+                                                                    }}
+                                                                    title="Reject"
+                                                                >
+                                                                    <X className="h-4 w-4" />
+                                                                </Button>
+                                                            </>
+                                                        )}
+
+                                                    </div>
+                                                </td>
+                                            )}
                                         </tr>
                                     ))}
                                 </tbody>
@@ -671,6 +901,36 @@ export const AdminVendors = () => {
                     </PaginationContent>
                 </Pagination>
             )}
+
+            {/* Brand change confirmation dialog */}
+            <Dialog open={!!pendingBrandChange} onOpenChange={(open) => { if (!open) setPendingBrandChange(null); }}>
+                <DialogContent className="sm:max-w-[420px]">
+                    <DialogHeader>
+                        <DialogTitle>Confirm Brand Update</DialogTitle>
+                        <DialogDescription>
+                            Are you sure you want to update the brand for{' '}
+                            <span className="font-semibold text-slate-800">{pendingBrandChange?.vendor.store_name}</span>{' '}
+                            (Franchise) to{' '}
+                            <span className={`font-bold ${pendingBrandChange?.brand === 'AF' ? 'text-orange-600' : pendingBrandChange?.brand === 'AC' ? 'text-blue-600' : 'text-purple-600'}`}>
+                                {pendingBrandChange?.brand === 'AF' ? 'Autoform (AF)' : pendingBrandChange?.brand === 'AC' ? 'Autocruze (AC)' : 'AFAC'}
+                            </span>?
+                            <br /><br />
+                            <span className="text-amber-700 font-medium text-xs">This affects which products this franchise can see and order.</span>
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="flex justify-end gap-3 pt-2">
+                        <Button variant="outline" onClick={() => setPendingBrandChange(null)}>Cancel</Button>
+                        <Button
+                            onClick={handleUpdateFranchiseBrand}
+                            disabled={!!updatingBrand}
+                            className={pendingBrandChange?.brand === 'AF' ? 'bg-orange-500 hover:bg-orange-600 text-white' : pendingBrandChange?.brand === 'AC' ? 'bg-blue-500 hover:bg-blue-600 text-white' : 'bg-purple-500 hover:bg-purple-600 text-white'}
+                        >
+                            {updatingBrand ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                            Yes, Update to {pendingBrandChange?.brand}
+                        </Button>
+                    </div>
+                </DialogContent>
+            </Dialog>
 
             <Dialog open={rejectDialogOpen} onOpenChange={setRejectDialogOpen}>
                 <DialogContent>

@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { AdminController } from '../controllers/admin.controller.js';
 import { DiagnosticController } from '../controllers/diagnostic.controller.js';
 import { ProductController } from '../controllers/product.controller.js';
+import { ImageRepairController } from '../controllers/imageRepair.controller.js';
 import { authenticateToken, requireRole, requirePermission } from '../middleware/auth.js';
 
 const router = Router();
@@ -19,7 +20,25 @@ router.put('/vendors/:id/activation',     ...adminAuth, requirePermission('vendo
 router.put('/vendors/:id/profile',        ...adminAuth, requirePermission('vendors', 'write'), AdminController.updateVendorProfile);
 router.put('/vendors/:id/coordinates',    ...adminAuth, requirePermission('vendors', 'write'), AdminController.updateVendorCoordinates);
 router.put('/vendors/:id/store-code',     ...adminAuth, requirePermission('vendors', 'write'), AdminController.updateStoreCode);
+router.put('/vendors/:id/allowed-brands', ...adminAuth, requirePermission('vendors', 'write'), AdminController.updateVendorAllowedBrands);
+router.put('/vendors/:id/distributor-status', ...adminAuth, requirePermission('vendors', 'write'), AdminController.updateVendorDistributorStatus);
 router.delete('/vendors/:id',             ...adminAuth, requirePermission('vendors', 'write'), AdminController.deleteVendor);
+
+// ── Distributors ─────────────────────────────────────────────────────────────
+router.get('/distributors',                                     ...adminAuth, requirePermission('vendors', 'read'),  AdminController.getAllDistributors);
+router.post('/distributors',                                    ...adminAuth, requirePermission('vendors', 'write'), AdminController.createDistributor);
+router.get('/distributors/:id/franchises',                      ...adminAuth, requirePermission('vendors', 'read'),  AdminController.getDistributorFranchises);
+router.post('/distributors/:id/franchise-assignments',          ...adminAuth, requirePermission('vendors', 'write'), AdminController.mapFranchiseToDistributor);
+router.delete('/distributors/:id/franchise-assignments/:vendorId', ...adminAuth, requirePermission('vendors', 'write'), AdminController.unmapFranchiseFromDistributor);
+router.get('/distributors/:id/categories',                      ...adminAuth, requirePermission('vendors', 'read'),  AdminController.getDistributorAllowedCategories);
+router.put('/distributors/:id/categories',                      ...adminAuth, requirePermission('vendors', 'write'), AdminController.setDistributorAllowedCategories);
+
+// ── Franchises ───────────────────────────────────────────────────────────────
+router.get('/franchises/eligible',                     ...adminAuth, requirePermission('vendors', 'read'),  AdminController.getEligibleFranchises);
+router.get('/franchises/:vendorId/orders',             ...adminAuth, requirePermission('vendors', 'read'),  AdminController.getFranchiseOrders);
+router.get('/franchises/:vendorId/distributors',       ...adminAuth, requirePermission('vendors', 'read'),  AdminController.getFranchiseDistributors);
+router.post('/distributors/:id/franchises',             ...adminAuth, requirePermission('vendors', 'write'), AdminController.assignDistributorToFranchise);
+router.delete('/distributors/:id/franchises/:vendorId', ...adminAuth, requirePermission('vendors', 'write'), AdminController.unassignDistributorFromFranchise);
 
 // ── Warranties ───────────────────────────────────────────────────────────────
 router.get('/warranties',                 ...adminAuth, requirePermission('warranties', 'read'),  AdminController.getAllWarranties);
@@ -51,5 +70,8 @@ router.get('/activity-logs',              ...adminAuth, requirePermission('activ
 
 // ── Diagnostic ───────────────────────────────────────────────────────────────
 router.get('/diagnostic/vendors',         ...adminAuth, AdminController.getDashboardStats);
+
+// ── TEMP: HEIC-as-.jpg image repair (see imageRepair.controller.ts) ─────────
+router.post('/repair-image',              ...adminAuth, requirePermission('warranties', 'write'), ImageRepairController.repairOne);
 
 export default router;

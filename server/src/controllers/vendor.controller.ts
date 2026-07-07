@@ -361,7 +361,7 @@ export class VendorController {
 
       // Get vendor details
       const [vendorDetails]: any = await db.execute(
-        `SELECT 
+        `SELECT
           vd.id,
           vd.store_name,
           vd.store_email,
@@ -370,10 +370,18 @@ export class VendorController {
           vd.city,
           vd.state,
           vd.pincode as postal_code,
+          vd.is_distributor,
+          vd.is_franchise,
+          CASE
+            WHEN vd.is_distributor = 1 AND dist.allowed_brands IS NOT NULL
+              THEN dist.allowed_brands
+            ELSE COALESCE(vd.allowed_brands, 'AF')
+          END as allowed_brands,
           p.phone_number as contact_number,
           p.name as owner_name
         FROM vendor_details vd
         JOIN profiles p ON vd.user_id = p.id
+        LEFT JOIN distributors dist ON dist.profile_id = p.id
         WHERE vd.user_id = ?`,
         [userId]
       );
@@ -400,6 +408,9 @@ export class VendorController {
           city: profile.city,
           state: profile.state,
           postal_code: profile.postal_code,
+          is_distributor: Boolean(profile.is_distributor),
+          is_franchise: profile.is_franchise === undefined ? true : Boolean(profile.is_franchise),
+          allowed_brands: profile.allowed_brands || 'AF',
           owner_name: profile.owner_name // Included for default installer logic in vendor dashboard
         }
       });

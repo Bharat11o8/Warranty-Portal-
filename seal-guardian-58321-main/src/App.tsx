@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "./contexts/AuthContext";
 import { NotificationProvider } from "./contexts/NotificationContext";
+import { B2BCartProvider } from "./contexts/B2BCartContext";
 import { lazy, Suspense } from "react";
 import { Loader2 } from "lucide-react";
 
@@ -49,7 +50,8 @@ const PageLoader = () => (
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <AuthProvider>
-      <NotificationProvider>
+      <B2BCartProvider>
+        <NotificationProvider>
         <TooltipProvider>
           <Toaster />
           <Sonner />
@@ -92,6 +94,7 @@ const App = () => (
           </BrowserRouter>
         </TooltipProvider>
       </NotificationProvider>
+      </B2BCartProvider>
     </AuthProvider>
   </QueryClientProvider>
 );

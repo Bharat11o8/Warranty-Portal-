@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import api from "@/lib/api";
 import { Button } from "@/components/ui/button";
-import { Loader2, CheckCircle2, FileText } from "lucide-react";
+import { Loader2, CheckCircle2, FileText, AlertTriangle } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -26,6 +26,13 @@ const ProductInfo = ({ formData, updateFormData, onPrev, onSubmit, loading, exis
   const [products, setProducts] = useState<any[]>([]);
   const [termsModalOpen, setTermsModalOpen] = useState(false);
   const [compressing, setCompressing] = useState(false);
+  const [disclaimer, setDisclaimer] = useState("");
+
+  useEffect(() => {
+    api.get('/settings/public/ppf_disclaimer')
+      .then(res => { if (res.data.success && res.data.value) setDisclaimer(res.data.value); })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     const fetchProducts = async () => {
@@ -177,7 +184,7 @@ const ProductInfo = ({ formData, updateFormData, onPrev, onSubmit, loading, exis
             className="bg-muted"
           />
           <p className="text-xs text-muted-foreground">
-            Default warranty period for EV products
+            Default warranty period for PPF products
           </p>
         </div>
 
@@ -227,6 +234,17 @@ const ProductInfo = ({ formData, updateFormData, onPrev, onSubmit, loading, exis
           />
         </div>
       </div>
+
+      {/* Disclaimer — full width, shown once a product is selected */}
+      {disclaimer && formData.product && (
+        <div className="flex gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4">
+          <AlertTriangle className="h-5 w-5 text-amber-500 shrink-0 mt-0.5" />
+          <div
+            className="text-sm text-amber-800 leading-relaxed prose prose-sm max-w-none [&_p]:mb-1 [&_ul]:mt-1 [&_li]:leading-snug"
+            dangerouslySetInnerHTML={{ __html: disclaimer }}
+          />
+        </div>
+      )}
 
       <div className="space-y-4 mt-8">
         <h4 className="text-lg font-semibold">📸 Photo Documentation</h4>
@@ -371,11 +389,12 @@ const ProductInfo = ({ formData, updateFormData, onPrev, onSubmit, loading, exis
         </Button>
       </div>
 
-      {/* Terms Modal */}
+      {/* Terms Modal — PPF-specific */}
       <TermsModal
         isOpen={termsModalOpen}
         onClose={() => setTermsModalOpen(false)}
         onAccept={() => updateFormData({ termsAccepted: true })}
+        settingKey="ppf_terms_conditions"
       />
     </form>
   );

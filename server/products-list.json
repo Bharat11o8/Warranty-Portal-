@@ -1,0 +1,1746 @@
+[
+  {
+    "id": "4-gauge-wire-kit-ampkit",
+    "name": "4 Gauge Wire Kit - Ampkit",
+    "price": "11299.00",
+    "category_name": "AmpKit",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "8-gauge-wire-kit-ampkit",
+    "name": "8 Gauge Wire Kit - Ampkit",
+    "price": "8499.00",
+    "category_name": "AmpKit",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "esp-640",
+    "name": "Amplifier - ESP 640",
+    "price": "27199.00",
+    "category_name": "Amplifier",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "q-1602",
+    "name": "Amplifier - Q 1602",
+    "price": "15599.00",
+    "category_name": "Amplifier",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "q-2404",
+    "name": "Amplifier - Q 2404",
+    "price": "17099.00",
+    "category_name": "Amplifier",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "sdsp4-640",
+    "name": "DSP - SDSP4.6ABT1",
+    "price": "25439.00",
+    "category_name": "Amplifier",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "android-e90",
+    "name": "Ultima Smart Multimedia Screen - Model E90",
+    "price": "26999.00",
+    "category_name": "Android",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "android-e990",
+    "name": "Ultima Smart Multimedia Screen - Model E990",
+    "price": "45999.00",
+    "category_name": "Android",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "beack-rest-pad",
+    "name": "Back Rest Pad - Bullet",
+    "price": "526.00",
+    "category_name": "Back Rest Pad",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "magnetic-bag-small",
+    "name": "Magnetic Bag - Small",
+    "price": "3050.00",
+    "category_name": "Bag",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "premium-saddle-bag",
+    "name": "Premium Saddle Bag (L&R) Side",
+    "price": "5155.00",
+    "category_name": "Bag",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "premium-side-bag",
+    "name": "Premium Side Bag (PVC)",
+    "price": "2220.00",
+    "category_name": "Bag",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "round-saddle-bag",
+    "name": "Round Saddle Bag",
+    "price": "785.00",
+    "category_name": "Bag",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "seat-bag-black",
+    "name": "Seat Bag",
+    "price": "1085.00",
+    "category_name": "Bag",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "body-cover-wp-xl",
+    "name": "Body Cover 100% Water Proof XL",
+    "price": "1495.00",
+    "category_name": "Body Cover",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "body-cover-wp-xxl",
+    "name": "Body Cover 100% Water Proof XXL",
+    "price": "1725.00",
+    "category_name": "Body Cover",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "body-cover-wr-xl",
+    "name": "Body Cover Water Repellent XL",
+    "price": "970.00",
+    "category_name": "Body Cover",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "body-cover-wr-xxl",
+    "name": "Body Cover Water Repellent XXL",
+    "price": "1255.00",
+    "category_name": "Body Cover",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "sparko-jungle-body-cover",
+    "name": "Sparko Jungle Body Cover",
+    "price": "2699.00",
+    "category_name": "Car Body Cover",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "sparko-silver-body-cover",
+    "name": "Sparko Silver Body Cover",
+    "price": "2499.00",
+    "category_name": "Car Body Cover",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "trilayer-body-cover",
+    "name": "Trilayer Body cover",
+    "price": "3699.00",
+    "category_name": "Car Body Cover",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "car-duster",
+    "name": "Car Duster (WAX)",
+    "price": "899.00",
+    "category_name": "Car Care Products",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "car-odour-eliminator",
+    "name": "Car Odour Eliminator",
+    "price": "399.00",
+    "category_name": "Car Care Products",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "Microfibre-clothcar",
+    "name": "Microfibre Cloth",
+    "price": "342.00",
+    "category_name": "Car Care Products",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "car-air-purifier",
+    "name": "Car Air Purifier",
+    "price": "799.00",
+    "category_name": "Car Utility",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "car-seat-hook",
+    "name": "Car Seat Hook With Mobile Holder",
+    "price": "649.00",
+    "category_name": "Car Utility",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "Letherette-Perfume",
+    "name": "Letherette Perfume",
+    "price": "599.00",
+    "category_name": "Car Utility",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "steeringwheel-dining-tray",
+    "name": "Steering Wheel Dining Tray",
+    "price": "1499.00",
+    "category_name": "Car Utility",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "eco-chest-guard",
+    "name": "Eco Chest Guard",
+    "price": "570.00",
+    "category_name": "Chest Guard",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "premium-chest-guard",
+    "name": "Premium Chest Guard",
+    "price": "775.00",
+    "category_name": "Chest Guard",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "2w-cleaning-kit",
+    "name": "Micro Fiber Multipurpose Cloth",
+    "price": "342.00",
+    "category_name": "Cleaning Kit",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "coaxial-c160",
+    "name": "COAXIAL - C160 COAX-GI",
+    "price": "3799.00",
+    "category_name": "Coaxial Speakers",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "coaxial-iq653",
+    "name": "COAXIAL - IQ653",
+    "price": "8999.00",
+    "category_name": "Coaxial Speakers",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "coaxial-q652xi",
+    "name": "COAXIAL - Q652XI",
+    "price": "9499.00",
+    "category_name": "Coaxial Speakers",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "coaxial-qr965",
+    "name": "COAXIAL - QR965",
+    "price": "12299.00",
+    "category_name": "Coaxial Speakers",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "coaxial-qrs65r",
+    "name": "COAXIAL - QRS65R",
+    "price": "17099.00",
+    "category_name": "Coaxial Speakers",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "component-iq65k",
+    "name": "COMPONENT - IQ65K",
+    "price": "10799.00",
+    "category_name": "Component Speakers",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "component-q65kxi",
+    "name": "COMPONENT - Q65KXi-GI",
+    "price": "13599.00",
+    "category_name": "Component Speakers",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "component-qr965k",
+    "name": "COMPONENT - QR965K",
+    "price": "18299.00",
+    "category_name": "Component Speakers",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "component-qrs6k2",
+    "name": "COMPONENT - QRS6K2-GI",
+    "price": "30499.00",
+    "category_name": "Component Speakers",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "car-damping-sheet",
+    "name": "Car Damping Sheets",
+    "price": "11299.00",
+    "category_name": "Damping Sheet",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "k32-f1-single-lens",
+    "name": "E-101",
+    "price": "11869.00",
+    "category_name": "DVR",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "florence",
+    "name": "Florence",
+    "price": "2999.00",
+    "category_name": "Easy Fit (DIY)",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "sprint",
+    "name": "Sprint",
+    "price": "8709.00",
+    "category_name": "Easy Fit (DIY)",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "black-and-silver-sprint",
+    "name": "Sprint(Black & Silver)",
+    "price": "8709.00",
+    "category_name": "Easy Fit (DIY)",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "tauras",
+    "name": "Tauras",
+    "price": "8709.00",
+    "category_name": "Easy Fit (DIY)",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "venus",
+    "name": "Venus",
+    "price": "8709.00",
+    "category_name": "Easy Fit (DIY)",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "car-mobile-chargerE",
+    "name": "Car Mobile Charger",
+    "price": "1799.00",
+    "category_name": "Electronic Accessories",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "ventilated-seat-cool",
+    "name": "Cool Ventilated Seat Cover",
+    "price": "5999.00",
+    "category_name": "Electronic Accessories",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "tyre-inflatore",
+    "name": "EMPORIO Auto Cut Air Inflator – 150W Power",
+    "price": "4099.00",
+    "category_name": "Electronic Accessories",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "portable-tyre-inflatorE",
+    "name": "EMPORIO Portable Car Compressor – Compact & Efficient Tire Inflator",
+    "price": "3499.00",
+    "category_name": "Electronic Accessories",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "portable-vaccum-cleanerE",
+    "name": "EMPORIO Portable Car Vacuum Cleaner – Wet & Dry Cleaning",
+    "price": "2499.00",
+    "category_name": "Electronic Accessories",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "snail-horn",
+    "name": "Emporio Snail Horn",
+    "price": "899.00",
+    "category_name": "Electronic Accessories",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "ventilated-seat-heat",
+    "name": "Heat Ventilated Seat Cover",
+    "price": "3599.00",
+    "category_name": "Electronic Accessories",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "tyre-inflatore-cordless",
+    "name": "Inflato Bot Total Tyre Control",
+    "price": "4099.00",
+    "category_name": "Electronic Accessories",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "led-fog-lampE",
+    "name": "LED Fog Lamp for Car",
+    "price": "7999.00",
+    "category_name": "Electronic Accessories",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "led-head-lamp-for-carE",
+    "name": "LED Head Lamp for Car",
+    "price": "7999.00",
+    "category_name": "Electronic Accessories",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "nebula-2w-led-light",
+    "name": "Nebula 2 Wheeler Led- 10W",
+    "price": "855.00",
+    "category_name": "Electronic Accessories",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "1e",
+    "name": "D3 Artificial Leather Seat Covers",
+    "price": "24459.00",
+    "category_name": "EMPORIO SERIES",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "2e",
+    "name": "D5 Artificial Leather Seat Covers",
+    "price": "24459.00",
+    "category_name": "EMPORIO SERIES",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "4e",
+    "name": "H Cross Artificial Leather Seat Covers",
+    "price": "24459.00",
+    "category_name": "EMPORIO SERIES",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "11e",
+    "name": "H-Grand Artificial Leather Car Seat Covers",
+    "price": "24459.00",
+    "category_name": "EMPORIO SERIES",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "12e",
+    "name": "Navigation+ Artificial Leather Car Seat Covers",
+    "price": "24459.00",
+    "category_name": "EMPORIO SERIES",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "14e",
+    "name": "Polo Artificial Leather Seat Covers",
+    "price": "24459.00",
+    "category_name": "EMPORIO SERIES",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "3e",
+    "name": "Q2 Artificial Leather Seat Covers",
+    "price": "24459.00",
+    "category_name": "EMPORIO SERIES",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "5e",
+    "name": "U Focus Artificial Leather Seat Covers",
+    "price": "24459.00",
+    "category_name": "EMPORIO SERIES",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "6e",
+    "name": "U Highway Artificial Leather Seat Covers",
+    "price": "24459.00",
+    "category_name": "EMPORIO SERIES",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "7e",
+    "name": "U-Arrow Artificial Leather Car Seat Covers",
+    "price": "24459.00",
+    "category_name": "EMPORIO SERIES",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "9e",
+    "name": "U-BLADE Artificial Leather Seat Covers",
+    "price": "24459.00",
+    "category_name": "EMPORIO SERIES",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "17e",
+    "name": "U-Impress Artificial Leather Car Seat Covers",
+    "price": "24459.00",
+    "category_name": "EMPORIO SERIES",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "8e",
+    "name": "U-Ladder Artificial Leather Seat Covers",
+    "price": "24459.00",
+    "category_name": "EMPORIO SERIES",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "10e",
+    "name": "U-Volt Artificial Leather Seat Covers",
+    "price": "24459.00",
+    "category_name": "EMPORIO SERIES",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "13e",
+    "name": "X-Cross Artificial Leather Seat Covers",
+    "price": "24459.00",
+    "category_name": "EMPORIO SERIES",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "15e",
+    "name": "XCLUSIVE Artificial Leather Seat Covers",
+    "price": "24459.00",
+    "category_name": "EMPORIO SERIES",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "16e",
+    "name": "XCLUSIVE Plus Artificial Leather Seat Covers",
+    "price": "24459.00",
+    "category_name": "EMPORIO SERIES",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "cup-tissue",
+    "name": "Cup Tissue",
+    "price": "899.00",
+    "category_name": "Essential Tissue Boxes",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "eco-curve",
+    "name": "Eco Curve",
+    "price": "999.00",
+    "category_name": "Essential Tissue Boxes",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "premium-tissue-box",
+    "name": "Premium Tissue Box Holder",
+    "price": "999.00",
+    "category_name": "Essential Tissue Boxes",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "quilting-tissue-box",
+    "name": "Quilting Tissue Box",
+    "price": "999.00",
+    "category_name": "Essential Tissue Boxes",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "quilted-spike-mat",
+    "name": "Quilted Spike (Black)",
+    "price": "730.00",
+    "category_name": "Foot Mat",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "quilting-mat",
+    "name": "Quilting Mat",
+    "price": "380.00",
+    "category_name": "Foot Mat",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "arm-rest-memory",
+    "name": "Arm Rest Memory",
+    "price": "1549.00",
+    "category_name": "Healthy Memory For Comfort",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "c-neck-rest-memory",
+    "name": "C NeckRest Memory",
+    "price": "1549.00",
+    "category_name": "Healthy Memory For Comfort",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "cockpit-neck-pillow",
+    "name": "Cockpit Neck Pillow",
+    "price": "1799.00",
+    "category_name": "Healthy Memory For Comfort",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "cushion-pillow-memory",
+    "name": "Cushion Pillow Memory",
+    "price": "2499.00",
+    "category_name": "Healthy Memory For Comfort",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "lumber-support-l1",
+    "name": "Lumber Support L1",
+    "price": "1749.00",
+    "category_name": "Healthy Memory For Comfort",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "lumber-support-l2",
+    "name": "Lumber Support L2",
+    "price": "1749.00",
+    "category_name": "Healthy Memory For Comfort",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "lumber-support-l3",
+    "name": "Lumber Support L3",
+    "price": "1749.00",
+    "category_name": "Healthy Memory For Comfort",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "lumber-support-l4",
+    "name": "Lumber Support L4",
+    "price": "1749.00",
+    "category_name": "Healthy Memory For Comfort",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "neck-cushion-memory",
+    "name": "Neck Cushion Memory",
+    "price": "1749.00",
+    "category_name": "Healthy Memory For Comfort",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "neck-d-memory",
+    "name": "Neck D Memory",
+    "price": "2195.00",
+    "category_name": "Healthy Memory For Comfort",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "premium-travel-pillow",
+    "name": "Premium Travel Pillow",
+    "price": "1649.00",
+    "category_name": "Healthy Memory For Comfort",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "seat-cushion-memory",
+    "name": "Seat Cushion Memory",
+    "price": "2195.00",
+    "category_name": "Healthy Memory For Comfort",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "quilted-organizer",
+    "name": "Quilted Organizer",
+    "price": "1349.00",
+    "category_name": "Innovative Organizers",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "tray-organizer",
+    "name": "Tray Organizer",
+    "price": "2195.00",
+    "category_name": "Innovative Organizers",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "ventilated-seat-coolu",
+    "name": "Cool Ventilated Seat Cover",
+    "price": "5999.00",
+    "category_name": "Light & Utility",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "tyre-inflator",
+    "name": "EMPORIO Auto Cut Air Inflator – 150W Power",
+    "price": "4099.00",
+    "category_name": "Light & Utility",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "car-charger",
+    "name": "EMPORIO Car Charger",
+    "price": "1799.00",
+    "category_name": "Light & Utility",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "portable-tyre-inflator",
+    "name": "EMPORIO Portable Car Compressor – Compact & Efficient Tire Inflator",
+    "price": "3499.00",
+    "category_name": "Light & Utility",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "portable-vaccum-cleaner",
+    "name": "EMPORIO Portable Car Vacuum Cleaner – Wet & Dry Cleaning",
+    "price": "2499.00",
+    "category_name": "Light & Utility",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "snail-hornu",
+    "name": "Emporio Snail Horn",
+    "price": "899.00",
+    "category_name": "Light & Utility",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "ventilated-seat-heatu",
+    "name": "Heat Ventilated Seat Cover",
+    "price": "3599.00",
+    "category_name": "Light & Utility",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "tyre-inflatore-cordlessU",
+    "name": "Inflato Bot Total tyre Control",
+    "price": "4099.00",
+    "category_name": "Light & Utility",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "led-fog-lamp",
+    "name": "LED Fog Lamp for Car",
+    "price": "7999.00",
+    "category_name": "Light & Utility",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "led-head-lamp-for-car",
+    "name": "LED Head Lamp for Car",
+    "price": "7999.00",
+    "category_name": "Light & Utility",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "9l",
+    "name": "Amaze Duo Plus Artificial Leather Seat Covers",
+    "price": "14769.00",
+    "category_name": "LUCENZO SERIES",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "8l",
+    "name": "Amaze Plus Artificial Leather Seat Covers",
+    "price": "14769.00",
+    "category_name": "LUCENZO SERIES",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "1l",
+    "name": "D3 Artificial Leather Seat Covers",
+    "price": "14769.00",
+    "category_name": "LUCENZO SERIES",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "2l",
+    "name": "D5 Artificial Leather Seat Covers",
+    "price": "14769.00",
+    "category_name": "LUCENZO SERIES",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "10l",
+    "name": "E1 Artificial Leather Seat Covers",
+    "price": "14769.00",
+    "category_name": "LUCENZO SERIES",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "11l",
+    "name": "E2 Artificial Leather Seat Covers",
+    "price": "14769.00",
+    "category_name": "LUCENZO SERIES",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "12l",
+    "name": "E4 Artificial Leather Seat Covers",
+    "price": "14769.00",
+    "category_name": "LUCENZO SERIES",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "13l",
+    "name": "E5 Artificial Leather Seat Covers",
+    "price": "14769.00",
+    "category_name": "LUCENZO SERIES",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "4l",
+    "name": "H Cross Artificial Leather Seat Covers",
+    "price": "14769.00",
+    "category_name": "LUCENZO SERIES",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "3l",
+    "name": "Q2 Artificial Leather Seat Covers",
+    "price": "14769.00",
+    "category_name": "LUCENZO SERIES",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "5l",
+    "name": "U Focus Artificial Leather Seat Covers",
+    "price": "14769.00",
+    "category_name": "LUCENZO SERIES",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "6l",
+    "name": "U Highway Artificial Leather Seat Covers",
+    "price": "14769.00",
+    "category_name": "LUCENZO SERIES",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "7l",
+    "name": "U-Arrow Artificial Leather Car Seat Covers",
+    "price": "14769.00",
+    "category_name": "LUCENZO SERIES",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "Microfibre-cloth",
+    "name": "Microfibre Cloth",
+    "price": "342.00",
+    "category_name": "Microfibre Cloth",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "car-odour-eliminatorc",
+    "name": "Car Odour Eliminator",
+    "price": "399.00",
+    "category_name": "Odour Eliminator",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "padded-seat-cover-bt",
+    "name": "Padded Seat Cover (Black and Tan)",
+    "price": "5799.00",
+    "category_name": "Padded Seat Covers",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "padded-seat-cover-b",
+    "name": "Padded Seat Cover Black",
+    "price": "5999.00",
+    "category_name": "Padded Seat Covers",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "car-seat-cushion",
+    "name": "Car Seat Cushion",
+    "price": "1549.00",
+    "category_name": "PolyFill Range",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "cushion-pillow-p",
+    "name": "Cushion Pillow (Polyfill)",
+    "price": "1549.00",
+    "category_name": "PolyFill Range",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "cushion-pillow-q",
+    "name": "Cushion Pillow (Quilting)",
+    "price": "1749.00",
+    "category_name": "PolyFill Range",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "neck-rest",
+    "name": "Neck Rest",
+    "price": "999.00",
+    "category_name": "PolyFill Range",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "neck-rest-q",
+    "name": "Neck Rest (Quilting)",
+    "price": "999.00",
+    "category_name": "PolyFill Range",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "passenger-neck-rest",
+    "name": "Passenger Neck Rest",
+    "price": "2195.00",
+    "category_name": "PolyFill Range",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "ppf-emporio",
+    "name": "Pro Shield PPF",
+    "price": "124999.00",
+    "category_name": "PPF(Paint Protection Film)",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "car-specific",
+    "name": "Car Specific",
+    "price": "799.00",
+    "category_name": "Premium Steering Covers",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "unistitch",
+    "name": "Uni Stitch",
+    "price": "699.00",
+    "category_name": "Premium Steering Covers",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "12mm-care",
+    "name": "12mm Care Mat",
+    "price": "3299.00",
+    "category_name": "PU/PVC",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "care-18-mm-universal",
+    "name": "18mm Care Universal ",
+    "price": "3299.00",
+    "category_name": "PU/PVC",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "spike",
+    "name": "Spike Mat",
+    "price": "4899.00",
+    "category_name": "PU/PVC",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "u-max-arrow",
+    "name": "U Max Arrow ",
+    "price": "14769.00",
+    "category_name": "PU/PVC",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "u-max-emboss",
+    "name": "U Max Emboss",
+    "price": "8499.00",
+    "category_name": "PU/PVC",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "u-max-nhb",
+    "name": "U Max NHB",
+    "price": "14769.00",
+    "category_name": "PU/PVC",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "u-max-plus-arrow",
+    "name": "U Max Plus Arrow",
+    "price": "6999.00",
+    "category_name": "PU/PVC",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "9r",
+    "name": "Amaze Duo Plus Artificial Leather Seat Covers",
+    "price": "14769.00",
+    "category_name": "REVIERA SERIES",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "8r",
+    "name": "Amaze Plus Artificial Leather Seat Covers",
+    "price": "14769.00",
+    "category_name": "REVIERA SERIES",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "1r",
+    "name": "D3 Artificial Leather Seat Covers",
+    "price": "14769.00",
+    "category_name": "REVIERA SERIES",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "2r",
+    "name": "D5 Artificial Leather Seat Covers",
+    "price": "14769.00",
+    "category_name": "REVIERA SERIES",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "10r",
+    "name": "E1 Artificial Leather Seat Covers",
+    "price": "14769.00",
+    "category_name": "REVIERA SERIES",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "11r",
+    "name": "E2 Artificial Leather Seat Covers",
+    "price": "14769.00",
+    "category_name": "REVIERA SERIES",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "12r",
+    "name": "E4 Artificial Leather Seat Covers",
+    "price": "14769.00",
+    "category_name": "REVIERA SERIES",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "13r",
+    "name": "E5 Artificial Leather Seat Covers",
+    "price": "14769.00",
+    "category_name": "REVIERA SERIES",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "4r",
+    "name": "H Cross Artificial Leather Seat Covers",
+    "price": "14769.00",
+    "category_name": "REVIERA SERIES",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "3r",
+    "name": "Q2 Artificial Leather Seat Covers",
+    "price": "14769.00",
+    "category_name": "REVIERA SERIES",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "5r",
+    "name": "U Focus Artificial Leather Seat Covers",
+    "price": "14769.00",
+    "category_name": "REVIERA SERIES",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "6r",
+    "name": "U Highway Artificial Leather Seat Covers",
+    "price": "14769.00",
+    "category_name": "REVIERA SERIES",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "7r",
+    "name": "U-Arrow Artificial Leather Car Seat Covers",
+    "price": "14769.00",
+    "category_name": "REVIERA SERIES",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "bike-net",
+    "name": "Bike Net",
+    "price": "1945.00",
+    "category_name": "Ropes",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "eco-flat-rope",
+    "name": "Eco Flat Rope",
+    "price": "975.00",
+    "category_name": "Ropes",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "eco-round-rope",
+    "name": "Eco Round Rope",
+    "price": "1135.00",
+    "category_name": "Ropes",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "premium-flat-rope",
+    "name": "Premium Flat Rope",
+    "price": "1535.00",
+    "category_name": "Ropes",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "premium-round-rope",
+    "name": "Premium Round Rope",
+    "price": "2050.00",
+    "category_name": "Ropes",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "4s",
+    "name": "H-Grand Artificial Leather Car Seat Covers",
+    "price": "20679.00",
+    "category_name": "SIGNATURE SERIES",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "5s",
+    "name": "Navigation+ Artificial Leather Car Seat Covers",
+    "price": "20679.00",
+    "category_name": "SIGNATURE SERIES",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "9s",
+    "name": "Polo Artificial Leather Seat Covers",
+    "price": "20679.00",
+    "category_name": "SIGNATURE SERIES",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "2s",
+    "name": "U-BLADE Artificial Leather Seat Covers",
+    "price": "20679.00",
+    "category_name": "SIGNATURE SERIES",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "8s",
+    "name": "U-Impress Artificial Leather Car Seat Covers",
+    "price": "20679.00",
+    "category_name": "SIGNATURE SERIES",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "1s",
+    "name": "U-Ladder Artificial Leather Seat Covers",
+    "price": "20679.00",
+    "category_name": "SIGNATURE SERIES",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "3s",
+    "name": "U-Volt Artificial Leather Seat Covers",
+    "price": "20679.00",
+    "category_name": "SIGNATURE SERIES",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "10s",
+    "name": "X-Cross Artificial Leather Seat Covers",
+    "price": "20679.00",
+    "category_name": "SIGNATURE SERIES",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "6s",
+    "name": "XCLUSIVE Artificial Leather Seat Covers",
+    "price": "20679.00",
+    "category_name": "SIGNATURE SERIES",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "7s",
+    "name": "XCLUSIVE Plus Artificial Leather Seat Covers",
+    "price": "20679.00",
+    "category_name": "SIGNATURE SERIES",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "bm12d1",
+    "name": "Subwoofer - BM12D1",
+    "price": "134449.00",
+    "category_name": "Sub Woofers",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "bm12d2",
+    "name": "Subwoofer - BM12D2",
+    "price": "134449.00",
+    "category_name": "Sub Woofers",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "bm15d1",
+    "name": "Subwoofer - BM15D1",
+    "price": "148709.00",
+    "category_name": "Sub Woofers",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "bm15d2",
+    "name": "Subwoofer - BM15D2",
+    "price": "148709.00",
+    "category_name": "Sub Woofers",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "cdf82sa",
+    "name": "Subwoofer - CDF82SA",
+    "price": "32399.00",
+    "category_name": "Sub Woofers",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "cmw124d",
+    "name": "SubWoofer - CMW124D",
+    "price": "19979.00",
+    "category_name": "Sub Woofers",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "cvx12d4",
+    "name": "SubWoofer - CVX12D4",
+    "price": "16579.00",
+    "category_name": "Sub Woofers",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "subwoofer-fsb-124sa",
+    "name": "SUBWOOFER - FSB 124SAI",
+    "price": "43099.00",
+    "category_name": "Sub Woofers",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "subwoofer-qsb10sa",
+    "name": "SUBWOOFER - QSB10SA",
+    "price": "30499.00",
+    "category_name": "Sub Woofers",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "slw12s4",
+    "name": "SubWoofer - SLW12S4",
+    "price": "20649.00",
+    "category_name": "Sub Woofers",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "us10d4",
+    "name": "SubWoofer - US10D4",
+    "price": "28949.00",
+    "category_name": "Sub Woofers",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "us12d4",
+    "name": "SubWoofer - US12D4",
+    "price": "34489.00",
+    "category_name": "Sub Woofers",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "us6d4",
+    "name": "SubWoofer - US6D4",
+    "price": "14469.00",
+    "category_name": "Sub Woofers",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "us8d4",
+    "name": "SubWoofer - US8D4",
+    "price": "20719.00",
+    "category_name": "Sub Woofers",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "subwoofer-ux6va",
+    "name": "SUBWOOFER - UX6VA",
+    "price": "30499.00",
+    "category_name": "Sub Woofers",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "subwoofer-ux8va",
+    "name": "SUBWOOFER - UX8VA",
+    "price": "38669.00",
+    "category_name": "Sub Woofers",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "wb12d2",
+    "name": "SubWoofer - WB12D2",
+    "price": "72139.00",
+    "category_name": "Sub Woofers",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "wb12d4",
+    "name": "SubWoofer - WB12D4",
+    "price": "72139.00",
+    "category_name": "Sub Woofers",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "wb15d2",
+    "name": "SubWoofer - WB15D2",
+    "price": "84899.00",
+    "category_name": "Sub Woofers",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "wb15d4",
+    "name": "SubWoofer - WB15D4",
+    "price": "84899.00",
+    "category_name": "Sub Woofers",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "tank-cover-dual",
+    "name": "Tank Cover - XL100 - Dual Pocket",
+    "price": "725.00",
+    "category_name": "Tank Cover",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "tank-cover-single",
+    "name": "Tank Cover - XL100 - Single Pocket",
+    "price": "516.00",
+    "category_name": "Tank Cover",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "tank-cover-bullet-ff",
+    "name": "Tank Cover Full Flap (Bullet)",
+    "price": "745.00",
+    "category_name": "Tank Cover",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "tank-cover-bullet-hf",
+    "name": "Tank Cover Half Flap (Bullet)",
+    "price": "605.00",
+    "category_name": "Tank Cover",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "tank-cover-bullet-wf",
+    "name": "Tank Cover Without Flap (Bullet)",
+    "price": "510.00",
+    "category_name": "Tank Cover",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "universal-tank-cover",
+    "name": "Universal Tank Cover - 100cc",
+    "price": "516.00",
+    "category_name": "Tank Cover",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "boot-mat-tpe",
+    "name": "TPE Boot Mat",
+    "price": "2250.00",
+    "category_name": "TPE",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "cabin-mats-tpe",
+    "name": "TPE Cabin Mat",
+    "price": "4899.00",
+    "category_name": "TPE",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "2act",
+    "name": "U-Active - Black Colour With Blue Stripe With 3mm High Density Foam and Single Tone Embossing",
+    "price": "560.00",
+    "category_name": "U-Active",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "2acts",
+    "name": "U-Active - Black Colour With Blue Stripe With 3mm High Density Foam and Single Tone Embossing",
+    "price": "660.00",
+    "category_name": "U-Active",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "1act",
+    "name": "U-Active - Black Colour With Red Stripe With 3mm High Density Foam and Single Tone Embossing",
+    "price": "560.00",
+    "category_name": "U-Active",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "1acts",
+    "name": "U-Active - Black Colour With Red Stripe With 3mm High Density Foam and Single Tone Embossing",
+    "price": "660.00",
+    "category_name": "U-Active",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "1actp",
+    "name": "U-Active Plus - Black Colour With White Stripe With 6mm High Density Foam and Dual Tone Embossing",
+    "price": "660.00",
+    "category_name": "U-Active Plus",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "1actpsc",
+    "name": "U-Active Plus - Black Colour With White Stripe With 6mm High Density Foam and Dual Tone Embossing",
+    "price": "765.00",
+    "category_name": "U-Active Plus",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "4actp",
+    "name": "U-Active Plus - Dual Seat With 6mm High Density Foam and Dual Tone Embossing",
+    "price": "775.00",
+    "category_name": "U-Active Plus",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "2actp",
+    "name": "U-Active Plus- Black Colour With Blue Stripe With 6mm High Density Foam and Dual Tone Embossing",
+    "price": "660.00",
+    "category_name": "U-Active Plus",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "2actpsc",
+    "name": "U-Active Plus- Black Colour With Blue Stripe With 6mm High Density Foam and Dual Tone Embossing",
+    "price": "765.00",
+    "category_name": "U-Active Plus",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "3actp",
+    "name": "U-Active Plus- Black Colour With Red Stripe With 6mm High Density Foam and Dual Tone Embossing",
+    "price": "660.00",
+    "category_name": "U-Active Plus",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "3actpssc",
+    "name": "U-Active Plus- Black Colour With Red Stripe With 6mm High Density Foam and Dual Tone Embossing",
+    "price": "765.00",
+    "category_name": "U-Active Plus",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "1c",
+    "name": "U-Cross",
+    "price": "950.00",
+    "category_name": "U-Cross",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "2d",
+    "name": "U-Dive - Black",
+    "price": "860.00",
+    "category_name": "U-Drive",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "1d",
+    "name": "U-Dive - Brown",
+    "price": "860.00",
+    "category_name": "U-Drive",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "1b",
+    "name": "U-Impress - Black",
+    "price": "625.00",
+    "category_name": "U-Impress",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "1bi",
+    "name": "U-Impress - Black Color With Dual Tone Stiching",
+    "price": "345.00",
+    "category_name": "U-Impress",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "1sc",
+    "name": "U-Impress - Black Color With Dual Tone Stitching",
+    "price": "395.00",
+    "category_name": "U-Impress",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "2b",
+    "name": "U-Impress - Brown",
+    "price": "625.00",
+    "category_name": "U-Impress",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "2bi",
+    "name": "U-Impress - Dual Seat Black Color With Dual Tone",
+    "price": "395.00",
+    "category_name": "U-Impress",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "1p",
+    "name": "U-Pyramid - Black",
+    "price": "950.00",
+    "category_name": "U-Pyramid",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "2p",
+    "name": "U-Pyramid - Brown",
+    "price": "950.00",
+    "category_name": "U-Pyramid",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "1spc",
+    "name": "U-Sportz - Black Color With Embossing in Dual Tone Stitching",
+    "price": "435.00",
+    "category_name": "U-Sportz",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "1sbi",
+    "name": "U-Sportz - Black Colour With Embossing In Dual Tone Stitching ",
+    "price": "395.00",
+    "category_name": "U-Sportz",
+    "in_stock": 1,
+    "is_active": 1
+  },
+  {
+    "id": "2sbi",
+    "name": "U-Sportz - Dual Seat Black Colour With Embossing In Dual Tone Stitching ",
+    "price": "470.00",
+    "category_name": "U-Sportz",
+    "in_stock": 1,
+    "is_active": 1
+  }
+]

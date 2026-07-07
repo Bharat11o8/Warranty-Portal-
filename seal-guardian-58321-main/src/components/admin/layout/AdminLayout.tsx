@@ -12,12 +12,14 @@ import Profile from "@/pages/Profile";
 import { AdminHome } from "../modules/AdminHome";
 import { AdminWarranties } from "../modules/AdminWarranties";
 import { AdminVendors } from "../modules/AdminVendors";
+import { AdminDistributors } from "../modules/AdminDistributors";
 import { AdminCustomers } from "../modules/AdminCustomers";
 import { AdminAdmins } from "../modules/AdminAdmins";
 import { AdminActivityLogs } from "../modules/AdminActivityLogs";
 import { AdminGrievances } from "../modules/AdminGrievances";
 import { AdminProducts } from "../modules/AdminProducts";
 import { AdminTerms } from "../modules/AdminTerms";
+import { AdminContentManager } from "../modules/AdminContentManager";
 import { AdminWarrantyForm } from "../modules/AdminWarrantyForm";
 import { AdminAnnouncements } from "../modules/AdminAnnouncements";
 import { AdminOldWarranties } from "../modules/AdminOldWarranties";
@@ -27,6 +29,7 @@ import { AdminECatalogue } from "../modules/AdminECatalogue";
 import { AdminCommandPalette } from "../AdminCommandPalette";
 import { AdminUIDManagement } from "../modules/AdminUIDManagement";
 import { AdminAnalytics } from "../modules/AdminAnalytics";
+import { AdminOrderManagement } from "../modules/AdminOrderManagement";
 
 export const AdminLayout = () => {
     const { user, loading } = useAuth();
@@ -58,6 +61,7 @@ export const AdminLayout = () => {
             case 'analytics': return <AdminAnalytics onNavigate={setActiveModule} />;
             case 'warranties': return <AdminWarranties />;
             case 'vendors': return <AdminVendors />;
+            case 'distributors': return <AdminDistributors />;
             case 'customers': return <AdminCustomers />;
             case 'warranty-products': return <AdminWarrantyProducts />;
             case 'old-warranties': return <AdminOldWarranties />;
@@ -68,6 +72,8 @@ export const AdminLayout = () => {
                 return <AdminProducts />;
             case 'terms':
                 return <AdminTerms />;
+            case 'content-manager':
+                return <AdminContentManager />;
             case 'warranty-form':
                 return <AdminWarrantyForm />;
             case 'announcements':
@@ -78,6 +84,8 @@ export const AdminLayout = () => {
                 return <AdminUIDManagement />;
             case 'ecatalogue':
                 return <AdminECatalogue />;
+            case 'order-management':
+                return <AdminOrderManagement />;
             case 'profile': return <Profile embedded={true} />;
             default: return <AdminHome />;
         }
@@ -90,6 +98,7 @@ export const AdminLayout = () => {
             'warranties': 'Warranty Management',
             'old-warranties': 'Archived Records',
             'vendors': 'Franchise Network',
+            'distributors': 'Distributor Network',
             'customers': 'Customer Database',
             'admins': 'Access Control',
             'activity-logs': 'System Audit',
@@ -97,11 +106,13 @@ export const AdminLayout = () => {
             'products': 'Product Catalog',
             'warranty-products': 'Warranty Products List',
             'terms': 'Terms & Conditions',
+            'content-manager': 'Form Content Manager',
             'warranty-form': 'Manual Registration',
             'announcements': 'Broadcast & Announcements',
             'posm': 'POSM Requirements',
             'uid-management': 'Product UID Management',
             'ecatalogue': 'E-Catalogue CMS',
+            'order-management': 'B2B Order Hierarchy',
             'profile': 'My Profile'
         };
         return titles[activeModule];

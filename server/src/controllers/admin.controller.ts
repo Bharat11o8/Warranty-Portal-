@@ -4,6 +4,12 @@ import { EmailService } from '../services/email.service.js';
 import { ActivityLogService } from '../services/activity-log.service.js';
 import { NotificationService } from '../services/notification.service.js';
 import { WhatsAppService } from '../services/whatsapp.service.js';
+import { v4 as uuidv4 } from 'uuid';
+import {
+    ensureCustomerMobileLimitTable,
+    getMobileRegistrationUsage,
+    normalizeCustomerMobile
+} from '../utils/customerMobileLimits.js';
 
 export class AdminController {
     static async getDashboardStats(_req: Request, res: Response) {
@@ -132,10 +138,19 @@ export class AdminController {
         }
     }
 
-    static async getAllVendors(_req: Request, res: Response) {
+    static async getAllVendors(req: Request, res: Response) {
         try {
+            const { startDate, endDate, dateField } = req.query as { startDate?: string; endDate?: string; dateField?: string };
+            const hasRange = Boolean(startDate && endDate);
+            const rangeColumn = dateField === 'purchase_date' ? 'wr.purchase_date' : 'wr.created_at';
+
+            const rangeWarrantyJoin = hasRange
+                ? `AND ${rangeColumn} BETWEEN ? AND ?`
+                : '';
+            const rangeParams = hasRange ? [`${startDate} 00:00:00`, `${endDate} 23:59:59`] : [];
+
             const query = `
-                SELECT 
+                SELECT
                     p.id,
                     p.name as contact_name,
                     p.email,
@@ -148,43 +163,105 @@ export class AdminController {
                     vd.pincode,
                     vd.latitude,
                     vd.longitude,
+                    dist.id as distributor_id,
                     COALESCE(vv.is_verified, false) as is_verified,
                     COALESCE(vv.is_active, true) as is_active,
+                    COALESCE(vd.is_distributor, false) as is_distributor,
+                    COALESCE(vd.is_franchise, true) as is_franchise,
                     vv.verified_at,
                     (SELECT COUNT(*) FROM manpower WHERE vendor_id = vd.id) as manpower_count,
                     (SELECT GROUP_CONCAT(name SEPARATOR ', ') FROM manpower WHERE vendor_id = vd.id) as manpower_names,
-                    (SELECT COUNT(*) FROM warranty_registrations wr 
+                    (SELECT COUNT(*) FROM warranty_registrations wr
                      WHERE (wr.manpower_id IN (SELECT id FROM manpower WHERE vendor_id = vd.id)
                         OR (wr.installer_name = vd.store_name AND wr.installer_contact = vd.store_email)
                         OR wr.user_id = p.id)
                     ) as total_warranties,
-                    (SELECT COUNT(*) FROM warranty_registrations wr 
+                    (SELECT COUNT(*) FROM warranty_registrations wr
                      WHERE (wr.manpower_id IN (SELECT id FROM manpower WHERE vendor_id = vd.id)
                         OR (wr.installer_name = vd.store_name AND wr.installer_contact = vd.store_email)
                         OR wr.user_id = p.id)
                      AND wr.status = 'validated'
                     ) as validated_warranties,
-                     (SELECT COUNT(*) FROM warranty_registrations wr 
+                     (SELECT COUNT(*) FROM warranty_registrations wr
                       WHERE (wr.manpower_id IN (SELECT id FROM manpower WHERE vendor_id = vd.id)
                         OR (wr.installer_name = vd.store_name AND wr.installer_contact = vd.store_email)
                         OR wr.user_id = p.id)
                       AND wr.status IN ('pending', 'pending_vendor')
                      ) as pending_warranties,
-                    (SELECT COUNT(*) FROM warranty_registrations wr 
+                    (SELECT COUNT(*) FROM warranty_registrations wr
                      WHERE (wr.manpower_id IN (SELECT id FROM manpower WHERE vendor_id = vd.id)
                         OR (wr.installer_name = vd.store_name AND wr.installer_contact = vd.store_email)
                         OR wr.user_id = p.id)
                      AND wr.status = 'rejected'
-                    ) as rejected_warranties
+                    ) as rejected_warranties,
+                    (SELECT COUNT(*) FROM warranty_registrations wr
+                     WHERE (wr.manpower_id IN (SELECT id FROM manpower WHERE vendor_id = vd.id)
+                        OR (wr.installer_name = vd.store_name AND wr.installer_contact = vd.store_email)
+                        OR wr.user_id = p.id)
+                     ${rangeWarrantyJoin}
+                    ) as range_total_warranties,
+                    (SELECT COUNT(*) FROM warranty_registrations wr
+                     WHERE (wr.manpower_id IN (SELECT id FROM manpower WHERE vendor_id = vd.id)
+                        OR (wr.installer_name = vd.store_name AND wr.installer_contact = vd.store_email)
+                        OR wr.user_id = p.id)
+                     AND wr.status = 'validated'
+                     ${rangeWarrantyJoin}
+                    ) as range_validated_warranties,
+                    (SELECT COUNT(*) FROM warranty_registrations wr
+                     WHERE (wr.manpower_id IN (SELECT id FROM manpower WHERE vendor_id = vd.id)
+                        OR (wr.installer_name = vd.store_name AND wr.installer_contact = vd.store_email)
+                        OR wr.user_id = p.id)
+                     AND wr.status IN ('pending', 'pending_vendor')
+                     ${rangeWarrantyJoin}
+                    ) as range_pending_warranties,
+                    (SELECT COUNT(*) FROM warranty_registrations wr
+                     WHERE (wr.manpower_id IN (SELECT id FROM manpower WHERE vendor_id = vd.id)
+                        OR (wr.installer_name = vd.store_name AND wr.installer_contact = vd.store_email)
+                        OR wr.user_id = p.id)
+                     AND wr.status = 'rejected'
+                     ${rangeWarrantyJoin}
+                    ) as range_rejected_warranties,
+                    COALESCE((
+                        SELECT COUNT(*)
+                        FROM store_orders o
+                        WHERE o.distributor_id = dist.id
+                          AND o.status = 'pending'
+                    ), 0) as order_pending_count,
+                    COALESCE((
+                        SELECT COUNT(*)
+                        FROM store_orders o
+                        WHERE o.distributor_id = dist.id
+                          AND o.status IN ('processing', 'shipped', 'delivered')
+                    ), 0) as order_confirmed_count,
+                    COALESCE((
+                        SELECT COUNT(*)
+                        FROM store_orders o
+                        WHERE o.distributor_id = dist.id
+                          AND o.status = 'cancelled'
+                    ), 0) as order_declined_count,
+                    COALESCE((
+                        SELECT COUNT(*)
+                        FROM store_orders o
+                        WHERE o.distributor_id = dist.id
+                    ), 0) as order_total_count,
+                    (SELECT GROUP_CONCAT(sc.name ORDER BY sc.name SEPARATOR ', ')
+                     FROM distributor_allowed_categories dac
+                     JOIN store_categories sc ON sc.id = dac.category_id
+                     WHERE dac.distributor_id = dist.id
+                    ) as allowed_category_names,
+                    COALESCE(dist.allowed_brands, 'AF') as distributor_allowed_brands,
+                    COALESCE(vd.allowed_brands, 'AF') as franchise_allowed_brands
                 FROM profiles p
                 JOIN user_roles ur ON p.id = ur.user_id
                 LEFT JOIN vendor_details vd ON p.id = vd.user_id
                 LEFT JOIN vendor_verification vv ON p.id = vv.user_id
+                LEFT JOIN distributors dist ON dist.profile_id = p.id
                 WHERE ur.role = 'vendor'
                 ORDER BY p.created_at DESC
             `;
 
-            const [vendorsList]: any = await db.execute(query);
+            const queryParams = hasRange ? [...rangeParams, ...rangeParams, ...rangeParams, ...rangeParams] : [];
+            const [vendorsList]: any = await db.execute(query, queryParams);
 
             console.log(`[Admin] Fetched ${vendorsList.length} vendors`);
 
@@ -214,6 +291,7 @@ export class AdminController {
                     p.name AS contact_name,
                     p.email,
                     p.phone_number,
+                    dist.id AS distributor_id,
                     vd.id AS vendor_details_id,
                     vd.store_name,
                     vd.store_code,
@@ -224,10 +302,13 @@ export class AdminController {
                     vd.latitude,
                     vd.longitude,
                     vv.is_verified,
-                    vv.verified_at
+                    vv.verified_at,
+                    COALESCE(dist.allowed_brands, 'AF') as distributor_allowed_brands,
+                    COALESCE(vd.allowed_brands, 'AF') as franchise_allowed_brands
                 FROM profiles p
                 LEFT JOIN vendor_details vd ON p.id = vd.user_id
                 LEFT JOIN vendor_verification vv ON p.id = vv.user_id
+                LEFT JOIN distributors dist ON dist.profile_id = p.id
                 WHERE p.id = ?
             `, [id]);
 
@@ -481,6 +562,171 @@ export class AdminController {
     }
 
     /**
+     * Update allowed_brands for a vendor (franchise or distributor)
+     */
+    static async updateVendorAllowedBrands(req: Request, res: Response) {
+        try {
+            const { id } = req.params;
+            const { allowed_brands, target } = req.body;
+
+            if (!['AF', 'AC', 'AFAC'].includes(allowed_brands)) {
+                return res.status(400).json({ error: 'allowed_brands must be AF, AC, or AFAC' });
+            }
+
+            if (target === 'distributor') {
+                const { distributor_id } = req.body;
+                let result: any;
+                if (distributor_id) {
+                    [result] = await db.execute(
+                        `UPDATE distributors SET allowed_brands = ? WHERE id = ?`,
+                        [allowed_brands, distributor_id]
+                    ) as any;
+                } else {
+                    [result] = await db.execute(
+                        `UPDATE distributors SET allowed_brands = ? WHERE profile_id = ?`,
+                        [allowed_brands, id]
+                    ) as any;
+                }
+                if (result.affectedRows === 0) {
+                    return res.status(404).json({ error: 'Distributor record not found. Ensure distributor status is enabled first.' });
+                }
+            } else {
+                const [result]: any = await db.execute(
+                    `UPDATE vendor_details SET allowed_brands = ? WHERE user_id = ?`,
+                    [allowed_brands, id]
+                );
+                if (result.affectedRows === 0) {
+                    return res.status(404).json({ error: 'Franchise record not found.' });
+                }
+            }
+
+            res.json({ success: true, message: `Brand assignment updated to ${allowed_brands}` });
+        } catch (error: any) {
+            console.error('Update allowed_brands error:', error);
+            res.status(500).json({ error: 'Failed to update brand assignment' });
+        }
+    }
+
+    /**
+     * Update vendor distributor status (toggles is_distributor and maps to distributors table)
+     */
+    static async updateVendorDistributorStatus(req: Request, res: Response) {
+        const connection = await db.getConnection();
+        try {
+            const { id } = req.params;
+            const { is_distributor } = req.body;
+
+            if (typeof is_distributor !== 'boolean') {
+                return res.status(400).json({ error: 'is_distributor must be a boolean' });
+            }
+
+            await connection.beginTransaction();
+
+            // Check if vendor exists
+            const [vendor]: any = await connection.execute(
+                `SELECT p.name, p.email, p.phone_number, vd.store_name, vd.store_email, vd.address, vd.city, vd.state, vd.pincode
+                 FROM profiles p
+                 JOIN vendor_details vd ON p.id = vd.user_id
+                 WHERE p.id = ?`,
+                [id]
+            );
+
+            if (vendor.length === 0) {
+                await connection.rollback();
+                return res.status(404).json({ error: 'Vendor details not found' });
+            }
+
+            const vendorData = vendor[0];
+
+            // 1. Update is_distributor in vendor_details
+            await connection.execute(
+                'UPDATE vendor_details SET is_distributor = ? WHERE user_id = ?',
+                [is_distributor, id]
+            );
+
+            if (is_distributor) {
+                // Check if a distributor record already exists for this vendor profile
+                const [existingDist]: any = await connection.execute(
+                    'SELECT id FROM distributors WHERE profile_id = ?',
+                    [id]
+                );
+
+                if (existingDist.length === 0) {
+                    // Create new distributor record linked to this profile
+                    const newDistId = uuidv4();
+                    await connection.execute(
+                        `INSERT INTO distributors (id, name, email, phone_number, address, city, state, pincode, profile_id)
+                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                        [
+                            newDistId,
+                            vendorData.store_name,
+                            vendorData.store_email || vendorData.email,
+                            vendorData.phone_number || '0000000000',
+                            vendorData.address || '',
+                            vendorData.city || '',
+                            vendorData.state || '',
+                            vendorData.pincode || '',
+                            id
+                        ]
+                    );
+                    console.log(`[Admin] Created distributor record for vendor ${id} with id ${newDistId}`);
+                }
+            } else {
+                // Find the distributor record before disassociating
+                const [distRecord]: any = await connection.execute(
+                    'SELECT id FROM distributors WHERE profile_id = ?',
+                    [id]
+                );
+
+                if (distRecord.length > 0) {
+                    const distId = distRecord[0].id;
+                    // Unmap any vendor_details currently assigned to this distributor
+                    await connection.execute(
+                        'UPDATE vendor_details SET distributor_id = NULL WHERE distributor_id = ?',
+                        [distId]
+                    );
+                    console.log(`[Admin] Unmapped all franchises from distributor ${distId}`);
+                }
+
+                // If revoking distributor status, set profile_id = NULL for their linked distributor record
+                // This keeps historical order linkages intact but disassociates the franchise from managing it.
+                await connection.execute(
+                    'UPDATE distributors SET profile_id = NULL WHERE profile_id = ?',
+                    [id]
+                );
+                console.log(`[Admin] Disassociated distributor record from profile ${id}`);
+            }
+
+            await connection.commit();
+
+            // Log the activity
+            const admin = (req as any).user;
+            await ActivityLogService.log({
+                adminId: admin.id,
+                adminName: admin.name,
+                adminEmail: admin.email,
+                actionType: is_distributor ? 'VENDOR_PROMOTED_DISTRIBUTOR' : 'VENDOR_DEMOTED_DISTRIBUTOR',
+                targetType: 'VENDOR',
+                targetId: id,
+                targetName: vendorData.store_name,
+                ipAddress: req.ip || req.socket?.remoteAddress
+            });
+
+            res.json({
+                success: true,
+                message: `Franchise ${is_distributor ? 'promoted to distributor' : 'demoted from distributor'} successfully`
+            });
+
+        } catch (error: any) {
+            await connection.rollback();
+            console.error('Update vendor distributor status error:', error);
+            res.status(500).json({ error: 'Failed to update vendor distributor status' });
+        } finally {
+            connection.release();
+        }
+    }
+
+    /**
      * Update store code for QR generation
      */
     static async updateStoreCode(req: Request, res: Response) {
@@ -626,6 +872,14 @@ export class AdminController {
                 await connection.execute(
                     'UPDATE vendor_details SET store_name = ?, store_email = ? WHERE user_id = ?',
                     [store_name, email, id]
+                );
+
+                // Keep the distributor dashboard in sync with the updated profile.
+                // The distributor-facing UI reads from the distributors table, so if we
+                // only update profiles/vendor_details it will continue showing stale data.
+                await connection.execute(
+                    'UPDATE distributors SET name = ?, email = ?, phone_number = ? WHERE profile_id = ?',
+                    [store_name, email, phone_number, id]
                 );
 
                 await connection.commit();
@@ -1482,10 +1736,10 @@ export class AdminController {
                         p.created_at as registered_at
                     FROM profiles p
                     JOIN user_roles ur ON p.id = ur.user_id
-                    LEFT JOIN warranty_registrations wr ON p.email = wr.customer_email
+                    LEFT JOIN warranty_registrations wr ON p.id = wr.user_id
                     WHERE ur.role = 'customer'
-                    -- Exclude exact vendor profile matches
-                    AND p.email NOT IN (SELECT email FROM profiles p2 JOIN user_roles ur2 ON p2.id = ur2.user_id WHERE ur2.role = 'vendor')
+                    -- Exclude exact vendor profile matches (NULL emails can never match a vendor, so always keep them)
+                    AND (p.email IS NULL OR p.email NOT IN (SELECT email FROM profiles p2 JOIN user_roles ur2 ON p2.id = ur2.user_id WHERE ur2.role = 'vendor'))
                     GROUP BY p.id
 
                     UNION ALL
@@ -1540,9 +1794,53 @@ export class AdminController {
                 ORDER BY registered_at DESC
             `);
 
+            await ensureCustomerMobileLimitTable();
+
+            const [phoneUsageRows]: any = await db.execute(`
+                SELECT customer_phone, COUNT(*) as used_count
+                FROM warranty_registrations
+                WHERE customer_phone IS NOT NULL
+                  AND customer_phone != ''
+                  AND customer_phone != 'N/A'
+                  AND status != 'rejected'
+                GROUP BY customer_phone
+            `);
+
+            const mobileUsageMap = new Map<string, number>();
+            phoneUsageRows.forEach((row: any) => {
+                const mobileNumber = normalizeCustomerMobile(row.customer_phone);
+                if (!mobileNumber) return;
+                mobileUsageMap.set(mobileNumber, (mobileUsageMap.get(mobileNumber) || 0) + Number(row.used_count || 0));
+            });
+
+            const [limitRows]: any = await db.execute(
+                'SELECT mobile_number, allowed_registrations FROM customer_mobile_limits'
+            );
+            const mobileLimitMap = new Map<string, number>();
+            limitRows.forEach((row: any) => {
+                const mobileNumber = normalizeCustomerMobile(row.mobile_number);
+                if (!mobileNumber) return;
+                mobileLimitMap.set(mobileNumber, Math.max(1, Number(row.allowed_registrations || 1)));
+            });
+
+            const customersWithLimits = customers.map((customer: any) => {
+                const mobileNumber = normalizeCustomerMobile(customer.customer_phone);
+                const usedCount = mobileNumber ? (mobileUsageMap.get(mobileNumber) || 0) : 0;
+                const hasOverride = mobileNumber ? mobileLimitMap.has(mobileNumber) : false;
+                const allowedCount = hasOverride ? (mobileLimitMap.get(mobileNumber) || 1) : 1;
+
+                return {
+                    ...customer,
+                    mobile_allowed_registrations: allowedCount,
+                    mobile_used_registrations: usedCount,
+                    mobile_remaining_registrations: Math.max(allowedCount - usedCount, 0),
+                    mobile_limit_override: hasOverride
+                };
+            });
+
             res.json({
                 success: true,
-                customers
+                customers: customersWithLimits
             });
         } catch (error: any) {
             console.error('Get customers error:', error);
@@ -1552,39 +1850,42 @@ export class AdminController {
 
     static async getCustomerDetails(req: Request, res: Response) {
         try {
-            const { email } = req.params;
+            // The route param is historically named "email" but customers without
+            // an email (e.g. fallback-UID submissions) are looked up by phone instead.
+            const identifier = req.params.email;
+            const isPhoneLookup = /^\d{10,15}$/.test(identifier);
 
             // Get customer basic info from profiles OR guest info from registrations
             const [customerInfo]: any = await db.execute(`
-                SELECT 
+                SELECT
                     customer_name,
                     customer_email,
                     customer_phone,
                     NULL as customer_address
                 FROM (
                     -- Try profiles first
-                    SELECT 
+                    SELECT
                         p.name as customer_name,
                         p.email as customer_email,
                         p.phone_number as customer_phone
                     FROM profiles p
                     JOIN user_roles ur ON p.id = ur.user_id
-                    WHERE p.email = ? AND ur.role = 'customer'
-                    
+                    WHERE (? = TRUE AND p.phone_number = ?) OR (? = FALSE AND p.email = ?) AND ur.role = 'customer'
+
                     UNION ALL
-                    
+
                     -- Fallback to guests from registrations
-                    SELECT 
+                    SELECT
                         wr.customer_name as customer_name,
                         wr.customer_email as customer_email,
                         wr.customer_phone as customer_phone
                     FROM warranty_registrations wr
                     LEFT JOIN profiles p INNER JOIN user_roles ur ON p.id = ur.user_id AND ur.role = 'customer' ON wr.customer_email = p.email
-                    WHERE wr.customer_email = ? AND ur.id IS NULL
+                    WHERE ((? = TRUE AND wr.customer_phone = ?) OR (? = FALSE AND wr.customer_email = ?)) AND ur.id IS NULL
                     LIMIT 1
                 ) combined
                 LIMIT 1
-            `, [email, email]);
+            `, [isPhoneLookup, identifier, isPhoneLookup, identifier, isPhoneLookup, identifier, isPhoneLookup, identifier]);
 
             if (customerInfo.length === 0) {
                 return res.status(404).json({ error: 'Customer not found' });
@@ -1615,9 +1916,9 @@ export class AdminController {
                     vd_owner.id = REPLACE(wr.manpower_id, 'owner-', '')
                 )
                 LEFT JOIN profiles vp ON COALESCE(vd_m.user_id, vd_i.user_id, vd_owner.user_id) = vp.id
-                WHERE wr.customer_email = ?
+                WHERE (? = TRUE AND wr.customer_phone = ?) OR (? = FALSE AND wr.customer_email = ?)
                 ORDER BY wr.created_at DESC
-            `, [email]);
+            `, [isPhoneLookup, identifier, isPhoneLookup, identifier]);
 
             res.json({
                 success: true,
@@ -1630,17 +1931,101 @@ export class AdminController {
         }
     }
 
+    static async getCustomerMobileLimit(req: Request, res: Response) {
+        try {
+            const { phone } = req.params;
+            const mobileNumber = normalizeCustomerMobile(phone);
+
+            if (!/^[6-9]\d{9}$/.test(mobileNumber)) {
+                return res.status(400).json({ error: 'Please enter a valid 10-digit Indian mobile number.' });
+            }
+
+            const usage = await getMobileRegistrationUsage(mobileNumber);
+            res.json({
+                success: true,
+                limit: usage
+            });
+        } catch (error: any) {
+            console.error('Get customer mobile limit error:', error);
+            res.status(500).json({ error: 'Failed to fetch mobile limit' });
+        }
+    }
+
+    static async updateCustomerMobileLimit(req: Request, res: Response) {
+        try {
+            const { phone } = req.params;
+            const { allowedRegistrations, reason } = req.body;
+            const mobileNumber = normalizeCustomerMobile(phone);
+            const allowedCount = Number(allowedRegistrations);
+
+            if (!/^[6-9]\d{9}$/.test(mobileNumber)) {
+                return res.status(400).json({ error: 'Please enter a valid 10-digit Indian mobile number.' });
+            }
+
+            if (!Number.isInteger(allowedCount) || allowedCount < 1 || allowedCount > 50) {
+                return res.status(400).json({ error: 'Allowed registrations must be a whole number between 1 and 50.' });
+            }
+
+            await ensureCustomerMobileLimitTable();
+
+            const admin = (req as any).user;
+            await db.execute(
+                `INSERT INTO customer_mobile_limits
+                 (mobile_number, allowed_registrations, reason, created_by, updated_by)
+                 VALUES (?, ?, ?, ?, ?)
+                 ON DUPLICATE KEY UPDATE
+                    allowed_registrations = VALUES(allowed_registrations),
+                    reason = VALUES(reason),
+                    updated_by = VALUES(updated_by),
+                    updated_at = CURRENT_TIMESTAMP`,
+                [
+                    mobileNumber,
+                    allowedCount,
+                    reason || null,
+                    admin?.email || admin?.id || null,
+                    admin?.email || admin?.id || null
+                ]
+            );
+
+            const usage = await getMobileRegistrationUsage(mobileNumber);
+
+            await ActivityLogService.log({
+                adminId: admin.id,
+                adminName: admin.name,
+                adminEmail: admin.email,
+                actionType: 'CUSTOMER_MOBILE_LIMIT_UPDATED',
+                targetType: 'CUSTOMER',
+                targetId: mobileNumber,
+                targetName: mobileNumber,
+                details: { allowed_registrations: allowedCount, used_registrations: usage.usedCount, reason },
+                ipAddress: req.ip || req.socket?.remoteAddress
+            });
+
+            res.json({
+                success: true,
+                message: 'Mobile submission limit updated successfully',
+                limit: usage
+            });
+        } catch (error: any) {
+            console.error('Update customer mobile limit error:', error);
+            res.status(500).json({ error: 'Failed to update mobile limit' });
+        }
+    }
+
     static async deleteCustomer(req: Request, res: Response) {
         try {
-            const { email } = req.params;
+            // The route param is historically named "email" but customers without
+            // an email (e.g. fallback-UID submissions) are looked up by phone instead.
+            const identifier = req.params.email;
+            const isPhoneLookup = /^\d{10,15}$/.test(identifier);
 
             // Check if customer exists in profiles
             const [customer]: any = await db.execute(
-                `SELECT p.id, p.email FROM profiles p 
-                 JOIN user_roles ur ON p.id = ur.user_id 
-                 WHERE p.email = ? AND ur.role = 'customer' 
+                `SELECT p.id, p.email FROM profiles p
+                 JOIN user_roles ur ON p.id = ur.user_id
+                 WHERE ((? = TRUE AND p.phone_number = ?) OR (? = FALSE AND p.email = ?)) AND ur.role = 'customer'
                  LIMIT 1`,
-                [email]
+                [isPhoneLookup, identifier, isPhoneLookup, identifier]
             );
 
             if (customer.length === 0) {
@@ -1661,8 +2046,8 @@ export class AdminController {
                 adminEmail: admin.email,
                 actionType: 'CUSTOMER_DELETED',
                 targetType: 'CUSTOMER',
-                targetId: email,
-                targetName: email,
+                targetId: identifier,
+                targetName: identifier,
                 ipAddress: req.ip || req.socket?.remoteAddress
             });
 
@@ -2151,6 +2536,692 @@ export class AdminController {
         } catch (error) {
             console.error('Reject resubmission error:', error);
             res.status(500).json({ error: 'Failed to reject resubmission' });
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    //  GET ALL DISTRIBUTORS
+    // ═══════════════════════════════════════════════════════════
+    static async getAllDistributors(_req: Request, res: Response) {
+        try {
+            // Franchise counts and order aggregates computed once via GROUP BY,
+            // then joined in, instead of 5 correlated subqueries evaluated per distributor row.
+            const query = `
+                SELECT d.*,
+                       COALESCE(fc.franchise_count, 0) as franchise_count,
+                       COALESCE(oa.order_pending_count, 0) as order_pending_count,
+                       COALESCE(oa.order_confirmed_count, 0) as order_confirmed_count,
+                       COALESCE(oa.order_declined_count, 0) as order_declined_count,
+                       COALESCE(oa.order_total_count, 0) as order_total_count
+                FROM distributors d
+                JOIN vendor_details vd ON vd.user_id = d.profile_id
+                LEFT JOIN (
+                    SELECT distributor_id, COUNT(*) as franchise_count
+                    FROM vendor_details
+                    WHERE is_franchise = TRUE
+                    GROUP BY distributor_id
+                ) fc ON fc.distributor_id = d.id
+                LEFT JOIN (
+                    SELECT distributor_id,
+                           SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as order_pending_count,
+                           SUM(CASE WHEN status IN ('processing', 'shipped', 'delivered') THEN 1 ELSE 0 END) as order_confirmed_count,
+                           SUM(CASE WHEN status = 'cancelled' THEN 1 ELSE 0 END) as order_declined_count,
+                           COUNT(*) as order_total_count
+                    FROM store_orders
+                    GROUP BY distributor_id
+                ) oa ON oa.distributor_id = d.id
+                WHERE d.profile_id IS NOT NULL
+                  AND vd.is_distributor = TRUE
+                ORDER BY d.name ASC
+            `;
+            const [distributors]: any = await db.execute(query);
+            res.json({ success: true, distributors });
+        } catch (error: any) {
+            console.error('Get all distributors error:', error);
+            res.status(500).json({ error: 'Failed to fetch distributors' });
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    //  CREATE DISTRIBUTOR
+    // ═══════════════════════════════════════════════════════════
+    static async createDistributor(req: Request, res: Response) {
+        const connection = await db.getConnection();
+        try {
+            const { name, email, phone_number, address, city, state, pincode, contact_name, gst_number, area_head_name, allowed_brands } = req.body;
+            const brandValue = ['AF', 'AC', 'AFAC'].includes(allowed_brands) ? allowed_brands : 'AF';
+
+            if (!name || !email || !phone_number) {
+                return res.status(400).json({ error: 'Name, email, and phone number are required.' });
+            }
+
+            // Clean phone number
+            let cleanedPhone = phone_number.replace(/[\s\-+]/g, '');
+            if (cleanedPhone.length === 12 && cleanedPhone.startsWith('91')) {
+                cleanedPhone = cleanedPhone.substring(2);
+            } else if (cleanedPhone.length === 11 && cleanedPhone.startsWith('0')) {
+                cleanedPhone = cleanedPhone.substring(1);
+            }
+
+            // Validate phone and email
+            const INDIAN_MOBILE_REGEX = /^[6-9]\d{9}$/;
+            if (!INDIAN_MOBILE_REGEX.test(cleanedPhone)) {
+                return res.status(400).json({ error: 'Please enter a valid 10-digit Indian mobile number.' });
+            }
+
+            const EMAIL_REGEX = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+            if (!EMAIL_REGEX.test(email)) {
+                return res.status(400).json({ error: 'Please enter a valid email address.' });
+            }
+
+            await connection.beginTransaction();
+
+            // Check if profile already exists for this email
+            const [existingEmail]: any = await connection.execute(
+                'SELECT id FROM profiles WHERE email = ?',
+                [email]
+            );
+            if (existingEmail.length > 0) {
+                await connection.rollback();
+                return res.status(400).json({ error: 'Email is already registered.' });
+            }
+
+            // Check if profile already exists for this phone number
+            const [existingPhone]: any = await connection.execute(
+                'SELECT id FROM profiles WHERE phone_number = ?',
+                [cleanedPhone]
+            );
+            if (existingPhone.length > 0) {
+                await connection.rollback();
+                return res.status(400).json({ error: 'Phone number is already registered.' });
+            }
+
+            const profileId = uuidv4();
+            const contactPersonName = contact_name || name;
+
+            // 1. Create Profile
+            await connection.execute(
+                'INSERT INTO profiles (id, name, email, phone_number) VALUES (?, ?, ?, ?)',
+                [profileId, contactPersonName, email, cleanedPhone]
+            );
+
+            // 2. Create User Role (vendor)
+            await connection.execute(
+                'INSERT INTO user_roles (id, user_id, role) VALUES (?, ?, ?)',
+                [uuidv4(), profileId, 'vendor']
+            );
+
+            // 3. Create Vendor Verification (is_verified = true, is_active = true)
+            await connection.execute(
+                'INSERT INTO vendor_verification (id, user_id, is_verified, is_active, verified_at) VALUES (?, ?, ?, ?, NOW())',
+                [uuidv4(), profileId, true, true]
+            );
+
+            // 4. Create Vendor Details (is_distributor = true, is_franchise = false)
+            const vendorDetailsId = uuidv4();
+            await connection.execute(
+                `INSERT INTO vendor_details 
+                 (id, user_id, store_name, store_email, address, city, state, pincode, is_distributor, is_franchise) 
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                [
+                    vendorDetailsId,
+                    profileId,
+                    name,
+                    email,
+                    address || '',
+                    city || '',
+                    state || '',
+                    pincode || '',
+                    true,
+                    false
+                ]
+            );
+
+            // 5. Create Distributor record
+            const distId = uuidv4();
+            await connection.execute(
+                `INSERT INTO distributors (id, name, email, phone_number, address, city, state, pincode, gst_number, area_head_name, profile_id, allowed_brands)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                [
+                    distId,
+                    name,
+                    email,
+                    cleanedPhone,
+                    address || '',
+                    city || '',
+                    state || '',
+                    pincode || '',
+                    gst_number || null,
+                    area_head_name || null,
+                    profileId,
+                    brandValue
+                ]
+            );
+
+            await connection.commit();
+
+            // Log activity
+            const admin = (req as any).user;
+            await ActivityLogService.log({
+                adminId: admin.id,
+                adminName: admin.name,
+                adminEmail: admin.email,
+                actionType: 'DISTRIBUTOR_CREATED',
+                targetType: 'DISTRIBUTOR',
+                targetId: distId,
+                targetName: name,
+                ipAddress: req.ip || req.socket?.remoteAddress
+            });
+
+            res.status(201).json({
+                success: true,
+                message: 'Distributor created successfully',
+                distributorId: distId
+            });
+        } catch (error: any) {
+            await connection.rollback();
+            console.error('Create distributor error:', error);
+            res.status(500).json({ error: 'Failed to create distributor' });
+        } finally {
+            connection.release();
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    //  GET DISTRIBUTOR FRANCHISES
+    // ═══════════════════════════════════════════════════════════
+    static async getDistributorFranchises(req: Request, res: Response) {
+        try {
+            const { id } = req.params; // Distributor ID
+
+            // Order aggregates computed once per vendor via GROUP BY, then joined in,
+            // instead of 4 correlated subqueries evaluated per franchise row.
+            const query = `
+                SELECT p.id as user_id,
+                       vd.id as vendor_details_id,
+                       vd.store_name,
+                       vd.store_email,
+                       vd.city,
+                       vd.state,
+                       p.phone_number,
+                       COALESCE(vv.is_verified, false) as is_verified,
+                       COALESCE(vv.is_active, true) as is_active,
+                       vv.verified_at,
+                       COALESCE(oa.order_pending_count, 0) as order_pending_count,
+                       COALESCE(oa.order_confirmed_count, 0) as order_confirmed_count,
+                       COALESCE(oa.order_declined_count, 0) as order_declined_count,
+                       COALESCE(oa.order_total_count, 0) as order_total_count,
+                       COALESCE(vd.allowed_brands, 'AF') as allowed_brands
+                FROM vendor_details vd
+                JOIN profiles p ON vd.user_id = p.id
+                LEFT JOIN vendor_verification vv ON p.id = vv.user_id
+                LEFT JOIN (
+                    SELECT vendor_id,
+                           SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as order_pending_count,
+                           SUM(CASE WHEN status IN ('processing', 'shipped', 'delivered') THEN 1 ELSE 0 END) as order_confirmed_count,
+                           SUM(CASE WHEN status = 'cancelled' THEN 1 ELSE 0 END) as order_declined_count,
+                           COUNT(*) as order_total_count
+                    FROM store_orders
+                    WHERE distributor_id = ?
+                    GROUP BY vendor_id
+                ) oa ON oa.vendor_id = p.id
+                WHERE vd.distributor_id = ? AND vd.is_franchise = TRUE
+                ORDER BY vd.store_name ASC
+            `;
+            const [franchises]: any = await db.execute(query, [id, id]);
+            res.json({ success: true, franchises });
+        } catch (error: any) {
+            console.error('Get distributor franchises error:', error);
+            res.status(500).json({ error: 'Failed to fetch franchises' });
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    //  MAP FRANCHISE TO DISTRIBUTOR
+    // ═══════════════════════════════════════════════════════════
+    static async getFranchiseOrders(req: Request, res: Response) {
+        try {
+            const { vendorId } = req.params;
+
+            const [orders]: any = await db.execute(
+                `SELECT o.*,
+                        d.name as distributor_name,
+                        vd.store_name as franchise_name
+                 FROM store_orders o
+                 LEFT JOIN distributors d ON o.distributor_id = d.id
+                 LEFT JOIN vendor_details vd ON o.vendor_id = vd.user_id
+                 WHERE o.vendor_id = ?
+                 ORDER BY o.created_at DESC`,
+                [vendorId]
+            );
+
+            for (const order of orders) {
+                const [items]: any = await db.execute(
+                    `SELECT id, product_name, variation_name, quantity, price, needs_customization, customization_remarks
+                     FROM store_order_items
+                     WHERE order_id = ?
+                     ORDER BY created_at ASC`,
+                    [order.id]
+                );
+                order.items = items;
+            }
+
+            res.json({ success: true, orders });
+        } catch (error: any) {
+            console.error('Get franchise orders error:', error);
+            res.status(500).json({ error: 'Failed to fetch franchise orders' });
+        }
+    }
+
+    static async mapFranchiseToDistributor(req: Request, res: Response) {
+        try {
+            const { id } = req.params; // Distributor ID
+            const { vendorId } = req.body; // Vendor's User Profile ID
+
+            if (!vendorId) {
+                return res.status(400).json({ error: 'Franchise vendorId is required' });
+            }
+
+            // Verify distributor exists
+            const [dists]: any = await db.execute('SELECT name FROM distributors WHERE id = ?', [id]);
+            if (dists.length === 0) {
+                return res.status(404).json({ error: 'Distributor not found' });
+            }
+
+            // Verify vendor is a franchise
+            const [vendors]: any = await db.execute('SELECT store_name, is_franchise FROM vendor_details WHERE user_id = ?', [vendorId]);
+            if (vendors.length === 0) {
+                return res.status(404).json({ error: 'Franchise store not found' });
+            }
+            if (!vendors[0].is_franchise) {
+                return res.status(400).json({ error: 'Only franchise stores can be mapped to a distributor.' });
+            }
+
+            // Guard: brand compatibility — franchise and distributor must share at least one brand.
+            // AF franchise → needs AF or AFAC distributor
+            // AC franchise → needs AC or AFAC distributor
+            // AFAC franchise → any distributor is fine
+            const [brandRows]: any = await db.execute(
+                `SELECT d.allowed_brands as dist_brands, vd.allowed_brands as franchise_brands
+                 FROM distributors d, vendor_details vd
+                 WHERE d.id = ? AND vd.user_id = ?`,
+                [id, vendorId]
+            );
+            if (brandRows.length > 0) {
+                const distBrands: string = brandRows[0].dist_brands || 'AF';
+                const franchiseBrands: string = brandRows[0].franchise_brands || 'AF';
+                const compatible =
+                    distBrands === 'AFAC' ||
+                    franchiseBrands === 'AFAC' ||
+                    distBrands === franchiseBrands;
+                if (!compatible) {
+                    return res.status(400).json({
+                        error: `Brand mismatch: this franchise is assigned to "${franchiseBrands}" products but the distributor only carries "${distBrands}" products. Update one of them to be compatible before assigning.`
+                    });
+                }
+            }
+
+            // Guard: the categories this distributor sells must not overlap with categories
+            // already covered by another distributor assigned to this franchise — checking
+            // both the legacy single-FK mapping and the many-to-many franchise_distributors table.
+            const [overlaps]: any = await db.execute(
+                `SELECT DISTINCT sc.name as category_name, d.name as distributor_name
+                 FROM distributor_allowed_categories dac
+                 JOIN store_categories sc ON sc.id = dac.category_id
+                 JOIN distributors d ON d.id = dac.distributor_id
+                 WHERE dac.distributor_id != ?
+                   AND dac.category_id IN (
+                       SELECT category_id FROM distributor_allowed_categories WHERE distributor_id = ?
+                   )
+                   AND (
+                       dac.distributor_id IN (
+                           SELECT distributor_id FROM franchise_distributors WHERE franchise_user_id = ?
+                       )
+                       OR dac.distributor_id = (
+                           SELECT distributor_id FROM vendor_details WHERE user_id = ?
+                       )
+                   )`,
+                [id, id, vendorId, vendorId]
+            );
+
+            if (overlaps.length > 0) {
+                const conflictList = overlaps.map((o: any) => `${o.category_name} (already via ${o.distributor_name})`).join(', ');
+                return res.status(400).json({
+                    error: `Cannot assign: category overlap with an existing distributor for this franchise — ${conflictList}`
+                });
+            }
+
+            // Update mapping
+            await db.execute(
+                'UPDATE vendor_details SET distributor_id = ? WHERE user_id = ?',
+                [id, vendorId]
+            );
+
+            // Log activity
+            const admin = (req as any).user;
+            const [vendor]: any = await db.execute('SELECT store_name FROM vendor_details WHERE user_id = ?', [vendorId]);
+
+            await ActivityLogService.log({
+                adminId: admin.id,
+                adminName: admin.name,
+                adminEmail: admin.email,
+                actionType: 'FRANCHISE_MAPPED_DISTRIBUTOR',
+                targetType: 'VENDOR',
+                targetId: vendorId,
+                targetName: vendor[0]?.store_name,
+                details: { distributor_id: id, distributor_name: dists[0].name },
+                ipAddress: req.ip || req.socket?.remoteAddress
+            });
+
+            res.json({
+                success: true,
+                message: `Successfully assigned ${vendor[0]?.store_name || 'franchise'} to ${dists[0].name}`
+            });
+        } catch (error: any) {
+            console.error('Map franchise to distributor error:', error);
+            res.status(500).json({ error: 'Failed to map franchise' });
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    //  UNMAP FRANCHISE FROM DISTRIBUTOR
+    // ═══════════════════════════════════════════════════════════
+    static async unmapFranchiseFromDistributor(req: Request, res: Response) {
+        try {
+            const { id, vendorId } = req.params; // Distributor ID and Vendor ID
+
+            // Verify distributor exists
+            const [dists]: any = await db.execute('SELECT name FROM distributors WHERE id = ?', [id]);
+            if (dists.length === 0) {
+                return res.status(404).json({ error: 'Distributor not found' });
+            }
+
+            // Update mapping to NULL
+            await db.execute(
+                'UPDATE vendor_details SET distributor_id = NULL WHERE user_id = ? AND distributor_id = ?',
+                [vendorId, id]
+            );
+
+            // Log activity
+            const admin = (req as any).user;
+            const [vendor]: any = await db.execute('SELECT store_name FROM vendor_details WHERE user_id = ?', [vendorId]);
+
+            await ActivityLogService.log({
+                adminId: admin.id,
+                adminName: admin.name,
+                adminEmail: admin.email,
+                actionType: 'FRANCHISE_UNMAPPED_DISTRIBUTOR',
+                targetType: 'VENDOR',
+                targetId: vendorId,
+                targetName: vendor[0]?.store_name,
+                details: { distributor_id: id, distributor_name: dists[0].name },
+                ipAddress: req.ip || req.socket?.remoteAddress
+            });
+
+            res.json({
+                success: true,
+                message: `Successfully unassigned ${vendor[0]?.store_name || 'franchise'} from ${dists[0].name}`
+            });
+        } catch (error: any) {
+            console.error('Unmap franchise from distributor error:', error);
+            res.status(500).json({ error: 'Failed to unmap franchise' });
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    //  GET ELIGIBLE FRANCHISES
+    // ═══════════════════════════════════════════════════════════
+    static async getEligibleFranchises(_req: Request, res: Response) {
+        try {
+            const query = `
+                SELECT p.id as user_id, 
+                       vd.id as vendor_details_id, 
+                       vd.store_name, 
+                       vd.city, 
+                       vd.state,
+                       vd.distributor_id,
+                       d.name as distributor_name
+                FROM vendor_details vd
+                JOIN profiles p ON vd.user_id = p.id
+                JOIN vendor_verification vv ON p.id = vv.user_id
+                LEFT JOIN distributors d ON vd.distributor_id = d.id
+                WHERE vv.is_verified = TRUE AND vd.is_franchise = TRUE
+                ORDER BY vd.store_name ASC
+            `;
+            const [franchises]: any = await db.execute(query);
+            res.json({ success: true, franchises });
+        } catch (error: any) {
+            console.error('Get eligible franchises error:', error);
+            res.status(500).json({ error: 'Failed to fetch eligible franchises' });
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    //  GET DISTRIBUTOR ALLOWED CATEGORIES
+    // ═══════════════════════════════════════════════════════════
+    static async getDistributorAllowedCategories(req: Request, res: Response) {
+        try {
+            const { id } = req.params; // Distributor ID
+
+            const [categories]: any = await db.execute(
+                `SELECT dac.category_id, sc.name as category_name
+                 FROM distributor_allowed_categories dac
+                 JOIN store_categories sc ON dac.category_id = sc.id
+                 WHERE dac.distributor_id = ?
+                 ORDER BY sc.name ASC`,
+                [id]
+            );
+            res.json({ success: true, categories });
+        } catch (error: any) {
+            console.error('Get distributor allowed categories error:', error);
+            res.status(500).json({ error: 'Failed to fetch allowed categories' });
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    //  SET DISTRIBUTOR ALLOWED CATEGORIES (replaces full set)
+    // ═══════════════════════════════════════════════════════════
+    static async setDistributorAllowedCategories(req: Request, res: Response) {
+        const connection = await db.getConnection();
+        try {
+            const { id } = req.params; // Distributor ID
+            const { categoryIds } = req.body; // string[]
+
+            if (!Array.isArray(categoryIds)) {
+                return res.status(400).json({ error: 'categoryIds must be an array' });
+            }
+
+            const [dists]: any = await connection.execute('SELECT name FROM distributors WHERE id = ?', [id]);
+            if (dists.length === 0) {
+                return res.status(404).json({ error: 'Distributor not found' });
+            }
+
+            await connection.beginTransaction();
+
+            await connection.execute('DELETE FROM distributor_allowed_categories WHERE distributor_id = ?', [id]);
+
+            for (const categoryId of categoryIds) {
+                await connection.execute(
+                    `INSERT INTO distributor_allowed_categories (id, distributor_id, category_id) VALUES (?, ?, ?)`,
+                    [uuidv4(), id, categoryId]
+                );
+            }
+
+            await connection.commit();
+
+            const admin = (req as any).user;
+            await ActivityLogService.log({
+                adminId: admin.id,
+                adminName: admin.name,
+                adminEmail: admin.email,
+                actionType: 'DISTRIBUTOR_CATEGORIES_UPDATED',
+                targetType: 'DISTRIBUTOR',
+                targetId: id,
+                targetName: dists[0].name,
+                details: { category_count: categoryIds.length },
+                ipAddress: req.ip || req.socket?.remoteAddress
+            });
+
+            res.json({ success: true, message: `Updated allowed categories for ${dists[0].name}` });
+        } catch (error: any) {
+            await connection.rollback();
+            console.error('Set distributor allowed categories error:', error);
+            res.status(500).json({ error: 'Failed to update allowed categories' });
+        } finally {
+            connection.release();
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    //  GET FRANCHISE'S ASSIGNED DISTRIBUTORS (many-to-many)
+    // ═══════════════════════════════════════════════════════════
+    static async getFranchiseDistributors(req: Request, res: Response) {
+        try {
+            const { vendorId } = req.params; // Franchise user_id
+
+            const [distributors]: any = await db.execute(
+                `SELECT d.id, d.name, d.city, d.state,
+                        GROUP_CONCAT(sc.name ORDER BY sc.name SEPARATOR ', ') as allowed_category_names
+                 FROM franchise_distributors fd
+                 JOIN distributors d ON fd.distributor_id = d.id
+                 LEFT JOIN distributor_allowed_categories dac ON dac.distributor_id = d.id
+                 LEFT JOIN store_categories sc ON sc.id = dac.category_id
+                 WHERE fd.franchise_user_id = ?
+                 GROUP BY d.id, d.name, d.city, d.state
+                 ORDER BY d.name ASC`,
+                [vendorId]
+            );
+            res.json({ success: true, distributors });
+        } catch (error: any) {
+            console.error('Get franchise distributors error:', error);
+            res.status(500).json({ error: 'Failed to fetch franchise distributors' });
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    //  ASSIGN DISTRIBUTOR TO FRANCHISE (many-to-many, with category-overlap guard)
+    // ═══════════════════════════════════════════════════════════
+    static async assignDistributorToFranchise(req: Request, res: Response) {
+        try {
+            const { id } = req.params; // Distributor ID
+            const { vendorId } = req.body; // Franchise user_id
+
+            if (!vendorId) {
+                return res.status(400).json({ error: 'Franchise vendorId is required' });
+            }
+
+            const [dists]: any = await db.execute('SELECT name FROM distributors WHERE id = ?', [id]);
+            if (dists.length === 0) {
+                return res.status(404).json({ error: 'Distributor not found' });
+            }
+
+            const [vendors]: any = await db.execute('SELECT store_name, is_franchise FROM vendor_details WHERE user_id = ?', [vendorId]);
+            if (vendors.length === 0) {
+                return res.status(404).json({ error: 'Franchise store not found' });
+            }
+            if (!vendors[0].is_franchise) {
+                return res.status(400).json({ error: 'Only franchise stores can be assigned to a distributor.' });
+            }
+
+            // Guard: the categories this distributor sells must not overlap with categories
+            // already covered by another distributor assigned to this franchise — checking
+            // both the many-to-many franchise_distributors table and the legacy single-FK mapping.
+            const [overlaps]: any = await db.execute(
+                `SELECT DISTINCT sc.name as category_name, d.name as distributor_name
+                 FROM distributor_allowed_categories dac
+                 JOIN store_categories sc ON sc.id = dac.category_id
+                 JOIN distributors d ON d.id = dac.distributor_id
+                 WHERE dac.distributor_id != ?
+                   AND dac.category_id IN (
+                       SELECT category_id FROM distributor_allowed_categories WHERE distributor_id = ?
+                   )
+                   AND (
+                       dac.distributor_id IN (
+                           SELECT distributor_id FROM franchise_distributors WHERE franchise_user_id = ?
+                       )
+                       OR dac.distributor_id = (
+                           SELECT distributor_id FROM vendor_details WHERE user_id = ?
+                       )
+                   )`,
+                [id, id, vendorId, vendorId]
+            );
+
+            if (overlaps.length > 0) {
+                const conflictList = overlaps.map((o: any) => `${o.category_name} (already via ${o.distributor_name})`).join(', ');
+                return res.status(400).json({
+                    error: `Cannot assign: category overlap with an existing distributor for this franchise — ${conflictList}`
+                });
+            }
+
+            await db.execute(
+                `INSERT INTO franchise_distributors (id, franchise_user_id, distributor_id)
+                 VALUES (?, ?, ?)
+                 ON DUPLICATE KEY UPDATE id = id`,
+                [uuidv4(), vendorId, id]
+            );
+
+            const admin = (req as any).user;
+            await ActivityLogService.log({
+                adminId: admin.id,
+                adminName: admin.name,
+                adminEmail: admin.email,
+                actionType: 'FRANCHISE_ASSIGNED_DISTRIBUTOR',
+                targetType: 'VENDOR',
+                targetId: vendorId,
+                targetName: vendors[0].store_name,
+                details: { distributor_id: id, distributor_name: dists[0].name },
+                ipAddress: req.ip || req.socket?.remoteAddress
+            });
+
+            res.json({
+                success: true,
+                message: `Successfully assigned ${vendors[0].store_name} to ${dists[0].name}`
+            });
+        } catch (error: any) {
+            console.error('Assign distributor to franchise error:', error);
+            res.status(500).json({ error: 'Failed to assign distributor' });
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    //  UNASSIGN DISTRIBUTOR FROM FRANCHISE (many-to-many)
+    // ═══════════════════════════════════════════════════════════
+    static async unassignDistributorFromFranchise(req: Request, res: Response) {
+        try {
+            const { id, vendorId } = req.params; // Distributor ID, Franchise user_id
+
+            const [dists]: any = await db.execute('SELECT name FROM distributors WHERE id = ?', [id]);
+            if (dists.length === 0) {
+                return res.status(404).json({ error: 'Distributor not found' });
+            }
+
+            await db.execute(
+                'DELETE FROM franchise_distributors WHERE franchise_user_id = ? AND distributor_id = ?',
+                [vendorId, id]
+            );
+
+            const admin = (req as any).user;
+            const [vendor]: any = await db.execute('SELECT store_name FROM vendor_details WHERE user_id = ?', [vendorId]);
+
+            await ActivityLogService.log({
+                adminId: admin.id,
+                adminName: admin.name,
+                adminEmail: admin.email,
+                actionType: 'FRANCHISE_UNASSIGNED_DISTRIBUTOR',
+                targetType: 'VENDOR',
+                targetId: vendorId,
+                targetName: vendor[0]?.store_name,
+                details: { distributor_id: id, distributor_name: dists[0].name },
+                ipAddress: req.ip || req.socket?.remoteAddress
+            });
+
+            res.json({
+                success: true,
+                message: `Successfully unassigned ${vendor[0]?.store_name || 'franchise'} from ${dists[0].name}`
+            });
+        } catch (error: any) {
+            console.error('Unassign distributor from franchise error:', error);
+            res.status(500).json({ error: 'Failed to unassign distributor' });
         }
     }
 }

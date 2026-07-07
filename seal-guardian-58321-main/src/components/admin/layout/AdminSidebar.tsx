@@ -16,7 +16,9 @@ import {
     FileText,
     Megaphone,
     BookOpen,
-    Crown
+    Crown,
+    Network,
+    Building2
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNotifications } from "@/contexts/NotificationContext";
@@ -31,6 +33,7 @@ import {
 export type AdminModule =
     | 'overview'
     | 'vendors'
+    | 'distributors'
     | 'customers'
     | 'products'
     | 'warranty-products'
@@ -41,12 +44,14 @@ export type AdminModule =
     | 'grievances'
     | 'products'
     | 'terms'
+    | 'content-manager'
     | 'warranty-form'
     | 'announcements'
     | 'posm'
     | 'uid-management'
     | 'ecatalogue'
     | 'analytics'
+    | 'order-management'
     | 'profile';
 
 interface SidebarItemProps {
@@ -130,6 +135,7 @@ const moduleToPermKey: Record<string, string> = {
     'uid-management': 'uid_management',
     'warranty-form': 'warranty_form',
     'vendors': 'vendors',
+    'distributors': 'vendors',
     'customers': 'customers',
     'products': 'products',
     'announcements': 'announcements',
@@ -137,10 +143,12 @@ const moduleToPermKey: Record<string, string> = {
     'posm': 'posm',
     'ecatalogue': 'ecatalogue',
     'terms': 'terms',
+    'content-manager': 'terms',
     'old-warranties': 'old_warranties',
     'activity-logs': 'activity_logs',
     'admins': 'admins',   // Super Admin only
     'analytics': 'overview',
+    'order-management': 'vendors',
     'profile': 'profile',  // Always visible
 };
 
@@ -196,8 +204,10 @@ export const SidebarContent = ({
             label: "Store & Partners",
             items: [
                 { id: 'vendors' as const, label: "Franchises", icon: Store },
+                { id: 'distributors' as const, label: "Distributors", icon: Building2 },
                 { id: 'customers' as const, label: "Customers", icon: Users },
                 { id: 'products' as const, label: "Product Catalogue", icon: Package },
+                { id: 'order-management' as const, label: "Order Management", icon: Network },
             ]
         },
         {
@@ -212,7 +222,7 @@ export const SidebarContent = ({
                 },
                 { id: 'posm' as const, label: "POSM Requirements", icon: Package },
                 { id: 'ecatalogue' as const, label: "E-Catalogue CMS", icon: BookOpen },
-                { id: 'terms' as const, label: "Terms & Conditions", icon: FileText },
+                { id: 'content-manager' as const, label: "Form Content", icon: FileText },
             ]
         },
         {
