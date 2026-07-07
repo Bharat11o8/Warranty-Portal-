@@ -45,11 +45,14 @@ export class OrderController {
  private static async generateOrderId(connection: any): Promise<string> {
     const dateCode = OrderController.getISTDateCode();
 
+    // IDs are AFI<yyyymmdd><7-digit seq>, so lexicographic order matches
+    // creation order — ORDER BY id uses the primary key index directly
+    // instead of filesorting every AFI row by created_at.
     const [rows]: any = await connection.execute(
         `SELECT id
          FROM store_orders
          WHERE id LIKE 'AFI%'
-         ORDER BY created_at DESC
+         ORDER BY id DESC
          LIMIT 1`
     );
 
@@ -71,6 +74,31 @@ export class OrderController {
 
     return `AFI${dateCode}${String(nextSequence).padStart(7, '0')}`;
 }
+
+    // ─── Helper: Attach items to a list of orders in one query ───
+    // Replaces the per-order items lookup (N+1) with a single
+    // WHERE order_id IN (...) fetch grouped in memory.
+    private static async attachOrderItems(orders: any[]): Promise<void> {
+        if (orders.length === 0) return;
+
+        const orderIds = orders.map((o: any) => o.id);
+        const placeholders = orderIds.map(() => '?').join(',');
+        const [allItems]: any = await db.execute(
+            `SELECT * FROM store_order_items WHERE order_id IN (${placeholders})`,
+            orderIds
+        );
+
+        const itemsByOrder = new Map<string, any[]>();
+        for (const item of allItems) {
+            const list = itemsByOrder.get(item.order_id);
+            if (list) list.push(item);
+            else itemsByOrder.set(item.order_id, [item]);
+        }
+
+        for (const order of orders) {
+            order.items = itemsByOrder.get(order.id) || [];
+        }
+    }
 
     // ─── Helper: Deduct stock for a confirmed order's items ──────
     // Locks each distributor_inventory row (SELECT ... FOR UPDATE) before
@@ -924,14 +952,7 @@ export class OrderController {
                 [user.id]
             );
 
-            // Fetch items for each order
-            for (const order of orders) {
-                const [items]: any = await db.execute(
-                    'SELECT * FROM store_order_items WHERE order_id = ?',
-                    [order.id]
-                );
-                order.items = items;
-            }
+            await OrderController.attachOrderItems(orders);
 
             res.json({ success: true, orders });
 
@@ -1263,14 +1284,7 @@ export class OrderController {
 
             const [orders]: any = await db.execute(query, params);
 
-            // Fetch items for each order
-            for (const order of orders) {
-                const [items]: any = await db.execute(
-                    'SELECT * FROM store_order_items WHERE order_id = ?',
-                    [order.id]
-                );
-                order.items = items;
-            }
+            await OrderController.attachOrderItems(orders);
 
             res.json({ success: true, orders });
 
@@ -1603,14 +1617,8 @@ export class OrderController {
                 [distributorId]
             );
 
-            // 3. Fetch items for each order
-            for (const order of orders) {
-                const [items]: any = await db.execute(
-                    'SELECT * FROM store_order_items WHERE order_id = ?',
-                    [order.id]
-                );
-                order.items = items;
-            }
+            // 3. Attach items for all orders in one query
+            await OrderController.attachOrderItems(orders);
 
             res.json({ success: true, orders });
 

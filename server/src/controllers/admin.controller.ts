@@ -170,12 +170,18 @@ export class AdminController {
         try {
             const { startDate, endDate, dateField } = req.query as { startDate?: string; endDate?: string; dateField?: string };
             const hasRange = Boolean(startDate && endDate);
-            const rangeColumn = dateField === 'purchase_date' ? 'wr.purchase_date' : 'wr.created_at';
+            const rangeColumn = dateField === 'purchase_date' ? 'u.purchase_date' : 'u.created_at';
 
-            const rangeWarrantyJoin = hasRange
-                ? `AND ${rangeColumn} BETWEEN ? AND ?`
-                : '';
-            const rangeParams = hasRange ? [`${startDate} 00:00:00`, `${endDate} 23:59:59`] : [];
+            // Warranty attribution (manpower / installer match / user_id) is computed
+            // once via a UNION of three indexed join paths (deduped per vendor+uid),
+            // then aggregated in a single GROUP BY — instead of re-evaluating an
+            // un-indexable triple-OR condition in 12 correlated subqueries per vendor.
+            // When no date range is given, in_range is 1 so range_* equal the totals,
+            // matching the old behaviour.
+            const inRangeExpr = hasRange
+                ? `CASE WHEN ${rangeColumn} BETWEEN ? AND ? THEN 1 ELSE 0 END`
+                : '1';
+            const queryParams = hasRange ? [`${startDate} 00:00:00`, `${endDate} 23:59:59`] : [];
 
             const query = `
                 SELECT
@@ -197,86 +203,21 @@ export class AdminController {
                     COALESCE(vd.is_distributor, false) as is_distributor,
                     COALESCE(vd.is_franchise, true) as is_franchise,
                     vv.verified_at,
-                    (SELECT COUNT(*) FROM manpower WHERE vendor_id = vd.id) as manpower_count,
-                    (SELECT GROUP_CONCAT(name SEPARATOR ', ') FROM manpower WHERE vendor_id = vd.id) as manpower_names,
-                    (SELECT COUNT(*) FROM warranty_registrations wr
-                     WHERE (wr.manpower_id IN (SELECT id FROM manpower WHERE vendor_id = vd.id)
-                        OR (wr.installer_name = vd.store_name AND wr.installer_contact = vd.store_email)
-                        OR wr.user_id = p.id)
-                    ) as total_warranties,
-                    (SELECT COUNT(*) FROM warranty_registrations wr
-                     WHERE (wr.manpower_id IN (SELECT id FROM manpower WHERE vendor_id = vd.id)
-                        OR (wr.installer_name = vd.store_name AND wr.installer_contact = vd.store_email)
-                        OR wr.user_id = p.id)
-                     AND wr.status = 'validated'
-                    ) as validated_warranties,
-                     (SELECT COUNT(*) FROM warranty_registrations wr
-                      WHERE (wr.manpower_id IN (SELECT id FROM manpower WHERE vendor_id = vd.id)
-                        OR (wr.installer_name = vd.store_name AND wr.installer_contact = vd.store_email)
-                        OR wr.user_id = p.id)
-                      AND wr.status IN ('pending', 'pending_vendor')
-                     ) as pending_warranties,
-                    (SELECT COUNT(*) FROM warranty_registrations wr
-                     WHERE (wr.manpower_id IN (SELECT id FROM manpower WHERE vendor_id = vd.id)
-                        OR (wr.installer_name = vd.store_name AND wr.installer_contact = vd.store_email)
-                        OR wr.user_id = p.id)
-                     AND wr.status = 'rejected'
-                    ) as rejected_warranties,
-                    (SELECT COUNT(*) FROM warranty_registrations wr
-                     WHERE (wr.manpower_id IN (SELECT id FROM manpower WHERE vendor_id = vd.id)
-                        OR (wr.installer_name = vd.store_name AND wr.installer_contact = vd.store_email)
-                        OR wr.user_id = p.id)
-                     ${rangeWarrantyJoin}
-                    ) as range_total_warranties,
-                    (SELECT COUNT(*) FROM warranty_registrations wr
-                     WHERE (wr.manpower_id IN (SELECT id FROM manpower WHERE vendor_id = vd.id)
-                        OR (wr.installer_name = vd.store_name AND wr.installer_contact = vd.store_email)
-                        OR wr.user_id = p.id)
-                     AND wr.status = 'validated'
-                     ${rangeWarrantyJoin}
-                    ) as range_validated_warranties,
-                    (SELECT COUNT(*) FROM warranty_registrations wr
-                     WHERE (wr.manpower_id IN (SELECT id FROM manpower WHERE vendor_id = vd.id)
-                        OR (wr.installer_name = vd.store_name AND wr.installer_contact = vd.store_email)
-                        OR wr.user_id = p.id)
-                     AND wr.status IN ('pending', 'pending_vendor')
-                     ${rangeWarrantyJoin}
-                    ) as range_pending_warranties,
-                    (SELECT COUNT(*) FROM warranty_registrations wr
-                     WHERE (wr.manpower_id IN (SELECT id FROM manpower WHERE vendor_id = vd.id)
-                        OR (wr.installer_name = vd.store_name AND wr.installer_contact = vd.store_email)
-                        OR wr.user_id = p.id)
-                     AND wr.status = 'rejected'
-                     ${rangeWarrantyJoin}
-                    ) as range_rejected_warranties,
-                    COALESCE((
-                        SELECT COUNT(*)
-                        FROM store_orders o
-                        WHERE o.distributor_id = dist.id
-                          AND o.status = 'pending'
-                    ), 0) as order_pending_count,
-                    COALESCE((
-                        SELECT COUNT(*)
-                        FROM store_orders o
-                        WHERE o.distributor_id = dist.id
-                          AND o.status IN ('processing', 'shipped', 'delivered')
-                    ), 0) as order_confirmed_count,
-                    COALESCE((
-                        SELECT COUNT(*)
-                        FROM store_orders o
-                        WHERE o.distributor_id = dist.id
-                          AND o.status = 'cancelled'
-                    ), 0) as order_declined_count,
-                    COALESCE((
-                        SELECT COUNT(*)
-                        FROM store_orders o
-                        WHERE o.distributor_id = dist.id
-                    ), 0) as order_total_count,
-                    (SELECT GROUP_CONCAT(sc.name ORDER BY sc.name SEPARATOR ', ')
-                     FROM distributor_allowed_categories dac
-                     JOIN store_categories sc ON sc.id = dac.category_id
-                     WHERE dac.distributor_id = dist.id
-                    ) as allowed_category_names,
+                    COALESCE(mp.manpower_count, 0) as manpower_count,
+                    mp.manpower_names,
+                    COALESCE(wagg.total_warranties, 0) as total_warranties,
+                    COALESCE(wagg.validated_warranties, 0) as validated_warranties,
+                    COALESCE(wagg.pending_warranties, 0) as pending_warranties,
+                    COALESCE(wagg.rejected_warranties, 0) as rejected_warranties,
+                    COALESCE(wagg.range_total_warranties, 0) as range_total_warranties,
+                    COALESCE(wagg.range_validated_warranties, 0) as range_validated_warranties,
+                    COALESCE(wagg.range_pending_warranties, 0) as range_pending_warranties,
+                    COALESCE(wagg.range_rejected_warranties, 0) as range_rejected_warranties,
+                    COALESCE(oa.order_pending_count, 0) as order_pending_count,
+                    COALESCE(oa.order_confirmed_count, 0) as order_confirmed_count,
+                    COALESCE(oa.order_declined_count, 0) as order_declined_count,
+                    COALESCE(oa.order_total_count, 0) as order_total_count,
+                    cats.allowed_category_names,
                     COALESCE(dist.allowed_brands, 'AF') as distributor_allowed_brands,
                     COALESCE(vd.allowed_brands, 'AF') as franchise_allowed_brands
                 FROM profiles p
@@ -284,19 +225,66 @@ export class AdminController {
                 LEFT JOIN vendor_details vd ON p.id = vd.user_id
                 LEFT JOIN vendor_verification vv ON p.id = vv.user_id
                 LEFT JOIN distributors dist ON dist.profile_id = p.id
+                LEFT JOIN (
+                    SELECT vendor_id,
+                           COUNT(*) as manpower_count,
+                           GROUP_CONCAT(name SEPARATOR ', ') as manpower_names
+                    FROM manpower
+                    GROUP BY vendor_id
+                ) mp ON mp.vendor_id = vd.id
+                LEFT JOIN (
+                    SELECT t.vkey,
+                           COUNT(*) as total_warranties,
+                           SUM(CASE WHEN t.status = 'validated' THEN 1 ELSE 0 END) as validated_warranties,
+                           SUM(CASE WHEN t.status IN ('pending', 'pending_vendor') THEN 1 ELSE 0 END) as pending_warranties,
+                           SUM(CASE WHEN t.status = 'rejected' THEN 1 ELSE 0 END) as rejected_warranties,
+                           SUM(t.in_range) as range_total_warranties,
+                           SUM(CASE WHEN t.in_range = 1 AND t.status = 'validated' THEN 1 ELSE 0 END) as range_validated_warranties,
+                           SUM(CASE WHEN t.in_range = 1 AND t.status IN ('pending', 'pending_vendor') THEN 1 ELSE 0 END) as range_pending_warranties,
+                           SUM(CASE WHEN t.in_range = 1 AND t.status = 'rejected' THEN 1 ELSE 0 END) as range_rejected_warranties
+                    FROM (
+                        SELECT u.vkey, u.status, ${inRangeExpr} as in_range
+                        FROM (
+                            SELECT vd2.user_id as vkey, wr.uid, wr.status, wr.created_at, wr.purchase_date
+                            FROM manpower m
+                            JOIN vendor_details vd2 ON vd2.id = m.vendor_id
+                            JOIN warranty_registrations wr ON wr.manpower_id = m.id
+                            UNION
+                            SELECT vd3.user_id, wr.uid, wr.status, wr.created_at, wr.purchase_date
+                            FROM vendor_details vd3
+                            JOIN warranty_registrations wr
+                              ON wr.installer_name = vd3.store_name
+                             AND wr.installer_contact = vd3.store_email
+                            UNION
+                            SELECT wr.user_id, wr.uid, wr.status, wr.created_at, wr.purchase_date
+                            FROM warranty_registrations wr
+                        ) u
+                    ) t
+                    GROUP BY t.vkey
+                ) wagg ON wagg.vkey = p.id
+                LEFT JOIN (
+                    SELECT distributor_id,
+                           SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as order_pending_count,
+                           SUM(CASE WHEN status IN ('processing', 'shipped', 'delivered') THEN 1 ELSE 0 END) as order_confirmed_count,
+                           SUM(CASE WHEN status = 'cancelled' THEN 1 ELSE 0 END) as order_declined_count,
+                           COUNT(*) as order_total_count
+                    FROM store_orders
+                    GROUP BY distributor_id
+                ) oa ON oa.distributor_id = dist.id
+                LEFT JOIN (
+                    SELECT dac.distributor_id,
+                           GROUP_CONCAT(sc.name ORDER BY sc.name SEPARATOR ', ') as allowed_category_names
+                    FROM distributor_allowed_categories dac
+                    JOIN store_categories sc ON sc.id = dac.category_id
+                    GROUP BY dac.distributor_id
+                ) cats ON cats.distributor_id = dist.id
                 WHERE ur.role = 'vendor'
                 ORDER BY p.created_at DESC
             `;
 
-            const queryParams = hasRange ? [...rangeParams, ...rangeParams, ...rangeParams, ...rangeParams] : [];
             const [vendorsList]: any = await db.execute(query, queryParams);
 
             console.log(`[Admin] Fetched ${vendorsList.length} vendors`);
-
-            // Log vendor verification status for debugging
-            vendorsList.forEach((vendor: any) => {
-                console.log(`[Admin] Vendor ${vendor.email}: is_verified=${vendor.is_verified}, verified_at=${vendor.verified_at}`);
-            });
 
             res.json({
                 success: true,

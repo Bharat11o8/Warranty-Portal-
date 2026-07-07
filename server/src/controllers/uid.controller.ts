@@ -1,6 +1,8 @@
 ﻿import { Request, Response } from 'express';
 import db, { getISTTimestamp } from '../config/database.js';
 import { matchFallbackUidSequence, resolveFallbackUid } from '../utils/customerMobileLimits.js';
+import { v4 as uuidv4 } from 'uuid';
+import { NotificationService } from '../services/notification.service.js';
 
 export class UIDController {
     /**
