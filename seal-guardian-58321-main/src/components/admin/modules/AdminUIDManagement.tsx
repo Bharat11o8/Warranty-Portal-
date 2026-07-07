@@ -252,7 +252,7 @@ export const AdminUIDManagement = ({ onBack }: UIDManagementProps) => {
     };
 
     const formatDate = (dateStr: string | null) => {
-        if (!dateStr) return "â€”";
+        if (!dateStr) return "—";
         return new Date(dateStr).toLocaleDateString("en-IN", {
             day: "2-digit",
             month: "short",
@@ -475,7 +475,7 @@ export const AdminUIDManagement = ({ onBack }: UIDManagementProps) => {
                                                 </div>
                                             </td>
                                             <td className="py-3 px-4 text-slate-600 font-semibold text-xs max-w-[150px] truncate">
-                                                {uid.product_name || <span className="text-slate-300">â€”</span>}
+                                                {uid.product_name || <span className="text-slate-300">—</span>}
                                             </td>
                                             <td className="py-3 px-4 text-center">
                                                 {uid.is_used ? (
@@ -819,7 +819,7 @@ export const AdminUIDManagement = ({ onBack }: UIDManagementProps) => {
                                 <div className="space-y-1">
                                     <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Product Name</p>
                                     <p className="text-sm font-bold text-slate-700 truncate" title={selectedUID.product_name || 'Not specified'}>
-                                        {selectedUID.product_name || 'â€”'}
+                                        {selectedUID.product_name || '—'}
                                     </p>
                                 </div>
                                 <div className="space-y-1">
