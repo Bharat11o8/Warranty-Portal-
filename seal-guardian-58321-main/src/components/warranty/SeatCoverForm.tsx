@@ -96,6 +96,7 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
   const { user } = useAuth();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
+  const [processingCapture, setProcessingCapture] = useState(false);
   const [stores, setStores] = useState<any[]>([]);
   const [products, setProducts] = useState<any[]>([]);
   const [manpowerList, setManpowerList] = useState<any[]>([]);
@@ -272,6 +273,52 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
     };
     loadFingerprint();
   }, []);
+
+  const handleProductAutoPopulate = async (returnedProductName: string) => {
+    if (!returnedProductName) return;
+    
+    // First try to find in existing products list
+    let matchedProduct = products.find(
+      p => p.name.toLowerCase().trim() === returnedProductName.toLowerCase().trim()
+    );
+
+    if (!matchedProduct) {
+      // If not found, let's re-fetch products from server
+      try {
+        const response = await api.get('/public/products');
+        if (response.data.success) {
+          const freshProducts = response.data.products.filter((p: any) => p.type === 'seat_cover');
+          setProducts(freshProducts);
+          matchedProduct = freshProducts.find(
+            (p: any) => p.name.toLowerCase().trim() === returnedProductName.toLowerCase().trim()
+          );
+        }
+      } catch (err) {
+        console.error("Failed to re-fetch products", err);
+      }
+    }
+
+    if (matchedProduct) {
+      setFormData(prev => ({
+        ...prev,
+        productName: matchedProduct.name,
+        warrantyType: matchedProduct.warranty_years
+      }));
+      toast({
+        title: "Product Auto-filled",
+        description: `Product "${matchedProduct.name}" and "${matchedProduct.warranty_years}" warranty auto-filled!`,
+      });
+    } else {
+      setFormData(prev => ({
+        ...prev,
+        productName: returnedProductName
+      }));
+      toast({
+        title: "Product Detected",
+        description: `Product "${returnedProductName}" detected. Please select it from the list or refresh the page.`,
+      });
+    }
+  };
 
   // Auto-fill store details for public QR flow
   useEffect(() => {
@@ -680,9 +727,28 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
 
     } catch (error: any) {
       console.error("Warranty submission error:", error);
+
+      let errorTitle = "Submission Failed";
+      let errorMessage = "Failed to submit warranty registration";
+
+      if (error.code === "ERR_NETWORK" || error.message?.includes("Network Error")) {
+        errorTitle = "Network Error";
+        errorMessage = "Unable to connect to server. Please check your internet connection and try again.";
+      } else if (error.code === "ECONNABORTED" || error.message?.includes("timeout")) {
+        errorTitle = "Upload Timeout";
+        errorMessage = "The upload took too long. Try using smaller photos or a faster internet connection.";
+      } else if (error.response?.status === 413) {
+        errorTitle = "Files Too Large";
+        errorMessage = "One or more files exceed the 5 MB limit. Please use smaller images.";
+      } else if (error.response?.data?.error) {
+        errorMessage = error.response.data.error;
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+
       toast({
-        title: "Submission Failed",
-        description: error.response?.data?.error || "Failed to submit warranty registration",
+        title: errorTitle,
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {
@@ -1086,91 +1152,102 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
     }
   };
 
-  // Handle camera captures: extract EXIF then compress before storing
+  // Handle camera captures: geolocation and EXIF are fire-and-forget fraud metadata
+  // (they update state whenever they complete). Only compression is awaited — it's
+  // the only thing that affects upload size and must finish before submission.
   const handleCameraCapture = async (file: File | null, field: 'vehicleFile' | 'seatCoverPhoto') => {
     if (!file) {
       setFormData(prev => ({ ...prev, [field]: null }));
       return;
     }
 
+    // Set file immediately so UI updates and validation sees a file selected.
+    // Will be replaced with the compressed version once compression finishes.
+    setFormData(prev => ({ ...prev, [field]: file }));
+    setProcessingCapture(true);
+
     console.log(`[FraudDetection] Camera file received for ${field}:`, {
       name: file.name, type: file.type, size: file.size
     });
 
-    // 1. Get GPS via Geolocation API (iOS strips GPS from camera captures for privacy)
-    try {
-      const position = await new Promise<GeolocationPosition>((resolve, reject) => {
-        navigator.geolocation.getCurrentPosition(resolve, reject, {
-          enableHighAccuracy: true,
-          timeout: 5000,
-          maximumAge: 60000
-        });
-      });
-      console.log(`[FraudDetection] Geolocation GPS:`, position.coords.latitude, position.coords.longitude);
-      setFormData(prev => ({
-        ...prev,
-        exifData: {
-          ...(prev.exifData || {}),
-          lat: position.coords.latitude,
-          lng: position.coords.longitude,
-        }
-      }));
-    } catch (err) {
-      console.warn(`[FraudDetection] Geolocation failed (user denied or unavailable):`, err);
-    }
-
-    // 2. Extract EXIF for device make/model/timestamp (GPS will be null on iOS, that's OK)
-    // CRITICAL FIX: Only read the first 128KB of the file! Reading the full 5-10MB 4K photo 
-    // into an ArrayBuffer causes iOS Safari to crash (OOM) and forcibly refresh the page.
-    try {
-      const exifChunk = file.slice(0, 128 * 1024); // 128KB is plenty for EXIF metadata headers
-      const arrayBuffer = await exifChunk.arrayBuffer();
-      const exif = await exifr.parse(arrayBuffer, {
-        gps: true, exif: true, tiff: true, mergeOutput: true,
-      });
-      console.log(`[FraudDetection] EXIF for ${field}:`, exif ? {
-        Make: exif.Make, Model: exif.Model, DateTimeOriginal: exif.DateTimeOriginal
-      } : 'NULL');
-
-      if (exif) {
+    // 1. Geolocation — fire-and-forget using the native callback API.
+    //    IMPORTANT: never wrap in a Promise and await it. The Geolocation API's
+    //    `timeout` option only starts AFTER the user grants permission. If the user
+    //    ignores the permission prompt, a wrapped Promise hangs forever, keeping
+    //    processingCapture=true and the submit button stuck permanently.
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        console.log(`[FraudDetection] Geolocation GPS:`, position.coords.latitude, position.coords.longitude);
         setFormData(prev => {
-          const currentExif = prev.exifData || {};
-          const fieldExif = {
-            lat: currentExif.lat || exif.latitude || null,
-            lng: currentExif.lng || exif.longitude || null,
-            timestamp: exif.DateTimeOriginal || exif.CreateDate || currentExif.timestamp || null,
-            deviceMake: exif.Make || currentExif.deviceMake || null,
-            deviceModel: exif.Model || currentExif.deviceModel || null
-          };
-
+          if (prev[field] !== file) return prev;
           return {
             ...prev,
             exifData: {
-              ...fieldExif
-            },
-            allExifData: {
-              ...prev.allExifData,
-              [field]: fieldExif
+              ...(prev.exifData || {}),
+              lat: position.coords.latitude,
+              lng: position.coords.longitude,
             }
           };
         });
+      },
+      (err) => console.warn(`[FraudDetection] Geolocation failed (user denied or unavailable):`, err),
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
+    );
+
+    // 2. EXIF extraction — fire-and-forget async IIFE.
+    //    CRITICAL: Only read the first 128KB of the file — reading a full 5-10MB photo
+    //    into an ArrayBuffer causes iOS Safari to crash (OOM) and forcibly refresh the page.
+    (async () => {
+      try {
+        const exifChunk = file.slice(0, 128 * 1024);
+        const arrayBuffer = await exifChunk.arrayBuffer();
+        const exif = await exifr.parse(arrayBuffer, {
+          gps: true, exif: true, tiff: true, mergeOutput: true,
+        });
+        console.log(`[FraudDetection] EXIF for ${field}:`, exif ? {
+          Make: exif.Make, Model: exif.Model, DateTimeOriginal: exif.DateTimeOriginal
+        } : 'NULL');
+
+        if (exif) {
+          setFormData(prev => {
+            if (prev[field] !== file) return prev;
+            const currentExif = prev.exifData || {};
+            const fieldExif = {
+              lat: currentExif.lat || exif.latitude || null,
+              lng: currentExif.lng || exif.longitude || null,
+              timestamp: exif.DateTimeOriginal || exif.CreateDate || currentExif.timestamp || null,
+              deviceMake: exif.Make || currentExif.deviceMake || null,
+              deviceModel: exif.Model || currentExif.deviceModel || null
+            };
+            return {
+              ...prev,
+              exifData: { ...fieldExif },
+              allExifData: { ...prev.allExifData, [field]: fieldExif }
+            };
+          });
+        }
+      } catch (err) {
+        console.warn(`[FraudDetection] EXIF extraction failed for ${field}:`, err);
+      }
+    })();
+
+    // 3. Compression — the only awaited operation.
+    //    processingCapture stays true until this completes (or fails), then the
+    //    submit button unlocks. Geolocation/EXIF continue in the background.
+    try {
+      if (isCompressibleImage(file)) {
+        const processedFile = await compressImage(file, { maxSizeKB: 800, quality: 0.7 });
+        console.log(`[FraudDetection] Compressed ${field}: ${file.size} -> ${processedFile.size}`);
+        setFormData(prev => {
+          if (prev[field] === file) return { ...prev, [field]: processedFile };
+          return prev;
+        });
       }
     } catch (err) {
-      console.warn(`[FraudDetection] EXIF extraction failed for ${field}:`, err);
+      console.warn('Camera image compression failed, using original:', err);
+    } finally {
+      setProcessingCapture(false);
     }
-
-    // 3. Compress the image
-    let processedFile = file;
-    if (isCompressibleImage(file)) {
-      try {
-        processedFile = await compressImage(file, { maxSizeKB: 800, quality: 0.7 });
-        console.log(`[FraudDetection] Compressed ${field}: ${file.size} -> ${processedFile.size}`);
-      } catch (err) {
-        console.warn("Camera image compression failed, using original:", err);
-      }
-    }
-
-    setFormData(prev => ({ ...prev, [field]: processedFile }));
   };
 
   return (
@@ -1617,7 +1694,44 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
                       placeholder="Enter 13-16 digit number"
                       value={formData.uid}
                       onChange={(e) => handleChange("uid", e.target.value)}
-                      onBlur={() => validateUidField(formData.uid, formData.customerMobile)}
+                      onBlur={() => {
+                        const uidVal = formData.uid;
+                        if (/^\d{13,16}$/.test(uidVal)) {
+                          setUidStatus('checking');
+                          if (isPublic) {
+                            api.get(`/public/warranty/check-uid?uid=${uidVal}`)
+                              .then(res => {
+                                const data = res.data;
+                                if (data.valid) {
+                                  setUidStatus('valid');
+                                  setUidMessage('UID is valid and available');
+                                  if (data.productName) handleProductAutoPopulate(data.productName);
+                                } else {
+                                  setUidStatus('invalid');
+                                  setUidMessage(data.reason || 'UID not valid');
+                                }
+                              })
+                              .catch(() => { setUidStatus('idle'); setUidMessage(''); });
+                          } else {
+                            api.get(`/uid/validate/${uidVal}`)
+                              .then(res => {
+                                const data = res.data;
+                                if (data.valid && data.available) {
+                                  setUidStatus('valid');
+                                  setUidMessage('UID is valid and available');
+                                  if (data.productName) handleProductAutoPopulate(data.productName);
+                                } else if (data.valid && !data.available) {
+                                  setUidStatus('used');
+                                  setUidMessage(data.message || 'UID has already been used');
+                                } else {
+                                  setUidStatus('invalid');
+                                  setUidMessage(data.message || 'UID not found in the system');
+                                }
+                              })
+                              .catch(() => { setUidStatus('idle'); setUidMessage(''); });
+                          }
+                        }
+                      }}
                       required
                       maxLength={16}
                       disabled={loading}
@@ -1787,7 +1901,7 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
                   <Input
                     id="invoiceFile"
                     type="file"
-                    accept="image/jpeg,image/heic,image/heif"
+                    accept="image/*"
                     onChange={(e) => handleFileChange(e, 'invoiceFile')}
                     required={!warrantyId}
                     disabled={loading}
@@ -1831,12 +1945,17 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
                 type="submit"
                 size="lg"
                 className="w-full text-lg h-12 shadow-orange-200 shadow-lg hover:shadow-xl transition-all"
-                disabled={loading || !formData.termsAccepted}
+                disabled={loading || processingCapture || !formData.termsAccepted || (!warrantyId && (!formData.invoiceFile || !formData.vehicleFile || !formData.seatCoverPhoto))}
               >
                 {loading ? (
                   <>
                     <Loader2 className="mr-2 h-5 w-5 animate-spin" />
                     Processing Registration...
+                  </>
+                ) : processingCapture ? (
+                  <>
+                    <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                    Compressing photos...
                   </>
                 ) : (
                   "Complete Registration"

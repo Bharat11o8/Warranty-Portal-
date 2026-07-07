@@ -2,7 +2,7 @@ import { Activity, ChevronDown } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { ResponsiveContainer, AreaChart, Area, CartesianGrid, XAxis, YAxis, Tooltip } from 'recharts';
 import { ModernSelect } from './ModernSelect';
-import { LoadingOverlay, EmptyState, ExportButton, exportToExcel, SyncButton } from './Common';
+import { LoadingOverlay, EmptyState, ExportButton, exportToExcel } from './Common';
 import { cn } from '@/lib/utils';
 
 interface TrendSectionProps {
@@ -25,8 +25,6 @@ interface TrendSectionProps {
     lineConfig: any[];
     years: string[];
     months: string[];
-    onSync: () => void;
-    isSyncing?: boolean;
 }
 
 export const TrendSection = ({
@@ -43,9 +41,7 @@ export const TrendSection = ({
     setVisibleLines,
     lineConfig,
     years,
-    months,
-    onSync,
-    isSyncing
+    months
 }: TrendSectionProps) => {
     return (
         <Card className="rounded-[40px] border-none bg-white shadow-[0_20px_50px_rgba(0,0,0,0.04)] overflow-hidden relative">
@@ -175,10 +171,6 @@ export const TrendSection = ({
                             </div>
                         </div>
 
-                        <SyncButton 
-                            onClick={onSync}
-                            loading={isSyncing}
-                        />
 
                         <ExportButton 
                             onClick={() => exportToExcel(
@@ -229,7 +221,7 @@ export const TrendSection = ({
                             <defs>
                                 {lineConfig.map((line) => (
                                     <linearGradient key={line.id} id={`color-${line.id}`} x1="0" y1="0" x2="0" y2="1">
-                                        <stop offset="5%" stopColor={line.color} stopOpacity={0.3} />
+                                        <stop offset="5%" stopColor={line.color} stopOpacity={0.1} />
                                         <stop offset="95%" stopColor={line.color} stopOpacity={0} />
                                     </linearGradient>
                                 ))}
@@ -251,6 +243,7 @@ export const TrendSection = ({
                                 tick={{ fontSize: 10, fontWeight: 700, fill: '#94a3b8' }}
                                 dx={-10}
                                 domain={[0, (dataMax: number) => {
+                                    if (dataMax === undefined || dataMax === null || isNaN(dataMax)) return 100;
                                     if (dataMax <= 10) return 20;
                                     if (dataMax <= 50) return 75;
                                     if (dataMax <= 100) return 150;

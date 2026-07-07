@@ -10,9 +10,18 @@ interface AdminModuleLayoutProps {
     actions?: ReactNode;
     onMenuToggle?: () => void;
     onProfileClick?: () => void;
+    stickyHeader?: boolean;
 }
 
-export const AdminModuleLayout = ({ title, description, children, actions, onMenuToggle, onProfileClick }: AdminModuleLayoutProps) => {
+export const AdminModuleLayout = ({ 
+    title, 
+    description, 
+    children, 
+    actions, 
+    onMenuToggle, 
+    onProfileClick,
+    stickyHeader = true
+}: AdminModuleLayoutProps) => {
     return (
         <div className="flex-1 min-h-0 flex flex-col min-w-0 relative bg-[#fffaf5]">
             <main
@@ -22,7 +31,10 @@ export const AdminModuleLayout = ({ title, description, children, actions, onMen
             >
                 <div className="flex-1 w-full h-full overflow-y-auto custom-scrollbar flex flex-col">
                     {/* Branding Header Area */}
-                    <div className="px-6 md:px-10 pt-8 md:pt-10 w-full shrink-0 sticky top-0 z-50 bg-white/95 backdrop-blur-sm pb-4 transition-all">
+                    <div className={cn(
+                        "px-6 md:px-10 pt-8 md:pt-10 w-full shrink-0 pb-4 transition-all",
+                        stickyHeader ? "sticky top-0 z-50 bg-white/95 backdrop-blur-sm" : "relative bg-white"
+                    )}>
                         <div className="max-w-[1500px] mx-auto flex flex-col gap-4 md:gap-0">
                             <div className="flex flex-row items-start justify-between gap-4 md:gap-6">
                                 <div className="flex flex-col gap-3 md:gap-4 flex-1 min-w-0">

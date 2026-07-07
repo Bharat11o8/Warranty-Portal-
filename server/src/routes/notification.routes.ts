@@ -17,5 +17,6 @@ router.delete('/', NotificationController.clearAll);
 
 // Admin-only broadcast
 router.post('/broadcast', requireRole('admin'), requirePermission('announcements', 'write'), NotificationController.broadcast);
+router.post('/broadcast/abort', requireRole('admin'), requirePermission('announcements', 'write'), NotificationController.abortBroadcast);
 
 export default router;

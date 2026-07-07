@@ -152,6 +152,7 @@ export const AdminLayout = () => {
                     }
                     onMenuToggle={() => setIsMobileMenuOpen(true)}
                     onProfileClick={() => setActiveModule('profile')}
+                    stickyHeader={activeModule !== 'warranties'}
                 >
                     {renderModule()}
                 </AdminModuleLayout>

@@ -298,7 +298,7 @@ export function AdminOldWarranties() {
                                 </SelectTrigger>
                                 <SelectContent className="max-h-60">
                                     <SelectItem value="__all__">All Stores</SelectItem>
-                                    {storeNames.slice(0, 100).map((store) => (
+                                    {storeNames.map((store) => (
                                         <SelectItem key={store} value={store}>{store}</SelectItem>
                                     ))}
                                 </SelectContent>

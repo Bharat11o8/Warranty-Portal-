@@ -80,9 +80,9 @@ const ProductInfo = ({ formData, updateFormData, onPrev, onSubmit, loading, exis
         return;
       }
 
-      // Compress image if > 1MB
+      // Compress image (imageCompression.ts skips files already < 500KB)
       let processedFile = file;
-      if (isCompressibleImage(file) && file.size > 1024 * 1024) {
+      if (isCompressibleImage(file)) {
         setCompressing(true);
         try {
           processedFile = await compressImage(file, { maxSizeKB: 1024, quality: 0.8 });
@@ -262,7 +262,7 @@ const ProductInfo = ({ formData, updateFormData, onPrev, onSubmit, loading, exis
             <Input
               id="lhsPhoto"
               type="file"
-              accept="image/jpeg,image/png,image/heic,image/heif"
+              accept="image/*"
               onChange={(e) => handleFileChange("lhsPhoto", e.target.files?.[0] || null)}
               required={!existingPhotos?.lhs}
               disabled={loading}
@@ -281,7 +281,7 @@ const ProductInfo = ({ formData, updateFormData, onPrev, onSubmit, loading, exis
             <Input
               id="rhsPhoto"
               type="file"
-              accept="image/jpeg,image/png,image/heic,image/heif"
+              accept="image/*"
               onChange={(e) => handleFileChange("rhsPhoto", e.target.files?.[0] || null)}
               required={!existingPhotos?.rhs}
               disabled={loading}
@@ -300,7 +300,7 @@ const ProductInfo = ({ formData, updateFormData, onPrev, onSubmit, loading, exis
             <Input
               id="frontRegPhoto"
               type="file"
-              accept="image/jpeg,image/png,image/heic,image/heif"
+              accept="image/*"
               onChange={(e) => handleFileChange("frontRegPhoto", e.target.files?.[0] || null)}
               required={!existingPhotos?.frontReg}
               disabled={loading}
@@ -319,7 +319,7 @@ const ProductInfo = ({ formData, updateFormData, onPrev, onSubmit, loading, exis
             <Input
               id="backRegPhoto"
               type="file"
-              accept="image/jpeg,image/png,image/heic,image/heif"
+              accept="image/*"
               onChange={(e) => handleFileChange("backRegPhoto", e.target.files?.[0] || null)}
               required={!existingPhotos?.backReg}
               disabled={loading}
@@ -338,7 +338,7 @@ const ProductInfo = ({ formData, updateFormData, onPrev, onSubmit, loading, exis
             <Input
               id="warrantyPhoto"
               type="file"
-              accept="image/jpeg,image/png,image/heic,image/heif"
+              accept="image/*"
               onChange={(e) => handleFileChange("warrantyPhoto", e.target.files?.[0] || null)}
               required={!existingPhotos?.warranty}
               disabled={loading}

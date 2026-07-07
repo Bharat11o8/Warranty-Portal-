@@ -63,6 +63,7 @@ import {
 import { format, isWithinInterval, startOfDay, endOfDay } from "date-fns";
 import { DateRange } from "react-day-picker";
 import { AdminWarrantyList } from "@/components/admin/AdminWarrantyList";
+import { QuickReviewPanel } from "@/components/admin/QuickReviewPanel";
 import { SelectiveExportDialog } from "@/components/warranty/SelectiveExportDialog";
 import { exportWarrantiesToCSV } from "@/lib/adminExports";
 
@@ -72,6 +73,7 @@ export const AdminWarranties = () => {
     const [resubmissions, setResubmissions] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [refreshKey, setRefreshKey] = useState(0);
+    const [selectedWarranty, setSelectedWarranty] = useState<any>(null);
 
     // Filters
     const [statusFilter, setStatusFilter] = useState("all");
@@ -233,7 +235,13 @@ export const AdminWarranties = () => {
     const filteredWarranties = useMemo(() => {
         const sourceData = statusFilter === 'resubmitted' ? resubmissions : warranties;
         let items = sourceData.filter(w => {
-            if (statusFilter !== 'all' && statusFilter !== 'resubmitted' && w.status !== statusFilter) return false;
+            if (statusFilter !== 'all' && statusFilter !== 'resubmitted') {
+                if (statusFilter === 'quick_review') {
+                    if (w.status !== 'pending' && w.status !== 'pending_vendor') return false;
+                } else if (w.status !== statusFilter) {
+                    return false;
+                }
+            }
 
             // Product Type Filter
             if (productTypeFilter !== 'all') {
@@ -312,6 +320,38 @@ export const AdminWarranties = () => {
     const startIndex = (currentPage - 1) * itemsPerPage;
     const paginatedWarranties = filteredWarranties.slice(startIndex, startIndex + itemsPerPage);
 
+    // Auto-select next available warranty when list, page, or filters change (only in Quick Review workstation mode)
+    useEffect(() => {
+        if (loading || statusFilter !== 'quick_review') return;
+
+        if (paginatedWarranties.length === 0) {
+            setSelectedWarranty(null);
+            return;
+        }
+
+        // Check if previously selected warranty still exists in the active paginated list
+        const activeId = selectedWarranty?.uid || selectedWarranty?.id;
+        const existsInCurrentPage = paginatedWarranties.find((w: any) => (w.uid || w.id) === activeId);
+
+        if (existsInCurrentPage) {
+            // Keep it selected, but update reference to catch any refreshed data fields
+            // only if the object reference is actually different to avoid triggering loops
+            if (existsInCurrentPage !== selectedWarranty) {
+                setSelectedWarranty(existsInCurrentPage);
+            }
+        } else {
+            // If it's gone (or none selected), auto-select the first item of the current page
+            setSelectedWarranty(paginatedWarranties[0]);
+        }
+    }, [filteredWarranties, paginatedWarranties, loading, startIndex, selectedWarranty, statusFilter]);
+
+    // Clear parent selectedWarranty state when not in Quick Review tab
+    useEffect(() => {
+        if (statusFilter !== 'quick_review') {
+            setSelectedWarranty(null);
+        }
+    }, [statusFilter]);
+
     return (
         <div className="space-y-6 animate-in fade-in duration-500">
             {/* Header / Search / Actions */}
@@ -376,6 +416,7 @@ export const AdminWarranties = () => {
                         <SelectItem value="pending">Pending Approval</SelectItem>
                         <SelectItem value="pending_vendor">Pending Vendor</SelectItem>
                         <SelectItem value="rejected">Action Required</SelectItem>
+                        <SelectItem value="quick_review">Quick Review (Workstation)</SelectItem>
 
                     </SelectContent>
                 </Select>
@@ -383,7 +424,7 @@ export const AdminWarranties = () => {
 
             {/* Desktop Status Tabs */}
             <Tabs value={statusFilter} onValueChange={setStatusFilter} className="hidden md:block w-full xl:w-auto">
-                <TabsList className="grid w-full grid-cols-5 xl:inline-flex h-auto bg-white border border-orange-100 p-1">
+                <TabsList className="grid w-full grid-cols-3 md:grid-cols-6 xl:inline-flex h-auto bg-white border border-orange-100 p-1">
                     <TabsTrigger value="all" className="data-[state=active]:bg-orange-50 data-[state=active]:text-orange-700 gap-2">
                         All
                         <Badge variant="secondary" className="bg-slate-100 text-slate-600 border-none px-1.5 py-0 h-4 text-[10px] font-bold">
@@ -412,6 +453,12 @@ export const AdminWarranties = () => {
                         Action Required
                         <Badge variant="secondary" className="bg-red-100/50 text-red-700 border-none px-1.5 py-0 h-4 text-[10px] font-bold">
                             {warranties.filter(w => w.status === 'rejected').length}
+                        </Badge>
+                    </TabsTrigger>
+                    <TabsTrigger value="quick_review" className="data-[state=active]:bg-amber-50 data-[state=active]:text-amber-700 gap-2 font-bold text-orange-600 border border-orange-200/50">
+                        ⚡ Quick Review
+                        <Badge variant="secondary" className="bg-amber-100 text-amber-700 border-none px-1.5 py-0 h-4 text-[10px] font-bold">
+                            {warranties.filter(w => w.status === 'pending' || w.status === 'pending_vendor').length}
                         </Badge>
                     </TabsTrigger>
 
@@ -557,11 +604,52 @@ export const AdminWarranties = () => {
                 </div>
             )}
 
-            <Card className="border-orange-100 shadow-sm">
-                <CardContent className="p-0">
-                    {loading ? (
-                        <div className="p-8 text-center text-slate-500">Loading warranties...</div>
-                    ) : (
+            {loading ? (
+                <div className="p-8 text-center text-slate-500 bg-white border border-orange-100 shadow-sm rounded-3xl flex flex-col items-center justify-center min-h-[200px]">
+                    <Loader2 className="h-8 w-8 animate-spin text-orange-500 mb-2" />
+                    <span className="font-bold text-slate-600">Loading warranties...</span>
+                </div>
+            ) : statusFilter === 'quick_review' ? (
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+                    {/* Left Panel: Scrollable List (40% width on lg screens) */}
+                    <div className="lg:col-span-5 space-y-4">
+                        <Card className="border-orange-100 shadow-sm overflow-hidden rounded-3xl">
+                            <CardContent className="p-0">
+                                <div key={refreshKey}>
+                                    <AdminWarrantyList
+                                        items={paginatedWarranties}
+                                        isSplitScreen={true}
+                                        activeUid={selectedWarranty?.uid || selectedWarranty?.id}
+                                        onSelect={(w) => setSelectedWarranty(w)}
+                                        showActions={false}
+                                        onRefresh={() => fetchWarranties(false)}
+                                    />
+                                </div>
+                            </CardContent>
+                        </Card>
+                    </div>
+
+                    {/* Right Panel: Quick Review Workspace (60% width on lg screens, sticky on desktop) */}
+                    <div className="lg:col-span-7 lg:sticky lg:top-6">
+                        <QuickReviewPanel
+                            warranty={selectedWarranty}
+                            processingWarranty={processingId}
+                            onApprove={(id) => handleUpdateStatus(id, 'validated')}
+                            onReject={(id) => {
+                                setRejectingWarrantyId(id);
+                                setRejectReason("");
+                                setRejectDialogOpen(true);
+                                return new Promise<void>((resolve) => {
+                                    // Resolve will be called after the reject dialog submits
+                                    (window as any).__rejectResolve = resolve;
+                                });
+                            }}
+                        />
+                    </div>
+                </div>
+            ) : (
+                <Card className="border-orange-100 shadow-sm overflow-hidden rounded-3xl">
+                    <CardContent className="p-0">
                         <div key={refreshKey}>
                             <AdminWarrantyList
                                 items={paginatedWarranties}
@@ -581,9 +669,9 @@ export const AdminWarranties = () => {
                                 onRefresh={() => fetchWarranties(false)}
                             />
                         </div>
-                    )}
-                </CardContent>
-            </Card>
+                    </CardContent>
+                </Card>
+            )}
 
             {totalPages > 1 && (
                 <Pagination className="mt-4">

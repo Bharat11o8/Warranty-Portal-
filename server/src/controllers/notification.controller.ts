@@ -3,6 +3,7 @@ import { AuthRequest } from '../middleware/auth.js';
 import db from '../config/database.js';
 import { NotificationService } from '../services/notification.service.js';
 import { ActivityLogService } from '../services/activity-log.service.js';
+import { WhatsAppService } from '../services/whatsapp.service.js';
 
 export class NotificationController {
     static async getNotifications(req: AuthRequest, res: Response) {
@@ -75,7 +76,12 @@ export class NotificationController {
             const { id } = req.params;
             if (!userId) return res.status(401).json({ error: 'Unauthorized' });
 
-            await NotificationService.markAsRead(Number(id), userId);
+            const notificationId = Number(id);
+            if (isNaN(notificationId)) {
+                return res.status(400).json({ error: 'Invalid notification ID' });
+            }
+
+            await NotificationService.markAsRead(notificationId, userId);
             res.json({ success: true });
         } catch (error) {
             console.error('Mark read error:', error);
@@ -115,7 +121,12 @@ export class NotificationController {
             const { id } = req.params;
             if (!userId) return res.status(401).json({ error: 'Unauthorized' });
 
-            await NotificationService.clearById(Number(id), userId);
+            const notificationId = Number(id);
+            if (isNaN(notificationId)) {
+                return res.status(400).json({ error: 'Invalid notification ID' });
+            }
+
+            await NotificationService.clearById(notificationId, userId);
             res.json({ success: true, message: 'Notification cleared from view' });
         } catch (error) {
             console.error('Clear notification error:', error);
@@ -129,7 +140,12 @@ export class NotificationController {
             const { id } = req.params;
             if (!userId) return res.status(401).json({ error: 'Unauthorized' });
 
-            await NotificationService.restoreById(Number(id), userId);
+            const notificationId = Number(id);
+            if (isNaN(notificationId)) {
+                return res.status(400).json({ error: 'Invalid notification ID' });
+            }
+
+            await NotificationService.restoreById(notificationId, userId);
             res.json({ success: true, message: 'Notification restored to view' });
         } catch (error) {
             console.error('Restore notification error:', error);
@@ -139,7 +155,7 @@ export class NotificationController {
 
     static async broadcast(req: AuthRequest, res: Response) {
         try {
-            const { title, message, type, link, targetUsers, targetRole, images, videos } = req.body;
+            const { title, message, type, link, targetUsers, targetRole, images, videos, whatsapp } = req.body;
 
             if (!title || !message) {
                 return res.status(400).json({ error: 'Title and message are required' });
@@ -162,6 +178,51 @@ export class NotificationController {
 
             res.json({ success: true, message: 'Broadcast sent successfully' });
 
+            // ----------------------------------------------------------------
+            // WhatsApp broadcast (fire-and-forget — runs after HTTP response)
+            // ----------------------------------------------------------------
+            if (whatsapp === true && process.env.ENABLE_WHATSAPP === 'true') {
+                (async () => {
+                    try {
+                        let phones: string[] = [];
+
+                        if (targetUsers && targetUsers.length > 0) {
+                            // Specific franchise users selected — fetch their registered phones
+                            const placeholders = targetUsers.map(() => '?').join(',');
+                            const [rows]: any = await db.execute(
+                                `SELECT phone_number FROM profiles WHERE id IN (${placeholders}) AND phone_number IS NOT NULL AND phone_number != ''`,
+                                targetUsers
+                            );
+                            phones = rows.map((r: any) => r.phone_number);
+                        } else {
+                            // All franchises (vendor role)
+                            const [rows]: any = await db.execute(
+                                `SELECT p.phone_number
+                                 FROM profiles p
+                                 JOIN user_roles ur ON ur.user_id = p.id
+                                 WHERE ur.role = 'vendor'
+                                   AND p.phone_number IS NOT NULL
+                                   AND p.phone_number != ''`
+                            );
+                            phones = rows.map((r: any) => r.phone_number);
+                        }
+
+                        if (phones.length === 0) {
+                            console.warn('[WhatsApp] Broadcast: no phones found for selected audience.');
+                            return;
+                        }
+
+                        // Use first image from the broadcast as the WA image header (if any)
+                        const imageUrl: string | undefined = images?.[0] || undefined;
+
+                        const result = await WhatsAppService.sendAdminBroadcast(phones, title, message, imageUrl);
+                        console.log(`[WhatsApp] Broadcast result — sent: ${result.sent}, failed: ${result.failed}`);
+                    } catch (waErr) {
+                        console.error('[WhatsApp] Broadcast async error:', waErr);
+                    }
+                })();
+            }
+
             // Log activity
             const admin = req.user;
             if (admin) {
@@ -182,6 +243,16 @@ export class NotificationController {
             }
         } catch (error) {
             console.error('Broadcast error:', error);
+            res.status(500).json({ error: 'Internal server error' });
+        }
+    }
+
+    static async abortBroadcast(req: AuthRequest, res: Response) {
+        try {
+            WhatsAppService.abortBroadcast();
+            res.json({ success: true, message: 'Abort signal sent. No further WhatsApp messages will be dispatched.' });
+        } catch (error) {
+            console.error('Abort broadcast error:', error);
             res.status(500).json({ error: 'Internal server error' });
         }
     }

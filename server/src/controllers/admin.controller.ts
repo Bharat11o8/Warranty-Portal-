@@ -1,4 +1,4 @@
-import { Request, Response } from 'express';
+﻿import { Request, Response } from 'express';
 import db, { getISTTimestamp } from '../config/database.js';
 import { EmailService } from '../services/email.service.js';
 import { ActivityLogService } from '../services/activity-log.service.js';
@@ -10,6 +10,34 @@ import {
     getMobileRegistrationUsage,
     normalizeCustomerMobile
 } from '../utils/customerMobileLimits.js';
+
+/**
+ * Run a promise-returning function with retries and exponential backoff
+ */
+async function runWithRetry<T>(
+    fn: () => Promise<T>,
+    retries = 3,
+    initialDelay = 5000,
+    description = 'operation'
+): Promise<T> {
+    let lastError: any;
+    let delay = initialDelay;
+    for (let attempt = 1; attempt <= retries; attempt++) {
+        try {
+            return await fn();
+        } catch (error: any) {
+            lastError = error;
+            console.warn(`[Retry] Attempt ${attempt} failed for ${description}. Error: ${error?.message || error}`);
+            if (attempt < retries) {
+                console.log(`[Retry] Waiting ${delay}ms before next attempt...`);
+                await new Promise(resolve => setTimeout(resolve, delay));
+                delay *= 3; // Exponential backoff: 5s, 15s, 45s...
+            }
+        }
+    }
+    console.error(`[Retry] All ${retries} attempts failed for ${description}. Final error:`, lastError);
+    throw lastError;
+}
 
 export class AdminController {
     static async getDashboardStats(_req: Request, res: Response) {
@@ -442,7 +470,7 @@ export class AdminController {
                         vendorData.email,
                         vendorData.name
                     );
-                    console.log(`✓ Vendor approval email sent to ${vendorData.email}`);
+                    console.log(`âœ“ Vendor approval email sent to ${vendorData.email}`);
                 } else {
                     // Send rejection email
                     await EmailService.sendVendorRejectionNotification(
@@ -450,7 +478,7 @@ export class AdminController {
                         vendorData.name,
                         rejection_reason
                     );
-                    console.log(`✓ Vendor rejection email sent to ${vendorData.email}`);
+                    console.log(`âœ“ Vendor rejection email sent to ${vendorData.email}`);
                 }
             } catch (emailError: any) {
                 console.error('Email sending error:', emailError);
@@ -460,7 +488,7 @@ export class AdminController {
             // Send real-time notification
             try {
                 await NotificationService.notify(id, {
-                    title: is_verified ? 'Store Approved! ✓' : 'Store Verification Update',
+                    title: is_verified ? 'Store Approved! âœ“' : 'Store Verification Update',
                     message: is_verified
                         ? 'Congratulations! Your store has been verified and approved.'
                         : `Your store verification was not successful. Reason: ${rejection_reason}`,
@@ -1067,12 +1095,6 @@ export class AdminController {
                     }
                 }
 
-                // Log the action to the immutable analytics_events table
-                await connection.execute(
-                    `INSERT INTO analytics_events (warranty_id, action_type, performed_by) VALUES (?, ?, ?)`,
-                    [warrantyData.id, status, 'system_admin']
-                );
-
                 await connection.commit();
             } catch (err) {
                 await connection.rollback();
@@ -1081,300 +1103,341 @@ export class AdminController {
                 connection.release();
             }
 
-            // Send email notification to customer only if email is provided
-            if (warrantyData.customer_email && warrantyData.customer_email.trim()) {
-                try {
-                    // Prepare store address string
-                    const storeFullAddress = [warrantyData.store_address, warrantyData.store_city, warrantyData.store_state]
-                        .filter(Boolean).join(', ');
-
-                    if (status === 'validated') {
-                        // ── Customer Approval: WhatsApp first, email fallback ──
-                        let approvalWaSent = false;
-                        if (process.env.ENABLE_WHATSAPP === 'true' && warrantyData.customer_phone) {
-                            try {
-                                const purchaseDate = (warrantyData.purchase_date || warrantyData.created_at)
-                                    ? new Date(warrantyData.purchase_date || warrantyData.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
-                                    : 'N/A';
-                                const productName = (productDetails as any)?.product || (productDetails as any)?.productName || warrantyData.product_type || 'Autoform Product';
-                                approvalWaSent = await WhatsAppService.sendWarrantyApprovedCustomer(
-                                    warrantyData.customer_phone,
-                                    warrantyData.customer_name,
-                                    productName,
-                                    warrantyData.registration_number || 'N/A',
-                                    warrantyData.uid,
-                                    warrantyData.store_name || warrantyData.installer_name || 'Autoform Store',
-                                    'Active',
-                                    purchaseDate,
-                                    warrantyData.warranty_type || 'Standard'
-                                );
-                                console.log(`[WhatsApp] Warranty approval sent to customer: ${warrantyData.customer_phone}`);
-                            } catch (waErr) {
-                                console.error('[WhatsApp] Failed to send approval to customer:', waErr);
-                            }
-                        }
-                        // Send Email (always live alongside WhatsApp)
-                        await EmailService.sendWarrantyApprovalToCustomer(
-                            warrantyData.customer_email,
-                            warrantyData.customer_name,
-                            warrantyData.uid,
-                            warrantyData.product_type,
-                            warrantyData.registration_number,
-                            warrantyData.car_make,
-                            warrantyData.car_model,
-                            productDetails,
-                            warrantyData.warranty_type,
-                            warrantyData.store_name,
-                            storeFullAddress,
-                            warrantyData.store_email,
-                            warrantyData.applicator_name,
-                            (warrantyData.purchase_date || warrantyData.created_at)
-                                ? new Date(warrantyData.purchase_date || warrantyData.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
-                                : 'N/A'
-                        );
-                        console.log(`✓ Warranty approval email sent to customer: ${warrantyData.customer_email}`);
-                    } else if (status === 'rejected') {
-                        // ── Customer Rejection: WhatsApp first, email fallback ──
-                        let rejectionWaSent = false;
-                        if (process.env.ENABLE_WHATSAPP === 'true' && warrantyData.customer_phone) {
-                            try {
-                                const purchaseDate = (warrantyData.purchase_date || warrantyData.created_at)
-                                    ? new Date(warrantyData.purchase_date || warrantyData.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
-                                    : 'N/A';
-                                const productName = (productDetails as any)?.product || (productDetails as any)?.productName || warrantyData.product_type || 'Autoform Product';
-                                rejectionWaSent = await WhatsAppService.sendWarrantyRejectedCustomer(
-                                    warrantyData.customer_phone,
-                                    warrantyData.customer_name,
-                                    productName,
-                                    warrantyData.registration_number || 'N/A',
-                                    warrantyData.uid,
-                                    warrantyData.store_name || warrantyData.installer_name || 'Autoform Store',
-                                    'Not Approved',
-                                    purchaseDate,
-                                    warrantyData.warranty_type || 'Standard',
-                                    rejectionReason
-                                );
-                                console.log(`[WhatsApp] Warranty rejection sent to customer: ${warrantyData.customer_phone}`);
-                            } catch (waErr) {
-                                console.error('[WhatsApp] Failed to send rejection to customer:', waErr);
-                            }
-                        }
-                        // Send Email (always live alongside WhatsApp)
-                        await EmailService.sendWarrantyRejectionToCustomer(
-                            warrantyData.customer_email,
-                            warrantyData.customer_name,
-                            warrantyData.uid,
-                            warrantyData.product_type,
-                            warrantyData.registration_number,
-                            rejectionReason,
-                            warrantyData.car_make,
-                            warrantyData.car_model,
-                            productDetails,
-                            warrantyData.warranty_type,
-                            warrantyData.store_name,
-                            storeFullAddress,
-                            warrantyData.store_email,
-                            warrantyData.applicator_name
-                        );
-                        console.log(`✓ Warranty rejection email sent to customer: ${warrantyData.customer_email}`);
-                    }
-                } catch (emailError: any) {
-                    console.error('Customer email sending error:', emailError);
-                    // Don't fail the request if email fails
-                }
-            } else {
-                console.log(`ℹ️ No customer email provided, skipping email notification for warranty ${warrantyData.uid}`);
-            }
-
-            // Send email + notification to franchise/vendor
-            // Strategy: try manpower lookup first, fall back to installer_name (store name)
-            try {
-                let vendorEmail: string | null = null;
-                let vendorName: string | null = warrantyData.store_name || null;
-                let vendorUserId: string | null = null;
-                let applicatorName: string | null = warrantyData.applicator_name || null;
-
-                // 1. Try manpower lookup (real DB manpower ID)
-                const manpowerId = warrantyData.manpower_id;
-                if (manpowerId && manpowerId !== 'owner') {
-                    const [vendorInfo]: any = await db.execute(
-                        `SELECT 
-                            p.email as vendor_email,
-                            p.id as vendor_user_id,
-                            vd.store_name as vendor_name,
-                            m.name as manpower_name
-                        FROM manpower m
-                        JOIN vendor_details vd ON m.vendor_id = vd.id
-                        JOIN profiles p ON vd.user_id = p.id
-                        WHERE m.id = ?`,
-                        [manpowerId]
-                    );
-                    if (vendorInfo.length > 0) {
-                        vendorEmail = vendorInfo[0].vendor_email;
-                        vendorName = vendorInfo[0].vendor_name;
-                        vendorUserId = vendorInfo[0].vendor_user_id;
-                        applicatorName = vendorInfo[0].manpower_name || applicatorName;
-                    }
-                }
-
-                // 2. Fallback: find vendor by installer_name (catches QR/direct/owner submissions)
-                if (!vendorEmail && warrantyData.installer_name) {
-                    const [vendorByName]: any = await db.execute(
-                        `SELECT p.email as vendor_email, p.id as vendor_user_id, vd.store_name as vendor_name
-                         FROM vendor_details vd
-                         JOIN profiles p ON vd.user_id = p.id
-                         WHERE vd.store_name = ? AND vd.store_email = ?
-                         LIMIT 1`,
-                        [warrantyData.installer_name, warrantyData.installer_contact]
-                    );
-                    if (vendorByName.length > 0) {
-                        vendorEmail = vendorByName[0].vendor_email;
-                        vendorName = vendorByName[0].vendor_name;
-                        vendorUserId = vendorByName[0].vendor_user_id;
-                    }
-                }
-
-                // 3. Send vendor notification if we found one
-                if (vendorEmail && vendorName) {
-                    if (status === 'validated') {
-                        // Vendor approval: no WhatsApp template, email stays primary
-                        await EmailService.sendWarrantyApprovalToVendor(
-                            vendorEmail,
-                            vendorName,
-                            warrantyData.customer_name,
-                            warrantyData.customer_phone,
-                            warrantyData.product_type,
-                            warrantyData.registration_number,
-                            applicatorName ?? '',
-                            warrantyData.uid,
-                            warrantyData.car_make,
-                            warrantyData.car_model,
-                            productDetails,
-                            warrantyData.warranty_type
-                        );
-                        console.log(`✓ Warranty approval email sent to vendor: ${vendorEmail}`);
-                    } else if (status === 'rejected') {
-                        // ── Vendor Rejection: WhatsApp first, email fallback ──
-                        let vendorRejWaSent = false;
-                        if (process.env.ENABLE_WHATSAPP === 'true') {
-                            try {
-                                const [vendorPhone]: any = await db.execute(
-                                    `SELECT p.phone_number FROM profiles p
-                                     JOIN vendor_details vd ON vd.user_id = p.id
-                                     WHERE p.email = ? LIMIT 1`,
-                                    [vendorEmail]
-                                );
-                                if (vendorPhone.length > 0 && vendorPhone[0].phone_number) {
-                                    const purchaseDate = warrantyData.created_at
-                                        ? new Date(warrantyData.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
-                                        : 'N/A';
-                                    const productName = (productDetails as any)?.product || (productDetails as any)?.productName || warrantyData.product_type || 'Autoform Product';
-                                    vendorRejWaSent = await WhatsAppService.sendVendorRejected(
-                                        vendorPhone[0].phone_number,
-                                        vendorName ?? 'Franchise Partner',
-                                        productName,
-                                        warrantyData.registration_number || 'N/A',
-                                        warrantyData.uid,
-                                        'Not Approved',
-                                        purchaseDate,
-                                        warrantyData.warranty_type || 'Standard',
-                                        rejectionReason
-                                    );
-                                    console.log(`[WhatsApp] Vendor rejection notice sent to: ${vendorPhone[0].phone_number}`);
-                                }
-                            } catch (waErr) {
-                                console.error('[WhatsApp] Failed to send vendor rejection notice:', waErr);
-                            }
-                        }
-                        // Send Email (always live alongside WhatsApp)
-                        await EmailService.sendWarrantyRejectionToVendor(
-                            vendorEmail,
-                            vendorName,
-                            warrantyData.customer_name,
-                            warrantyData.customer_phone,
-                            warrantyData.product_type,
-                            warrantyData.registration_number,
-                            applicatorName ?? '',
-                            rejectionReason,
-                            warrantyData.uid,
-                            warrantyData.car_make,
-                            warrantyData.car_model,
-                            productDetails,
-                            warrantyData.warranty_type
-                        );
-                        console.log(`✓ Warranty rejection email sent to vendor: ${vendorEmail}`);
-                    }
-                } else {
-                    console.log(`ℹ️ No vendor email found for warranty ${warrantyData.uid}, skipping vendor email`);
-                }
-
-                // 4. Send real-time notification to vendor
-                if (vendorUserId) {
-                    let title = 'Warranty Pending ⏳';
-                    let message = `The warranty for ${warrantyData.customer_name} (${warrantyData.uid}) is pending review.`;
-
-                    if (status === 'validated') {
-                        title = 'Warranty Approved! ✓';
-                        message = `The warranty for ${warrantyData.customer_name} (${warrantyData.uid}) has been approved.`;
-                    } else if (status === 'rejected') {
-                        message = `The warranty for ${warrantyData.customer_name} (${warrantyData.uid}) has been rejected. Reason: ${rejectionReason}`;
-                    }
-
-                    await NotificationService.notify(vendorUserId, {
-                        title,
-                        message,
-                        type: 'warranty',
-                        link: `/dashboard/vendor`
-                    });
-                }
-
-                // 5. Notify Customer
-                if (warrantyData.user_id) {
-                    let title = 'Warranty Pending ⏳';
-                    let message = `Your warranty for ${warrantyData.uid} is now under review by AutoForm.`;
-
-                    if (status === 'validated') {
-                        title = 'Warranty Validated! ✓';
-                        message = `Your warranty for ${warrantyData.uid} has been validated by AutoForm.`;
-                    } else if (status === 'rejected') {
-                        message = `Your warranty for ${warrantyData.uid} has been rejected. Reason: ${rejectionReason}`;
-                    }
-
-                    await NotificationService.notify(warrantyData.user_id, {
-                        title,
-                        message,
-                        type: 'warranty',
-                        link: `/dashboard/customer`
-                    });
-                }
-            } catch (notifError: any) {
-                console.error('Failed to send vendor/customer notifications:', notifError);
-                // Don't fail the request if notifications fail
-            }
-
-            // Log the activity
-            const admin = (req as any).user;
-            await ActivityLogService.log({
-                adminId: admin.id,
-                adminName: admin.name,
-                adminEmail: admin.email,
-                actionType: status === 'validated' ? 'WARRANTY_APPROVED' :
-                    status === 'pending' ? 'WARRANTY_OVERRIDDEN' : 'WARRANTY_REJECTED',
-                targetType: 'WARRANTY',
-                targetId: warrantyData.uid,
-                targetName: warrantyData.uid,
-                details: {
-                    customer_name: warrantyData.customer_name,
-                    product_type: warrantyData.product_type,
-                    rejection_reason: rejectionReason || null
-                },
-                ipAddress: req.ip || req.socket?.remoteAddress
-            });
-
+            // Return success response to admin immediately to prevent UI lag
             res.json({
                 success: true,
                 message: `Warranty ${status} successfully`
             });
+
+            // Send notifications and log activities asynchronously in the background
+            (async () => {
+                try {
+                    // Send email notification to customer only if email is provided
+                    if (warrantyData.customer_email && warrantyData.customer_email.trim()) {
+                        try {
+                            // Prepare store address string
+                            const storeFullAddress = [warrantyData.store_address, warrantyData.store_city, warrantyData.store_state]
+                                .filter(Boolean).join(', ');
+
+                            if (status === 'validated') {
+                                // â”€â”€ Customer Approval: WhatsApp first, email fallback â”€â”€
+                                let approvalWaSent = false;
+                                if (process.env.ENABLE_WHATSAPP === 'true' && warrantyData.customer_phone) {
+                                    try {
+                                        const purchaseDate = (warrantyData.purchase_date || warrantyData.created_at)
+                                            ? new Date(warrantyData.purchase_date || warrantyData.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
+                                            : 'N/A';
+                                        const productName = (productDetails as any)?.product || (productDetails as any)?.productName || warrantyData.product_type || 'Autoform Product';
+                                        approvalWaSent = await runWithRetry(
+                                            () => WhatsAppService.sendWarrantyApprovedCustomer(
+                                                warrantyData.customer_phone,
+                                                warrantyData.customer_name,
+                                                productName,
+                                                warrantyData.registration_number || 'N/A',
+                                                warrantyData.uid,
+                                                warrantyData.store_name || warrantyData.installer_name || 'Autoform Store',
+                                                'Active',
+                                                purchaseDate,
+                                                warrantyData.warranty_type || 'Standard'
+                                            ),
+                                            3,
+                                            5000,
+                                            `WhatsApp Customer Approval (${warrantyData.uid})`
+                                        );
+                                        console.log(`[WhatsApp] Warranty approval sent to customer: ${warrantyData.customer_phone}`);
+                                    } catch (waErr) {
+                                        console.error('[WhatsApp] Failed to send approval to customer:', waErr);
+                                    }
+                                }
+                                // Send Email (always live alongside WhatsApp)
+                                await runWithRetry(
+                                    () => EmailService.sendWarrantyApprovalToCustomer(
+                                        warrantyData.customer_email,
+                                        warrantyData.customer_name,
+                                        warrantyData.uid,
+                                        warrantyData.product_type,
+                                        warrantyData.registration_number,
+                                        warrantyData.car_make,
+                                        warrantyData.car_model,
+                                        productDetails,
+                                        warrantyData.warranty_type,
+                                        warrantyData.store_name,
+                                        storeFullAddress,
+                                        warrantyData.store_email,
+                                        warrantyData.applicator_name,
+                                        (warrantyData.purchase_date || warrantyData.created_at)
+                                            ? new Date(warrantyData.purchase_date || warrantyData.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
+                                            : 'N/A'
+                                    ),
+                                    3,
+                                    5000,
+                                    `Email Customer Approval (${warrantyData.uid})`
+                                );
+                                console.log(`âœ“ Warranty approval email sent to customer: ${warrantyData.customer_email}`);
+                            } else if (status === 'rejected') {
+                                // â”€â”€ Customer Rejection: WhatsApp first, email fallback â”€â”€
+                                let rejectionWaSent = false;
+                                if (process.env.ENABLE_WHATSAPP === 'true' && warrantyData.customer_phone) {
+                                    try {
+                                        const purchaseDate = (warrantyData.purchase_date || warrantyData.created_at)
+                                            ? new Date(warrantyData.purchase_date || warrantyData.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
+                                            : 'N/A';
+                                        const productName = (productDetails as any)?.product || (productDetails as any)?.productName || warrantyData.product_type || 'Autoform Product';
+                                        rejectionWaSent = await runWithRetry(
+                                            () => WhatsAppService.sendWarrantyRejectedCustomer(
+                                                warrantyData.customer_phone,
+                                                warrantyData.customer_name,
+                                                productName,
+                                                warrantyData.registration_number || 'N/A',
+                                                warrantyData.uid,
+                                                warrantyData.store_name || warrantyData.installer_name || 'Autoform Store',
+                                                'Not Approved',
+                                                purchaseDate,
+                                                warrantyData.warranty_type || 'Standard',
+                                                rejectionReason
+                                            ),
+                                            3,
+                                            5000,
+                                            `WhatsApp Customer Rejection (${warrantyData.uid})`
+                                        );
+                                        console.log(`[WhatsApp] Warranty rejection sent to customer: ${warrantyData.customer_phone}`);
+                                    } catch (waErr) {
+                                        console.error('[WhatsApp] Failed to send rejection to customer:', waErr);
+                                    }
+                                }
+                                // Send Email (always live alongside WhatsApp)
+                                await runWithRetry(
+                                    () => EmailService.sendWarrantyRejectionToCustomer(
+                                        warrantyData.customer_email,
+                                        warrantyData.customer_name,
+                                        warrantyData.uid,
+                                        warrantyData.product_type,
+                                        warrantyData.registration_number,
+                                        rejectionReason,
+                                        warrantyData.car_make,
+                                        warrantyData.car_model,
+                                        productDetails,
+                                        warrantyData.warranty_type,
+                                        warrantyData.store_name,
+                                        storeFullAddress,
+                                        warrantyData.store_email,
+                                        warrantyData.applicator_name
+                                    ),
+                                    3,
+                                    5000,
+                                    `Email Customer Rejection (${warrantyData.uid})`
+                                );
+                                console.log(`âœ“ Warranty rejection email sent to customer: ${warrantyData.customer_email}`);
+                            }
+                        } catch (emailError: any) {
+                            console.error('Customer email sending error:', emailError);
+                        }
+                    } else {
+                        console.log(`â„¹ï¸ No customer email provided, skipping email notification for warranty ${warrantyData.uid}`);
+                    }
+
+                    // Send email + notification to franchise/vendor
+                    // Strategy: try manpower lookup first, fall back to installer_name (store name)
+                    try {
+                        let vendorEmail: string | null = null;
+                        let vendorName: string | null = warrantyData.store_name || null;
+                        let vendorUserId: string | null = null;
+                        let applicatorName: string | null = warrantyData.applicator_name || null;
+
+                        // 1. Try manpower lookup (real DB manpower ID)
+                        const manpowerId = warrantyData.manpower_id;
+                        if (manpowerId && manpowerId !== 'owner') {
+                            const [vendorInfo]: any = await db.execute(
+                                `SELECT 
+                                    p.email as vendor_email,
+                                    p.id as vendor_user_id,
+                                    vd.store_name as vendor_name,
+                                    m.name as manpower_name
+                                FROM manpower m
+                                JOIN vendor_details vd ON m.vendor_id = vd.id
+                                JOIN profiles p ON vd.user_id = p.id
+                                WHERE m.id = ?`,
+                                [manpowerId]
+                            );
+                            if (vendorInfo.length > 0) {
+                                vendorEmail = vendorInfo[0].vendor_email;
+                                vendorName = vendorInfo[0].vendor_name;
+                                vendorUserId = vendorInfo[0].vendor_user_id;
+                                applicatorName = vendorInfo[0].manpower_name || applicatorName;
+                            }
+                        }
+
+                        // 2. Fallback: find vendor by installer_name (catches QR/direct/owner submissions)
+                        if (!vendorEmail && warrantyData.installer_name) {
+                            const [vendorByName]: any = await db.execute(
+                                `SELECT p.email as vendor_email, p.id as vendor_user_id, vd.store_name as vendor_name
+                                 FROM vendor_details vd
+                                 JOIN profiles p ON vd.user_id = p.id
+                                 WHERE vd.store_name = ? AND vd.store_email = ?
+                                 LIMIT 1`,
+                                [warrantyData.installer_name, warrantyData.installer_contact]
+                            );
+                            if (vendorByName.length > 0) {
+                                vendorEmail = vendorByName[0].vendor_email;
+                                vendorName = vendorByName[0].vendor_name;
+                                vendorUserId = vendorByName[0].vendor_user_id;
+                            }
+                        }
+
+                        // 3. Send vendor notification if we found one
+                        if (vendorEmail && vendorName) {
+                            if (status === 'validated') {
+                                // Vendor approval: no WhatsApp template, email stays primary
+                                await runWithRetry(
+                                    () => EmailService.sendWarrantyApprovalToVendor(
+                                        vendorEmail!,
+                                        vendorName!,
+                                        warrantyData.customer_name,
+                                        warrantyData.customer_phone,
+                                        warrantyData.product_type,
+                                        warrantyData.registration_number,
+                                        applicatorName ?? '',
+                                        warrantyData.uid,
+                                        warrantyData.car_make,
+                                        warrantyData.car_model,
+                                        productDetails,
+                                        warrantyData.warranty_type
+                                    ),
+                                    3,
+                                    5000,
+                                    `Email Vendor Approval (${warrantyData.uid})`
+                                );
+                                console.log(`âœ“ Warranty approval email sent to vendor: ${vendorEmail}`);
+                            } else if (status === 'rejected') {
+                                // â”€â”€ Vendor Rejection: WhatsApp first, email fallback â”€â”€
+                                let vendorRejWaSent = false;
+                                if (process.env.ENABLE_WHATSAPP === 'true') {
+                                    try {
+                                        const [vendorPhone]: any = await db.execute(
+                                            `SELECT p.phone_number FROM profiles p
+                                             JOIN vendor_details vd ON vd.user_id = p.id
+                                             WHERE p.email = ? LIMIT 1`,
+                                            [vendorEmail]
+                                        );
+                                        if (vendorPhone.length > 0 && vendorPhone[0].phone_number) {
+                                            const purchaseDate = warrantyData.created_at
+                                                ? new Date(warrantyData.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
+                                                : 'N/A';
+                                            const productName = (productDetails as any)?.product || (productDetails as any)?.productName || warrantyData.product_type || 'Autoform Product';
+                                            vendorRejWaSent = await runWithRetry(
+                                                () => WhatsAppService.sendVendorRejected(
+                                                    vendorPhone[0].phone_number,
+                                                    vendorName ?? 'Franchise Partner',
+                                                    productName,
+                                                    warrantyData.registration_number || 'N/A',
+                                                    warrantyData.uid,
+                                                    'Not Approved',
+                                                    purchaseDate,
+                                                    warrantyData.warranty_type || 'Standard',
+                                                    rejectionReason
+                                                ),
+                                                3,
+                                                5000,
+                                                `WhatsApp Vendor Rejection (${warrantyData.uid})`
+                                            );
+                                            console.log(`[WhatsApp] Vendor rejection notice sent to: ${vendorPhone[0].phone_number}`);
+                                        }
+                                    } catch (waErr) {
+                                        console.error('[WhatsApp] Failed to send vendor rejection notice:', waErr);
+                                    }
+                                }
+                                // Send Email (always live alongside WhatsApp)
+                                await runWithRetry(
+                                    () => EmailService.sendWarrantyRejectionToVendor(
+                                        vendorEmail!,
+                                        vendorName!,
+                                        warrantyData.customer_name,
+                                        warrantyData.customer_phone,
+                                        warrantyData.product_type,
+                                        warrantyData.registration_number,
+                                        applicatorName ?? '',
+                                        rejectionReason,
+                                        warrantyData.uid,
+                                        warrantyData.car_make,
+                                        warrantyData.car_model,
+                                        productDetails,
+                                        warrantyData.warranty_type
+                                    ),
+                                    3,
+                                    5000,
+                                    `Email Vendor Rejection (${warrantyData.uid})`
+                                );
+                                console.log(`âœ“ Warranty rejection email sent to vendor: ${vendorEmail}`);
+                            }
+                        } else {
+                            console.log(`â„¹ï¸ No vendor email found for warranty ${warrantyData.uid}, skipping vendor email`);
+                        }
+
+                        // 4. Send real-time notification to vendor
+                        if (vendorUserId) {
+                            let title = 'Warranty Pending â³';
+                            let message = `The warranty for ${warrantyData.customer_name} (${warrantyData.uid}) is pending review.`;
+
+                            if (status === 'validated') {
+                                title = 'Warranty Approved! âœ“';
+                                message = `The warranty for ${warrantyData.customer_name} (${warrantyData.uid}) has been approved.`;
+                            } else if (status === 'rejected') {
+                                message = `The warranty for ${warrantyData.customer_name} (${warrantyData.uid}) has been rejected. Reason: ${rejectionReason}`;
+                            }
+
+                            await NotificationService.notify(vendorUserId, {
+                                title,
+                                message,
+                                type: 'warranty',
+                                link: `/dashboard/vendor`
+                            });
+                        }
+
+                        // 5. Notify Customer
+                        if (warrantyData.user_id) {
+                            let title = 'Warranty Pending â³';
+                            let message = `Your warranty for ${warrantyData.uid} is now under review by AutoForm.`;
+
+                            if (status === 'validated') {
+                                title = 'Warranty Validated! âœ“';
+                                message = `Your warranty for ${warrantyData.uid} has been validated by AutoForm.`;
+                            } else if (status === 'rejected') {
+                                message = `Your warranty for ${warrantyData.uid} has been rejected. Reason: ${rejectionReason}`;
+                            }
+
+                            await NotificationService.notify(warrantyData.user_id, {
+                                title,
+                                message,
+                                type: 'warranty',
+                                link: `/dashboard/customer`
+                            });
+                        }
+                    } catch (notifError: any) {
+                        console.error('Failed to send vendor/customer notifications:', notifError);
+                    }
+
+                    // Log the activity
+                    const admin = (req as any).user;
+                    await ActivityLogService.log({
+                        adminId: admin.id,
+                        adminName: admin.name,
+                        adminEmail: admin.email,
+                        actionType: status === 'validated' ? 'WARRANTY_APPROVED' :
+                            status === 'pending' ? 'WARRANTY_OVERRIDDEN' : 'WARRANTY_REJECTED',
+                        targetType: 'WARRANTY',
+                        targetId: warrantyData.uid,
+                        targetName: warrantyData.uid,
+                        details: {
+                            customer_name: warrantyData.customer_name,
+                            product_type: warrantyData.product_type,
+                            rejection_reason: rejectionReason || null
+                        },
+                        ipAddress: req.ip || req.socket?.remoteAddress
+                    });
+                } catch (bgError) {
+                    console.error('[Background] Failed to process background warranty notifications:', bgError);
+                }
+            })();
         } catch (error: any) {
             console.error('Update warranty status error:', error);
             res.status(500).json({ error: 'Failed to update warranty status' });
@@ -2141,7 +2204,7 @@ export class AdminController {
             const { v4: uuidv4 } = await import('uuid');
             const userId = uuidv4();
 
-            // Normalize permissions — default all to false if not provided
+            // Normalize permissions â€” default all to false if not provided
             const defaultPermissions = {
                 overview: { read: false, write: false },
                 warranties: { read: false, write: false },
@@ -2186,7 +2249,7 @@ export class AdminController {
                     name,
                     invitedBy.name || 'An Administrator'
                 );
-                console.log(`✓ Admin invitation email sent to: ${email}`);
+                console.log(`âœ“ Admin invitation email sent to: ${email}`);
             } catch (emailError: any) {
                 console.error('Failed to send admin invitation email:', emailError);
                 // Don't fail the request if email fails
@@ -2325,7 +2388,7 @@ export class AdminController {
                 return res.status(404).json({ error: 'Admin not found' });
             }
 
-            // Delete — CASCADE handles admin_permissions row
+            // Delete â€” CASCADE handles admin_permissions row
             await db.execute('DELETE FROM profiles WHERE id = ?', [id]);
 
             await ActivityLogService.log({
@@ -2385,7 +2448,7 @@ export class AdminController {
         }
     }
 
-    // ── Resubmissions Staging Handlers ───────────────────────────────────────────────────
+    // â”€â”€ Resubmissions Staging Handlers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     static async getResubmissions(req: Request, res: Response) {
         try {
@@ -2539,9 +2602,9 @@ export class AdminController {
         }
     }
 
-    // ═══════════════════════════════════════════════════════════
+    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
     //  GET ALL DISTRIBUTORS
-    // ═══════════════════════════════════════════════════════════
+    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
     static async getAllDistributors(_req: Request, res: Response) {
         try {
             // Franchise counts and order aggregates computed once via GROUP BY,
@@ -2582,9 +2645,9 @@ export class AdminController {
         }
     }
 
-    // ═══════════════════════════════════════════════════════════
+    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
     //  CREATE DISTRIBUTOR
-    // ═══════════════════════════════════════════════════════════
+    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
     static async createDistributor(req: Request, res: Response) {
         const connection = await db.getConnection();
         try {
@@ -2727,9 +2790,9 @@ export class AdminController {
         }
     }
 
-    // ═══════════════════════════════════════════════════════════
+    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
     //  GET DISTRIBUTOR FRANCHISES
-    // ═══════════════════════════════════════════════════════════
+    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
     static async getDistributorFranchises(req: Request, res: Response) {
         try {
             const { id } = req.params; // Distributor ID
@@ -2776,9 +2839,9 @@ export class AdminController {
         }
     }
 
-    // ═══════════════════════════════════════════════════════════
+    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
     //  MAP FRANCHISE TO DISTRIBUTOR
-    // ═══════════════════════════════════════════════════════════
+    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
     static async getFranchiseOrders(req: Request, res: Response) {
         try {
             const { vendorId } = req.params;
@@ -2837,10 +2900,10 @@ export class AdminController {
                 return res.status(400).json({ error: 'Only franchise stores can be mapped to a distributor.' });
             }
 
-            // Guard: brand compatibility — franchise and distributor must share at least one brand.
-            // AF franchise → needs AF or AFAC distributor
-            // AC franchise → needs AC or AFAC distributor
-            // AFAC franchise → any distributor is fine
+            // Guard: brand compatibility â€” franchise and distributor must share at least one brand.
+            // AF franchise â†’ needs AF or AFAC distributor
+            // AC franchise â†’ needs AC or AFAC distributor
+            // AFAC franchise â†’ any distributor is fine
             const [brandRows]: any = await db.execute(
                 `SELECT d.allowed_brands as dist_brands, vd.allowed_brands as franchise_brands
                  FROM distributors d, vendor_details vd
@@ -2862,7 +2925,7 @@ export class AdminController {
             }
 
             // Guard: the categories this distributor sells must not overlap with categories
-            // already covered by another distributor assigned to this franchise — checking
+            // already covered by another distributor assigned to this franchise â€” checking
             // both the legacy single-FK mapping and the many-to-many franchise_distributors table.
             const [overlaps]: any = await db.execute(
                 `SELECT DISTINCT sc.name as category_name, d.name as distributor_name
@@ -2887,7 +2950,7 @@ export class AdminController {
             if (overlaps.length > 0) {
                 const conflictList = overlaps.map((o: any) => `${o.category_name} (already via ${o.distributor_name})`).join(', ');
                 return res.status(400).json({
-                    error: `Cannot assign: category overlap with an existing distributor for this franchise — ${conflictList}`
+                    error: `Cannot assign: category overlap with an existing distributor for this franchise â€” ${conflictList}`
                 });
             }
 
@@ -2923,9 +2986,9 @@ export class AdminController {
         }
     }
 
-    // ═══════════════════════════════════════════════════════════
+    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
     //  UNMAP FRANCHISE FROM DISTRIBUTOR
-    // ═══════════════════════════════════════════════════════════
+    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
     static async unmapFranchiseFromDistributor(req: Request, res: Response) {
         try {
             const { id, vendorId } = req.params; // Distributor ID and Vendor ID
@@ -2968,9 +3031,9 @@ export class AdminController {
         }
     }
 
-    // ═══════════════════════════════════════════════════════════
+    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
     //  GET ELIGIBLE FRANCHISES
-    // ═══════════════════════════════════════════════════════════
+    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
     static async getEligibleFranchises(_req: Request, res: Response) {
         try {
             const query = `
@@ -2996,9 +3059,9 @@ export class AdminController {
         }
     }
 
-    // ═══════════════════════════════════════════════════════════
+    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
     //  GET DISTRIBUTOR ALLOWED CATEGORIES
-    // ═══════════════════════════════════════════════════════════
+    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
     static async getDistributorAllowedCategories(req: Request, res: Response) {
         try {
             const { id } = req.params; // Distributor ID
@@ -3018,9 +3081,9 @@ export class AdminController {
         }
     }
 
-    // ═══════════════════════════════════════════════════════════
+    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
     //  SET DISTRIBUTOR ALLOWED CATEGORIES (replaces full set)
-    // ═══════════════════════════════════════════════════════════
+    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
     static async setDistributorAllowedCategories(req: Request, res: Response) {
         const connection = await db.getConnection();
         try {
@@ -3072,9 +3135,9 @@ export class AdminController {
         }
     }
 
-    // ═══════════════════════════════════════════════════════════
+    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
     //  GET FRANCHISE'S ASSIGNED DISTRIBUTORS (many-to-many)
-    // ═══════════════════════════════════════════════════════════
+    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
     static async getFranchiseDistributors(req: Request, res: Response) {
         try {
             const { vendorId } = req.params; // Franchise user_id
@@ -3098,9 +3161,9 @@ export class AdminController {
         }
     }
 
-    // ═══════════════════════════════════════════════════════════
+    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
     //  ASSIGN DISTRIBUTOR TO FRANCHISE (many-to-many, with category-overlap guard)
-    // ═══════════════════════════════════════════════════════════
+    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
     static async assignDistributorToFranchise(req: Request, res: Response) {
         try {
             const { id } = req.params; // Distributor ID
@@ -3124,7 +3187,7 @@ export class AdminController {
             }
 
             // Guard: the categories this distributor sells must not overlap with categories
-            // already covered by another distributor assigned to this franchise — checking
+            // already covered by another distributor assigned to this franchise â€” checking
             // both the many-to-many franchise_distributors table and the legacy single-FK mapping.
             const [overlaps]: any = await db.execute(
                 `SELECT DISTINCT sc.name as category_name, d.name as distributor_name
@@ -3149,7 +3212,7 @@ export class AdminController {
             if (overlaps.length > 0) {
                 const conflictList = overlaps.map((o: any) => `${o.category_name} (already via ${o.distributor_name})`).join(', ');
                 return res.status(400).json({
-                    error: `Cannot assign: category overlap with an existing distributor for this franchise — ${conflictList}`
+                    error: `Cannot assign: category overlap with an existing distributor for this franchise â€” ${conflictList}`
                 });
             }
 
@@ -3183,9 +3246,9 @@ export class AdminController {
         }
     }
 
-    // ═══════════════════════════════════════════════════════════
+    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
     //  UNASSIGN DISTRIBUTOR FROM FRANCHISE (many-to-many)
-    // ═══════════════════════════════════════════════════════════
+    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
     static async unassignDistributorFromFranchise(req: Request, res: Response) {
         try {
             const { id, vendorId } = req.params; // Distributor ID, Franchise user_id
@@ -3225,3 +3288,4 @@ export class AdminController {
         }
     }
 }
+

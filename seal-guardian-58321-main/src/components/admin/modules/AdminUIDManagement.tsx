@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+﻿import { useState, useEffect, useCallback } from "react";
 import {
     Search,
     Plus,
@@ -38,6 +38,7 @@ interface UIDRecord {
     used_at: string | null;
     created_at: string;
     source: "api_sync" | "manual" | "legacy_migration" | "customer_added" | "unknown";
+    product_name?: string;
     customer_name?: string;
     customer_email?: string;
     customer_phone?: string;
@@ -92,6 +93,9 @@ export const AdminUIDManagement = ({ onBack }: UIDManagementProps) => {
     // Add UID dialog
     const [addDialogOpen, setAddDialogOpen] = useState(false);
     const [newUID, setNewUID] = useState("");
+    const [newProductName, setNewProductName] = useState("");
+    const [isCustomProduct, setIsCustomProduct] = useState(false);
+    const [products, setProducts] = useState<any[]>([]);
     const [addLoading, setAddLoading] = useState(false);
 
     // Delete confirmation
@@ -100,6 +104,20 @@ export const AdminUIDManagement = ({ onBack }: UIDManagementProps) => {
 
     // Export loading
     const [exportLoading, setExportLoading] = useState(false);
+
+    useEffect(() => {
+        const fetchProducts = async () => {
+            try {
+                const response = await api.get('/public/products');
+                if (response.data.success) {
+                    setProducts(response.data.products.filter((p: any) => p.type === 'seat_cover'));
+                }
+            } catch (err) {
+                console.error("Failed to fetch products:", err);
+            }
+        };
+        fetchProducts();
+    }, []);
 
     const fetchUIDs = useCallback(async () => {
         setLoading(true);
@@ -155,17 +173,22 @@ export const AdminUIDManagement = ({ onBack }: UIDManagementProps) => {
         setPage(1);
     }, [search, statusFilter, sourceFilter]);
 
-    const handleAddUID = async () => {
+     const handleAddUID = async () => {
         if (!/^\d{13,22}$/.test(newUID)) {
             toast({ title: "Invalid UID", description: "UID must be a 13-22 digit number", variant: "destructive" });
             return;
         }
         setAddLoading(true);
         try {
-            const response = await api.post("/uid/add", { uid: newUID });
+            const response = await api.post("/uid/add", { 
+                uid: newUID,
+                productName: newProductName
+            });
             if (response.data.success) {
                 toast({ title: "Success", description: `UID ${newUID} added successfully` });
                 setNewUID("");
+                setNewProductName("");
+                setIsCustomProduct(false);
                 setAddDialogOpen(false);
                 fetchUIDs();
             }
@@ -229,7 +252,7 @@ export const AdminUIDManagement = ({ onBack }: UIDManagementProps) => {
     };
 
     const formatDate = (dateStr: string | null) => {
-        if (!dateStr) return "—";
+        if (!dateStr) return "â€”";
         return new Date(dateStr).toLocaleDateString("en-IN", {
             day: "2-digit",
             month: "short",
@@ -422,6 +445,7 @@ export const AdminUIDManagement = ({ onBack }: UIDManagementProps) => {
                                         <th className="text-left py-3 px-4 cursor-pointer hover:text-orange-600 transition-colors" onClick={() => setSort("uid")}>
                                             <div className="flex items-center gap-1">UID {sort === "uid" && <ArrowUpDown className="h-3 w-3" />}</div>
                                         </th>
+                                        <th className="text-left py-3 px-4">Product Name</th>
                                         <th className="text-center py-3 px-4">Status</th>
                                         <th className="text-left py-3 px-4 cursor-pointer hover:text-orange-600 transition-colors" onClick={() => setSort("source")}>
                                             <div className="flex items-center gap-1">Source {sort === "source" && <ArrowUpDown className="h-3 w-3" />}</div>
@@ -449,6 +473,9 @@ export const AdminUIDManagement = ({ onBack }: UIDManagementProps) => {
                                                         <span className="text-[9px] font-bold text-orange-500 uppercase mt-0.5 ml-5">Old Format</span>
                                                     )}
                                                 </div>
+                                            </td>
+                                            <td className="py-3 px-4 text-slate-600 font-semibold text-xs max-w-[150px] truncate">
+                                                {uid.product_name || <span className="text-slate-300">â€”</span>}
                                             </td>
                                             <td className="py-3 px-4 text-center">
                                                 {uid.is_used ? (
@@ -491,7 +518,7 @@ export const AdminUIDManagement = ({ onBack }: UIDManagementProps) => {
                                                         <span className="text-[10px] text-slate-400 uppercase">{uid.registration_number}</span>
                                                     </div>
                                                 ) : (
-                                                    <span className="text-slate-300">—</span>
+                                                    <span className="text-slate-300">â€”</span>
                                                 )}
                                             </td>
                                             <td className="py-3 px-4 text-slate-500 text-xs">{formatDate(uid.used_at)}</td>
@@ -562,6 +589,12 @@ export const AdminUIDManagement = ({ onBack }: UIDManagementProps) => {
                                                 </Badge>
                                             </div>
 
+                                            {uid.product_name && (
+                                                <div className="text-xs font-semibold text-slate-600 mb-2">
+                                                    Product: {uid.product_name}
+                                                </div>
+                                            )}
+
                                             {uid.customer_name && (
                                                 <div className="flex flex-col mb-2 p-2 bg-slate-50 rounded-lg">
                                                     <span className="text-xs font-bold text-slate-600 truncate">{uid.customer_name}</span>
@@ -607,7 +640,7 @@ export const AdminUIDManagement = ({ onBack }: UIDManagementProps) => {
             {totalPages > 1 && (
                 <div className="flex items-center justify-between py-2">
                     <span className="text-xs text-slate-400">
-                        Showing {(page - 1) * 30 + 1}–{Math.min(page * 30, totalCount)} of {totalCount}
+                        Showing {(page - 1) * 30 + 1}â€“{Math.min(page * 30, totalCount)} of {totalCount}
                     </span>
                     <div className="flex items-center gap-2">
                         <Button
@@ -639,21 +672,24 @@ export const AdminUIDManagement = ({ onBack }: UIDManagementProps) => {
                     <DialogHeader>
                         <DialogTitle className="text-lg font-bold">Add UID Manually</DialogTitle>
                         <DialogDescription>
-                            Enter a 13–22 digit UID from the product packaging. This is for cases where the sticker was removed or misplaced.
+                            Enter a 13â€“22 digit UID from the product packaging. This is for cases where the sticker was removed or misplaced.
                         </DialogDescription>
                     </DialogHeader>
                     <div className="space-y-3 py-2">
-                        <Input
-                            type="text"
-                            placeholder="Enter 13-22 digit UID"
-                            value={newUID}
-                            onChange={(e) => setNewUID(e.target.value.replace(/\D/g, "").slice(0, 22))}
-                            maxLength={22}
-                            className="font-mono tracking-wider text-center text-lg h-12 rounded-xl border-slate-200"
-                        />
+                        <div className="space-y-1">
+                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">UID (13-16 digits)</label>
+                            <Input
+                                type="text"
+                                placeholder="Enter 13-16 digit UID"
+                                value={newUID}
+                                onChange={(e) => setNewUID(e.target.value.replace(/\D/g, "").slice(0, 16))}
+                                maxLength={16}
+                                className="font-mono tracking-wider text-center text-lg h-12 rounded-xl border-slate-200"
+                            />
+                        </div>
                         <div className="flex items-center justify-between px-1">
-                            <span className="text-xs text-slate-400">{newUID.length}/22 digits</span>
-                            {newUID.length >= 13 && newUID.length <= 22 ? (
+                            <span className="text-xs text-slate-400">{newUID.length}/16 digits</span>
+                            {newUID.length >= 13 && newUID.length <= 16 ? (
                                 <span className="text-xs text-emerald-500 flex items-center gap-1">
                                     <CheckCircle2 className="h-3 w-3" /> Valid format
                                 </span>
@@ -663,9 +699,46 @@ export const AdminUIDManagement = ({ onBack }: UIDManagementProps) => {
                                 </span>
                             ) : null}
                         </div>
+
+                        <div className="space-y-1">
+                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Product Name / Design</label>
+                            <select 
+                                className="w-full h-10 px-3 rounded-xl border border-slate-200 text-sm bg-white focus:outline-none focus:ring-1 focus:ring-orange-500"
+                                value={isCustomProduct ? "custom" : newProductName}
+                                onChange={(e) => {
+                                    const val = e.target.value;
+                                    if (val === "custom") {
+                                        setIsCustomProduct(true);
+                                        setNewProductName("");
+                                    } else {
+                                        setIsCustomProduct(false);
+                                        setNewProductName(val);
+                                    }
+                                }}
+                            >
+                                <option value="">No Product linked</option>
+                                {products.map(p => (
+                                    <option key={p.id} value={p.name}>{p.name}</option>
+                                ))}
+                                <option value="custom">+ Add New Design / Custom Product</option>
+                            </select>
+                        </div>
+
+                        {isCustomProduct && (
+                            <div className="space-y-1">
+                                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">New Product Name</label>
+                                <Input
+                                    type="text"
+                                    placeholder="Enter new product design name"
+                                    value={newProductName}
+                                    onChange={(e) => setNewProductName(e.target.value)}
+                                    className="rounded-xl border-slate-200 text-sm"
+                                />
+                            </div>
+                        )}
                     </div>
                     <DialogFooter>
-                        <Button variant="outline" onClick={() => { setAddDialogOpen(false); setNewUID(""); }} className="rounded-xl">
+                        <Button variant="outline" onClick={() => { setAddDialogOpen(false); setNewUID(""); setNewProductName(""); setIsCustomProduct(false); }} className="rounded-xl">
                             Cancel
                         </Button>
                         <Button
@@ -728,8 +801,8 @@ export const AdminUIDManagement = ({ onBack }: UIDManagementProps) => {
                         </div>
                     ) : selectedUID ? (
                         <div className="space-y-6 py-2">
-                            {/* UID & Source Section */}
-                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                             {/* UID & Source Section */}
+                            <div className="grid grid-cols-2 md:grid-cols-5 gap-4 p-4 bg-slate-50 rounded-2xl border border-slate-100">
                                 <div className="space-y-1">
                                     <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Source</p>
                                     <div className="flex items-center gap-1.5">
@@ -742,6 +815,12 @@ export const AdminUIDManagement = ({ onBack }: UIDManagementProps) => {
                                 <div className="space-y-1">
                                     <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Created</p>
                                     <p className="text-sm font-bold text-slate-700">{formatDate(selectedUID.created_at)}</p>
+                                </div>
+                                <div className="space-y-1">
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Product Name</p>
+                                    <p className="text-sm font-bold text-slate-700 truncate" title={selectedUID.product_name || 'Not specified'}>
+                                        {selectedUID.product_name || 'â€”'}
+                                    </p>
                                 </div>
                                 <div className="space-y-1">
                                     <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Status</p>
@@ -791,7 +870,7 @@ export const AdminUIDManagement = ({ onBack }: UIDManagementProps) => {
                                                     </div>
                                                     <div>
                                                         <p className="text-[10px] text-slate-400 font-bold uppercase">Year</p>
-                                                        <p className="text-sm font-semibold text-slate-700">{selectedUID.car_year || '—'}</p>
+                                                        <p className="text-sm font-semibold text-slate-700">{selectedUID.car_year || 'â€”'}</p>
                                                     </div>
                                                 </div>
                                                 <div>
@@ -840,11 +919,11 @@ export const AdminUIDManagement = ({ onBack }: UIDManagementProps) => {
                                             <div className="space-y-2 pl-6 border-l-2 border-slate-100">
                                                 <div>
                                                     <p className="text-[10px] text-slate-400 font-bold uppercase">Name</p>
-                                                    <p className="text-sm font-semibold text-slate-700">{selectedUID.installer_name || '—'}</p>
+                                                    <p className="text-sm font-semibold text-slate-700">{selectedUID.installer_name || 'â€”'}</p>
                                                 </div>
                                                 <div>
                                                     <p className="text-[10px] text-slate-400 font-bold uppercase">Contact</p>
-                                                    <p className="text-sm font-semibold text-slate-700">{selectedUID.installer_contact || '—'}</p>
+                                                    <p className="text-sm font-semibold text-slate-700">{selectedUID.installer_contact || 'â€”'}</p>
                                                 </div>
                                             </div>
                                         </div>
@@ -882,3 +961,4 @@ export const AdminUIDManagement = ({ onBack }: UIDManagementProps) => {
 };
 
 export default AdminUIDManagement;
+

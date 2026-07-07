@@ -1,6 +1,6 @@
 import { Package, Box } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { LoadingOverlay, EmptyState, ExportButton, exportToExcel, SyncButton } from './Common';
+import { LoadingOverlay, EmptyState, ExportButton, exportToExcel } from './Common';
 import { cn } from '@/lib/utils';
 
 interface ProductDistributionSectionProps {
@@ -18,8 +18,6 @@ interface ProductDistributionSectionProps {
     products: any[];
     years: string[];
     months: string[];
-    onSync: () => void;
-    isSyncing?: boolean;
 }
 
 const PRODUCT_COLORS = [
@@ -40,9 +38,7 @@ export const ProductDistributionSection = ({
     prodEnd, setProdEnd,
     products,
     years,
-    months,
-    onSync,
-    isSyncing
+    months
 }: ProductDistributionSectionProps) => {
     return (
         <Card className="rounded-[40px] border-none bg-white shadow-[0_20px_50px_rgba(0,0,0,0.04)] overflow-hidden relative group">
@@ -143,10 +139,6 @@ export const ProductDistributionSection = ({
                         </div>
                     </div>
 
-                    <SyncButton 
-                        onClick={onSync}
-                        loading={isSyncing}
-                    />
 
                     <ExportButton 
                         onClick={() => exportToExcel(

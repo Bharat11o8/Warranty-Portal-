@@ -33,10 +33,26 @@ import webhookRoutes from './routes/webhook.routes.js';
 import { AssignmentSchedulerService } from './services/assignment-scheduler.service.js';
 import { initSocket } from './socket.js';
 import { getISTTimestamp } from './utils/dateUtils.js';
-import { getDbRetryStats, pingDatabase } from './config/database.js';
+import pool, { getDbRetryStats, pingDatabase } from './config/database.js';
+
+// Run inline database migrations
+async function runMigrations() {
+  try {
+    const [columns]: any = await pool.query("SHOW COLUMNS FROM pre_generated_uids LIKE 'product_name'");
+    if (columns.length === 0) {
+      await pool.query("ALTER TABLE pre_generated_uids ADD COLUMN product_name VARCHAR(255) DEFAULT NULL");
+      console.log('✅ Migration: Added product_name to pre_generated_uids.');
+    } else {
+      console.log('ℹ️ Migration: product_name already exists in pre_generated_uids.');
+    }
+  } catch (error: any) {
+    console.error('❌ Migration Error:', error.message);
+  }
+}
 
 // Start background services
 AssignmentSchedulerService.start();
+runMigrations();
 
 // Get current directory for ES modules
 const __filename = fileURLToPath(import.meta.url);

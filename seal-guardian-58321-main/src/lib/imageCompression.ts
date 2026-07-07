@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Image compression utility for mobile photo uploads
  * Automatically resizes large images to prevent network timeouts
  */
@@ -20,7 +20,7 @@ const DEFAULT_OPTIONS: CompressionOptions = {
 /**
  * Compress an image file before upload
  * Works with JPEG, PNG, HEIC (Safari auto-converts HEIC to JPEG via canvas; other
- * browsers generally cannot decode HEIC in <img>/canvas at all — see img.onerror
+ * browsers generally cannot decode HEIC in <img>/canvas at all â€” see img.onerror
  * below. The upload server also transcodes any HEIC bytes that slip through this
  * step, so a failure here is not the only safety net, but we still try our best
  * client-side since it saves bandwidth and a round trip.)
@@ -32,9 +32,12 @@ export const compressImage = async (
     const opts = { ...DEFAULT_OPTIONS, ...options };
     const isHeic = /\.(heic|heif)$/i.test(file.name) || /^image\/hei[cf]$/i.test(file.type);
 
-    // Skip if already small enough (under target size) — but HEIC files always need
+    // Skip if already small enough (under target size) â€” but HEIC files always need
     // format conversion regardless of size, so never skip those.
     if (!isHeic && file.size <= (opts.maxSizeKB || 1024) * 1024) {
+=======
+    // Skip if already small enough (under 500KB â€” no meaningful compression possible)
+    if (file.size <= 500 * 1024) {
         console.log(`[ImageCompression] File ${file.name} already small (${(file.size / 1024).toFixed(0)}KB), skipping`);
         return file;
     }
@@ -87,7 +90,7 @@ export const compressImage = async (
                     });
 
                     console.log(
-                        `[ImageCompression] Compressed ${file.name}: ${(file.size / 1024).toFixed(0)}KB → ${(compressedFile.size / 1024).toFixed(0)}KB (${Math.round((1 - compressedFile.size / file.size) * 100)}% reduction)`
+                        `[ImageCompression] Compressed ${file.name}: ${(file.size / 1024).toFixed(0)}KB â†’ ${(compressedFile.size / 1024).toFixed(0)}KB (${Math.round((1 - compressedFile.size / file.size) * 100)}% reduction)`
                     );
 
                     resolve(compressedFile);
@@ -135,3 +138,4 @@ export const isCompressibleImage = (file: File): boolean => {
     return imageTypes.includes(file.type) ||
         /\.(jpe?g|png|heic|heif)$/i.test(file.name);
 };
+

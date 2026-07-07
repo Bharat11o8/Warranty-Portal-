@@ -16,9 +16,9 @@ import {
     ChevronRight,
     ChevronLeft,
     LogOut,
-    User,
-    PlusCircle
-} from "lucide-react";
+    User
+}
+from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNotifications } from "@/contexts/NotificationContext";
 import { Button } from "@/components/ui/button";

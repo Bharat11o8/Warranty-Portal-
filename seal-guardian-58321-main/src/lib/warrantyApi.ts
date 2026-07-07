@@ -77,7 +77,8 @@ export const submitWarranty = async (data: WarrantyData) => {
   for (const key in data) {
     if (key === 'productDetails') continue;
     if (Object.prototype.hasOwnProperty.call(data, key)) {
-      formData.append(key, (data as any)[key]);
+      const value = (data as any)[key];
+      if (value != null) formData.append(key, value);
     }
   }
   console.log('[DEBUG warrantyApi] Root fields appended');

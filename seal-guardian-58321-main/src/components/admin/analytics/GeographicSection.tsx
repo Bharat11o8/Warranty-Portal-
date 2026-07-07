@@ -2,7 +2,7 @@ import { MapPin, ShieldCheck, Box, MessageSquare, Package, X, ChevronRight } fro
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { ResponsiveContainer, BarChart, Bar, Cell, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
 import { ModernSelect } from './ModernSelect';
-import { LoadingOverlay, EmptyState, ExportButton, exportToExcel, SyncButton } from './Common';
+import { LoadingOverlay, EmptyState, ExportButton, exportToExcel } from './Common';
 import { cn } from '@/lib/utils';
 
 interface GeographicSectionProps {
@@ -26,8 +26,6 @@ interface GeographicSectionProps {
     setExpandedItem: (val: string | null) => void;
     years: string[];
     months: string[];
-    onSync: () => void;
-    isSyncing?: boolean;
 }
 
 const GEO_COLORS = [
@@ -51,9 +49,7 @@ export const GeographicSection = ({
     selectedState, setSelectedState,
     expandedItem, setExpandedItem,
     years,
-    months,
-    onSync,
-    isSyncing
+    months
 }: GeographicSectionProps) => {
     return (
         <Card className="rounded-[40px] border-none bg-white shadow-[0_20px_50px_rgba(0,0,0,0.04)] overflow-hidden relative group">
@@ -166,10 +162,6 @@ export const GeographicSection = ({
                             ))}
                         </div>
 
-                        <SyncButton 
-                            onClick={onSync}
-                            loading={isSyncing}
-                        />
 
                         <ExportButton 
                             onClick={() => exportToExcel(
