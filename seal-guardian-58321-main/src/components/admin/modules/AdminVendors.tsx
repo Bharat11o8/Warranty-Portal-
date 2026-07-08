@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import api from "@/lib/api";
 import { downloadCSV, getISTTodayISO } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
@@ -598,7 +598,7 @@ export const AdminVendors = () => {
                                                         />
                                                     </div>
                                                 )}
-                                                {!leaderboardMode && !vendor.is_verified && (
+                                                {!leaderboardMode && !vendor.is_verified && !vendor.verified_at && (
                                                     <div className="flex gap-2">
                                                         <Button
                                                             size="icon"
@@ -806,7 +806,7 @@ export const AdminVendors = () => {
                                                             </div>
                                                         )}
 
-                                                        {!vendor.is_verified && (
+                                                        {!vendor.is_verified && !vendor.verified_at && (
                                                             <>
                                                                 <Button
                                                                     size="icon"
