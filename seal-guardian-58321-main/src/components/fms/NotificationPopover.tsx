@@ -377,8 +377,10 @@ export const NotificationPopover = ({ onNavigate, onLinkClick }: { onNavigate?: 
                                 </DialogHeader>
 
                                 <div className="p-8 space-y-8 bg-white/30">
-                                    <div className="text-slate-600 leading-relaxed whitespace-pre-wrap text-base font-medium">
-                                        {selectedNotification.message}
+                                    <div className="max-h-[300px] overflow-y-auto rounded-xl border border-slate-100 bg-slate-50/50 p-5">
+                                        <div className="text-slate-600 leading-relaxed whitespace-pre-wrap text-base font-medium">
+                                            {selectedNotification.message}
+                                        </div>
                                     </div>
 
                                     {/* Media Gallery */}

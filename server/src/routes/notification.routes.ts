@@ -18,5 +18,7 @@ router.delete('/', NotificationController.clearAll);
 // Admin-only broadcast
 router.post('/broadcast', requireRole('admin'), requirePermission('announcements', 'write'), NotificationController.broadcast);
 router.post('/broadcast/abort', requireRole('admin'), requirePermission('announcements', 'write'), NotificationController.abortBroadcast);
+router.get('/campaign/:id', requireRole('admin'), requirePermission('announcements', 'write'), NotificationController.getCampaignStatus);
+router.get('/history', requireRole('admin'), requirePermission('announcements', 'write'), NotificationController.getBroadcastHistory);
 
 export default router;
