@@ -1,5 +1,6 @@
-import { Request, Response } from 'express';
+﻿import { Request, Response } from 'express';
 import db, { getISTTimestamp } from '../config/database.js';
+import { matchFallbackUidSequence, resolveFallbackUid } from '../utils/customerMobileLimits.js';
 import { v4 as uuidv4 } from 'uuid';
 import { NotificationService } from '../services/notification.service.js';
 
@@ -204,7 +205,7 @@ export class UIDController {
                 connection = null;
             }
 
-            console.log(`✓ UID Sync Complete: ${stats.inserted} new, ${stats.already_exists_available} existing, ${stats.already_exists_used} used`);
+            console.log(`âœ“ UID Sync Complete: ${stats.inserted} new, ${stats.already_exists_available} existing, ${stats.already_exists_used} used`);
 
             res.json({
                 success: true,
@@ -228,6 +229,7 @@ export class UIDController {
     static async validateUID(req: Request, res: Response) {
         try {
             const { uid } = req.params;
+            const { phone } = req.query;
 
             if (!uid || !/^\d{13,16}$/.test(uid)) {
                 return res.json({
@@ -235,6 +237,31 @@ export class UIDController {
                     available: false,
                     message: 'Invalid UID'
                 });
+            }
+
+            // If the UID matches the fallback pattern (customer mobile + current
+            // year), resolve it to the next unused sequence for this mobile â€”
+            // this also covers repeat submissions where the customer keeps
+            // typing the same base value and the system silently advances it.
+            if (phone && typeof phone === 'string') {
+                const currentYear = new Date().getFullYear();
+                const resolved = await resolveFallbackUid(uid, phone, currentYear);
+                if (resolved) {
+                    return res.json({
+                        valid: true,
+                        available: true,
+                        message: 'Customer-added UID accepted (mobile + year)',
+                        resolvedUid: resolved.uid
+                    });
+                }
+
+                if (matchFallbackUidSequence(uid, phone, currentYear) !== null) {
+                    return res.json({
+                        valid: false,
+                        available: false,
+                        message: 'This mobile number has no remaining warranty submissions allowed.'
+                    });
+                }
             }
 
             const [rows]: any = await db.execute(
@@ -335,7 +362,8 @@ export class UIDController {
                     SUM(CASE WHEN is_used = TRUE THEN 1 ELSE 0 END) as used,
                     SUM(CASE WHEN source = 'api_sync' THEN 1 ELSE 0 END) as synced,
                     SUM(CASE WHEN source = 'manual' THEN 1 ELSE 0 END) as manual_count,
-                    SUM(CASE WHEN source = 'legacy_migration' THEN 1 ELSE 0 END) as legacy_count
+                    SUM(CASE WHEN source = 'legacy_migration' THEN 1 ELSE 0 END) as legacy_count,
+                    SUM(CASE WHEN source = 'customer_added' THEN 1 ELSE 0 END) as customer_added_count
                 FROM pre_generated_uids`
             );
 
@@ -377,7 +405,8 @@ export class UIDController {
                     used: Number(statsResult[0].used),
                     synced: Number(statsResult[0].synced),
                     manual_count: Number(statsResult[0].manual_count),
-                    legacy_count: Number(statsResult[0].legacy_count)
+                    legacy_count: Number(statsResult[0].legacy_count),
+                    customer_added_count: Number(statsResult[0].customer_added_count)
                 },
                 pagination: {
                     currentPage: page,
@@ -559,7 +588,7 @@ export class UIDController {
             );
 
             const admin = (req as any).user;
-            console.log(`✓ UID ${uid} manually added by admin ${admin?.email}`);
+            console.log(`âœ“ UID ${uid} manually added by admin ${admin?.email}`);
 
             res.status(201).json({
                 success: true,
@@ -596,7 +625,7 @@ export class UIDController {
             await db.execute('DELETE FROM pre_generated_uids WHERE uid = ?', [uid]);
 
             const admin = (req as any).user;
-            console.log(`✓ UID ${uid} deleted by admin ${admin?.email}`);
+            console.log(`âœ“ UID ${uid} deleted by admin ${admin?.email}`);
 
             res.json({
                 success: true,
@@ -641,3 +670,4 @@ export class UIDController {
         }
     }
 }
+

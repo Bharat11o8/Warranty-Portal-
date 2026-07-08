@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+﻿import { useState, useEffect } from "react";
 import api from "@/lib/api";
 import { downloadCSV, getISTTodayISO } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
@@ -87,6 +87,32 @@ export const AdminVendors = () => {
     // View state
     const [viewingVendor, setViewingVendor] = useState<any>(null);
 
+    // Brand update
+    const [updatingBrand, setUpdatingBrand] = useState<string | null>(null);
+    const [pendingBrandChange, setPendingBrandChange] = useState<{ vendor: any; brand: "AF" | "AC" | "AFAC" } | null>(null);
+
+    const handleUpdateFranchiseBrand = async () => {
+        if (!pendingBrandChange) return;
+        const { vendor, brand } = pendingBrandChange;
+        setUpdatingBrand(vendor.id);
+        try {
+            await api.put(`/admin/vendors/${vendor.id}/allowed-brands`, {
+                allowed_brands: brand,
+                target: 'franchise'
+            });
+            // Update local state directly — no re-fetch needed
+            setVendors(prev => prev.map(v =>
+                v.id === vendor.id ? { ...v, franchise_allowed_brands: brand } : v
+            ));
+            toast({ title: "Brand Updated", description: `${vendor.store_name} set to ${brand}` });
+        } catch (error: any) {
+            toast({ title: "Update Failed", description: error.response?.data?.error || "Failed to update brand", variant: "destructive" });
+        } finally {
+            setUpdatingBrand(null);
+            setPendingBrandChange(null);
+        }
+    };
+
     useEffect(() => {
         fetchVendors();
     }, []);
@@ -100,8 +126,8 @@ export const AdminVendors = () => {
         setCurrentPage(1);
     }, [filter, search, leaderboardMode]);
 
-    const fetchVendors = async () => {
-        setLoading(true);
+    const fetchVendors = async (silent = false) => {
+        if (!silent) setLoading(true);
         try {
             const params = leaderboardMode ? { startDate, endDate, dateField } : {};
             const response = await api.get("/admin/vendors", { params });
@@ -110,9 +136,14 @@ export const AdminVendors = () => {
                     ...v,
                     manpower_count: Number(v.manpower_count || 0),
                     is_verified: Boolean(v.is_verified),
-                    is_active: v.is_active === 1 || v.is_active === true
+                    is_active: v.is_active === 1 || v.is_active === true,
+                    is_distributor: Boolean(v.is_distributor),
+                    is_franchise: v.is_franchise === undefined ? true : Boolean(v.is_franchise),
+                    franchise_allowed_brands: v.franchise_allowed_brands || 'AF',
+                    distributor_allowed_brands: v.distributor_allowed_brands || 'AF',
                 }));
-                setVendors(parsedVendors);
+                // Show only Franchises (includes franchises who are also distributors)
+                setVendors(parsedVendors.filter((v: any) => v.is_franchise));
             }
         } catch (error) {
             console.error("Failed to fetch vendors:", error);
@@ -140,7 +171,7 @@ export const AdminVendors = () => {
                     description: response.data.message,
                     variant: isVerified ? "default" : "destructive"
                 });
-                fetchVendors();
+                fetchVendors(true);
             }
         } catch (error: any) {
             console.error("Vendor verification error:", error);
@@ -170,13 +201,40 @@ export const AdminVendors = () => {
                     description: response.data.message,
                     variant: isActive ? "default" : "destructive"
                 });
-                fetchVendors();
+                fetchVendors(true);
             }
         } catch (error: any) {
             console.error("Vendor activation error:", error);
             toast({
                 title: "Activation Update Failed",
                 description: error.response?.data?.error || "Failed to update vendor status",
+                variant: "destructive"
+            });
+        } finally {
+            setProcessingVendor(null);
+        }
+    };
+
+    const handleToggleDistributor = async (vendorId: string, isDistributor: boolean) => {
+        setProcessingVendor(vendorId);
+        try {
+            const response = await api.put(`/admin/vendors/${vendorId}/distributor-status`, {
+                is_distributor: isDistributor
+            });
+
+            if (response.data.success) {
+                toast({
+                    title: isDistributor ? "Distributor Status Assigned" : "Distributor Status Revoked",
+                    description: response.data.message,
+                    variant: "default"
+                });
+                fetchVendors(true);
+            }
+        } catch (error: any) {
+            console.error("Toggle distributor status error:", error);
+            toast({
+                title: "Failed to Update Distributor Status",
+                description: error.response?.data?.error || "Failed to update distributor status",
                 variant: "destructive"
             });
         } finally {
@@ -515,15 +573,28 @@ export const AdminVendors = () => {
                                                     </div>
                                                 </div>
                                             </div>
-                                            <div className="flex gap-2">
+                                            <div className="flex gap-3 items-center">
                                                 {/* Activation Toggle - only for verified vendors */}
                                                 {!leaderboardMode && vendor.is_verified && (
-                                                    <div className="flex items-center gap-1" title={vendor.is_active ? "Deactivate Franchise" : "Activate Franchise"}>
+                                                    <div className="flex flex-col items-center gap-1" title={vendor.is_active ? "Deactivate Franchise" : "Activate Franchise"}>
+                                                        <span className="text-[9px] font-bold text-slate-400">Active</span>
                                                         <Switch
                                                             checked={vendor.is_active !== false}
                                                             onCheckedChange={(checked) => handleVendorActivation(vendor.id, checked)}
                                                             disabled={processingVendor === vendor.id}
                                                             className="data-[state=checked]:bg-green-500 data-[state=unchecked]:bg-red-400"
+                                                        />
+                                                    </div>
+                                                )}
+                                                {/* Distributor Toggle - only for verified vendors */}
+                                                {!leaderboardMode && vendor.is_verified && (
+                                                    <div className="flex flex-col items-center gap-1" title={vendor.is_distributor ? "Revoke Distributor Privileges" : "Make Distributor"}>
+                                                        <span className="text-[9px] font-bold text-slate-400">Distributor</span>
+                                                        <Switch
+                                                            checked={vendor.is_distributor}
+                                                            onCheckedChange={(checked) => handleToggleDistributor(vendor.id, checked)}
+                                                            disabled={processingVendor === vendor.id}
+                                                            className="data-[state=checked]:bg-orange-500 data-[state=unchecked]:bg-slate-300"
                                                         />
                                                     </div>
                                                 )}
@@ -623,7 +694,16 @@ export const AdminVendors = () => {
                                                 </td>
                                             )}
                                             <td className="px-6 py-4">
-                                                <div className="font-bold text-slate-800 group-hover:text-orange-600 transition-colors">{vendor.store_name}</div>
+                                                <div className="flex items-center gap-2">
+                                                    <span className="font-bold text-slate-800 group-hover:text-orange-600 transition-colors">{vendor.store_name}</span>
+                                                    {(vendor.franchise_allowed_brands || 'AF') === 'AFAC' ? (
+                                                        <Badge className="bg-purple-100 text-purple-700 border-purple-200 text-[10px] px-2 py-0.5 font-bold whitespace-nowrap">AF+AC</Badge>
+                                                    ) : (vendor.franchise_allowed_brands || 'AF') === 'AC' ? (
+                                                        <Badge className="bg-blue-100 text-blue-700 border-blue-200 text-[10px] px-2 py-0.5 font-bold whitespace-nowrap">AC</Badge>
+                                                    ) : (
+                                                        <Badge className="bg-orange-100 text-orange-700 border-orange-200 text-[10px] px-2 py-0.5 font-bold whitespace-nowrap">AF</Badge>
+                                                    )}
+                                                </div>
                                                 <div className="text-xs text-slate-500 flex items-center gap-1 mt-1">
                                                     <Mail className="h-3 w-3" /> {vendor.store_email}
                                                 </div>
@@ -677,16 +757,52 @@ export const AdminVendors = () => {
                                             </td>
                                             {!leaderboardMode && (
                                                 <td className="px-6 py-4 text-right" onClick={(e) => e.stopPropagation()}>
-                                                    <div className="flex justify-end items-center gap-2">
+                                                    <div className="flex justify-end items-center gap-4">
                                                         {/* Activate/Deactivate Toggle - only for verified vendors */}
                                                         {vendor.is_verified && (
-                                                            <div className="flex items-center gap-1.5 px-2" title={vendor.is_active ? "Deactivate Store" : "Activate Store"}>
+                                                            <div className="flex items-center gap-2 px-1" title={vendor.is_active ? "Deactivate Store" : "Activate Store"}>
+                                                                <span className="text-xs font-bold text-slate-500">Active</span>
                                                                 <Switch
                                                                     checked={vendor.is_active}
                                                                     onCheckedChange={(checked) => handleVendorActivation(vendor.id, checked)}
                                                                     disabled={processingVendor === vendor.id}
                                                                     className="data-[state=checked]:bg-green-500 data-[state=unchecked]:bg-slate-300"
                                                                 />
+                                                            </div>
+                                                        )}
+
+                                                        {/* Distributor Toggle - only for verified vendors */}
+                                                        {vendor.is_verified && (
+                                                            <div className="flex items-center gap-2 px-1" title={vendor.is_distributor ? "Revoke Distributor Status" : "Make Distributor"}>
+                                                                <span className="text-xs font-bold text-slate-500">Distributor</span>
+                                                                <Switch
+                                                                    checked={vendor.is_distributor}
+                                                                    onCheckedChange={(checked) => handleToggleDistributor(vendor.id, checked)}
+                                                                    disabled={processingVendor === vendor.id}
+                                                                    className="data-[state=checked]:bg-orange-500 data-[state=unchecked]:bg-slate-300"
+                                                                />
+                                                            </div>
+                                                        )}
+
+                                                        {/* Franchise Brand selector */}
+                                                        {vendor.is_verified && (
+                                                            <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                                                                {(['AF', 'AC', 'AFAC'] as const).map(b => (
+                                                                    <button
+                                                                        key={b}
+                                                                        disabled={updatingBrand === vendor.id}
+                                                                        onClick={() => setPendingBrandChange({ vendor, brand: b })}
+                                                                        className={`text-[10px] font-bold px-2 py-0.5 rounded-full border transition-all ${
+                                                                            (vendor.franchise_allowed_brands || 'AF') === b
+                                                                                ? b === 'AF' ? 'bg-orange-500 text-white border-orange-500'
+                                                                                  : b === 'AC' ? 'bg-blue-500 text-white border-blue-500'
+                                                                                  : 'bg-purple-500 text-white border-purple-500'
+                                                                                : 'bg-white text-slate-400 border-slate-200 hover:border-slate-400'
+                                                                        }`}
+                                                                    >
+                                                                        {b}
+                                                                    </button>
+                                                                ))}
                                                             </div>
                                                         )}
 
@@ -714,7 +830,6 @@ export const AdminVendors = () => {
                                                                 </Button>
                                                             </>
                                                         )}
-
 
                                                     </div>
                                                 </td>
@@ -787,6 +902,36 @@ export const AdminVendors = () => {
                 </Pagination>
             )}
 
+            {/* Brand change confirmation dialog */}
+            <Dialog open={!!pendingBrandChange} onOpenChange={(open) => { if (!open) setPendingBrandChange(null); }}>
+                <DialogContent className="sm:max-w-[420px]">
+                    <DialogHeader>
+                        <DialogTitle>Confirm Brand Update</DialogTitle>
+                        <DialogDescription>
+                            Are you sure you want to update the brand for{' '}
+                            <span className="font-semibold text-slate-800">{pendingBrandChange?.vendor.store_name}</span>{' '}
+                            (Franchise) to{' '}
+                            <span className={`font-bold ${pendingBrandChange?.brand === 'AF' ? 'text-orange-600' : pendingBrandChange?.brand === 'AC' ? 'text-blue-600' : 'text-purple-600'}`}>
+                                {pendingBrandChange?.brand === 'AF' ? 'Autoform (AF)' : pendingBrandChange?.brand === 'AC' ? 'Autocruze (AC)' : 'AFAC'}
+                            </span>?
+                            <br /><br />
+                            <span className="text-amber-700 font-medium text-xs">This affects which products this franchise can see and order.</span>
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="flex justify-end gap-3 pt-2">
+                        <Button variant="outline" onClick={() => setPendingBrandChange(null)}>Cancel</Button>
+                        <Button
+                            onClick={handleUpdateFranchiseBrand}
+                            disabled={!!updatingBrand}
+                            className={pendingBrandChange?.brand === 'AF' ? 'bg-orange-500 hover:bg-orange-600 text-white' : pendingBrandChange?.brand === 'AC' ? 'bg-blue-500 hover:bg-blue-600 text-white' : 'bg-purple-500 hover:bg-purple-600 text-white'}
+                        >
+                            {updatingBrand ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                            Yes, Update to {pendingBrandChange?.brand}
+                        </Button>
+                    </div>
+                </DialogContent>
+            </Dialog>
+
             <Dialog open={rejectDialogOpen} onOpenChange={setRejectDialogOpen}>
                 <DialogContent>
                     <DialogHeader>
@@ -821,3 +966,6 @@ export const AdminVendors = () => {
         </div>
     );
 };
+
+
+

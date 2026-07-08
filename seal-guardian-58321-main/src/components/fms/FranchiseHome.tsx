@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { useB2BCart } from "@/contexts/B2BCartContext";
 
 interface FranchiseHomeProps {
     stats: any;
@@ -95,6 +96,7 @@ const BANNERS = [
 ];
 
 export const FranchiseHome = ({ stats, recentActivity = [], onNavigate, newProducts = [], latestUpdates = [] }: FranchiseHomeProps) => {
+    const { distributorStock } = useB2BCart();
     const [currentBanner, setCurrentBanner] = useState(0);
     const [currentProductIndex, setCurrentProductIndex] = useState(0);
 
@@ -338,14 +340,19 @@ export const FranchiseHome = ({ stats, recentActivity = [], onNavigate, newProdu
                                             <p className="text-xs font-bold text-slate-500 max-w-xs mb-6 uppercase tracking-tight line-clamp-2">
                                                 {Array.isArray(product.description) ? product.description[0] : product.description}
                                             </p>
-                                            <div className="flex items-baseline gap-2 mb-6 text-brand-orange">
-                                                <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Price</span>
-                                                <span className="text-xl font-black">
-                                                    ₹{typeof product.price === 'number'
-                                                        ? product.price.toLocaleString()
-                                                        : (product.price as any).default?.toLocaleString() || (product.price as any).twoRow?.toLocaleString() || '0'}
-                                                </span>
-                                            </div>
+                                            {(() => {
+                                                const stockItems = distributorStock.filter(item => item.product_id === product.id);
+                                                const totalStock = stockItems.reduce((acc, item) => acc + (item.stock_quantity || 0), 0);
+                                                return (
+                                                    <div className="flex items-baseline gap-2 mb-6">
+                                                        <div className="px-4 py-1.5 bg-orange-50 border border-orange-100 rounded-full">
+                                                            <span className="text-[10px] font-black uppercase text-orange-600 tracking-wider">
+                                                                {totalStock > 0 ? `${totalStock} units in stock` : 'Out of Stock'}
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })()}
                                             <Button
                                                 onClick={() => onNavigate('catalogue')}
                                                 className="w-fit h-11 px-6 rounded-xl bg-slate-900 text-white font-black uppercase tracking-widest text-[10px]"

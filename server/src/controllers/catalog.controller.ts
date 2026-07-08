@@ -10,12 +10,35 @@ export class CatalogController {
     // PUBLIC ENDPOINTS
     static async getCategories(req: Request, res: Response) {
         try {
-            const [categories]: any = await db.execute('SELECT * FROM store_categories ORDER BY name ASC');
+            const { brand } = req.query as { brand?: string };
+            let categories: any[];
+
+            if (brand && ['AF', 'AC'].includes(brand)) {
+                // Return only categories (and their parents) that have at least one product of this brand
+                const [rows]: any = await db.execute(
+                    `SELECT DISTINCT sc.* FROM store_categories sc
+                     WHERE sc.id IN (
+                         SELECT DISTINCT category_id FROM store_products WHERE brand = ? AND is_active = 1
+                     )
+                     OR sc.id IN (
+                         SELECT DISTINCT sc2.parent_id FROM store_categories sc2
+                         JOIN store_products sp ON sp.category_id = sc2.id
+                         WHERE sp.brand = ? AND sp.is_active = 1 AND sc2.parent_id IS NOT NULL
+                     )
+                     ORDER BY sc.name ASC`,
+                    [brand, brand]
+                );
+                categories = rows;
+            } else {
+                const [rows]: any = await db.execute('SELECT * FROM store_categories ORDER BY name ASC');
+                categories = rows;
+            }
+
             res.json({
                 success: true,
                 categories: categories.map((c: any) => ({
                     ...c,
-                    parentId: c.parent_id // Map snake_case DB to camelCase API
+                    parentId: c.parent_id
                 }))
             });
         } catch (error: any) {
@@ -26,13 +49,18 @@ export class CatalogController {
 
     static async getProducts(req: Request, res: Response) {
         try {
-            const { categoryId } = req.query;
-            let query = 'SELECT * FROM store_products';
+            const { categoryId, brand } = req.query;
+            let query = 'SELECT * FROM store_products WHERE 1=1';
             const params: any[] = [];
 
             if (categoryId) {
-                query += ' WHERE category_id = ?';
+                query += ' AND category_id = ?';
                 params.push(categoryId);
+            }
+
+            if (brand) {
+                query += ' AND brand = ?';
+                params.push(brand);
             }
 
             query += ' ORDER BY created_at DESC';
@@ -140,7 +168,9 @@ export class CatalogController {
                         additionalInfo: typeof p.additional_info === 'string' ? JSON.parse(p.additional_info) : p.additional_info,
                         images: productImages,
                         reviews: productReviews,
-                        rating: 4.5, // Placeholder or avg calc
+                        rating: 4.5,
+                        brand: p.brand || 'AF',
+                        productCode: p.product_code || null,
                         variations: productVariations.map((v: any) => ({
                             ...v,
                             images: variationImageMap.get(v.id) || [],
@@ -362,6 +392,7 @@ export class CatalogController {
         try {
             const { name, description, price, categoryId, inStock, additionalInfo, images, variations } = req.body;
             const admin = (req as any).user;
+            const brand: 'AF' | 'AC' = req.body.brand === 'AC' ? 'AC' : 'AF';
 
             if (!name) {
                 return res.status(400).json({ error: 'Product name is required' });
@@ -370,8 +401,6 @@ export class CatalogController {
             const id = uuidv4();
             const descriptionText = Array.isArray(description) ? description.join('\n') : description;
 
-            // Determine base price: if it's an object (legacy seat covers), use the minimum. 
-            // Otherwise, use the provided price value directly.
             let basePrice = 0;
             if (price && typeof price === 'object') {
                 basePrice = Math.min(price.twoRow || 0, price.threeRow || 0);
@@ -379,11 +408,26 @@ export class CatalogController {
                 basePrice = Number(price);
             }
 
+            // Auto-generate product_code: find the highest existing sequence for this brand prefix
+            const prefix = brand; // 'AF' or 'AC'
+            const [codeRows]: any = await db.execute(
+                `SELECT product_code FROM store_products WHERE brand = ? AND product_code IS NOT NULL ORDER BY product_code DESC LIMIT 1`,
+                [brand]
+            );
+            let nextSeq = 1;
+            if (codeRows.length > 0) {
+                const lastCode = String(codeRows[0].product_code); // e.g. "AF-0042"
+                const parts = lastCode.split('-');
+                const lastNum = parseInt(parts[parts.length - 1], 10);
+                if (!isNaN(lastNum)) nextSeq = lastNum + 1;
+            }
+            const productCode = `${prefix}-${String(nextSeq).padStart(4, '0')}`;
+
             // Insert main product
             await db.execute(
-                `INSERT INTO store_products (id, name, description, price, category_id, in_stock, is_featured, is_new_arrival, additional_info, is_active) 
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-                [id, name, descriptionText, basePrice, categoryId || null, inStock ? 1 : 0, req.body.isFeatured ? 1 : 0, req.body.isNewArrival ? 1 : 0, JSON.stringify(additionalInfo || []), 1]
+                `INSERT INTO store_products (id, name, description, price, category_id, in_stock, is_featured, is_new_arrival, additional_info, is_active, brand, product_code)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                [id, name, descriptionText, basePrice, categoryId || null, inStock ? 1 : 0, req.body.isFeatured ? 1 : 0, req.body.isNewArrival ? 1 : 0, JSON.stringify(additionalInfo || []), 1, brand, productCode]
             );
 
             // Insert variations if provided
@@ -496,10 +540,12 @@ export class CatalogController {
                 basePrice = Number(price);
             }
 
+            const brand: 'AF' | 'AC' = req.body.brand === 'AC' ? 'AC' : 'AF';
+
             // Update main product
             await db.execute(
-                `UPDATE store_products SET name = ?, description = ?, price = ?, category_id = ?, in_stock = ?, is_featured = ?, is_new_arrival = ?, additional_info = ? WHERE id = ?`,
-                [name, descriptionText, basePrice, categoryId || null, inStock ? 1 : 0, req.body.isFeatured ? 1 : 0, req.body.isNewArrival ? 1 : 0, JSON.stringify(additionalInfo || []), id]
+                `UPDATE store_products SET name = ?, description = ?, price = ?, category_id = ?, in_stock = ?, is_featured = ?, is_new_arrival = ?, additional_info = ?, brand = ? WHERE id = ?`,
+                [name, descriptionText, basePrice, categoryId || null, inStock ? 1 : 0, req.body.isFeatured ? 1 : 0, req.body.isNewArrival ? 1 : 0, JSON.stringify(additionalInfo || []), brand, id]
             );
 
             // Clear legacy data

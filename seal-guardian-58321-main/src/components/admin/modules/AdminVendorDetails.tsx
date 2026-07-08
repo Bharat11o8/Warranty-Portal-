@@ -9,6 +9,7 @@ import { MapPin, User, Mail, Phone, Download, Search, Loader2, QrCode } from "lu
 import { QRCodeSVG } from "qrcode.react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AdminWarrantyList } from "@/components/admin/AdminWarrantyList";
+import { AdminFranchiseOrdersDialog } from "./AdminFranchiseOrdersDialog";
 import { formatWarrantyForExport, formatManpowerForExport } from "@/lib/adminExports";
 import {
     Pagination,
@@ -26,13 +27,20 @@ import { useToast } from "@/hooks/use-toast";
 interface AdminVendorDetailsProps {
     vendor: any;
     onBack: () => void;
+    isDistributorsView?: boolean;
 }
 
-export const AdminVendorDetails = ({ vendor: initialVendor, onBack }: AdminVendorDetailsProps) => {
+export const AdminVendorDetails = ({ vendor: initialVendor, onBack, isDistributorsView }: AdminVendorDetailsProps) => {
     const { toast } = useToast();
     const [vendor, setVendor] = useState(initialVendor);
-    const [activeTab, setActiveTab] = useState<'warranties' | 'manpower'>('warranties');
+    const [activeTab, setActiveTab] = useState<'warranties' | 'manpower' | 'franchises'>('warranties');
     const [isLoadingDetails, setIsLoadingDetails] = useState(true);
+    const [franchises, setFranchises] = useState<any[]>([]);
+    const [franchisesLoading, setFranchisesLoading] = useState(false);
+    const [ordersDialogOpen, setOrdersDialogOpen] = useState(false);
+    const [selectedFranchise, setSelectedFranchise] = useState<any | null>(null);
+    const [franchiseOrders, setFranchiseOrders] = useState<any[]>([]);
+    const [loadingFranchiseOrders, setLoadingFranchiseOrders] = useState(false);
 
     // Fetch full details on mount
     useEffect(() => {
@@ -66,6 +74,31 @@ export const AdminVendorDetails = ({ vendor: initialVendor, onBack }: AdminVendo
         }
     }, [initialVendor.id]);
 
+    useEffect(() => {
+        const fetchFranchises = async () => {
+            if (!isDistributorsView || !vendor?.distributor_id) return;
+
+            setFranchisesLoading(true);
+            try {
+                const response = await api.get(`/admin/distributors/${vendor.distributor_id}/franchises`);
+                if (response.data.success) {
+                    setFranchises(response.data.franchises || []);
+                }
+            } catch (error) {
+                console.error("Failed to fetch mapped franchises:", error);
+                toast({
+                    title: "Error",
+                    description: "Failed to load mapped franchises",
+                    variant: "destructive"
+                });
+            } finally {
+                setFranchisesLoading(false);
+            }
+        };
+
+        fetchFranchises();
+    }, [vendor?.distributor_id, isDistributorsView, toast]);
+
     // Pagination State
     const [warrantyPage, setWarrantyPage] = useState(1);
     const [manpowerPage, setManpowerPage] = useState(1);
@@ -86,6 +119,10 @@ export const AdminVendorDetails = ({ vendor: initialVendor, onBack }: AdminVendo
     const [manpowerSortField] = useState<'name' | 'points' | 'total_applications'>('name');
     const [manpowerSortOrder] = useState<'asc' | 'desc'>('asc');
 
+    // Franchise State
+    const [franchiseSearch, setFranchiseSearch] = useState('');
+    const [franchisePage, setFranchisePage] = useState(1);
+
     // Processing State
     const [processingWarranty, setProcessingWarranty] = useState<string | null>(null);
     const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
@@ -95,6 +132,31 @@ export const AdminVendorDetails = ({ vendor: initialVendor, onBack }: AdminVendo
     // Manpower Dialog State
     const [manpowerWarrantyDialogOpen, setManpowerWarrantyDialogOpen] = useState(false);
     const [manpowerWarrantyDialogData, setManpowerWarrantyDialogData] = useState<{ member: any; status: 'validated' | 'pending' | 'rejected'; warranties: any[] }>({ member: null, status: 'validated', warranties: [] });
+
+    // Brand update
+    const [updatingBrand, setUpdatingBrand] = useState(false);
+    const [pendingBrand, setPendingBrand] = useState<"AF" | "AC" | "AFAC" | null>(null);
+
+    const handleUpdateBrand = async () => {
+        if (!pendingBrand) return;
+        setUpdatingBrand(true);
+        try {
+            await api.put(`/admin/vendors/${vendor.id}/allowed-brands`, {
+                allowed_brands: pendingBrand,
+                target: isDistributorsView ? 'distributor' : 'franchise'
+            });
+            setVendor((prev: any) => ({
+                ...prev,
+                [isDistributorsView ? 'distributor_allowed_brands' : 'franchise_allowed_brands']: pendingBrand
+            }));
+            toast({ title: "Brand Updated", description: `Brand set to ${pendingBrand}` });
+        } catch (error: any) {
+            toast({ title: "Update Failed", description: error.response?.data?.error || "Failed to update brand", variant: "destructive" });
+        } finally {
+            setUpdatingBrand(false);
+            setPendingBrand(null);
+        }
+    };
 
     // QR Code State
     const [storeCodeInput, setStoreCodeInput] = useState("");
@@ -140,6 +202,53 @@ export const AdminVendorDetails = ({ vendor: initialVendor, onBack }: AdminVendo
             });
         }
     }, [vendor?.latitude, vendor?.longitude]);
+
+    useEffect(() => {
+        setFranchisePage(1);
+    }, [franchiseSearch]);
+
+    const handleDownloadOrderPdf = async (orderId: string) => {
+        try {
+            const res = await api.get(`/orders/${orderId}/pdf`, { responseType: 'blob' });
+            const blob = new Blob([res.data], { type: 'application/pdf' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `Order-${orderId}.pdf`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        } catch (error) {
+            toast({
+                title: 'Download Failed',
+                description: 'Could not download order PDF',
+                variant: 'destructive'
+            });
+        }
+    };
+
+    const handleOpenFranchiseOrders = async (franchise: any) => {
+        setSelectedFranchise(franchise);
+        setOrdersDialogOpen(true);
+        setFranchiseOrders([]);
+        setLoadingFranchiseOrders(true);
+        try {
+            const response = await api.get(`/admin/franchises/${franchise.user_id}/orders`);
+            if (response.data.success) {
+                setFranchiseOrders(response.data.orders || []);
+            }
+        } catch (error) {
+            console.error("Failed to fetch franchise orders:", error);
+            toast({
+                title: "Error",
+                description: "Failed to load franchise orders",
+                variant: "destructive"
+            });
+        } finally {
+            setLoadingFranchiseOrders(false);
+        }
+    };
 
     const handleSaveCoordinates = async () => {
         setSavingCoordinates(true);
@@ -360,7 +469,7 @@ export const AdminVendorDetails = ({ vendor: initialVendor, onBack }: AdminVendo
         <div className="min-h-screen">
             <div className="mb-6">
                 <Button variant="ghost" onClick={onBack} className="gap-2">
-                    ← Back to Franchises
+                    ← Back to {isDistributorsView ? "Distributors" : "Franchises"}
                 </Button>
             </div>
 
@@ -389,8 +498,41 @@ export const AdminVendorDetails = ({ vendor: initialVendor, onBack }: AdminVendo
                                         : "bg-amber-500 hover:bg-amber-600 text-black border-0"
                                 )}
                             >
-                                {vendor.is_verified ? 'Verified Franchise' : 'Pending Verification'}
+                                {vendor.is_verified
+                                    ? (isDistributorsView ? 'Verified Distributor' : 'Verified Franchise')
+                                    : (isDistributorsView ? 'Pending Distributor Verification' : 'Pending Verification')
+                                }
                             </Badge>
+
+                            {/* Brand selector */}
+                            <div className="flex items-center gap-2">
+                                <span className="text-xs text-slate-300 font-semibold uppercase tracking-wider">Brand</span>
+                                <div className="flex gap-1.5">
+                                    {(['AF', 'AC', 'AFAC'] as const).map(b => {
+                                        const currentBrand = isDistributorsView
+                                            ? (vendor.distributor_allowed_brands || 'AF')
+                                            : (vendor.franchise_allowed_brands || 'AF');
+                                        const isActive = currentBrand === b;
+                                        return (
+                                            <button
+                                                key={b}
+                                                disabled={updatingBrand}
+                                                onClick={() => setPendingBrand(b)}
+                                                className={`text-xs font-bold px-3 py-1 rounded-full border transition-all ${
+                                                    isActive
+                                                        ? b === 'AF' ? 'bg-orange-500 text-white border-orange-500'
+                                                          : b === 'AC' ? 'bg-blue-500 text-white border-blue-500'
+                                                          : 'bg-purple-500 text-white border-purple-500'
+                                                        : 'bg-white/10 text-slate-300 border-white/20 hover:bg-white/20'
+                                                }`}
+                                            >
+                                                {b}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+
                             <Button variant="outline" size="sm" onClick={openEditProfile} className="text-slate-700 bg-white hover:bg-slate-100">
                                 Edit Profile
                             </Button>
@@ -434,9 +576,9 @@ export const AdminVendorDetails = ({ vendor: initialVendor, onBack }: AdminVendo
             <Dialog open={isEditProfileOpen} onOpenChange={setIsEditProfileOpen}>
                 <DialogContent className="sm:max-w-[425px]">
                     <DialogHeader>
-                        <DialogTitle>Edit Franchise Profile</DialogTitle>
+                        <DialogTitle>Edit {isDistributorsView ? "Distributor" : "Franchise"} Profile</DialogTitle>
                         <DialogDescription>
-                            Make changes to the franchise's basic details here.
+                            Make changes to the {isDistributorsView ? "distributor's" : "franchise's"} basic details here.
                         </DialogDescription>
                     </DialogHeader>
                     <div className="grid gap-4 py-4">
@@ -625,9 +767,12 @@ export const AdminVendorDetails = ({ vendor: initialVendor, onBack }: AdminVendo
             </Card>
 
             <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="space-y-6">
-                <TabsList className="grid w-full grid-cols-2 h-auto p-1 bg-slate-100 rounded-lg">
+                <TabsList className={`grid w-full h-auto p-1 bg-slate-100 rounded-lg ${isDistributorsView ? 'grid-cols-3' : 'grid-cols-2'}`}>
                     <TabsTrigger value="warranties" className="py-2.5">Warranties ({vendor.warranties?.length || 0})</TabsTrigger>
                     <TabsTrigger value="manpower" className="py-2.5">Manpower ({vendor.manpower?.length || 0})</TabsTrigger>
+                    {isDistributorsView && (
+                        <TabsTrigger value="franchises" className="py-2.5">Franchises ({franchises.length})</TabsTrigger>
+                    )}
                 </TabsList>
 
                 <TabsContent value="warranties">
@@ -918,6 +1063,167 @@ export const AdminVendorDetails = ({ vendor: initialVendor, onBack }: AdminVendo
                         </CardContent>
                     </Card>
                 </TabsContent>
+
+                {isDistributorsView && (
+                    <TabsContent value="franchises">
+                        <Card className="border-orange-100 shadow-sm">
+                            <CardHeader>
+                                <CardTitle>Mapped Franchises</CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                                <div className="flex flex-col gap-4 mb-6">
+                                    <div className="flex flex-wrap items-center gap-4 justify-between">
+                                        <div className="relative flex-1 min-w-[280px]">
+                                            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-slate-400" />
+                                            <Input
+                                                placeholder="Search franchise..."
+                                                className="pl-10"
+                                                value={franchiseSearch}
+                                                onChange={(e) => setFranchiseSearch(e.target.value)}
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {franchisesLoading ? (
+                                    <div className="flex justify-center items-center py-16">
+                                        <Loader2 className="h-8 w-8 animate-spin text-orange-500" />
+                                    </div>
+                                ) : franchises.length === 0 ? (
+                                    <div className="text-center py-12 bg-slate-50 rounded-lg border border-dashed text-slate-400">
+                                        No franchises mapped to this distributor yet.
+                                    </div>
+                                ) : (
+                                    <div className="space-y-4">
+                                        {franchises
+                                            .filter((franchise: any) => {
+                                                if (!franchiseSearch) return true;
+                                                const term = franchiseSearch.toLowerCase();
+                                                return (
+                                                    franchise.store_name?.toLowerCase().includes(term) ||
+                                                    franchise.city?.toLowerCase().includes(term) ||
+                                                    franchise.state?.toLowerCase().includes(term) ||
+                                                    franchise.phone_number?.includes(term)
+                                                );
+                                            })
+                                            .slice((franchisePage - 1) * itemsPerPage, franchisePage * itemsPerPage)
+                                            .map((franchise: any) => (
+                                                <div
+                                                    key={franchise.user_id}
+                                                    className="p-4 border rounded-xl bg-slate-50/50 hover:bg-slate-50 transition-colors cursor-pointer"
+                                                    role="button"
+                                                    tabIndex={0}
+                                                    onClick={() => handleOpenFranchiseOrders(franchise)}
+                                                    onKeyDown={(e) => {
+                                                        if (e.key === 'Enter' || e.key === ' ') {
+                                                            e.preventDefault();
+                                                            handleOpenFranchiseOrders(franchise);
+                                                        }
+                                                    }}
+                                                >
+                                                    <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                                                        <div className="space-y-2">
+                                                            <div className="flex flex-wrap items-center gap-2">
+                                                                <p className="font-semibold text-slate-800">{franchise.store_name}</p>
+                                                                {franchise.is_verified ? (
+                                                                    <Badge className="bg-green-100 text-green-700 hover:bg-green-100 border-green-200">Active</Badge>
+                                                                ) : franchise.verified_at ? (
+                                                                    <Badge variant="destructive" className="bg-red-100 text-red-700 hover:bg-red-100 border-red-200">Rejected</Badge>
+                                                                ) : (
+                                                                    <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100 border-amber-200">Pending</Badge>
+                                                                )}
+                                                                {/* Brand badge */}
+                                                                {(franchise.allowed_brands || 'AF') === 'AFAC' ? (
+                                                                    <Badge className="bg-purple-100 text-purple-700 border-purple-200 text-[10px] font-bold">AFAC</Badge>
+                                                                ) : (franchise.allowed_brands || 'AF') === 'AC' ? (
+                                                                    <Badge className="bg-blue-100 text-blue-700 border-blue-200 text-[10px] font-bold">AC</Badge>
+                                                                ) : (
+                                                                    <Badge className="bg-orange-100 text-orange-700 border-orange-200 text-[10px] font-bold">AF</Badge>
+                                                                )}
+                                                            </div>
+                                                            <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                                                                <span className="font-mono bg-white border px-1.5 py-0.5 rounded">{franchise.phone_number || 'N/A'}</span>
+                                                                <span>•</span>
+                                                                <span>{franchise.city || 'N/A'}, {franchise.state || 'N/A'}</span>
+                                                            </div>
+                                                        </div>
+
+                                                        <div className="flex flex-wrap gap-2" onClick={(e) => e.stopPropagation()}>
+                                                            <div className="px-3 py-1 bg-green-100 text-green-700 rounded-full text-xs font-semibold">
+                                                                {franchise.order_confirmed_count || 0} Confirmed
+                                                            </div>
+                                                            <div className="px-3 py-1 bg-amber-100 text-amber-700 rounded-full text-xs font-semibold">
+                                                                {franchise.order_pending_count || 0} Pending
+                                                            </div>
+                                                            <div className="px-3 py-1 bg-red-100 text-red-700 rounded-full text-xs font-semibold">
+                                                                {franchise.order_declined_count || 0} Declined
+                                                            </div>
+                                                            <div className="px-3 py-1 bg-slate-100 text-slate-700 rounded-full text-xs font-semibold">
+                                                                {franchise.order_total_count || 0} Total
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            ))}
+
+                                        {(() => {
+                                            const filteredFranchises = franchises.filter((franchise: any) => {
+                                                if (!franchiseSearch) return true;
+                                                const term = franchiseSearch.toLowerCase();
+                                                return (
+                                                    franchise.store_name?.toLowerCase().includes(term) ||
+                                                    franchise.city?.toLowerCase().includes(term) ||
+                                                    franchise.state?.toLowerCase().includes(term) ||
+                                                    franchise.phone_number?.includes(term)
+                                                );
+                                            });
+                                            const totalPages = Math.ceil(filteredFranchises.length / itemsPerPage);
+                                            return totalPages > 1 ? (
+                                                <Pagination className="mt-4">
+                                                    <PaginationContent>
+                                                        <PaginationItem>
+                                                            <PaginationPrevious
+                                                                onClick={() => setFranchisePage(p => Math.max(1, p - 1))}
+                                                                aria-disabled={franchisePage === 1}
+                                                                className={franchisePage === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                                                            />
+                                                        </PaginationItem>
+                                                        {Array.from({ length: totalPages }, (_, i) => i + 1)
+                                                            .filter(page => page === 1 || page === totalPages || Math.abs(page - franchisePage) <= 1)
+                                                            .map((page, index, array) => {
+                                                                if (index > 0 && array[index - 1] !== page - 1) {
+                                                                    return (
+                                                                        <div key={`ellipsis-${page}`} className="flex items-center">
+                                                                            <PaginationEllipsis />
+                                                                            <PaginationItem>
+                                                                                <PaginationLink isActive={franchisePage === page} onClick={() => setFranchisePage(page)} className="cursor-pointer">{page}</PaginationLink>
+                                                                            </PaginationItem>
+                                                                        </div>
+                                                                    );
+                                                                }
+                                                                return (
+                                                                    <PaginationItem key={page}>
+                                                                        <PaginationLink isActive={franchisePage === page} onClick={() => setFranchisePage(page)} className="cursor-pointer">{page}</PaginationLink>
+                                                                    </PaginationItem>
+                                                                );
+                                                            })}
+                                                        <PaginationItem>
+                                                            <PaginationNext
+                                                                onClick={() => setFranchisePage(p => Math.min(totalPages, p + 1))}
+                                                                aria-disabled={franchisePage === totalPages}
+                                                                className={franchisePage === totalPages ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                                                            />
+                                                        </PaginationItem>
+                                                    </PaginationContent>
+                                                </Pagination>
+                                            ) : null;
+                                        })()}
+                                    </div>
+                                )}
+                            </CardContent>
+                        </Card>
+                    </TabsContent>
+                )}
             </Tabs>
 
             {/* Rejection Dialog */}
@@ -973,6 +1279,45 @@ export const AdminVendorDetails = ({ vendor: initialVendor, onBack }: AdminVendo
                                 </div>
                             ))
                         )}
+                    </div>
+                </DialogContent>
+            </Dialog>
+
+            <AdminFranchiseOrdersDialog
+                open={ordersDialogOpen}
+                onOpenChange={setOrdersDialogOpen}
+                franchise={selectedFranchise}
+                orders={franchiseOrders}
+                loading={loadingFranchiseOrders}
+                onDownloadPdf={handleDownloadOrderPdf}
+            />
+
+            {/* Brand change confirmation dialog */}
+            <Dialog open={!!pendingBrand} onOpenChange={(open) => { if (!open) setPendingBrand(null); }}>
+                <DialogContent className="sm:max-w-[420px]">
+                    <DialogHeader>
+                        <DialogTitle>Confirm Brand Update</DialogTitle>
+                        <DialogDescription>
+                            Are you sure you want to update the brand for{' '}
+                            <span className="font-semibold text-slate-800">{vendor.store_name}</span>{' '}
+                            ({isDistributorsView ? 'Distributor' : 'Franchise'}) to{' '}
+                            <span className={`font-bold ${pendingBrand === 'AF' ? 'text-orange-600' : pendingBrand === 'AC' ? 'text-blue-600' : 'text-purple-600'}`}>
+                                {pendingBrand === 'AF' ? 'Autoform (AF)' : pendingBrand === 'AC' ? 'Autocruze (AC)' : 'AFAC'}
+                            </span>?
+                            <br /><br />
+                            <span className="text-amber-700 font-medium text-xs">This affects which products this {isDistributorsView ? 'distributor' : 'franchise'} can access.</span>
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="flex justify-end gap-3 pt-2">
+                        <Button variant="outline" onClick={() => setPendingBrand(null)}>Cancel</Button>
+                        <Button
+                            onClick={handleUpdateBrand}
+                            disabled={updatingBrand}
+                            className={pendingBrand === 'AF' ? 'bg-orange-500 hover:bg-orange-600 text-white' : pendingBrand === 'AC' ? 'bg-blue-500 hover:bg-blue-600 text-white' : 'bg-purple-500 hover:bg-purple-600 text-white'}
+                        >
+                            {updatingBrand ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                            Yes, Update to {pendingBrand}
+                        </Button>
                     </div>
                 </DialogContent>
             </Dialog>

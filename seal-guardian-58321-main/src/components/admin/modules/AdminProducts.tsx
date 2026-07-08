@@ -88,6 +88,8 @@ interface Product {
     isNewArrival?: boolean;
     variations?: Variation[];
     additionalInfo?: any;
+    brand?: 'AF' | 'AC';
+    productCode?: string | null;
 }
 
 export function AdminProducts() {
@@ -96,6 +98,7 @@ export function AdminProducts() {
     const [products, setProducts] = useState<Product[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState("");
+    const [activeBrand, setActiveBrand] = useState<'AF' | 'AC'>('AF');
 
     // Pagination State
     const [currentPage, setCurrentPage] = useState(1);
@@ -120,7 +123,8 @@ export function AdminProducts() {
         variations: [] as Variation[],
         additionalInfo: [] as string[],
         price: 0,
-        colors: "" // Temporary state for comma-separated colors
+        colors: "",
+        brand: 'AF' as 'AF' | 'AC',
     });
     const [imageUrlInput, setImageUrlInput] = useState("");
     const [uploading, setUploading] = useState<{ [key: string]: boolean }>({});
@@ -155,7 +159,10 @@ export function AdminProducts() {
 
     // Filter Logic
     const filteredProducts = products.filter(p => {
+        const brandMatch = (p.brand || 'AF') === activeBrand;
+        if (!brandMatch) return false;
         const term = searchQuery.toLowerCase();
+        if (!term) return true;
         return p.name.toLowerCase().includes(term) ||
             (Array.isArray(p.description) && p.description.some(d => d.toLowerCase().includes(term))) ||
             (typeof p.description === 'string' && p.description.toLowerCase().includes(term));
@@ -319,7 +326,8 @@ export function AdminProducts() {
                 })),
                 additionalInfo: prod.additionalInfo || [],
                 price: typeof prod.price === 'object' ? (prod.price.default || prod.price.twoRow || 0) : (Number(prod.price) || 0),
-                colors: (prod as any).additionalInfo?.colors?.join(", ") || ""
+                colors: (prod as any).additionalInfo?.colors?.join(", ") || "",
+                brand: prod.brand || 'AF',
             });
         } else {
             setEditingProd(null);
@@ -334,7 +342,8 @@ export function AdminProducts() {
                 variations: [],
                 additionalInfo: [],
                 price: 0,
-                colors: ""
+                colors: "",
+                brand: activeBrand, // default to whichever brand tab is active
             });
         }
         setIsProdDialogOpen(true);
@@ -350,6 +359,7 @@ export function AdminProducts() {
             isNewArrival: prodForm.isNewArrival,
             images: prodForm.images,
             variations: prodForm.variations.filter(v => v.name && v.price > 0),
+            brand: prodForm.brand,
             additionalInfo: {
                 ...((editingProd as any)?.additionalInfo || {}),
                 colors: prodForm.colors ? prodForm.colors.split(',').map(c => c.trim()).filter(Boolean) : []
@@ -419,6 +429,22 @@ export function AdminProducts() {
 
     return (
         <div className="space-y-6">
+            {/* Brand Switcher */}
+            <div className="flex items-center gap-1 p-1 bg-slate-100 rounded-xl w-fit">
+                <button
+                    onClick={() => { setActiveBrand('AF'); setSearchQuery(''); setCurrentPage(1); }}
+                    className={`px-5 py-2 rounded-lg text-sm font-black uppercase tracking-wider transition-all duration-200 ${activeBrand === 'AF' ? 'bg-white text-orange-600 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
+                >
+                    Autoform <span className="ml-1.5 text-[10px] font-bold opacity-60">AF</span>
+                </button>
+                <button
+                    onClick={() => { setActiveBrand('AC'); setSearchQuery(''); setCurrentPage(1); }}
+                    className={`px-5 py-2 rounded-lg text-sm font-black uppercase tracking-wider transition-all duration-200 ${activeBrand === 'AC' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
+                >
+                    Autocruze <span className="ml-1.5 text-[10px] font-bold opacity-60">AC</span>
+                </button>
+            </div>
+
             <Tabs defaultValue="products" className="space-y-4">
                 <TabsList className="bg-white border text-slate-600">
                     <TabsTrigger value="products" className="data-[state=active]:bg-orange-50 data-[state=active]:text-orange-700">Products</TabsTrigger>
@@ -469,6 +495,7 @@ export function AdminProducts() {
                             <TableHeader className="bg-slate-50">
                                 <TableRow>
                                     <TableHead>Product</TableHead>
+                                    <TableHead>Code</TableHead>
                                     <TableHead>Category</TableHead>
                                     <TableHead>Price</TableHead>
                                     <TableHead>Status</TableHead>
@@ -477,9 +504,9 @@ export function AdminProducts() {
                             </TableHeader>
                             <TableBody>
                                 {loading ? (
-                                    <TableRow><TableCell colSpan={5} className="text-center py-8"><Loader2 className="h-6 w-6 animate-spin mx-auto text-orange-500" /></TableCell></TableRow>
+                                    <TableRow><TableCell colSpan={6} className="text-center py-8"><Loader2 className="h-6 w-6 animate-spin mx-auto text-orange-500" /></TableCell></TableRow>
                                 ) : filteredProducts.length === 0 ? (
-                                    <TableRow><TableCell colSpan={5} className="text-center py-8 text-muted-foreground">No products found</TableCell></TableRow>
+                                    <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">No {activeBrand === 'AF' ? 'Autoform' : 'Autocruze'} products found</TableCell></TableRow>
                                 ) : (
                                     paginatedProducts.map(product => (
                                         <TableRow key={product.id} className="hover:bg-slate-50/50">
@@ -498,6 +525,11 @@ export function AdminProducts() {
                                                         )}
                                                     </div>
                                                 </div>
+                                            </TableCell>
+                                            <TableCell>
+                                                <span className={`font-mono text-xs font-bold px-2 py-0.5 rounded-md ${product.brand === 'AC' ? 'bg-blue-50 text-blue-700' : 'bg-orange-50 text-orange-700'}`}>
+                                                    {product.productCode || '—'}
+                                                </span>
                                             </TableCell>
                                             <TableCell>
                                                 {categories.find(c => c.id === product.categoryId)?.name || <span className="text-slate-400 italic">Uncategorized</span>}
@@ -683,6 +715,31 @@ export function AdminProducts() {
                             <div className="space-y-2 col-span-2">
                                 <Label>Product Name *</Label>
                                 <Input value={prodForm.name} onChange={e => setProdForm({ ...prodForm, name: e.target.value })} placeholder="Product Name" />
+                            </div>
+                            <div className="space-y-2 col-span-2">
+                                <Label>Brand</Label>
+                                <div className="flex items-center gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => setProdForm({ ...prodForm, brand: 'AF' })}
+                                        className={`px-4 py-2 rounded-lg text-sm font-bold border transition-all ${prodForm.brand === 'AF' ? 'bg-orange-500 text-white border-orange-500' : 'bg-white text-slate-600 border-slate-200 hover:border-orange-300'}`}
+                                    >
+                                        Autoform (AF)
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setProdForm({ ...prodForm, brand: 'AC' })}
+                                        className={`px-4 py-2 rounded-lg text-sm font-bold border transition-all ${prodForm.brand === 'AC' ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-600 border-slate-200 hover:border-blue-300'}`}
+                                    >
+                                        Autocruze (AC)
+                                    </button>
+                                    {editingProd?.productCode && (
+                                        <span className="ml-2 font-mono text-xs font-bold px-2 py-1 rounded-md bg-slate-100 text-slate-600">
+                                            Code: {editingProd.productCode}
+                                        </span>
+                                    )}
+                                </div>
+                                <p className="text-[10px] text-muted-foreground">Product code is auto-generated ({prodForm.brand}-XXXX)</p>
                             </div>
                             <div className="space-y-2">
                                 <Label>Category</Label>

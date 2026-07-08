@@ -9,9 +9,18 @@ import path from 'path';
 import fs from 'fs';
 import { Request, Response, NextFunction } from 'express';
 import sharp from 'sharp';
+import convertHeic from 'heic-convert';
 
 const UPLOADS_BASE_DIR = process.env.UPLOADS_BASE_DIR || '/home/deploy/uploads';
 const APP_URL = process.env.APP_URL || 'https://api.autoformindia.co.in';
+
+export { UPLOADS_BASE_DIR, APP_URL };
+
+/** Convert a public HTTPS URL (as stored in product_details) back to its absolute disk path */
+export function urlToDiskPath(url: string): string {
+    const relative = url.replace(APP_URL, '').replace(/^\/uploads/, '');
+    return path.join(UPLOADS_BASE_DIR, relative);
+}
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -28,6 +37,20 @@ function ensureDir(dirPath: string): void {
     if (!fs.existsSync(dirPath)) {
         fs.mkdirSync(dirPath, { recursive: true });
     }
+}
+
+/**
+ * Detect HEIC/HEIC-sequence containers by their ISO-BMFF ftyp box, regardless of
+ * filename/extension. iPhones sometimes hand browsers a HEIC file that a client-side
+ * canvas failed to convert; the server-generated filename always ends in .jpg/.jpeg
+ * for these (see warrantyFileName), which makes extension-based checks unreliable.
+ */
+export function isHeicBuffer(buf: Buffer): boolean {
+    if (buf.length < 12) return false;
+    const boxType = buf.toString('ascii', 4, 8);
+    if (boxType !== 'ftyp') return false;
+    const brand = buf.toString('ascii', 8, 12);
+    return ['heic', 'heix', 'hevc', 'hevx', 'heim', 'heis', 'hevm', 'hevs', 'mif1', 'msf1'].includes(brand);
 }
 
 /** Convert absolute disk path → public HTTPS URL */
@@ -124,37 +147,67 @@ export async function attachPublicUrls(req: any, res: Response, next: NextFuncti
         }
     }
 
-    // 2. Validate Image Integrity
+    // 2. Transcode any HEIC/HEIC-sequence bytes to real JPEG, regardless of what
+    // extension the file was saved with. Client-side compression is supposed to do
+    // this in the browser, but silently falls back to the raw HEIC file on decode
+    // failure (e.g. non-Safari browsers can't canvas-decode HEIC) — that raw HEIC
+    // then gets renamed to .jpg by warrantyFileName() without its bytes changing.
+    // Detecting by magic bytes (not originalname/extension) catches it either way.
+    for (const file of allFiles) {
+        if (!file?.path || !fs.existsSync(file.path)) continue;
+        const looksLikeImage = /\.(jpg|jpeg|png|webp|heic|heif)$/i.test(file.originalname) ||
+            /\.(jpg|jpeg|png|webp)$/i.test(file.path);
+        if (!looksLikeImage) continue;
+
+        try {
+            const head = await fs.promises.readFile(file.path);
+            if (isHeicBuffer(head)) {
+                const jpegBuffer = await convertHeic({
+                    buffer: head,
+                    format: 'JPEG',
+                    quality: 0.8,
+                }) as Buffer;
+                await fs.promises.writeFile(file.path, jpegBuffer);
+                file.size = jpegBuffer.length;
+                console.log(`[Upload] Transcoded HEIC->JPEG for ${file.originalname} (${file.path})`);
+            }
+        } catch (error) {
+            console.error(`[Upload] HEIC transcode failed for ${file.originalname}:`, error);
+            // Leave the file as-is; the integrity check below will reject it
+            // since sharp/decode will fail on genuinely broken HEIC bytes too.
+        }
+    }
+
+    // 3. Validate Image Integrity
     let hasCorruption = false;
     for (const file of allFiles) {
         if (!file?.path || !fs.existsSync(file.path)) continue;
 
-        // Only validate images (skip PDFs, Excel, etc.)
-        const isImage = /\.(jpg|jpeg|png|webp|heic|heif)$/i.test(file.originalname);
+        // Only validate images (skip PDFs, Excel, etc.) — check both the client's
+        // original filename and the server-saved path, since HEIC uploads are saved
+        // with a .jpg extension even before the transcode step above runs.
+        const isImage = /\.(jpg|jpeg|png|webp|heic|heif)$/i.test(file.originalname) ||
+            /\.(jpg|jpeg|png|webp)$/i.test(file.path);
         if (isImage) {
             if (file.size === 0) {
                 hasCorruption = true;
                 break;
             }
 
-            // HEIC/HEIF: the server's sharp build does not include the HEIF codec,
-            // so we can only size-check these files — not decode them with sharp.
-            const isHeif = /\.(heic|heif)$/i.test(file.originalname);
-            if (!isHeif) {
-                try {
-                    // .stats() forces sharp to decode the image, immediately throwing
-                    // if the file was truncated by a dropped network connection.
-                    await sharp(file.path).stats();
-                } catch (error) {
-                    console.error(`[Upload] Image corrupted during transit: ${file.originalname}`, error);
-                    hasCorruption = true;
-                    break;
-                }
+            try {
+                // .stats() forces sharp to decode the image, immediately throwing
+                // if the file was truncated by a dropped network connection, or if
+                // it's still an undecodable format after the transcode step above.
+                await sharp(file.path).stats();
+            } catch (error) {
+                console.error(`[Upload] Image corrupted during transit: ${file.originalname}`, error);
+                hasCorruption = true;
+                break;
             }
         }
     }
 
-    // 3. Reject if corrupted
+    // 4. Reject if corrupted
     if (hasCorruption) {
         // Cleanup all files from this request.
         // Use async unlink with try/catch — unlinkSync can throw EPERM if multer's
@@ -173,7 +226,7 @@ export async function attachPublicUrls(req: any, res: Response, next: NextFuncti
         return;
     }
 
-    // 4. Attach Public URLs for successful uploads
+    // 5. Attach Public URLs for successful uploads
     const patchFile = (file: any) => {
         if (file?.path) {
             file.path = diskPathToUrl(file.path);

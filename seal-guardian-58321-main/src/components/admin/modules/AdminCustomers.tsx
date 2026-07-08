@@ -22,9 +22,19 @@ import {
     Mail,
     ArrowLeft,
     ArrowUpDown,
-    Check
+    Check,
+    SlidersHorizontal
 } from "lucide-react";
 import { AdminWarrantyList } from "@/components/admin/AdminWarrantyList";
+import { Label } from "@/components/ui/label";
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from "@/components/ui/dialog";
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -59,6 +69,12 @@ export const AdminCustomers = () => {
     const [viewingCustomer, setViewingCustomer] = useState(false);
     const [selectedCustomer, setSelectedCustomer] = useState<any>(null);
     const [loadingDetails, setLoadingDetails] = useState<string | null>(null);
+    const [limitDialogOpen, setLimitDialogOpen] = useState(false);
+    const [limitCustomer, setLimitCustomer] = useState<any>(null);
+    const [limitPhone, setLimitPhone] = useState("");
+    const [allowedRegistrations, setAllowedRegistrations] = useState("1");
+    const [limitReason, setLimitReason] = useState("");
+    const [savingLimit, setSavingLimit] = useState(false);
 
     // Helpers
     const formatToIST = (dateString: string) => {
@@ -103,33 +119,19 @@ export const AdminCustomers = () => {
         }
     };
 
-    const handleViewCustomer = async (email: string) => {
-        setLoadingDetails(email);
+    // Customers without an email (e.g. fallback-UID submissions) are looked up
+    // by phone instead, since the backend identifier is "email OR phone".
+    const getCustomerIdentifier = (customer: any) => customer.customer_email || customer.customer_phone;
+
+    const handleViewCustomer = async (customer: any) => {
+        const identifier = getCustomerIdentifier(customer);
+        if (!identifier) return;
+
+        setLoadingDetails(identifier);
         try {
-            // Find in local list first for basic info
-            const basicInfo = customers.find(c => c.customer_email === email);
+            const basicInfo = customers.find(c => getCustomerIdentifier(c) === identifier);
 
-            // In a real app we might fetch full details including all warranties here
-            // Assuming the basic list or a separate endpoint provides it.
-            // AdminDashboard used handleViewCustomer logic with potential API call if needed, 
-            // but the code I read mainly set internal state.
-            // Let's assume we need to fetch warranties for this customer.
-            // Actually AdminDashboard logic for handleViewCustomer was:
-            /*
-             const handleViewCustomer = async (email: string) => {
-                // ... logic to find customer or fetch ...
-                // The snippet I read in 7029 showed signature. 
-                // The snippet in 7075 showed conditional rendering but not the fetch implementation.
-                // I will search for handleViewCustomer implementation or just use what I have.
-             }
-            */
-
-            // Based on common patterns, I'll filter the customers list or fetch detailed warranties.
-            // For now, let's assume the customer object has warranties count but maybe not the list.
-            // But wait, the detail view uses AdminWarrantyList with `selectedCustomer.warranties`.
-            // So I probably need to fetch warranties for this customer.
-
-            const response = await api.get(`/admin/customers/${email}`);
+            const response = await api.get(`/admin/customers/${identifier}`);
             if (response.data.success) {
                 setSelectedCustomer({ ...basicInfo, warranties: response.data.warranties });
                 setViewingCustomer(true);
@@ -142,7 +144,7 @@ export const AdminCustomers = () => {
         } catch (error) {
             console.error("Failed to fetch customer details", error);
             // Fallback to local data
-            const basicInfo = customers.find(c => c.customer_email === email);
+            const basicInfo = customers.find(c => getCustomerIdentifier(c) === identifier);
             if (basicInfo) {
                 setSelectedCustomer({ ...basicInfo, warranties: [] });
                 setViewingCustomer(true);
@@ -153,14 +155,81 @@ export const AdminCustomers = () => {
         }
     };
 
-    const handleDeleteCustomer = async (email: string) => {
+    const handleDeleteCustomer = async (customer: any) => {
+        const identifier = getCustomerIdentifier(customer);
+        if (!identifier) return;
         if (!confirm("Delete this customer?")) return;
         try {
-            await api.delete(`/admin/customers/${email}`);
-            setCustomers(prev => prev.filter(c => c.customer_email !== email));
+            await api.delete(`/admin/customers/${identifier}`);
+            setCustomers(prev => prev.filter(c => getCustomerIdentifier(c) !== identifier));
             toast({ description: "Customer deleted" });
         } catch (error) {
             toast({ description: "Failed to delete", variant: "destructive" });
+        }
+    };
+
+    const openLimitDialog = (customer: any) => {
+        setLimitCustomer(customer);
+        setLimitPhone(customer.customer_phone || "");
+        setAllowedRegistrations(String(customer.mobile_allowed_registrations || 1));
+        setLimitReason("");
+        setLimitDialogOpen(true);
+    };
+
+    const openManualLimitDialog = () => {
+        setLimitCustomer(null);
+        setLimitPhone(search.replace(/\D/g, "").slice(0, 10));
+        setAllowedRegistrations("2");
+        setLimitReason("");
+        setLimitDialogOpen(true);
+    };
+
+    const handleSaveMobileLimit = async () => {
+        const phone = limitPhone.replace(/\D/g, "").slice(0, 10);
+        if (!phone) {
+            toast({ description: "Enter a customer mobile number.", variant: "destructive" });
+            return;
+        }
+
+        const limit = Number(allowedRegistrations);
+        if (!Number.isInteger(limit) || limit < 1) {
+            toast({ description: "Enter a valid whole number.", variant: "destructive" });
+            return;
+        }
+
+        setSavingLimit(true);
+        try {
+            const response = await api.put(`/admin/customers/mobile-limits/${encodeURIComponent(phone)}`, {
+                allowedRegistrations: limit,
+                reason: limitReason.trim() || undefined
+            });
+
+            if (response.data.success) {
+                const updated = response.data.limit;
+                const applyLimit = (customer: any) => ({
+                    ...customer,
+                    mobile_allowed_registrations: updated.allowedCount,
+                    mobile_used_registrations: updated.usedCount,
+                    mobile_remaining_registrations: updated.remainingCount,
+                    mobile_limit_override: updated.hasOverride
+                });
+
+                setCustomers(prev => prev.map(customer => (
+                    customer.customer_phone === phone ? applyLimit(customer) : customer
+                )));
+                setSelectedCustomer((prev: any) => (
+                    prev?.customer_phone === phone ? applyLimit(prev) : prev
+                ));
+                toast({ description: "Mobile submission limit updated" });
+                setLimitDialogOpen(false);
+            }
+        } catch (error: any) {
+            toast({
+                description: error?.response?.data?.error || "Failed to update mobile limit",
+                variant: "destructive"
+            });
+        } finally {
+            setSavingLimit(false);
         }
     };
 
@@ -177,6 +246,7 @@ export const AdminCustomers = () => {
                 "Phone": c.customer_phone,
                 "Address": c.customer_address || "N/A",
                 "Total Warranties": c.total_warranties || 0,
+                "Mobile Limit": `${c.mobile_used_registrations || 0}/${c.mobile_allowed_registrations || 1}`,
                 "Approved Warranties": c.validated_warranties || 0,
                 "Pending Warranties": c.pending_warranties || 0,
                 "Rejected Warranties": c.rejected_warranties || 0,
@@ -222,20 +292,98 @@ export const AdminCustomers = () => {
     const startIndex = (currentPage - 1) * itemsPerPage;
     const paginatedCustomers = filteredCustomers.slice(startIndex, startIndex + itemsPerPage);
 
+    const renderLimitDialog = () => (
+        <Dialog open={limitDialogOpen} onOpenChange={setLimitDialogOpen}>
+            <DialogContent className="sm:max-w-md">
+                <DialogHeader>
+                    <DialogTitle>Set Mobile Submission Limit</DialogTitle>
+                    <DialogDescription>
+                        Allow this mobile number to submit warranties up to the defined total count.
+                    </DialogDescription>
+                </DialogHeader>
+
+                <div className="space-y-4">
+                    <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm">
+                        <div className="font-semibold text-slate-900">{limitPhone || "New mobile limit"}</div>
+                        <div className="text-slate-500 mt-1">
+                            Used {limitCustomer?.mobile_used_registrations || 0} of {limitCustomer?.mobile_allowed_registrations || 1} allowed submissions
+                        </div>
+                    </div>
+
+                    <div className="space-y-2">
+                        <Label htmlFor="limitPhone">Mobile number</Label>
+                        <Input
+                            id="limitPhone"
+                            inputMode="numeric"
+                            maxLength={10}
+                            placeholder="9876543210"
+                            value={limitPhone}
+                            onChange={(event) => setLimitPhone(event.target.value.replace(/\D/g, "").slice(0, 10))}
+                        />
+                    </div>
+
+                    <div className="space-y-2">
+                        <Label htmlFor="allowedRegistrations">Allowed submissions</Label>
+                        <Input
+                            id="allowedRegistrations"
+                            type="number"
+                            min={1}
+                            max={50}
+                            value={allowedRegistrations}
+                            onChange={(event) => setAllowedRegistrations(event.target.value)}
+                        />
+                    </div>
+
+                    <div className="space-y-2">
+                        <Label htmlFor="limitReason">Reason</Label>
+                        <Input
+                            id="limitReason"
+                            placeholder="Store owner requested customer re-submission"
+                            value={limitReason}
+                            onChange={(event) => setLimitReason(event.target.value)}
+                        />
+                    </div>
+                </div>
+
+                <DialogFooter>
+                    <Button variant="outline" onClick={() => setLimitDialogOpen(false)} disabled={savingLimit}>
+                        Cancel
+                    </Button>
+                    <Button onClick={handleSaveMobileLimit} disabled={savingLimit}>
+                        {savingLimit ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+                        Save Limit
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    );
+
     if (viewingCustomer && selectedCustomer) {
         return (
             <div className="space-y-6">
+                {renderLimitDialog()}
                 <Button variant="ghost" onClick={() => setViewingCustomer(false)} className="gap-2 pl-0 hover:bg-transparent hover:text-orange-500">
                     <ArrowLeft className="h-4 w-4" /> Back to Customers
                 </Button>
 
                 <Card className="border-orange-100 bg-white">
                     <CardHeader>
-                        <CardTitle className="text-2xl font-bold">{selectedCustomer.customer_name}</CardTitle>
-                        <CardDescription className="flex items-center gap-4">
-                            <span className="flex items-center gap-1"><Mail className="h-4 w-4" /> {selectedCustomer.customer_email}</span>
-                            <span className="flex items-center gap-1"><Phone className="h-4 w-4" /> {selectedCustomer.customer_phone}</span>
-                        </CardDescription>
+                        <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                            <div>
+                                <CardTitle className="text-2xl font-bold">{selectedCustomer.customer_name}</CardTitle>
+                                <CardDescription className="flex flex-wrap items-center gap-4 mt-2">
+                                    <span className="flex items-center gap-1"><Mail className="h-4 w-4" /> {selectedCustomer.customer_email}</span>
+                                    <span className="flex items-center gap-1"><Phone className="h-4 w-4" /> {selectedCustomer.customer_phone}</span>
+                                    <span className="font-semibold text-slate-700">
+                                        Mobile limit: {selectedCustomer.mobile_used_registrations || 0}/{selectedCustomer.mobile_allowed_registrations || 1}
+                                    </span>
+                                </CardDescription>
+                            </div>
+                            <Button variant="outline" className="gap-2 border-orange-100" onClick={() => openLimitDialog(selectedCustomer)}>
+                                <SlidersHorizontal className="h-4 w-4" />
+                                Set Limit
+                            </Button>
+                        </div>
                     </CardHeader>
                     <CardContent>
                         <h3 className="font-bold mb-4">Warranty History</h3>
@@ -247,21 +395,21 @@ export const AdminCustomers = () => {
                                 api.put(`/admin/warranties/${id}/status`, { status: 'validated' })
                                     .then(() => {
                                         toast({ title: "Approved", className: "bg-green-600 text-white" });
-                                        handleViewCustomer(selectedCustomer.customer_email);
+                                        handleViewCustomer(selectedCustomer);
                                     });
                             }}
                             onReject={(id) => {
                                 api.put(`/admin/warranties/${id}/status`, { status: 'rejected', rejectionReason: 'Admin Override' })
                                     .then(() => {
                                         toast({ title: "Rejected", className: "bg-red-600 text-white" });
-                                        handleViewCustomer(selectedCustomer.customer_email);
+                                        handleViewCustomer(selectedCustomer);
                                     });
                             }}
                             onMoveToPending={(id) => {
                                 api.put(`/admin/warranties/${id}/status`, { status: 'pending' })
                                     .then(() => {
                                         toast({ title: "Moved to Pending", className: "bg-orange-600 text-white" });
-                                        handleViewCustomer(selectedCustomer.customer_email);
+                                        handleViewCustomer(selectedCustomer);
                                     });
                             }}
                         />
@@ -273,6 +421,7 @@ export const AdminCustomers = () => {
 
     return (
         <div className="space-y-6">
+            {renderLimitDialog()}
             <div className="flex flex-col md:flex-row gap-4 justify-between items-center">
                 <div className="relative flex-1 md:max-w-md w-full flex items-center gap-3">
                     <div className="relative flex-1">
@@ -289,6 +438,10 @@ export const AdminCustomers = () => {
                     </Badge>
                 </div>
                 <div className="flex gap-2 w-full md:w-auto">
+                    <Button variant="outline" onClick={openManualLimitDialog} className="flex-1 md:flex-none h-11 md:h-10 gap-2 border-blue-100 text-blue-700 hover:bg-blue-50">
+                        <SlidersHorizontal className="h-4 w-4" />
+                        Set Limit
+                    </Button>
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                             <Button variant="outline" className="flex-1 md:flex-none flex items-center gap-2 border-orange-100 h-11 md:h-10">
@@ -363,10 +516,13 @@ export const AdminCustomers = () => {
                                     </div>
                                 </div>
                                 <div className="flex gap-2">
-                                    <Button size="icon" variant="ghost" className="h-10 w-10 rounded-xl bg-orange-50 text-orange-600 hover:bg-orange-100" onClick={() => handleViewCustomer(customer.customer_email)}>
+                                    <Button size="icon" variant="ghost" className="h-10 w-10 rounded-xl bg-orange-50 text-orange-600 hover:bg-orange-100" onClick={() => handleViewCustomer(customer)}>
                                         <Eye className="h-5 w-5" />
                                     </Button>
-                                    <Button size="icon" variant="ghost" className="h-10 w-10 rounded-xl bg-red-50 text-red-500 hover:bg-red-100" onClick={() => handleDeleteCustomer(customer.customer_email)}>
+                                    <Button size="icon" variant="ghost" className="h-10 w-10 rounded-xl bg-blue-50 text-blue-600 hover:bg-blue-100" onClick={() => openLimitDialog(customer)}>
+                                        <SlidersHorizontal className="h-5 w-5" />
+                                    </Button>
+                                    <Button size="icon" variant="ghost" className="h-10 w-10 rounded-xl bg-red-50 text-red-500 hover:bg-red-100" onClick={() => handleDeleteCustomer(customer)}>
                                         <Trash2 className="h-5 w-5" />
                                     </Button>
                                 </div>
@@ -376,6 +532,10 @@ export const AdminCustomers = () => {
                                 <div className="bg-orange-50/50 p-3 rounded-xl border border-orange-100/50">
                                     <div className="text-[10px] uppercase font-bold text-orange-400 mb-1">Total Warranties</div>
                                     <div className="font-bold text-slate-700 text-lg">{customer.total_warranties || 0}</div>
+                                </div>
+                                <div className="bg-blue-50 p-3 rounded-xl border border-blue-100">
+                                    <div className="text-[10px] uppercase font-bold text-blue-400 mb-1">Mobile Limit</div>
+                                    <div className="font-bold text-slate-700 text-lg">{customer.mobile_used_registrations || 0}/{customer.mobile_allowed_registrations || 1}</div>
                                 </div>
                                 <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
                                     <div className="text-[10px] uppercase font-bold text-slate-400 mb-1">Registered</div>
@@ -396,15 +556,16 @@ export const AdminCustomers = () => {
                                 <th className="px-6 py-4">Customer</th>
                                 <th className="px-6 py-4">Contact</th>
                                 <th className="px-6 py-4">Total Warranties</th>
+                                <th className="px-6 py-4">Mobile Limit</th>
                                 <th className="px-6 py-4">Registered</th>
                                 <th className="px-6 py-4 text-right">Actions</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
                             {loading ? (
-                                <tr><td colSpan={5} className="p-8 text-center">Loading...</td></tr>
+                                <tr><td colSpan={6} className="p-8 text-center">Loading...</td></tr>
                             ) : paginatedCustomers.length === 0 ? (
-                                <tr><td colSpan={5} className="p-8 text-center text-muted-foreground">No customers found</td></tr>
+                                <tr><td colSpan={6} className="p-8 text-center text-muted-foreground">No customers found</td></tr>
                             ) : paginatedCustomers.map((customer) => (
                                 <tr key={customer.customer_email} className="hover:bg-slate-50/50">
                                     <td className="px-6 py-4 font-medium text-slate-900">{customer.customer_name}</td>
@@ -415,15 +576,23 @@ export const AdminCustomers = () => {
                                     <td className="px-6 py-4">
                                         <div className="font-semibold text-slate-700 pl-4">{customer.total_warranties || 0}</div>
                                     </td>
+                                    <td className="px-6 py-4">
+                                        <Badge variant="outline" className={customer.mobile_limit_override ? "border-blue-200 bg-blue-50 text-blue-700" : "border-slate-200 bg-slate-50 text-slate-600"}>
+                                            {customer.mobile_used_registrations || 0}/{customer.mobile_allowed_registrations || 1}
+                                        </Badge>
+                                    </td>
                                     <td className="px-6 py-4 text-slate-600">
                                         {formatToIST(customer.registered_at)}
                                     </td>
                                     <td className="px-6 py-4 text-right">
                                         <div className="flex justify-end gap-2">
-                                            <Button size="icon" variant="ghost" onClick={() => handleViewCustomer(customer.customer_email)} disabled={loadingDetails === customer.customer_email}>
-                                                {loadingDetails === customer.customer_email ? <Loader2 className="h-4 w-4 animate-spin" /> : <Eye className="h-4 w-4" />}
+                                            <Button size="icon" variant="ghost" onClick={() => handleViewCustomer(customer)} disabled={loadingDetails === getCustomerIdentifier(customer)}>
+                                                {loadingDetails === getCustomerIdentifier(customer) ? <Loader2 className="h-4 w-4 animate-spin" /> : <Eye className="h-4 w-4" />}
                                             </Button>
-                                            <Button size="icon" variant="ghost" className="text-red-500 hover:bg-red-50" onClick={() => handleDeleteCustomer(customer.customer_email)}>
+                                            <Button size="icon" variant="ghost" className="text-blue-600 hover:bg-blue-50" onClick={() => openLimitDialog(customer)}>
+                                                <SlidersHorizontal className="h-4 w-4" />
+                                            </Button>
+                                            <Button size="icon" variant="ghost" className="text-red-500 hover:bg-red-50" onClick={() => handleDeleteCustomer(customer)}>
                                                 <Trash2 className="h-4 w-4" />
                                             </Button>
                                         </div>

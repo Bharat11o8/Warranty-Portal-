@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Image compression utility for mobile photo uploads
  * Automatically resizes large images to prevent network timeouts
  */
@@ -19,16 +19,22 @@ const DEFAULT_OPTIONS: CompressionOptions = {
 
 /**
  * Compress an image file before upload
- * Works with JPEG, PNG, HEIC (Safari auto-converts HEIC to JPEG)
+ * Works with JPEG, PNG, HEIC (Safari auto-converts HEIC to JPEG via canvas; other
+ * browsers generally cannot decode HEIC in <img>/canvas at all â€” see img.onerror
+ * below. The upload server also transcodes any HEIC bytes that slip through this
+ * step, so a failure here is not the only safety net, but we still try our best
+ * client-side since it saves bandwidth and a round trip.)
  */
 export const compressImage = async (
     file: File,
     options: CompressionOptions = {}
 ): Promise<File> => {
     const opts = { ...DEFAULT_OPTIONS, ...options };
+    const isHeic = /\.(heic|heif)$/i.test(file.name) || /^image\/hei[cf]$/i.test(file.type);
 
-    // Skip if already small enough (under 500KB — no meaningful compression possible)
-    if (file.size <= 500 * 1024) {
+    // Skip if already small enough (under target size) — but HEIC files always need
+    // format conversion regardless of size, so never skip those.
+    if (!isHeic && file.size <= (opts.maxSizeKB || 1024) * 1024) {
         console.log(`[ImageCompression] File ${file.name} already small (${(file.size / 1024).toFixed(0)}KB), skipping`);
         return file;
     }
@@ -81,7 +87,7 @@ export const compressImage = async (
                     });
 
                     console.log(
-                        `[ImageCompression] Compressed ${file.name}: ${(file.size / 1024).toFixed(0)}KB → ${(compressedFile.size / 1024).toFixed(0)}KB (${Math.round((1 - compressedFile.size / file.size) * 100)}% reduction)`
+                        `[ImageCompression] Compressed ${file.name}: ${(file.size / 1024).toFixed(0)}KB â†’ ${(compressedFile.size / 1024).toFixed(0)}KB (${Math.round((1 - compressedFile.size / file.size) * 100)}% reduction)`
                     );
 
                     resolve(compressedFile);
@@ -92,7 +98,11 @@ export const compressImage = async (
         };
 
         img.onerror = (err) => {
-            console.error('[ImageCompression] Failed to load image:', err);
+            // Common on non-Safari browsers, which generally can't canvas-decode HEIC.
+            // Resolving with the original (possibly still-HEIC) file is safe here:
+            // the upload server detects raw HEIC bytes by magic number regardless of
+            // filename/extension and transcodes them to real JPEG before saving.
+            console.error(`[ImageCompression] Failed to load image ${file.name} (isHeic=${isHeic}):`, err);
             resolve(file); // Return original on error
         };
 
@@ -125,3 +135,4 @@ export const isCompressibleImage = (file: File): boolean => {
     return imageTypes.includes(file.type) ||
         /\.(jpe?g|png|heic|heif)$/i.test(file.name);
 };
+

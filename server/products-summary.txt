@@ -1,0 +1,307 @@
+=== PRODUCT SUMMARY BY CATEGORY ===
+
+📂 Category: AmpKit (2 products)
+  1. [4-gauge-wire-kit-ampkit] 4 Gauge Wire Kit - Ampkit - ₹11299.00 
+  2. [8-gauge-wire-kit-ampkit] 8 Gauge Wire Kit - Ampkit - ₹8499.00 
+
+📂 Category: Amplifier (4 products)
+  1. [esp-640] Amplifier - ESP 640 - ₹27199.00 
+  2. [q-1602] Amplifier - Q 1602 - ₹15599.00 
+  3. [q-2404] Amplifier - Q 2404 - ₹17099.00 
+  4. [sdsp4-640] DSP - SDSP4.6ABT1 - ₹25439.00 
+
+📂 Category: Android (2 products)
+  1. [android-e90] Ultima Smart Multimedia Screen - Model E90 - ₹26999.00 
+  2. [android-e990] Ultima Smart Multimedia Screen - Model E990 - ₹45999.00 
+
+📂 Category: Back Rest Pad (1 products)
+  1. [beack-rest-pad] Back Rest Pad - Bullet - ₹526.00 
+
+📂 Category: Bag (5 products)
+  1. [magnetic-bag-small] Magnetic Bag - Small - ₹3050.00 
+  2. [premium-saddle-bag] Premium Saddle Bag (L&R) Side - ₹5155.00 
+  3. [premium-side-bag] Premium Side Bag (PVC) - ₹2220.00 
+  4. [round-saddle-bag] Round Saddle Bag - ₹785.00 
+  5. [seat-bag-black] Seat Bag - ₹1085.00 
+
+📂 Category: Body Cover (4 products)
+  1. [body-cover-wp-xl] Body Cover 100% Water Proof XL - ₹1495.00 
+  2. [body-cover-wp-xxl] Body Cover 100% Water Proof XXL - ₹1725.00 
+  3. [body-cover-wr-xl] Body Cover Water Repellent XL - ₹970.00 
+  4. [body-cover-wr-xxl] Body Cover Water Repellent XXL - ₹1255.00 
+
+📂 Category: Car Body Cover (3 products)
+  1. [sparko-jungle-body-cover] Sparko Jungle Body Cover - ₹2699.00 
+  2. [sparko-silver-body-cover] Sparko Silver Body Cover - ₹2499.00 
+  3. [trilayer-body-cover] Trilayer Body cover - ₹3699.00 
+
+📂 Category: Car Care Products (3 products)
+  1. [car-duster] Car Duster (WAX) - ₹899.00 
+  2. [car-odour-eliminator] Car Odour Eliminator - ₹399.00 
+  3. [Microfibre-clothcar] Microfibre Cloth - ₹342.00 
+
+📂 Category: Car Utility (4 products)
+  1. [car-air-purifier] Car Air Purifier - ₹799.00 
+  2. [car-seat-hook] Car Seat Hook With Mobile Holder - ₹649.00 
+  3. [Letherette-Perfume] Letherette Perfume - ₹599.00 
+  4. [steeringwheel-dining-tray] Steering Wheel Dining Tray - ₹1499.00 
+
+📂 Category: Chest Guard (2 products)
+  1. [eco-chest-guard] Eco Chest Guard - ₹570.00 
+  2. [premium-chest-guard] Premium Chest Guard - ₹775.00 
+
+📂 Category: Cleaning Kit (1 products)
+  1. [2w-cleaning-kit] Micro Fiber Multipurpose Cloth - ₹342.00 
+
+📂 Category: Coaxial Speakers (5 products)
+  1. [coaxial-c160] COAXIAL - C160 COAX-GI - ₹3799.00 
+  2. [coaxial-iq653] COAXIAL - IQ653 - ₹8999.00 
+  3. [coaxial-q652xi] COAXIAL - Q652XI - ₹9499.00 
+  4. [coaxial-qr965] COAXIAL - QR965 - ₹12299.00 
+  5. [coaxial-qrs65r] COAXIAL - QRS65R - ₹17099.00 
+
+📂 Category: Component Speakers (4 products)
+  1. [component-iq65k] COMPONENT - IQ65K - ₹10799.00 
+  2. [component-q65kxi] COMPONENT - Q65KXi-GI - ₹13599.00 
+  3. [component-qr965k] COMPONENT - QR965K - ₹18299.00 
+  4. [component-qrs6k2] COMPONENT - QRS6K2-GI - ₹30499.00 
+
+📂 Category: Damping Sheet (1 products)
+  1. [car-damping-sheet] Car Damping Sheets - ₹11299.00 
+
+📂 Category: DVR (1 products)
+  1. [k32-f1-single-lens] E-101 - ₹11869.00 
+
+📂 Category: Easy Fit (DIY) (5 products)
+  1. [florence] Florence - ₹2999.00 
+  2. [sprint] Sprint - ₹8709.00 
+  3. [black-and-silver-sprint] Sprint(Black & Silver) - ₹8709.00 
+  4. [tauras] Tauras - ₹8709.00 
+  5. [venus] Venus - ₹8709.00 
+
+📂 Category: Electronic Accessories (11 products)
+  1. [car-mobile-chargerE] Car Mobile Charger - ₹1799.00 
+  2. [ventilated-seat-cool] Cool Ventilated Seat Cover - ₹5999.00 
+  3. [tyre-inflatore] EMPORIO Auto Cut Air Inflator – 150W Power - ₹4099.00 
+  4. [portable-tyre-inflatorE] EMPORIO Portable Car Compressor – Compact & Efficient Tire Inflator - ₹3499.00 
+  5. [portable-vaccum-cleanerE] EMPORIO Portable Car Vacuum Cleaner – Wet & Dry Cleaning - ₹2499.00 
+  6. [snail-horn] Emporio Snail Horn - ₹899.00 
+  7. [ventilated-seat-heat] Heat Ventilated Seat Cover - ₹3599.00 
+  8. [tyre-inflatore-cordless] Inflato Bot Total Tyre Control - ₹4099.00 
+  9. [led-fog-lampE] LED Fog Lamp for Car - ₹7999.00 
+  10. [led-head-lamp-for-carE] LED Head Lamp for Car - ₹7999.00 
+  11. [nebula-2w-led-light] Nebula 2 Wheeler Led- 10W - ₹855.00 
+
+📂 Category: EMPORIO SERIES (17 products)
+  1. [1e] D3 Artificial Leather Seat Covers - ₹24459.00 
+  2. [2e] D5 Artificial Leather Seat Covers - ₹24459.00 
+  3. [4e] H Cross Artificial Leather Seat Covers - ₹24459.00 
+  4. [11e] H-Grand Artificial Leather Car Seat Covers - ₹24459.00 
+  5. [12e] Navigation+ Artificial Leather Car Seat Covers - ₹24459.00 
+  6. [14e] Polo Artificial Leather Seat Covers - ₹24459.00 
+  7. [3e] Q2 Artificial Leather Seat Covers - ₹24459.00 
+  8. [5e] U Focus Artificial Leather Seat Covers - ₹24459.00 
+  9. [6e] U Highway Artificial Leather Seat Covers - ₹24459.00 
+  10. [7e] U-Arrow Artificial Leather Car Seat Covers - ₹24459.00 
+  11. [9e] U-BLADE Artificial Leather Seat Covers - ₹24459.00 
+  12. [17e] U-Impress Artificial Leather Car Seat Covers - ₹24459.00 
+  13. [8e] U-Ladder Artificial Leather Seat Covers - ₹24459.00 
+  14. [10e] U-Volt Artificial Leather Seat Covers - ₹24459.00 
+  15. [13e] X-Cross Artificial Leather Seat Covers - ₹24459.00 
+  16. [15e] XCLUSIVE Artificial Leather Seat Covers - ₹24459.00 
+  17. [16e] XCLUSIVE Plus Artificial Leather Seat Covers - ₹24459.00 
+
+📂 Category: Essential Tissue Boxes (4 products)
+  1. [cup-tissue] Cup Tissue - ₹899.00 
+  2. [eco-curve] Eco Curve - ₹999.00 
+  3. [premium-tissue-box] Premium Tissue Box Holder - ₹999.00 
+  4. [quilting-tissue-box] Quilting Tissue Box - ₹999.00 
+
+📂 Category: Foot Mat (2 products)
+  1. [quilted-spike-mat] Quilted Spike (Black) - ₹730.00 
+  2. [quilting-mat] Quilting Mat - ₹380.00 
+
+📂 Category: Healthy Memory For Comfort (12 products)
+  1. [arm-rest-memory] Arm Rest Memory - ₹1549.00 
+  2. [c-neck-rest-memory] C NeckRest Memory - ₹1549.00 
+  3. [cockpit-neck-pillow] Cockpit Neck Pillow - ₹1799.00 
+  4. [cushion-pillow-memory] Cushion Pillow Memory - ₹2499.00 
+  5. [lumber-support-l1] Lumber Support L1 - ₹1749.00 
+  6. [lumber-support-l2] Lumber Support L2 - ₹1749.00 
+  7. [lumber-support-l3] Lumber Support L3 - ₹1749.00 
+  8. [lumber-support-l4] Lumber Support L4 - ₹1749.00 
+  9. [neck-cushion-memory] Neck Cushion Memory - ₹1749.00 
+  10. [neck-d-memory] Neck D Memory - ₹2195.00 
+  11. [premium-travel-pillow] Premium Travel Pillow - ₹1649.00 
+  12. [seat-cushion-memory] Seat Cushion Memory - ₹2195.00 
+
+📂 Category: Innovative Organizers (2 products)
+  1. [quilted-organizer] Quilted Organizer - ₹1349.00 
+  2. [tray-organizer] Tray Organizer - ₹2195.00 
+
+📂 Category: Light & Utility (10 products)
+  1. [ventilated-seat-coolu] Cool Ventilated Seat Cover - ₹5999.00 
+  2. [tyre-inflator] EMPORIO Auto Cut Air Inflator – 150W Power - ₹4099.00 
+  3. [car-charger] EMPORIO Car Charger - ₹1799.00 
+  4. [portable-tyre-inflator] EMPORIO Portable Car Compressor – Compact & Efficient Tire Inflator - ₹3499.00 
+  5. [portable-vaccum-cleaner] EMPORIO Portable Car Vacuum Cleaner – Wet & Dry Cleaning - ₹2499.00 
+  6. [snail-hornu] Emporio Snail Horn - ₹899.00 
+  7. [ventilated-seat-heatu] Heat Ventilated Seat Cover - ₹3599.00 
+  8. [tyre-inflatore-cordlessU] Inflato Bot Total tyre Control - ₹4099.00 
+  9. [led-fog-lamp] LED Fog Lamp for Car - ₹7999.00 
+  10. [led-head-lamp-for-car] LED Head Lamp for Car - ₹7999.00 
+
+📂 Category: LUCENZO SERIES (13 products)
+  1. [9l] Amaze Duo Plus Artificial Leather Seat Covers - ₹14769.00 
+  2. [8l] Amaze Plus Artificial Leather Seat Covers - ₹14769.00 
+  3. [1l] D3 Artificial Leather Seat Covers - ₹14769.00 
+  4. [2l] D5 Artificial Leather Seat Covers - ₹14769.00 
+  5. [10l] E1 Artificial Leather Seat Covers - ₹14769.00 
+  6. [11l] E2 Artificial Leather Seat Covers - ₹14769.00 
+  7. [12l] E4 Artificial Leather Seat Covers - ₹14769.00 
+  8. [13l] E5 Artificial Leather Seat Covers - ₹14769.00 
+  9. [4l] H Cross Artificial Leather Seat Covers - ₹14769.00 
+  10. [3l] Q2 Artificial Leather Seat Covers - ₹14769.00 
+  11. [5l] U Focus Artificial Leather Seat Covers - ₹14769.00 
+  12. [6l] U Highway Artificial Leather Seat Covers - ₹14769.00 
+  13. [7l] U-Arrow Artificial Leather Car Seat Covers - ₹14769.00 
+
+📂 Category: Microfibre Cloth (1 products)
+  1. [Microfibre-cloth] Microfibre Cloth - ₹342.00 
+
+📂 Category: Odour Eliminator (1 products)
+  1. [car-odour-eliminatorc] Car Odour Eliminator - ₹399.00 
+
+📂 Category: Padded Seat Covers (2 products)
+  1. [padded-seat-cover-bt] Padded Seat Cover (Black and Tan) - ₹5799.00 
+  2. [padded-seat-cover-b] Padded Seat Cover Black - ₹5999.00 
+
+📂 Category: PolyFill Range (6 products)
+  1. [car-seat-cushion] Car Seat Cushion - ₹1549.00 
+  2. [cushion-pillow-p] Cushion Pillow (Polyfill) - ₹1549.00 
+  3. [cushion-pillow-q] Cushion Pillow (Quilting) - ₹1749.00 
+  4. [neck-rest] Neck Rest - ₹999.00 
+  5. [neck-rest-q] Neck Rest (Quilting) - ₹999.00 
+  6. [passenger-neck-rest] Passenger Neck Rest - ₹2195.00 
+
+📂 Category: PPF(Paint Protection Film) (1 products)
+  1. [ppf-emporio] Pro Shield PPF - ₹124999.00 
+
+📂 Category: Premium Steering Covers (2 products)
+  1. [car-specific] Car Specific - ₹799.00 
+  2. [unistitch] Uni Stitch - ₹699.00 
+
+📂 Category: PU/PVC (7 products)
+  1. [12mm-care] 12mm Care Mat - ₹3299.00 
+  2. [care-18-mm-universal] 18mm Care Universal  - ₹3299.00 
+  3. [spike] Spike Mat - ₹4899.00 
+  4. [u-max-arrow] U Max Arrow  - ₹14769.00 
+  5. [u-max-emboss] U Max Emboss - ₹8499.00 
+  6. [u-max-nhb] U Max NHB - ₹14769.00 
+  7. [u-max-plus-arrow] U Max Plus Arrow - ₹6999.00 
+
+📂 Category: REVIERA SERIES (13 products)
+  1. [9r] Amaze Duo Plus Artificial Leather Seat Covers - ₹14769.00 
+  2. [8r] Amaze Plus Artificial Leather Seat Covers - ₹14769.00 
+  3. [1r] D3 Artificial Leather Seat Covers - ₹14769.00 
+  4. [2r] D5 Artificial Leather Seat Covers - ₹14769.00 
+  5. [10r] E1 Artificial Leather Seat Covers - ₹14769.00 
+  6. [11r] E2 Artificial Leather Seat Covers - ₹14769.00 
+  7. [12r] E4 Artificial Leather Seat Covers - ₹14769.00 
+  8. [13r] E5 Artificial Leather Seat Covers - ₹14769.00 
+  9. [4r] H Cross Artificial Leather Seat Covers - ₹14769.00 
+  10. [3r] Q2 Artificial Leather Seat Covers - ₹14769.00 
+  11. [5r] U Focus Artificial Leather Seat Covers - ₹14769.00 
+  12. [6r] U Highway Artificial Leather Seat Covers - ₹14769.00 
+  13. [7r] U-Arrow Artificial Leather Car Seat Covers - ₹14769.00 
+
+📂 Category: Ropes (5 products)
+  1. [bike-net] Bike Net - ₹1945.00 
+  2. [eco-flat-rope] Eco Flat Rope - ₹975.00 
+  3. [eco-round-rope] Eco Round Rope - ₹1135.00 
+  4. [premium-flat-rope] Premium Flat Rope - ₹1535.00 
+  5. [premium-round-rope] Premium Round Rope - ₹2050.00 
+
+📂 Category: SIGNATURE SERIES (10 products)
+  1. [4s] H-Grand Artificial Leather Car Seat Covers - ₹20679.00 
+  2. [5s] Navigation+ Artificial Leather Car Seat Covers - ₹20679.00 
+  3. [9s] Polo Artificial Leather Seat Covers - ₹20679.00 
+  4. [2s] U-BLADE Artificial Leather Seat Covers - ₹20679.00 
+  5. [8s] U-Impress Artificial Leather Car Seat Covers - ₹20679.00 
+  6. [1s] U-Ladder Artificial Leather Seat Covers - ₹20679.00 
+  7. [3s] U-Volt Artificial Leather Seat Covers - ₹20679.00 
+  8. [10s] X-Cross Artificial Leather Seat Covers - ₹20679.00 
+  9. [6s] XCLUSIVE Artificial Leather Seat Covers - ₹20679.00 
+  10. [7s] XCLUSIVE Plus Artificial Leather Seat Covers - ₹20679.00 
+
+📂 Category: Sub Woofers (20 products)
+  1. [bm12d1] Subwoofer - BM12D1 - ₹134449.00 
+  2. [bm12d2] Subwoofer - BM12D2 - ₹134449.00 
+  3. [bm15d1] Subwoofer - BM15D1 - ₹148709.00 
+  4. [bm15d2] Subwoofer - BM15D2 - ₹148709.00 
+  5. [cdf82sa] Subwoofer - CDF82SA - ₹32399.00 
+  6. [cmw124d] SubWoofer - CMW124D - ₹19979.00 
+  7. [cvx12d4] SubWoofer - CVX12D4 - ₹16579.00 
+  8. [subwoofer-fsb-124sa] SUBWOOFER - FSB 124SAI - ₹43099.00 
+  9. [subwoofer-qsb10sa] SUBWOOFER - QSB10SA - ₹30499.00 
+  10. [slw12s4] SubWoofer - SLW12S4 - ₹20649.00 
+  11. [us10d4] SubWoofer - US10D4 - ₹28949.00 
+  12. [us12d4] SubWoofer - US12D4 - ₹34489.00 
+  13. [us6d4] SubWoofer - US6D4 - ₹14469.00 
+  14. [us8d4] SubWoofer - US8D4 - ₹20719.00 
+  15. [subwoofer-ux6va] SUBWOOFER - UX6VA - ₹30499.00 
+  16. [subwoofer-ux8va] SUBWOOFER - UX8VA - ₹38669.00 
+  17. [wb12d2] SubWoofer - WB12D2 - ₹72139.00 
+  18. [wb12d4] SubWoofer - WB12D4 - ₹72139.00 
+  19. [wb15d2] SubWoofer - WB15D2 - ₹84899.00 
+  20. [wb15d4] SubWoofer - WB15D4 - ₹84899.00 
+
+📂 Category: Tank Cover (6 products)
+  1. [tank-cover-dual] Tank Cover - XL100 - Dual Pocket - ₹725.00 
+  2. [tank-cover-single] Tank Cover - XL100 - Single Pocket - ₹516.00 
+  3. [tank-cover-bullet-ff] Tank Cover Full Flap (Bullet) - ₹745.00 
+  4. [tank-cover-bullet-hf] Tank Cover Half Flap (Bullet) - ₹605.00 
+  5. [tank-cover-bullet-wf] Tank Cover Without Flap (Bullet) - ₹510.00 
+  6. [universal-tank-cover] Universal Tank Cover - 100cc - ₹516.00 
+
+📂 Category: TPE (2 products)
+  1. [boot-mat-tpe] TPE Boot Mat - ₹2250.00 
+  2. [cabin-mats-tpe] TPE Cabin Mat - ₹4899.00 
+
+📂 Category: U-Active (4 products)
+  1. [2act] U-Active - Black Colour With Blue Stripe With 3mm High Density Foam and Single Tone Embossing - ₹560.00 
+  2. [2acts] U-Active - Black Colour With Blue Stripe With 3mm High Density Foam and Single Tone Embossing - ₹660.00 
+  3. [1act] U-Active - Black Colour With Red Stripe With 3mm High Density Foam and Single Tone Embossing - ₹560.00 
+  4. [1acts] U-Active - Black Colour With Red Stripe With 3mm High Density Foam and Single Tone Embossing - ₹660.00 
+
+📂 Category: U-Active Plus (7 products)
+  1. [1actp] U-Active Plus - Black Colour With White Stripe With 6mm High Density Foam and Dual Tone Embossing - ₹660.00 
+  2. [1actpsc] U-Active Plus - Black Colour With White Stripe With 6mm High Density Foam and Dual Tone Embossing - ₹765.00 
+  3. [4actp] U-Active Plus - Dual Seat With 6mm High Density Foam and Dual Tone Embossing - ₹775.00 
+  4. [2actp] U-Active Plus- Black Colour With Blue Stripe With 6mm High Density Foam and Dual Tone Embossing - ₹660.00 
+  5. [2actpsc] U-Active Plus- Black Colour With Blue Stripe With 6mm High Density Foam and Dual Tone Embossing - ₹765.00 
+  6. [3actp] U-Active Plus- Black Colour With Red Stripe With 6mm High Density Foam and Dual Tone Embossing - ₹660.00 
+  7. [3actpssc] U-Active Plus- Black Colour With Red Stripe With 6mm High Density Foam and Dual Tone Embossing - ₹765.00 
+
+📂 Category: U-Cross (1 products)
+  1. [1c] U-Cross - ₹950.00 
+
+📂 Category: U-Drive (2 products)
+  1. [2d] U-Dive - Black - ₹860.00 
+  2. [1d] U-Dive - Brown - ₹860.00 
+
+📂 Category: U-Impress (5 products)
+  1. [1b] U-Impress - Black - ₹625.00 
+  2. [1bi] U-Impress - Black Color With Dual Tone Stiching - ₹345.00 
+  3. [1sc] U-Impress - Black Color With Dual Tone Stitching - ₹395.00 
+  4. [2b] U-Impress - Brown - ₹625.00 
+  5. [2bi] U-Impress - Dual Seat Black Color With Dual Tone - ₹395.00 
+
+📂 Category: U-Pyramid (2 products)
+  1. [1p] U-Pyramid - Black - ₹950.00 
+  2. [2p] U-Pyramid - Brown - ₹950.00 
+
+📂 Category: U-Sportz (3 products)
+  1. [1spc] U-Sportz - Black Color With Embossing in Dual Tone Stitching - ₹435.00 
+  2. [1sbi] U-Sportz - Black Colour With Embossing In Dual Tone Stitching  - ₹395.00 
+  3. [2sbi] U-Sportz - Dual Seat Black Colour With Embossing In Dual Tone Stitching  - ₹470.00 

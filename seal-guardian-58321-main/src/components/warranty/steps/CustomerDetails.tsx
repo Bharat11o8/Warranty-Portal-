@@ -4,6 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { EVFormData } from "../EVProductsForm";
 import { useToast } from "@/hooks/use-toast";
+import api from "@/lib/api";
 import {
   validateIndianMobile,
   validateEmail,
@@ -22,7 +23,7 @@ interface CustomerDetailsProps {
 const CustomerDetails = ({ formData, updateFormData, onNext, onPrev, isCustomer = false, isVendor = false }: CustomerDetailsProps) => {
   const { toast } = useToast();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     // Validate Mobile Number
@@ -46,7 +47,19 @@ const CustomerDetails = ({ formData, updateFormData, onNext, onPrev, isCustomer 
       return;
     }
 
-
+    try {
+      const response = await api.get(`/public/warranty/check-uniqueness?phone=${formData.customerMobile}&type=ev-products`);
+      if (response.data.success && !response.data.unique) {
+        toast({
+          title: "Mobile Number Already Used",
+          description: response.data.message,
+          variant: "destructive",
+        });
+        return;
+      }
+    } catch (error) {
+      console.error("Mobile uniqueness check failed", error);
+    }
 
     onNext();
   };

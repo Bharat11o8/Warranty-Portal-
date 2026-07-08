@@ -4,8 +4,16 @@ import db from '../config/database.js';
  * One-time cleanup script: Clear all dummy warranty & UID data.
  * Keeps: users, vendors, admins, product catalogue, activity logs, notifications.
  * Clears: warranty_registrations, pre_generated_uids, grievances, grievance_remarks, grievance_assignments.
+ *
+ * DESTRUCTIVE — deletes real rows with no soft-delete/undo. Requires --confirm.
  */
 async function clearDummyData() {
+    if (!process.argv.includes('--confirm')) {
+        console.error('❌ Refusing to run: this permanently deletes warranty_registrations, pre_generated_uids, and grievance data.');
+        console.error('   Re-run with --confirm if you are certain this is what you want: npx tsx clear_dummy_data.ts --confirm');
+        process.exit(1);
+    }
+
     try {
         console.log('=== Clearing Dummy Warranty & UID Data ===\n');
 

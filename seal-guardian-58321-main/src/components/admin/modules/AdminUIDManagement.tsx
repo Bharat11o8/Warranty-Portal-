@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+﻿import { useState, useEffect, useCallback } from "react";
 import {
     Search,
     Plus,
@@ -37,7 +37,7 @@ interface UIDRecord {
     is_used: boolean;
     used_at: string | null;
     created_at: string;
-    source: "api_sync" | "manual" | "legacy_migration" | "unknown";
+    source: "api_sync" | "manual" | "legacy_migration" | "customer_added" | "unknown";
     product_name?: string;
     customer_name?: string;
     customer_email?: string;
@@ -64,6 +64,7 @@ interface UIDStats {
     synced: number;
     manual_count: number;
     legacy_count: number;
+    customer_added_count: number;
 }
 
 interface UIDManagementProps {
@@ -73,7 +74,7 @@ interface UIDManagementProps {
 export const AdminUIDManagement = ({ onBack }: UIDManagementProps) => {
     const { toast } = useToast();
     const [uids, setUIDs] = useState<UIDRecord[]>([]);
-    const [stats, setStats] = useState<UIDStats>({ total: 0, available: 0, used: 0, synced: 0, manual_count: 0, legacy_count: 0 });
+    const [stats, setStats] = useState<UIDStats>({ total: 0, available: 0, used: 0, synced: 0, manual_count: 0, legacy_count: 0, customer_added_count: 0 });
     const [loading, setLoading] = useState(false);
     const [search, setSearch] = useState("");
     const [statusFilter, setStatusFilter] = useState<"all" | "available" | "used">("all");
@@ -313,7 +314,7 @@ export const AdminUIDManagement = ({ onBack }: UIDManagementProps) => {
             </div>
 
             {/* Stats Cards */}
-            <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+            <div className="grid grid-cols-2 lg:grid-cols-6 gap-3">
                 <div className="bg-white rounded-2xl border border-slate-100 p-4 shadow-sm text-center">
                     <div className="text-2xl font-black text-slate-800">{stats.total.toLocaleString()}</div>
                     <div className="text-xs font-medium text-slate-400 uppercase tracking-wider mt-1">Total</div>
@@ -333,6 +334,10 @@ export const AdminUIDManagement = ({ onBack }: UIDManagementProps) => {
                 <div className="bg-white rounded-2xl border border-amber-100 p-4 shadow-sm text-center">
                     <div className="text-2xl font-black text-amber-600">{stats.manual_count.toLocaleString()}</div>
                     <div className="text-xs font-medium text-amber-400 uppercase tracking-wider mt-1">Manual</div>
+                </div>
+                <div className="bg-white rounded-2xl border border-pink-100 p-4 shadow-sm text-center">
+                    <div className="text-2xl font-black text-pink-600">{stats.customer_added_count.toLocaleString()}</div>
+                    <div className="text-xs font-medium text-pink-400 uppercase tracking-wider mt-1">Customer Added</div>
                 </div>
             </div>
 
@@ -382,6 +387,7 @@ export const AdminUIDManagement = ({ onBack }: UIDManagementProps) => {
                             { id: "api_sync", label: "Synced", color: "text-indigo-600", bg: "bg-indigo-50" },
                             { id: "manual", label: "Manual", color: "text-amber-600", bg: "bg-amber-50" },
                             { id: "legacy_migration", label: "Legacy", color: "text-blue-600", bg: "bg-blue-50" },
+                            { id: "customer_added", label: "Customer Added", color: "text-pink-600", bg: "bg-pink-50" },
                         ].map((s) => (
                             <Button
                                 key={s.id}
@@ -495,6 +501,10 @@ export const AdminUIDManagement = ({ onBack }: UIDManagementProps) => {
                                                     <Badge className="bg-blue-50 text-blue-600 border border-blue-100 font-bold text-[9px] rounded-full h-5 px-2">
                                                         Legacy
                                                     </Badge>
+                                                ) : uid.source === "customer_added" ? (
+                                                    <Badge className="bg-pink-50 text-pink-600 border border-pink-100 font-bold text-[9px] rounded-full h-5 px-2">
+                                                        Customer Added
+                                                    </Badge>
                                                 ) : (
                                                     <Badge className="bg-slate-50 text-slate-400 border border-slate-100 font-bold text-[9px] rounded-full h-5 px-2">
                                                         Unknown
@@ -508,7 +518,7 @@ export const AdminUIDManagement = ({ onBack }: UIDManagementProps) => {
                                                         <span className="text-[10px] text-slate-400 uppercase">{uid.registration_number}</span>
                                                     </div>
                                                 ) : (
-                                                    <span className="text-slate-300">—</span>
+                                                    <span className="text-slate-300">â€”</span>
                                                 )}
                                             </td>
                                             <td className="py-3 px-4 text-slate-500 text-xs">{formatDate(uid.used_at)}</td>
@@ -569,11 +579,13 @@ export const AdminUIDManagement = ({ onBack }: UIDManagementProps) => {
                                                     ${uid.source === "api_sync" ? "bg-indigo-50 text-indigo-600 border-indigo-100" :
                                                         uid.source === "manual" ? "bg-amber-50 text-amber-600 border-amber-100" :
                                                             uid.source === "legacy_migration" ? "bg-blue-50 text-blue-600 border-blue-100" :
-                                                                "bg-slate-50 text-slate-400 border-slate-100"}
+                                                                uid.source === "customer_added" ? "bg-pink-50 text-pink-600 border-pink-100" :
+                                                                    "bg-slate-50 text-slate-400 border-slate-100"}
                                                 `}>
                                                     {uid.source === "api_sync" ? "Synced" :
                                                         uid.source === "manual" ? "Manual" :
-                                                            uid.source === "legacy_migration" ? "Legacy" : "Unknown"}
+                                                            uid.source === "legacy_migration" ? "Legacy" :
+                                                                uid.source === "customer_added" ? "Customer Added" : "Unknown"}
                                                 </Badge>
                                             </div>
 
@@ -628,7 +640,7 @@ export const AdminUIDManagement = ({ onBack }: UIDManagementProps) => {
             {totalPages > 1 && (
                 <div className="flex items-center justify-between py-2">
                     <span className="text-xs text-slate-400">
-                        Showing {(page - 1) * 30 + 1}–{Math.min(page * 30, totalCount)} of {totalCount}
+                        Showing {(page - 1) * 30 + 1}â€“{Math.min(page * 30, totalCount)} of {totalCount}
                     </span>
                     <div className="flex items-center gap-2">
                         <Button
@@ -660,7 +672,7 @@ export const AdminUIDManagement = ({ onBack }: UIDManagementProps) => {
                     <DialogHeader>
                         <DialogTitle className="text-lg font-bold">Add UID Manually</DialogTitle>
                         <DialogDescription>
-                            Enter a 13–22 digit UID from the product packaging. This is for cases where the sticker was removed or misplaced.
+                            Enter a 13â€“22 digit UID from the product packaging. This is for cases where the sticker was removed or misplaced.
                         </DialogDescription>
                     </DialogHeader>
                     <div className="space-y-3 py-2">
@@ -858,7 +870,7 @@ export const AdminUIDManagement = ({ onBack }: UIDManagementProps) => {
                                                     </div>
                                                     <div>
                                                         <p className="text-[10px] text-slate-400 font-bold uppercase">Year</p>
-                                                        <p className="text-sm font-semibold text-slate-700">{selectedUID.car_year || '—'}</p>
+                                                        <p className="text-sm font-semibold text-slate-700">{selectedUID.car_year || 'â€”'}</p>
                                                     </div>
                                                 </div>
                                                 <div>
@@ -907,11 +919,11 @@ export const AdminUIDManagement = ({ onBack }: UIDManagementProps) => {
                                             <div className="space-y-2 pl-6 border-l-2 border-slate-100">
                                                 <div>
                                                     <p className="text-[10px] text-slate-400 font-bold uppercase">Name</p>
-                                                    <p className="text-sm font-semibold text-slate-700">{selectedUID.installer_name || '—'}</p>
+                                                    <p className="text-sm font-semibold text-slate-700">{selectedUID.installer_name || 'â€”'}</p>
                                                 </div>
                                                 <div>
                                                     <p className="text-[10px] text-slate-400 font-bold uppercase">Contact</p>
-                                                    <p className="text-sm font-semibold text-slate-700">{selectedUID.installer_contact || '—'}</p>
+                                                    <p className="text-sm font-semibold text-slate-700">{selectedUID.installer_contact || 'â€”'}</p>
                                                 </div>
                                             </div>
                                         </div>
@@ -949,3 +961,4 @@ export const AdminUIDManagement = ({ onBack }: UIDManagementProps) => {
 };
 
 export default AdminUIDManagement;
+

@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="420" viewBox="0 0 640 420" role="img" aria-labelledby="title desc">
+  <title id="title">Seat cover packaging with UID sticker</title>
+  <desc id="desc">Illustration showing the UID sticker on the product packaging.</desc>
+  <rect width="640" height="420" rx="32" fill="#f8fafc"/>
+  <rect x="70" y="54" width="500" height="312" rx="30" fill="#fff" stroke="#e2e8f0" stroke-width="4"/>
+  <rect x="118" y="86" width="230" height="250" rx="24" fill="#111827"/>
+  <path d="M166 310c14-86 26-146 60-184 15-17 35-27 60-29 17 52 22 130 16 211-34 12-81 13-136 2z" fill="#334155"/>
+  <path d="M186 285c9-56 20-101 42-133 8-12 20-22 36-29 9 43 13 96 8 153-22 9-50 12-86 9z" fill="#475569"/>
+  <rect x="388" y="104" width="118" height="148" rx="12" fill="#f97316"/>
+  <rect x="404" y="128" width="86" height="15" rx="3" fill="#fff7ed"/>
+  <rect x="404" y="157" width="86" height="12" rx="3" fill="#fff7ed"/>
+  <rect x="404" y="184" width="72" height="12" rx="3" fill="#fff7ed"/>
+  <rect x="370" y="260" width="160" height="58" rx="10" fill="#fff" stroke="#fb923c" stroke-width="4"/>
+  <text x="390" y="286" font-family="Arial, sans-serif" font-size="18" font-weight="700" fill="#0f172a">UID</text>
+  <text x="390" y="307" font-family="Arial, sans-serif" font-size="17" font-weight="700" letter-spacing="1.5" fill="#0f172a">23101002211185</text>
+  <path d="M510 260l44-42" fill="none" stroke="#f97316" stroke-width="8" stroke-linecap="round"/>
+  <path d="M552 218l-3 31 25-18z" fill="#f97316"/>
+  <circle cx="554" cy="218" r="20" fill="#fff7ed" stroke="#f97316" stroke-width="4"/>
+  <text x="552" y="225" text-anchor="middle" font-family="Arial, sans-serif" font-size="22" font-weight="700" fill="#f97316">1</text>
+</svg>

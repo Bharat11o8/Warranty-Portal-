@@ -20,8 +20,10 @@ import { ComingSoon } from "@/components/fms/ComingSoon";
 import VendorGrievances from "@/components/fms/VendorGrievances";
 import POSMModule from "@/components/fms/POSMModule";
 import ECatalogue from "@/components/fms/ECatalogue";
+import B2BOrderManagement from "@/components/fms/B2BOrderManagement";
 import Profile from "./Profile";
 import Terms from "./Terms";
+import { useB2BCart } from "@/contexts/B2BCartContext";
 import CategoryPage from "./eshop/CategoryPage";
 import ProductPage from "./eshop/ProductPage";
 import { Button } from "@/components/ui/button";
@@ -49,6 +51,7 @@ const FranchiseDashboard = () => {
     const { user, logout, loading: authLoading } = useAuth();
     const { toast } = useToast();
     const { fullHistory } = useNotifications();
+    const { isDistributor, isFranchise, loadingProfile } = useB2BCart();
     const context = useOutletContext<DashboardContext>();
     const [localActiveModule, setLocalActiveModule] = useState<FmsModule>('home');
 
@@ -57,6 +60,17 @@ const FranchiseDashboard = () => {
     const setActiveModule = context?.setActiveModule || setLocalActiveModule;
     const [isCollapsed, setIsCollapsed] = useState(false);
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
+    const filteredMenuGroups = menuGroups.map(group => {
+        if (isDistributor && !isFranchise) {
+            const filteredItems = group.items.filter(item => {
+                const franchiseOnly = ['warranty', 'register', 'manpower', 'posm', 'offers', 'audit', 'targets'];
+                return !franchiseOnly.includes(item.id);
+            });
+            return { ...group, items: filteredItems };
+        }
+        return group;
+    }).filter(group => group.items.length > 0);
     const [registerTab, setRegisterTab] = useState('seat-cover');
 
     // Data States
@@ -500,6 +514,12 @@ const FranchiseDashboard = () => {
     );
     if (!user) return <Navigate to="/login?role=vendor" />;
     if (user.role !== "vendor") return <Navigate to="/" />;
+    if (loadingProfile) return (
+        <div className="h-screen w-full flex flex-col items-center justify-center bg-white gap-4">
+            <Loader2 className="h-10 w-10 text-primary animate-spin" />
+            <p className="text-sm font-bold text-muted-foreground uppercase tracking-widest animate-pulse">Loading Dashboard...</p>
+        </div>
+    );
 
     const renderModule = () => {
         // Use real stats from backend (dashboardStats), not the paginated local list
@@ -730,7 +750,7 @@ const FranchiseDashboard = () => {
                     </div>
                 );
             case 'orders':
-                return <ComingSoon title="Order Management" />;
+                return <B2BOrderManagement />;
             case 'offers':
                 return <ComingSoon title="Offers & Schemes" />;
             case 'audit':
@@ -817,7 +837,13 @@ const FranchiseDashboard = () => {
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
                             </svg>
                         </div>
-                        <h1 className="text-2xl font-bold text-slate-800 mb-3">Franchise Deactivated</h1>
+                        <h1 className="text-2xl font-bold text-slate-800 mb-3">
+                            {isDistributor && isFranchise
+                                ? "Partner Account Deactivated"
+                                : isDistributor
+                                    ? "Distributor Deactivated"
+                                    : "Franchise Deactivated"}
+                        </h1>
                         <p className="text-slate-500 mb-8 leading-relaxed">
                             Your account has been deactivated. Access to the dashboard and all features has been restricted.
                         </p>
@@ -902,20 +928,12 @@ const FranchiseDashboard = () => {
                     </DialogContent>
                 </Dialog>
 
-                {/* Spec Sheet Modal */}
-                <Dialog open={!!selectedWarranty} onOpenChange={() => setSelectedWarranty(null)}>
-                    <DialogContent className="max-w-4xl p-0 overflow-hidden border-0">
-                        {selectedWarranty && (
-                            <div className="max-h-[85vh] overflow-y-auto custom-scrollbar">
-                                <WarrantySpecSheet
-                                    warranty={selectedWarranty}
-                                    isOpen={!!selectedWarranty}
-                                    onClose={() => setSelectedWarranty(null)}
-                                />
-                            </div>
-                        )}
-                    </DialogContent>
-                </Dialog>
+                {/* Spec Sheet Drawer */}
+                <WarrantySpecSheet
+                    warranty={selectedWarranty}
+                    isOpen={!!selectedWarranty}
+                    onClose={() => setSelectedWarranty(null)}
+                />
 
                 {/* Selective Export Dialog */}
                 <SelectiveExportDialog
@@ -979,7 +997,7 @@ const FranchiseDashboard = () => {
                         </SheetHeader>
 
                         <nav className="flex-1 py-6 px-4 space-y-8 overflow-y-auto custom-scrollbar">
-                            {menuGroups.map((group) => (
+                            {filteredMenuGroups.map((group) => (
                                 <div key={group.label} className="space-y-3">
                                     <h2 className="px-4 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">
                                         {group.label}
