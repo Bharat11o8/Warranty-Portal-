@@ -1065,14 +1065,40 @@ export class WarrantyController {
 
       // Check if warranty exists and belongs to user (or user is admin/vendor linked)
       // For simplicity, we'll check ownership via user_id for now as per getWarrantyById logic
-      // Support both uid (seat-cover) and id (EV products) for lookup
-      let checkQuery = 'SELECT id, uid, user_id, status, product_details, manpower_id, installer_name, installer_contact FROM warranty_registrations WHERE uid = ? OR id = ?';
-      let checkParams: any[] = [uid, uid];
+      // Support both uid (seat-cover, VARCHAR) and id (EV products, INT AUTO_INCREMENT) for lookup.
+      //
+      // IMPORTANT: `uid` is VARCHAR and `id` is INT. A naive `WHERE uid = ? OR id = ?`
+      // makes MySQL coerce the VARCHAR `uid` column to a number when the param is
+      // numeric — any non-numeric uid coerces to 0, so a numeric lookup could
+      // silently match unrelated rows. That was the root cause of the "one edit
+      // filled every entry" incident. We therefore match `id` ONLY when the
+      // identifier is a pure integer, and always match `uid` as an exact string.
+      const isNumericId = /^\d+$/.test(String(uid));
+      let checkQuery: string;
+      let checkParams: any[];
+      if (isNumericId) {
+        // Could be a seat-cover UID (numeric string) OR an EV numeric id.
+        // Match uid as an exact string and id as an exact integer — no coercion.
+        checkQuery = 'SELECT id, uid, user_id, status, product_details, manpower_id, installer_name, installer_contact FROM warranty_registrations WHERE uid = CAST(? AS CHAR) OR id = ?';
+        checkParams = [String(uid), Number(uid)];
+      } else {
+        // Non-numeric identifier can only be a uid/serial string.
+        checkQuery = 'SELECT id, uid, user_id, status, product_details, manpower_id, installer_name, installer_contact FROM warranty_registrations WHERE uid = ?';
+        checkParams = [String(uid)];
+      }
 
       const [warranties]: any = await db.execute(checkQuery, checkParams);
 
       if (warranties.length === 0) {
         return res.status(404).json({ error: 'Warranty not found' });
+      }
+
+      // Defense in depth: the identifier must resolve to exactly one record.
+      // If it somehow matches more than one, refuse rather than risk updating
+      // multiple registrations from a single edit.
+      if (warranties.length > 1) {
+        console.error(`[Update Warranty] Ambiguous identifier "${uid}" matched ${warranties.length} rows. Aborting to prevent mass update.`);
+        return res.status(409).json({ error: 'This identifier matches multiple registrations. Please contact support.' });
       }
 
       const warranty = warranties[0];
