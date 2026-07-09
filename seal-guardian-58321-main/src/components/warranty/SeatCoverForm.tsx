@@ -1698,10 +1698,18 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
                         const uidVal = formData.uid;
                         if (/^\d{13,16}$/.test(uidVal)) {
                           setUidStatus('checking');
+                          // Pass the customer mobile so a "mobile + year" fallback UID can be
+                          // recognized/resolved by the backend. Without it, a valid customer-added
+                          // UID is reported as "Invalid UID".
+                          const phoneQuery = formData.customerMobile ? `phone=${encodeURIComponent(formData.customerMobile)}` : '';
                           if (isPublic) {
-                            api.get(`/public/warranty/check-uid?uid=${uidVal}`)
+                            const q = phoneQuery ? `&${phoneQuery}` : '';
+                            api.get(`/public/warranty/check-uid?uid=${uidVal}${q}`)
                               .then(res => {
                                 const data = res.data;
+                                if (data.resolvedUid && data.resolvedUid !== uidVal) {
+                                  setFormData(prev => ({ ...prev, uid: data.resolvedUid }));
+                                }
                                 if (data.valid) {
                                   setUidStatus('valid');
                                   setUidMessage('UID is valid and available');
@@ -1713,9 +1721,13 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
                               })
                               .catch(() => { setUidStatus('idle'); setUidMessage(''); });
                           } else {
-                            api.get(`/uid/validate/${uidVal}`)
+                            const q = phoneQuery ? `?${phoneQuery}` : '';
+                            api.get(`/uid/validate/${uidVal}${q}`)
                               .then(res => {
                                 const data = res.data;
+                                if (data.resolvedUid && data.resolvedUid !== uidVal) {
+                                  setFormData(prev => ({ ...prev, uid: data.resolvedUid }));
+                                }
                                 if (data.valid && data.available) {
                                   setUidStatus('valid');
                                   setUidMessage('UID is valid and available');
