@@ -39,6 +39,8 @@ router.get('/', authenticateToken, requireRole('admin'), requirePermission('uid_
 router.get('/export', authenticateToken, requireRole('admin'), requirePermission('uid_management', 'read'), UIDController.exportUIDs);
 // POST /api/uid/add — Manually add a UID
 router.post('/add', authenticateToken, requireRole('admin'), requirePermission('uid_management', 'write'), UIDController.addUID);
+// POST /api/uid/bulk-add — Bulk add UIDs from a CSV/Excel upload
+router.post('/bulk-add', authenticateToken, requireRole('admin'), requirePermission('uid_management', 'write'), UIDController.bulkAddUIDs);
 // DELETE /api/uid/:uid — Delete an unused UID
 router.delete('/:uid', authenticateToken, requireRole('admin'), requirePermission('uid_management', 'write'), UIDController.deleteUID);
 // GET /api/uid/:uid/details — Get full UID details with warranty spec sheet

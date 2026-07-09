@@ -17,6 +17,8 @@ import {
     History,
     Globe,
     Download,
+    Upload,
+    FileSpreadsheet,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -97,6 +99,14 @@ export const AdminUIDManagement = ({ onBack }: UIDManagementProps) => {
     const [isCustomProduct, setIsCustomProduct] = useState(false);
     const [products, setProducts] = useState<any[]>([]);
     const [addLoading, setAddLoading] = useState(false);
+
+    // Bulk add (CSV/Excel) dialog
+    const [bulkDialogOpen, setBulkDialogOpen] = useState(false);
+    const [bulkFileName, setBulkFileName] = useState("");
+    const [bulkParsedUids, setBulkParsedUids] = useState<string[]>([]);
+    const [bulkParseError, setBulkParseError] = useState("");
+    const [bulkLoading, setBulkLoading] = useState(false);
+    const [bulkResult, setBulkResult] = useState<any>(null);
 
     // Delete confirmation
     const [deleteUID, setDeleteUID] = useState<string | null>(null);
@@ -197,6 +207,73 @@ export const AdminUIDManagement = ({ onBack }: UIDManagementProps) => {
             toast({ title: "Error", description: msg, variant: "destructive" });
         } finally {
             setAddLoading(false);
+        }
+    };
+
+    const resetBulk = () => {
+        setBulkFileName("");
+        setBulkParsedUids([]);
+        setBulkParseError("");
+        setBulkResult(null);
+    };
+
+    // Parse a CSV/Excel file into a list of UID strings (first column, any sheet).
+    const handleBulkFileSelected = async (file: File | null) => {
+        resetBulk();
+        if (!file) return;
+        setBulkFileName(file.name);
+        try {
+            const XLSX = await import("xlsx");
+            const data = await file.arrayBuffer();
+            const wb = XLSX.read(data, { type: "array" });
+            const ws = wb.Sheets[wb.SheetNames[0]];
+            const rows: any[][] = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "", raw: false });
+
+            // Flatten every cell, keep 13-16 digit numeric tokens. Skip a header
+            // cell like "UID" automatically since it won't match the digit rule.
+            const seen = new Set<string>();
+            const uids: string[] = [];
+            for (const row of rows) {
+                for (const cell of row) {
+                    const val = String(cell ?? "").trim();
+                    if (/^\d{13,16}$/.test(val) && !seen.has(val)) {
+                        seen.add(val);
+                        uids.push(val);
+                    }
+                }
+            }
+
+            if (uids.length === 0) {
+                setBulkParseError("No valid 13-16 digit UIDs found in this file.");
+                return;
+            }
+            setBulkParsedUids(uids);
+        } catch (err) {
+            console.error("Failed to parse file:", err);
+            setBulkParseError("Could not read this file. Please upload a valid .csv or .xlsx file.");
+        }
+    };
+
+    const handleBulkAdd = async () => {
+        if (bulkParsedUids.length === 0) return;
+        setBulkLoading(true);
+        setBulkResult(null);
+        try {
+            const response = await api.post("/uid/bulk-add", { uids: bulkParsedUids });
+            if (response.data.success) {
+                setBulkResult(response.data.stats);
+                const s = response.data.stats;
+                toast({
+                    title: "Bulk Upload Complete",
+                    description: `${s.inserted} added, ${s.already_exists_available + s.already_exists_used} already existed, ${s.invalid_format} invalid.`,
+                });
+                fetchUIDs();
+            }
+        } catch (error: any) {
+            const msg = error.response?.data?.error || "Failed to upload UIDs";
+            toast({ title: "Error", description: msg, variant: "destructive" });
+        } finally {
+            setBulkLoading(false);
         }
     };
 
@@ -301,6 +378,15 @@ export const AdminUIDManagement = ({ onBack }: UIDManagementProps) => {
                             <Download className="h-4 w-4 mr-2" />
                         )}
                         Export
+                    </Button>
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => { resetBulk(); setBulkDialogOpen(true); }}
+                        className="h-9 px-4 rounded-xl border-emerald-100 text-emerald-600 hover:bg-emerald-50"
+                    >
+                        <Upload className="h-4 w-4 mr-2" />
+                        Bulk Add
                     </Button>
                     <Button
                         size="sm"
@@ -749,6 +835,92 @@ export const AdminUIDManagement = ({ onBack }: UIDManagementProps) => {
                             {addLoading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                             Add UID
                         </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* Bulk Add (CSV/Excel) Dialog */}
+            <Dialog open={bulkDialogOpen} onOpenChange={(open) => { if (!open) { setBulkDialogOpen(false); resetBulk(); } }}>
+                <DialogContent className="sm:max-w-md rounded-2xl">
+                    <DialogHeader>
+                        <DialogTitle className="text-lg font-bold flex items-center gap-2">
+                            <FileSpreadsheet className="h-5 w-5 text-emerald-600" />
+                            Bulk Add UIDs
+                        </DialogTitle>
+                        <DialogDescription>
+                            Upload a CSV or Excel file. Every 13-16 digit number found in the file is added as a new UID (source: Manual). Duplicates and already-existing UIDs are skipped automatically.
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <div className="space-y-4">
+                        {/* File picker */}
+                        <label
+                            htmlFor="bulkUidFile"
+                            className="flex flex-col items-center justify-center gap-2 border-2 border-dashed border-slate-200 rounded-xl p-6 cursor-pointer hover:border-emerald-300 hover:bg-emerald-50/30 transition-colors text-center"
+                        >
+                            <Upload className="h-6 w-6 text-slate-400" />
+                            <div className="text-sm font-medium text-slate-700">
+                                {bulkFileName || "Click to choose a .csv or .xlsx file"}
+                            </div>
+                            <div className="text-xs text-slate-400">First column should contain the UIDs</div>
+                            <input
+                                id="bulkUidFile"
+                                type="file"
+                                accept=".csv,.xlsx,.xls"
+                                className="hidden"
+                                onChange={(e) => handleBulkFileSelected(e.target.files?.[0] || null)}
+                            />
+                        </label>
+
+                        {bulkParseError && (
+                            <div className="flex items-start gap-2 text-sm text-red-600 bg-red-50 border border-red-100 rounded-xl p-3">
+                                <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
+                                <span>{bulkParseError}</span>
+                            </div>
+                        )}
+
+                        {bulkParsedUids.length > 0 && !bulkResult && (
+                            <div className="flex items-center gap-2 text-sm text-emerald-700 bg-emerald-50 border border-emerald-100 rounded-xl p-3">
+                                <CheckCircle2 className="h-4 w-4 shrink-0" />
+                                <span><span className="font-bold">{bulkParsedUids.length.toLocaleString()}</span> valid UID{bulkParsedUids.length === 1 ? "" : "s"} found and ready to upload.</span>
+                            </div>
+                        )}
+
+                        {/* Result summary */}
+                        {bulkResult && (
+                            <div className="rounded-xl border border-slate-100 bg-slate-50 p-4 space-y-2">
+                                <div className="text-sm font-bold text-slate-800">Upload Result</div>
+                                <div className="grid grid-cols-2 gap-2 text-xs">
+                                    <div className="flex justify-between bg-white rounded-lg px-3 py-2"><span className="text-slate-500">Added</span><span className="font-bold text-emerald-600">{bulkResult.inserted}</span></div>
+                                    <div className="flex justify-between bg-white rounded-lg px-3 py-2"><span className="text-slate-500">Already existed</span><span className="font-bold text-blue-600">{bulkResult.already_exists_available + bulkResult.already_exists_used}</span></div>
+                                    <div className="flex justify-between bg-white rounded-lg px-3 py-2"><span className="text-slate-500">Invalid</span><span className="font-bold text-red-500">{bulkResult.invalid_format}</span></div>
+                                    <div className="flex justify-between bg-white rounded-lg px-3 py-2"><span className="text-slate-500">Duplicates in file</span><span className="font-bold text-amber-600">{bulkResult.duplicate_in_request}</span></div>
+                                </div>
+                                <div className="text-[11px] text-slate-400 pt-1">Total received: {bulkResult.total_received.toLocaleString()}</div>
+                            </div>
+                        )}
+                    </div>
+
+                    <DialogFooter>
+                        {bulkResult ? (
+                            <Button onClick={() => { setBulkDialogOpen(false); resetBulk(); }} className="rounded-xl bg-[#f46617] hover:bg-[#d85512] text-white">
+                                Done
+                            </Button>
+                        ) : (
+                            <>
+                                <Button variant="outline" onClick={() => { setBulkDialogOpen(false); resetBulk(); }} className="rounded-xl">
+                                    Cancel
+                                </Button>
+                                <Button
+                                    onClick={handleBulkAdd}
+                                    disabled={bulkLoading || bulkParsedUids.length === 0}
+                                    className="rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white"
+                                >
+                                    {bulkLoading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                                    Upload {bulkParsedUids.length > 0 ? `${bulkParsedUids.length.toLocaleString()} UIDs` : ""}
+                                </Button>
+                            </>
+                        )}
                     </DialogFooter>
                 </DialogContent>
             </Dialog>

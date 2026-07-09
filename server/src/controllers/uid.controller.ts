@@ -602,6 +602,132 @@ export class UIDController {
     }
 
     /**
+     * Admin API: Bulk-add UIDs from a CSV/Excel upload.
+     * Same categorisation logic as syncUIDs (validate format, dedupe in-batch,
+     * skip already-existing), but JWT+admin authenticated and tagged
+     * source = 'manual'. The frontend parses the file and posts a { uids: [...] }
+     * array of plain UID strings.
+     */
+    static async bulkAddUIDs(req: Request, res: Response) {
+        let connection;
+        try {
+            const { uids } = req.body;
+
+            const MAX_BATCH_SIZE = 5000;
+            if (!uids || !Array.isArray(uids) || uids.length === 0) {
+                return res.status(400).json({ error: 'uids must be a non-empty array' });
+            }
+            if (uids.length > MAX_BATCH_SIZE) {
+                return res.status(400).json({ error: `File contains too many UIDs. Maximum ${MAX_BATCH_SIZE} per upload.` });
+            }
+
+            const timestamp = getISTTimestamp();
+            const results: any[] = [];
+            const stats = {
+                total_received: uids.length,
+                inserted: 0,
+                already_exists_available: 0,
+                already_exists_used: 0,
+                invalid_format: 0,
+                duplicate_in_request: 0
+            };
+
+            const processedInBatch = new Set<string>();
+            const validUids: string[] = [];
+
+            // Step 1: validate format + intra-batch duplicate check
+            for (const entry of uids) {
+                const uid = typeof entry === 'string' ? entry.trim()
+                    : (entry && typeof entry === 'object' ? String(entry.uid || '').trim() : '');
+
+                if (!uid || !/^\d{13,16}$/.test(uid)) {
+                    results.push({ uid: String(entry), status: 'invalid_format', message: 'UID must be a 13-16 digit number' });
+                    stats.invalid_format++;
+                    continue;
+                }
+                if (processedInBatch.has(uid)) {
+                    results.push({ uid, status: 'duplicate_in_request', message: 'UID appears multiple times in the file' });
+                    stats.duplicate_in_request++;
+                    continue;
+                }
+                processedInBatch.add(uid);
+                validUids.push(uid);
+            }
+
+            if (validUids.length === 0) {
+                return res.json({ success: true, message: 'No valid UIDs to process', stats, details: results });
+            }
+
+            // Step 2: find which already exist (and their used status)
+            const placeholders = validUids.map(() => '?').join(',');
+            const [existingRows]: any = await db.execute(
+                `SELECT uid, is_used, used_at FROM pre_generated_uids WHERE uid IN (${placeholders})`,
+                validUids
+            );
+            const existingMap = new Map<string, any>();
+            existingRows.forEach((row: any) => existingMap.set(row.uid, row));
+
+            const uidsToInsert: string[] = [];
+            for (const uid of validUids) {
+                const existing = existingMap.get(uid);
+                if (existing) {
+                    if (existing.is_used) {
+                        results.push({ uid, status: 'already_exists_used', message: 'UID is already registered to a warranty', used_at: existing.used_at });
+                        stats.already_exists_used++;
+                    } else {
+                        results.push({ uid, status: 'already_exists_available', message: 'UID already exists and is available' });
+                        stats.already_exists_available++;
+                    }
+                } else {
+                    uidsToInsert.push(uid);
+                }
+            }
+
+            // Step 3: batch insert new UIDs (source = manual)
+            if (uidsToInsert.length > 0) {
+                connection = await db.getConnection();
+                await connection.beginTransaction();
+
+                const batchSize = 100;
+                let totalInserted = 0;
+                for (let i = 0; i < uidsToInsert.length; i += batchSize) {
+                    const batch = uidsToInsert.slice(i, i + batchSize);
+                    const insertPlaceholders = batch.map(() => '(?, FALSE, NULL, ?, \'manual\', NULL)').join(', ');
+                    const insertValues = batch.flatMap(uid => [uid, timestamp]);
+                    const [result]: any = await connection.execute(
+                        `INSERT INTO pre_generated_uids (uid, is_used, used_at, created_at, source, product_name) VALUES ${insertPlaceholders}`,
+                        insertValues
+                    );
+                    totalInserted += result.affectedRows;
+                }
+
+                await connection.commit();
+                connection.release();
+                connection = null;
+
+                uidsToInsert.forEach(uid => results.push({ uid, status: 'inserted', message: 'UID added successfully' }));
+                stats.inserted = totalInserted;
+            }
+
+            const admin = (req as any).user;
+            console.log(`UID Bulk Add by ${admin?.email}: ${stats.inserted} new, ${stats.already_exists_available} existing, ${stats.already_exists_used} used, ${stats.invalid_format} invalid, ${stats.duplicate_in_request} dupes`);
+
+            res.json({
+                success: true,
+                message: `Processed ${uids.length} UIDs`,
+                stats,
+                details: results
+            });
+        } catch (error: any) {
+            if (connection) await connection.rollback();
+            console.error('Bulk add UIDs error:', error);
+            res.status(500).json({ error: 'Failed to bulk add UIDs' });
+        } finally {
+            if (connection) connection.release();
+        }
+    }
+
+    /**
      * Admin API: Delete an unused UID.
      */
     static async deleteUID(req: Request, res: Response) {
