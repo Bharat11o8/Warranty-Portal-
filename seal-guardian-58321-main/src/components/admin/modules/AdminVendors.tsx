@@ -303,11 +303,10 @@ export const AdminVendors = () => {
         setViewingVendor(vendor);
     };
 
-    // In leaderboard mode, the rank/filter column depends on the selected tab
-    const leaderboardCountField = filter === 'approved' ? 'range_validated_warranties'
-        : filter === 'pending' ? 'range_pending_warranties'
-        : filter === 'disapproved' ? 'range_rejected_warranties'
-        : 'range_total_warranties';
+    // The leaderboard always ranks franchises by TOTAL warranties in range,
+    // regardless of the selected tab. (The per-column Approved/Pending/Rejected
+    // counts are still shown, but they no longer drive the ranking or inclusion.)
+    const leaderboardCountField = 'range_total_warranties';
 
     const filteredVendors = vendors
         .filter((vendor) => {
@@ -401,34 +400,38 @@ export const AdminVendors = () => {
                 )}
 
                 <div className="flex flex-col md:flex-row gap-4 justify-between items-start md:items-center">
+                {/* Status tabs are only meaningful outside leaderboard mode.
+                    The leaderboard always ranks by total, so hide them there. */}
+                {!leaderboardMode && (
                 <Tabs value={filter} onValueChange={setFilter} className="w-full md:w-auto">
                     <TabsList className="grid w-full grid-cols-4 md:inline-flex bg-white/50 border border-orange-100 p-1 h-auto">
                         <TabsTrigger value="all" className="gap-2">
                             All
                             <Badge variant="secondary" className="bg-slate-100 text-slate-600 border-none px-1.5 py-0 h-4 text-[10px] font-bold">
-                                {leaderboardMode ? vendors.filter(v => Number(v.range_total_warranties || 0) > 0).length : vendors.length}
+                                {vendors.length}
                             </Badge>
                         </TabsTrigger>
                         <TabsTrigger value="approved" className="gap-2 data-[state=active]:bg-green-50 data-[state=active]:text-green-700">
                             Approved
                             <Badge variant="secondary" className="bg-green-100/50 text-green-700 border-none px-1.5 py-0 h-4 text-[10px] font-bold">
-                                {leaderboardMode ? vendors.filter(v => Number(v.range_validated_warranties || 0) > 0).length : vendors.filter(v => v.is_verified).length}
+                                {vendors.filter(v => v.is_verified).length}
                             </Badge>
                         </TabsTrigger>
                         <TabsTrigger value="pending" className="gap-2 data-[state=active]:bg-amber-50 data-[state=active]:text-amber-700">
                             Pending
                             <Badge variant="secondary" className="bg-amber-100/50 text-amber-700 border-none px-1.5 py-0 h-4 text-[10px] font-bold">
-                                {leaderboardMode ? vendors.filter(v => Number(v.range_pending_warranties || 0) > 0).length : vendors.filter(v => !v.is_verified && !v.verified_at).length}
+                                {vendors.filter(v => !v.is_verified && !v.verified_at).length}
                             </Badge>
                         </TabsTrigger>
                         <TabsTrigger value="disapproved" className="gap-2 data-[state=active]:bg-red-50 data-[state=active]:text-red-700">
                             Rejected
                             <Badge variant="secondary" className="bg-red-100/50 text-red-700 border-none px-1.5 py-0 h-4 text-[10px] font-bold">
-                                {leaderboardMode ? vendors.filter(v => Number(v.range_rejected_warranties || 0) > 0).length : vendors.filter(v => !v.is_verified && v.verified_at).length}
+                                {vendors.filter(v => !v.is_verified && v.verified_at).length}
                             </Badge>
                         </TabsTrigger>
                     </TabsList>
                 </Tabs>
+                )}
 
                 <div className="flex flex-col sm:flex-row w-full md:w-auto gap-2">
                     <div className="relative flex-1 sm:w-64">
@@ -530,7 +533,7 @@ export const AdminVendors = () => {
                                 {leaderboardMode ? (
                                     <>
                                         <CalendarRange className="h-3.5 w-3.5" />
-                                        Ranked by {filter === 'all' ? 'total' : filter === 'disapproved' ? 'rejected' : filter} warranties ({dateField === 'purchase_date' ? 'purchase date' : 'registered date'}), {new Date(startDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })} – {new Date(endDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+                                        Ranked by total warranties ({dateField === 'purchase_date' ? 'purchase date' : 'registered date'}), {new Date(startDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })} – {new Date(endDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
                                     </>
                                 ) : "Manage your network partners"}
                             </CardDescription>
