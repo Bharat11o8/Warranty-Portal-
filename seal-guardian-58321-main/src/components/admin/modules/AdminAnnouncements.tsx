@@ -24,6 +24,12 @@ export const AdminAnnouncements = () => {
     const [vendors, setVendors] = useState<any[]>([]);
     const [loadingVendors, setLoadingVendors] = useState(false);
     const [uploading, setUploading] = useState<{ image: boolean; video: boolean }>({ image: false, video: false });
+    const [activeCampaignId, setActiveCampaignId] = useState<string | null>(null);
+    const [campaignStatus, setCampaignStatus] = useState<any>(null);
+    const [pollingInterval, setPollingInterval] = useState<any>(null);
+    const [campaignsHistory, setCampaignsHistory] = useState<any[]>([]);
+    const [loadingHistory, setLoadingHistory] = useState(false);
+    const [activeTab, setActiveTab] = useState<'send' | 'history'>('send');
 
     const imageInputRef = React.useRef<HTMLInputElement>(null);
     const videoInputRef = React.useRef<HTMLInputElement>(null);
@@ -83,6 +89,46 @@ export const AdminAnnouncements = () => {
                     : [...prev.targetUsers, vendorId]
             };
         });
+    };
+
+    const fetchHistory = async () => {
+        setLoadingHistory(true);
+        try {
+            const res = await api.get('/notifications/history');
+            if (res.data.success) {
+                setCampaignsHistory(res.data.broadcasts);
+            }
+        } catch (error) {
+            console.error("Failed to fetch broadcast history:", error);
+        } finally {
+            setLoadingHistory(false);
+        }
+    };
+
+    const startPollingCampaign = (campaignId: string) => {
+        let intervalId: any = null;
+
+        const poll = async () => {
+            try {
+                const res = await api.get(`/notifications/campaign/${campaignId}`);
+                setCampaignStatus(res.data);
+                if (res.data.status === 'completed' || res.data.status === 'aborted') {
+                    if (intervalId) {
+                        clearInterval(intervalId);
+                    }
+                    fetchHistory();
+                }
+            } catch (error) {
+                console.error("Failed to fetch campaign status:", error);
+                if (intervalId) {
+                    clearInterval(intervalId);
+                }
+            }
+        };
+
+        intervalId = setInterval(poll, 1500);
+        setPollingInterval(intervalId);
+        poll();
     };
 
     const addMedia = (type: 'image' | 'video') => {
@@ -183,22 +229,34 @@ export const AdminAnnouncements = () => {
                 targetRole: formData.audience === 'all' ? 'vendor' : undefined
             };
 
-            await api.post("/notifications/broadcast", payload);
-            toast({
-                title: "Broadcast Sent! ✓",
-                description: `Delivered to ${formData.audience === 'all' ? 'all franchises' : `${formData.targetUsers.length} specific franchises`} in real-time.${formData.whatsapp ? ' WhatsApp messages are being queued in the background.' : ''}`,
-            });
-            setFormData({
-                title: "",
-                message: "",
-                type: "system",
-                link: "",
-                audience: "all",
-                targetUsers: [],
-                images: [],
-                videos: [],
-                whatsapp: false
-            });
+            const res = await api.post("/notifications/broadcast", payload);
+            const campaignId = res.data?.campaignId;
+
+            if (campaignId) {
+                setActiveCampaignId(campaignId);
+                startPollingCampaign(campaignId);
+                toast({
+                    title: "Campaign Initiated! 🚀",
+                    description: "WhatsApp campaign has been queued and is executing in the background.",
+                });
+            } else {
+                toast({
+                    title: "Broadcast Sent! ✓",
+                    description: `Delivered to ${formData.audience === 'all' ? 'all franchises' : `${formData.targetUsers.length} specific franchises`} in real-time.`,
+                });
+                setFormData({
+                    title: "",
+                    message: "",
+                    type: "system",
+                    link: "",
+                    audience: "all",
+                    targetUsers: [],
+                    images: [],
+                    videos: [],
+                    whatsapp: false
+                });
+                fetchHistory();
+            }
         } catch (error) {
             console.error("Broadcast failed:", error);
             toast({
@@ -211,20 +269,228 @@ export const AdminAnnouncements = () => {
         }
     };
 
+    if (activeCampaignId) {
+        return (
+            <Card className="border-border/40 shadow-xl bg-card/60 backdrop-blur-sm overflow-hidden">
+                <div className="h-2 bg-gradient-to-r from-primary via-purple-500 to-primary animate-pulse" />
+                <CardHeader className="space-y-1">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2 text-primary">
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            <span className="text-[10px] font-black uppercase tracking-[0.2em]">WhatsApp Broadcast Status</span>
+                        </div>
+                        <Badge 
+                            variant={campaignStatus?.status === 'running' ? 'default' : campaignStatus?.status === 'aborted' ? 'destructive' : 'secondary'} 
+                            className="uppercase text-[9px] font-black tracking-widest px-2.5 py-0.5"
+                        >
+                            {campaignStatus?.status || 'Initiating...'}
+                        </Badge>
+                    </div>
+                    <CardTitle className="text-2xl font-black mt-2">Campaign Logs</CardTitle>
+                    <CardDescription className="font-semibold text-xs text-muted-foreground">
+                        Campaign ID: {activeCampaignId}
+                    </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6 pt-2">
+                    {/* Progress bar */}
+                    <div className="space-y-2">
+                        <div className="flex justify-between text-xs font-bold uppercase tracking-wider text-slate-500">
+                            <span>Transmission Progress</span>
+                            <span>{campaignStatus?.processed || 0} / {campaignStatus?.totalRecipients || 0} Recipient(s)</span>
+                        </div>
+                        <div className="w-full h-3 bg-muted rounded-full overflow-hidden border">
+                            <div 
+                                className="h-full bg-gradient-to-r from-primary to-purple-500 transition-all duration-500"
+                                style={{ 
+                                    width: `${campaignStatus?.totalRecipients > 0 ? (campaignStatus.processed / campaignStatus.totalRecipients) * 100 : 0}%` 
+                                }}
+                            />
+                        </div>
+                    </div>
+
+                    {/* Metrics grid */}
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <div className="p-4 bg-muted/20 border rounded-2xl text-center space-y-1">
+                            <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">API Accepted</span>
+                            <div className="text-2xl font-black text-slate-700">{campaignStatus?.stats?.apiAccepted || 0}</div>
+                        </div>
+                        <div className="p-4 bg-green-50/50 border border-green-100 rounded-2xl text-center space-y-1 dark:bg-green-950/20 dark:border-green-900/30">
+                            <span className="text-[10px] font-black uppercase tracking-wider text-green-600 dark:text-green-400">Delivered</span>
+                            <div className="text-2xl font-black text-green-700 dark:text-green-300">{campaignStatus?.stats?.delivered || 0}</div>
+                        </div>
+                        <div className="p-4 bg-blue-50/50 border border-blue-100 rounded-2xl text-center space-y-1 dark:bg-blue-950/20 dark:border-blue-900/30">
+                            <span className="text-[10px] font-black uppercase tracking-wider text-blue-600 dark:text-blue-400">Read</span>
+                            <div className="text-2xl font-black text-blue-700 dark:text-blue-300">{campaignStatus?.stats?.read || 0}</div>
+                        </div>
+                        <div className="p-4 bg-red-50/50 border border-red-100 rounded-2xl text-center space-y-1 dark:bg-red-950/20 dark:border-red-900/30">
+                            <span className="text-[10px] font-black uppercase tracking-wider text-red-600 dark:text-red-400">Failed</span>
+                            <div className="text-2xl font-black text-red-700 dark:text-red-300">{campaignStatus?.stats?.failed || 0}</div>
+                        </div>
+                    </div>
+
+                    {/* Failures and issues logs */}
+                    {campaignStatus?.failures && campaignStatus.failures.length > 0 && (
+                        <div className="space-y-2">
+                            <label className="text-xs font-black uppercase tracking-widest text-red-500 ml-1">Delivery Failures Log</label>
+                            <ScrollArea className="h-44 border rounded-xl bg-red-500/5 dark:bg-red-950/5 p-3">
+                                <div className="space-y-2">
+                                    {campaignStatus.failures.map((f: any, idx: number) => (
+                                        <div key={idx} className="text-xs p-2.5 bg-background border border-red-100 dark:border-red-955 rounded-lg flex flex-col md:flex-row md:items-center justify-between gap-2">
+                                            <div className="space-y-0.5">
+                                                <div className="font-bold text-slate-800 dark:text-slate-200">Phone: {f.phone}</div>
+                                                <div className="text-red-500 font-semibold text-[11px]">Error {f.errorCode}: {f.reason || 'Failed to deliver'}</div>
+                                            </div>
+                                            <div className="text-[10px] font-medium text-slate-400 whitespace-nowrap">
+                                                {f.timestamp ? new Date(f.timestamp).toLocaleTimeString() : ''}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </ScrollArea>
+                        </div>
+                    )}
+
+                    {/* Action buttons */}
+                    <div className="flex gap-3 pt-4 border-t">
+                        {campaignStatus?.status === 'running' ? (
+                            <Button
+                                variant="destructive"
+                                className="w-full h-11 text-xs font-black uppercase tracking-[0.2em]"
+                                onClick={handleAbort}
+                                disabled={aborting}
+                            >
+                                {aborting ? <Loader2 className="h-4 w-4 animate-spin mr-2 text-white inline" /> : null}
+                                Abort Campaign 🛑
+                            </Button>
+                        ) : (
+                            <Button
+                                className="w-full h-11 text-xs font-black uppercase tracking-[0.2em] shadow-lg shadow-primary/10"
+                                onClick={() => {
+                                    if (pollingInterval) {
+                                        clearInterval(pollingInterval);
+                                        setPollingInterval(null);
+                                    }
+                                    setActiveCampaignId(null);
+                                    setCampaignStatus(null);
+                                    fetchHistory();
+                                }}
+                            >
+                                Back to Announcement Form
+                            </Button>
+                        )}
+                    </div>
+                </CardContent>
+            </Card>
+        );
+    }
+
     return (
         <Card className="border-border/40 shadow-xl bg-card/60 backdrop-blur-sm overflow-hidden">
             <div className="h-2 bg-gradient-to-r from-primary via-purple-500 to-primary" />
             <CardHeader className="space-y-1">
-                <div className="flex items-center gap-2 text-primary mb-2">
-                    <Megaphone className="h-5 w-5 animate-bounce" />
-                    <span className="text-[10px] font-black uppercase tracking-[0.2em]">Global Broadcast Engine</span>
+                <div className="flex justify-between items-start">
+                    <div>
+                        <div className="flex items-center gap-2 text-primary mb-2">
+                            <Megaphone className="h-5 w-5 animate-bounce" />
+                            <span className="text-[10px] font-black uppercase tracking-[0.2em]">Global Broadcast Engine</span>
+                        </div>
+                        <CardTitle className="text-2xl font-black">
+                            {activeTab === 'send' ? 'Send Announcement' : 'Broadcast History'}
+                        </CardTitle>
+                        <CardDescription className="font-medium">
+                            {activeTab === 'send' 
+                                ? 'Push a real-time notification to connected franchise dashboards manually.' 
+                                : 'Logs of previous system announcements and campaign dispatches.'}
+                        </CardDescription>
+                    </div>
+                    <Button 
+                        variant="outline" 
+                        size="sm"
+                        className="font-bold text-xs uppercase tracking-wider flex items-center gap-1.5 h-9 border-primary/20 hover:bg-primary/5 text-primary"
+                        onClick={() => {
+                            const newTab = activeTab === 'send' ? 'history' : 'send';
+                            setActiveTab(newTab);
+                            if (newTab === 'history') {
+                                fetchHistory();
+                            }
+                        }}
+                    >
+                        {activeTab === 'send' ? 'View History 📋' : 'Write Announcement ✍️'}
+                    </Button>
                 </div>
-                <CardTitle className="text-2xl font-black">Send Announcement</CardTitle>
-                <CardDescription className="font-medium">
-                    Push a real-time notification to connected franchise dashboards manually.
-                </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6 pt-2">
+                {activeTab === 'history' ? (
+                    <div className="space-y-4">
+                        {loadingHistory ? (
+                            <div className="flex items-center justify-center p-12 text-muted-foreground text-xs font-bold gap-2">
+                                <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                                <span>Loading history...</span>
+                            </div>
+                        ) : campaignsHistory.length === 0 ? (
+                            <div className="text-center p-12 text-muted-foreground text-xs font-bold">
+                                No previous broadcasts found.
+                            </div>
+                        ) : (
+                            <div className="space-y-4">
+                                {campaignsHistory.map((broadcast) => (
+                                    <div key={broadcast.id} className="p-4 border bg-background/30 dark:bg-zinc-800/10 rounded-2xl space-y-3">
+                                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-2">
+                                            <div className="flex items-center gap-2">
+                                                <Badge variant="outline" className={cn(
+                                                    "uppercase text-[9px] font-black tracking-wider px-2 py-0.5",
+                                                    broadcast.type === 'product' ? "border-purple-200 text-purple-600 bg-purple-500/5" :
+                                                        broadcast.type === 'alert' ? "border-amber-200 text-amber-600 bg-amber-500/5" :
+                                                            "border-blue-200 text-blue-600 bg-blue-500/5"
+                                                )}>
+                                                    {broadcast.type}
+                                                </Badge>
+                                                <h4 className="text-sm font-black text-slate-800 dark:text-slate-200">
+                                                    {broadcast.title}
+                                                </h4>
+                                            </div>
+                                            <span className="text-[10px] font-bold text-muted-foreground">
+                                                {new Date(broadcast.createdAt).toLocaleString()}
+                                            </span>
+                                        </div>
+                                        <p className="text-xs text-muted-foreground leading-relaxed whitespace-pre-wrap">
+                                            {broadcast.message}
+                                        </p>
+                                        
+                                        {broadcast.campaignId && (
+                                            <div className="pt-2 border-t border-dashed mt-2 space-y-2">
+                                                <div className="flex items-center gap-1 text-[10px] font-black uppercase tracking-wider text-green-600">
+                                                    <MessageCircle className="h-3 w-3" /> WhatsApp Campaign
+                                                </div>
+                                                {broadcast.stats ? (
+                                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-[10px] font-bold font-mono">
+                                                        <div className="p-2 bg-slate-50 dark:bg-zinc-800/50 border rounded-lg text-center">
+                                                            <span className="text-slate-500 font-sans">Accepted</span>: {broadcast.stats.apiAccepted}
+                                                        </div>
+                                                        <div className="p-2 bg-green-50/50 dark:bg-green-950/10 border border-green-100 dark:border-green-950/50 rounded-lg text-center text-green-700 dark:text-green-400">
+                                                            <span className="font-sans">Delivered</span>: {broadcast.stats.delivered}
+                                                        </div>
+                                                        <div className="p-2 bg-blue-50/50 dark:bg-blue-950/10 border border-blue-100 dark:border-blue-955 rounded-lg text-center text-blue-700 dark:text-blue-400">
+                                                            <span className="font-sans">Read</span>: {broadcast.stats.read}
+                                                        </div>
+                                                        <div className="p-2 bg-red-50/50 dark:bg-red-950/10 border border-red-100 dark:border-red-955 rounded-lg text-center text-red-700 dark:text-red-400">
+                                                            <span className="font-sans">Failed</span>: {broadcast.stats.failed}
+                                                        </div>
+                                                    </div>
+                                                ) : (
+                                                    <div className="text-[10px] text-muted-foreground italic font-semibold">
+                                                        Stats processing or campaign aborted.
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                ) : (
+                    <>
 
                 {/* 1. Title & Type */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -803,6 +1069,8 @@ export const AdminAnnouncements = () => {
                             </>
                         )}
                     </Button>
+                    </>
+                )}
             </CardContent>
         </Card>
     );

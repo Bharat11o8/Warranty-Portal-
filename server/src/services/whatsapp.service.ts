@@ -5,6 +5,13 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
+export interface CampaignProgress {
+    campaignId: string;
+    totalRecipients: number;
+    processed: number;
+    status: 'running' | 'completed' | 'aborted';
+}
+
 /**
  * Service to handle all WhatsApp Business API communications via Interakt
  * API Docs: https://www.interakt.shop/resource-center/how-to-send-whatsapp-templates-using-apis-webhooks/
@@ -12,6 +19,15 @@ dotenv.config();
 export class WhatsAppService {
     private static readonly API_URL = 'https://api.interakt.ai/v1/public/message/';
     private static readonly API_KEY = process.env.INTERAKT_API_KEY;
+
+    private static activeCampaign: CampaignProgress | null = null;
+
+    static getCampaignProgress(campaignId: string): CampaignProgress | null {
+        if (this.activeCampaign && this.activeCampaign.campaignId === campaignId) {
+            return this.activeCampaign;
+        }
+        return null;
+    }
 
     /**
      * Splits a phone number into countryCode and phoneNumber for Interakt's format.
@@ -55,7 +71,8 @@ export class WhatsAppService {
         context: string,
         referenceId?: string,
         buttonValues?: string[],  // For templates with variable buttons (e.g., OTP copy button)
-        headerValues?: string[]   // For templates with text or media (image/video) headers
+        headerValues?: string[],  // For templates with text or media (image/video) headers
+        campaignId?: string       // Groups messages belonging to the same broadcast run
     ): Promise<boolean> {
         const logId = uuidv4();
         const { countryCode, phoneNumber } = this.formatPhoneNumber(phone);
@@ -70,7 +87,8 @@ export class WhatsAppService {
                 status: 'failed',
                 context,
                 reference_id: referenceId,
-                error_message: 'INTERAKT_API_KEY not configured'
+                error_message: 'INTERAKT_API_KEY not configured',
+                campaign_id: campaignId
             });
             return false;
         }
@@ -87,15 +105,13 @@ export class WhatsAppService {
                 }
             };
 
-            // Only include bodyValues if there are variables in the template
-            // WhatsApp/Interakt rejects values containing tabs, newlines, or 3+ consecutive spaces.
-            // Also strip non-breaking spaces (\u00A0) and other Unicode whitespace that
-            // toLocaleDateString() can inject depending on the Node.js/ICU version.
+            // Only include bodyValues if there are variables in the template.
+            // Interakt rejects values containing tabs, newlines, or 3+ consecutive spaces.
             if (bodyValues.length > 0) {
                 payload.template.bodyValues = bodyValues.map(val =>
                     String(val)
-                        .replace(/[\t\r\n\u00A0\u2000-\u200B\u202F\u205F\u3000]+/g, ' ') // tabs, newlines, unicode spaces → single space
-                        .replace(/ {3,}/g, '  ')       // collapse 3+ consecutive spaces to max 2
+                        .replace(/[\t\r\n\u00A0\u2000-\u200B\u202F\u205F\u3000]+/g, ' ')
+                        .replace(/ {3,}/g, '  ')
                         .trim()
                 );
             }
@@ -136,7 +152,9 @@ export class WhatsAppService {
                 template_name: templateName,
                 status: 'sent',
                 context,
-                reference_id: referenceId
+                reference_id: referenceId,
+                interakt_message_id: response.data?.id || null,
+                campaign_id: campaignId
             });
 
             return true;
@@ -152,7 +170,8 @@ export class WhatsAppService {
                 status: 'failed',
                 context,
                 reference_id: referenceId,
-                error_message: typeof errMsg === 'string' ? errMsg : JSON.stringify(errMsg)
+                error_message: typeof errMsg === 'string' ? errMsg : JSON.stringify(errMsg),
+                campaign_id: campaignId
             });
 
             return false;
@@ -176,7 +195,7 @@ export class WhatsAppService {
      * Sends a broadcast announcement to a list of franchise phone numbers.
      *
      * Template selection:
-     *   • imageUrl provided  → af_admin_broadcast_img  (Marketing, image header)
+     *   • imageUrl provided  → af_admin_broadcast_img_2  (Marketing, image header)
      *   • imageUrl absent    → af_admin_broadcast_2  (Utility, no header)
      *
      * Sends are throttled at 200 ms per phone to stay within Interakt rate limits.
@@ -186,45 +205,47 @@ export class WhatsAppService {
      * @param title    - Announcement heading (used as text header on the text-only template)
      * @param message  - Announcement body (truncated to 1000 chars if too long)
      * @param imageUrl - Optional publicly-accessible HTTPS image URL
+     * @param pregeneratedCampaignId - Optional override for campaign ID
      * @returns        - { sent, failed, aborted } counts
      */
     static async sendAdminBroadcast(
         phones: string[],
         title: string,
         message: string,
-        imageUrl?: string
-    ): Promise<{ sent: number; failed: number; aborted: boolean }> {
+        imageUrl?: string,
+        pregeneratedCampaignId?: string
+    ): Promise<{ sent: number; failed: number; aborted: boolean; campaignId?: string }> {
         const MAX_MESSAGE_LENGTH = 1000;
 
         // Reset kill-switch for this new broadcast run
         this.broadcastAborted = false;
 
-        // Sanitise the title (single-line field — strip newlines)
-        const sanitiseTitle = (val: string) =>
+        // Generate or use pre-generated campaign_id to group all messages in this broadcast
+        const campaignId = pregeneratedCampaignId || uuidv4();
+
+        this.activeCampaign = {
+            campaignId,
+            totalRecipients: phones.length,
+            processed: 0,
+            status: 'running'
+        };
+
+        // Sanitise inputs — Interakt rejects tabs, newlines, and 3+ consecutive spaces
+        // in template body variable values. All whitespace collapsed to spaces.
+        const sanitise = (val: string) =>
             String(val)
                 .replace(/[\t\r\n\u00A0\u2000-\u200B\u202F\u205F\u3000]+/g, ' ')
                 .replace(/ {3,}/g, '  ')
                 .trim();
 
-        // Sanitise the body — PRESERVE \n so multi-line messages keep their formatting.
-        // Only strip: \r (Windows line endings), unusual Unicode spaces, and 3+ consecutive blank lines.
-        const sanitiseBody = (val: string) =>
-            String(val)
-                .replace(/\r\n/g, '\n')              // normalise Windows CRLF → LF
-                .replace(/\r/g, '\n')                // stray \r → \n
-                .replace(/[\t\u00A0\u2000-\u200B\u202F\u205F\u3000]+/g, ' ') // unusual spaces/tabs → space
-                .replace(/ {3,}/g, '  ')             // 3+ consecutive spaces → 2 spaces
-                .replace(/\n{4,}/g, '\n\n\n')        // collapse 4+ blank lines to 3
-                .trim();
-
-        const cleanTitle   = sanitiseTitle(title);
-        const rawMessage   = sanitiseBody(message);
+        const cleanTitle   = sanitise(title);
+        const rawMessage   = sanitise(message);
         const cleanMessage = rawMessage.length > MAX_MESSAGE_LENGTH
             ? rawMessage.substring(0, MAX_MESSAGE_LENGTH - 1) + '\u2026'  // …
             : rawMessage;
 
         const useImageTemplate = !!(imageUrl && imageUrl.trim());
-        const templateName     = useImageTemplate ? 'af_admin_broadcast_img' : 'af_admin_broadcast_2';
+        const templateName     = useImageTemplate ? 'af_admin_broadcast_img_2' : 'af_admin_broadcast_2';
 
         // headerValues:
         //   image template → [imageUrl]  (Interakt passes this as the dynamic media header)
@@ -239,10 +260,14 @@ export class WhatsAppService {
             // Check kill-switch before every send
             if (this.broadcastAborted) {
                 console.warn(`[WhatsApp] Broadcast aborted after ${sent} sent, ${phones.length - sent - failed} remaining.`);
+                if (this.activeCampaign) this.activeCampaign.status = 'aborted';
                 break;
             }
 
-            if (!phone || !phone.trim()) continue;
+            if (!phone || !phone.trim()) {
+                if (this.activeCampaign) this.activeCampaign.processed++;
+                continue;
+            }
 
             const ok = await this.sendTemplateMessage(
                 phone,
@@ -251,10 +276,12 @@ export class WhatsAppService {
                 'admin_broadcast',
                 undefined,   // no referenceId for broadcasts
                 undefined,   // no buttonValues
-                headerValues
+                headerValues,
+                campaignId
             );
 
             ok ? sent++ : failed++;
+            if (this.activeCampaign) this.activeCampaign.processed++;
 
             // Throttle: 200 ms between sends to avoid Interakt rate limits
             if (phones.indexOf(phone) < phones.length - 1) {
@@ -262,8 +289,12 @@ export class WhatsAppService {
             }
         }
 
-        console.log(`[WhatsApp] Admin broadcast complete — sent: ${sent}, failed: ${failed}, aborted: ${this.broadcastAborted}, template: ${templateName}`);
-        return { sent, failed, aborted: this.broadcastAborted };
+        if (this.activeCampaign && this.activeCampaign.status === 'running') {
+            this.activeCampaign.status = 'completed';
+        }
+
+        console.log(`[WhatsApp] Admin broadcast complete — sent: ${sent}, failed: ${failed}, aborted: ${this.broadcastAborted}, template: ${templateName}, campaign: ${campaignId}`);
+        return { sent, failed, aborted: this.broadcastAborted, campaignId };
     }
 
 
@@ -274,8 +305,8 @@ export class WhatsAppService {
         try {
             await db.execute(
                 `INSERT INTO message_logs 
-        (id, recipient_phone, recipient_email, channel, template_name, status, context, reference_id, error_message) 
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        (id, recipient_phone, recipient_email, channel, template_name, status, context, reference_id, error_message, interakt_message_id, campaign_id) 
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                 [
                     data.id,
                     data.recipient_phone || null,
@@ -285,7 +316,9 @@ export class WhatsAppService {
                     data.status,
                     data.context,
                     data.reference_id || null,
-                    data.error_message || null
+                    data.error_message || null,
+                    data.interakt_message_id || null,
+                    data.campaign_id || null
                 ]
             );
         } catch (err) {

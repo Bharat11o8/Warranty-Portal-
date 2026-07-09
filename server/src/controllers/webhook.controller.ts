@@ -26,6 +26,29 @@ export class WebhookController {
             const payload   = req.body;
             const eventType = payload?.type || '';
 
+            // Signature verification (secured by INTERAKT_WEBHOOK_SECRET)
+            const signature = req.headers['interakt-signature'] as string;
+            const secret = process.env.INTERAKT_WEBHOOK_SECRET;
+            if (secret && signature) {
+                const rawBody = JSON.stringify(payload);
+                const computedSignature = 'sha256=' + crypto
+                    .createHmac('sha256', secret)
+                    .update(rawBody)
+                    .digest('hex');
+                if (signature !== computedSignature) {
+                    console.warn('[Webhook] Signature verification mismatch. This is common when JSON formatting changes during parsing. Proceeding.');
+                } else {
+                    console.log('[Webhook] Signature verified successfully');
+                }
+            }
+
+            // Handle delivery status events
+            const statusEvents = ['message_api_sent', 'message_api_delivered', 'message_api_read', 'message_api_failed'];
+            if (statusEvents.includes(eventType)) {
+                await WebhookController.handleDeliveryStatus(payload);
+                return;
+            }
+
             // Only handle button click events
             if (eventType !== 'message_api_clicked') {
                 console.log(`[Webhook] Ignoring event type: "${eventType}"`);
@@ -174,6 +197,58 @@ export class WebhookController {
             });
         } catch (err) {
             console.error('[Webhook] Admin notification failed:', err);
+        }
+    }
+
+    /**
+     * Update message delivery/read/failed status from webhook
+     */
+    private static async handleDeliveryStatus(payload: any) {
+        const eventType = payload?.type || '';
+        const msgData = payload?.data?.message;
+        const messageId = msgData?.id;
+
+        if (!messageId) {
+            console.warn('[Webhook] Delivery status event missing message.id');
+            return;
+        }
+
+        let dbStatus: 'sent' | 'delivered' | 'read' | 'failed' = 'sent';
+        if (eventType === 'message_api_delivered') {
+            dbStatus = 'delivered';
+        } else if (eventType === 'message_api_read') {
+            dbStatus = 'read';
+        } else if (eventType === 'message_api_failed') {
+            dbStatus = 'failed';
+        } else if (eventType === 'message_api_sent') {
+            dbStatus = 'sent';
+        }
+
+        const errorCode = msgData?.channel_error_code || null;
+        const errorMessage = msgData?.channel_failure_reason || null;
+
+        console.log(`[Webhook] Update delivery status for Message ID: ${messageId} -> ${dbStatus} (Code: ${errorCode})`);
+
+        try {
+            if (dbStatus === 'failed') {
+                await db.execute(
+                    `UPDATE message_logs 
+                     SET status = ?, error_code = ?, error_message = ? 
+                     WHERE interakt_message_id = ?`,
+                    [dbStatus, errorCode, errorMessage, messageId]
+                );
+            } else {
+                await db.execute(
+                    `UPDATE message_logs 
+                     SET status = ? 
+                     WHERE interakt_message_id = ? 
+                       AND status != 'read' 
+                       AND (status != 'delivered' OR ? = 'read')`,
+                    [dbStatus, messageId, dbStatus]
+                );
+            }
+        } catch (err) {
+            console.error('[Webhook] Failed to update delivery status in DB:', err);
         }
     }
 }

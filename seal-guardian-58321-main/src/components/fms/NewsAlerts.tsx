@@ -432,7 +432,7 @@ export const NewsAlerts = ({ onNavigate, onLinkClick }: { onNavigate?: (module: 
 
             {/* Detailed View Modal */}
             <Dialog open={!!selectedNotification} onOpenChange={(open) => !open && setSelectedNotification(null)}>
-                <DialogContent className="max-w-2xl bg-white/95 backdrop-blur-xl border-white shadow-2xl rounded-3xl p-0 overflow-hidden">
+                <DialogContent className="max-w-2xl max-h-[85vh] bg-white/95 backdrop-blur-xl border-white shadow-2xl rounded-3xl p-0 overflow-y-auto">
                     {(() => {
                         const item = selectedNotification;
                         if (!item) return null;
@@ -467,8 +467,10 @@ export const NewsAlerts = ({ onNavigate, onLinkClick }: { onNavigate?: (module: 
                                 </DialogHeader>
 
                                 <div className="p-6 md:p-8 pt-0 space-y-6">
-                                    <div className="prose prose-sm max-w-none text-slate-600 leading-relaxed whitespace-pre-wrap font-medium">
-                                        {item.message}
+                                    <div className="max-h-[500px] overflow-y-auto rounded-xl border border-slate-100 bg-slate-50/50 p-5">
+                                        <div className="prose prose-sm max-w-none text-slate-600 leading-relaxed whitespace-pre-wrap font-medium">
+                                            {item.message}
+                                        </div>
                                     </div>
 
                                     {item.metadata && (
