@@ -8,6 +8,7 @@ import path from 'path';
 import { transporter } from '../config/email.js';
 import { formatDateIST, formatDateTimeIST } from '../utils/dateUtils.js';
 import { ActivityLogService } from '../services/activity-log.service.js';
+import { WhatsAppService } from '../services/whatsapp.service.js';
 import dotenv from 'dotenv';
 
 dotenv.config();
@@ -686,60 +687,131 @@ export class OrderController {
                     const orderRemarks = typeof additionalRemarks === 'string' ? additionalRemarks.trim() : '';
                     const totalQuantity = orderItems.reduce((s: number, i: any) => s + Number(i.quantity || 0), 0);
 
-                    await transporter.sendMail({
-                        from: process.env.EMAIL_FROM,
-                        to: distributor.email,
-                        subject: `New Order from ${vendor.store_name} — #${orderId}`,
-                        html: `
-                            <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-                                <div style="background: linear-gradient(135deg, #FFB400, #FF8C00); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
-                                    <h1 style="color: #000; margin: 0; font-size: 22px;">New Order — Stock Allocated</h1>
-                                </div>
-                                <div style="background: #fff; padding: 30px; border: 1px solid #eee; border-radius: 0 0 10px 10px;">
-                                    <p>Hello <strong>${OrderController.escapeHtml(distributor.name)}</strong>,</p>
-                                    <p>Franchise <strong>${OrderController.escapeHtml(vendor.store_name)}</strong> has placed an order. Stock has already been deducted from your live inventory — no action is needed from you to confirm it.</p>
-
-                                    <div style="background: #f8f9fa; border-left: 4px solid #FFB400; padding: 15px; margin: 20px 0; border-radius: 4px;">
-                                        <p><strong>Order ID:</strong> ${OrderController.escapeHtml(orderId)}</p>
-                                        <p><strong>Items:</strong> ${orderItems.length} product(s)</p>
-                                        <p><strong>Total Qty:</strong> ${totalQuantity} units</p>
-                                        <p><strong>Ship To:</strong> ${OrderController.escapeHtml(shippingAddress)}, ${OrderController.escapeHtml(shippingCity)}, ${OrderController.escapeHtml(shippingState)} - ${OrderController.escapeHtml(shippingPincode)}</p>
-                                    </div>
-
-                                    <h2 style="font-size: 16px; color: #111827; margin: 24px 0 10px;">Order Items</h2>
-                                    <table style="width: 100%; border-collapse: collapse; border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden;">
-                                        <thead>
-                                            <tr style="background: #f8fafc;">
-                                                <th style="padding: 10px 12px; text-align: left; font-size: 12px; color: #475569;">#</th>
-                                                <th style="padding: 10px 12px; text-align: left; font-size: 12px; color: #475569;">Product</th>
-                                                <th style="padding: 10px 12px; text-align: right; font-size: 12px; color: #475569;">Qty</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            ${OrderController.renderOrderItemsEmailRows(orderItems)}
-                                        </tbody>
-                                    </table>
-
-                                    ${orderRemarks ? `
-                                        <div style="margin: 22px 0; padding: 14px; background: #fff7ed; border: 1px solid #fed7aa; border-radius: 8px;">
-                                            <div style="font-weight: 700; color: #9a3412; margin-bottom: 6px;">Additional Info / Remarks</div>
-                                            <div style="font-size: 13px; color: #431407;">${OrderController.formatHtmlLines(orderRemarks)}</div>
-                                        </div>
-                                    ` : ''}
-
-                                    <p style="color: #475569; font-size: 13px;">You can add a note for the franchise or decline the order from your dashboard if needed.</p>
-                                </div>
+                    // Shared building blocks so both emails carry the same details + PDF.
+                    const shipTo = `${OrderController.escapeHtml(shippingAddress)}, ${OrderController.escapeHtml(shippingCity)}, ${OrderController.escapeHtml(shippingState)} - ${OrderController.escapeHtml(shippingPincode)}`;
+                    const detailsBox = `
+                        <div style="background: #f8f9fa; border-left: 4px solid #FFB400; padding: 15px; margin: 20px 0; border-radius: 4px;">
+                            <p><strong>Order ID:</strong> ${OrderController.escapeHtml(orderId)}</p>
+                            <p><strong>Items:</strong> ${orderItems.length} product(s)</p>
+                            <p><strong>Total Qty:</strong> ${totalQuantity} units</p>
+                            <p><strong>Ship To:</strong> ${shipTo}</p>
+                        </div>`;
+                    const itemsTable = `
+                        <h2 style="font-size: 16px; color: #111827; margin: 24px 0 10px;">Order Items</h2>
+                        <table style="width: 100%; border-collapse: collapse; border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden;">
+                            <thead>
+                                <tr style="background: #f8fafc;">
+                                    <th style="padding: 10px 12px; text-align: left; font-size: 12px; color: #475569;">#</th>
+                                    <th style="padding: 10px 12px; text-align: left; font-size: 12px; color: #475569;">Product</th>
+                                    <th style="padding: 10px 12px; text-align: right; font-size: 12px; color: #475569;">Qty</th>
+                                </tr>
+                            </thead>
+                            <tbody>${OrderController.renderOrderItemsEmailRows(orderItems)}</tbody>
+                        </table>`;
+                    const remarksBox = orderRemarks ? `
+                        <div style="margin: 22px 0; padding: 14px; background: #fff7ed; border: 1px solid #fed7aa; border-radius: 8px;">
+                            <div style="font-weight: 700; color: #9a3412; margin-bottom: 6px;">Additional Info / Remarks</div>
+                            <div style="font-size: 13px; color: #431407;">${OrderController.formatHtmlLines(orderRemarks)}</div>
+                        </div>` : '';
+                    const wrapEmail = (headerTitle: string, bodyHtml: string) => `
+                        <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+                            <div style="background: linear-gradient(135deg, #FFB400, #FF8C00); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
+                                <h1 style="color: #000; margin: 0; font-size: 22px;">${headerTitle}</h1>
                             </div>
-                        `,
-                        attachments: [{
-                            filename: `Order-${orderId}.pdf`,
-                            content: pdfBuffer,
-                            contentType: 'application/pdf'
-                        }]
-                    });
+                            <div style="background: #fff; padding: 30px; border: 1px solid #eee; border-radius: 0 0 10px 10px;">
+                                ${bodyHtml}
+                            </div>
+                        </div>`;
+                    const pdfAttachment = [{
+                        filename: `Order-${orderId}.pdf`,
+                        content: pdfBuffer,
+                        contentType: 'application/pdf'
+                    }];
+
+                    // ── Email 1: Distributor (fulfilment side) ──
+                    if (distributor.email) {
+                        await transporter.sendMail({
+                            from: process.env.EMAIL_FROM,
+                            to: distributor.email,
+                            subject: `New Order from ${vendor.store_name} — #${orderId}`,
+                            html: wrapEmail('New Order — Stock Allocated', `
+                                <p>Hello <strong>${OrderController.escapeHtml(distributor.name)}</strong>,</p>
+                                <p>Franchise <strong>${OrderController.escapeHtml(vendor.store_name)}</strong> has placed an order. Stock has already been deducted from your live inventory — no action is needed from you to confirm it.</p>
+                                ${detailsBox}
+                                ${itemsTable}
+                                ${remarksBox}
+                                <p style="color: #475569; font-size: 13px;">You can add a note for the franchise or decline the order from your dashboard if needed.</p>
+                            `),
+                            attachments: pdfAttachment
+                        });
+                    }
+
+                    // ── Email 2: Franchise (order confirmation for the ordering store) ──
+                    const franchiseEmail = vendor.contact_email;
+                    if (franchiseEmail) {
+                        await transporter.sendMail({
+                            from: process.env.EMAIL_FROM,
+                            to: franchiseEmail,
+                            subject: `Order Placed — #${orderId} to ${distributor.name}`,
+                            html: wrapEmail('Order Placed Successfully', `
+                                <p>Hello <strong>${OrderController.escapeHtml(vendor.contact_name || vendor.store_name)}</strong>,</p>
+                                <p>Your order has been placed with distributor <strong>${OrderController.escapeHtml(distributor.name)}</strong> and is now being processed. A copy of the purchase order is attached for your records.</p>
+                                ${detailsBox}
+                                ${itemsTable}
+                                ${remarksBox}
+                                <p style="color: #475569; font-size: 13px;">You can track this order from your franchise dashboard.</p>
+                            `),
+                            attachments: pdfAttachment
+                        });
+                    }
 
                 } catch (pdfError: any) {
                     console.error(`[Order] PDF/Email generation failed for sub-order ${orderId} (non-critical):`, pdfError.message);
+                }
+
+                // ── WhatsApp notifications (details only, no PDF) — non-critical ──
+                if (process.env.ENABLE_WHATSAPP === 'true') {
+                    const totalQuantity = orderItems.reduce((s: number, i: any) => s + Number(i.quantity || 0), 0);
+                    const itemCount = orderItems.length;
+
+                    // Dynamic suffix for the template's "Download Invoice" URL button.
+                    // The template registers base URL `<APP_URL>/api/orders/invoice/`; the token
+                    // (which carries the order id) is appended as a single path segment →
+                    // `<APP_URL>/api/orders/invoice/<jwt>`. No query string, so WhatsApp can't
+                    // URL-encode/mangle it.
+                    const invoiceUrlSuffix = OrderController.signInvoiceToken(orderId);
+
+                    if (vendor.phone_number) {
+                        try {
+                            await WhatsAppService.sendOrderPlacedFranchise(
+                                vendor.phone_number,
+                                vendor.contact_name || vendor.store_name,
+                                orderId,
+                                distributor.name,
+                                totalQuantity,
+                                itemCount,
+                                invoiceUrlSuffix
+                            );
+                        } catch (waErr: any) {
+                            console.error(`[Order] Franchise WhatsApp failed for ${orderId} (non-critical):`, waErr.message);
+                        }
+                    }
+
+                    if (distributor.phone_number) {
+                        try {
+                            await WhatsAppService.sendOrderReceivedDistributor(
+                                distributor.phone_number,
+                                distributor.name,
+                                orderId,
+                                vendor.store_name,
+                                totalQuantity,
+                                itemCount,
+                                invoiceUrlSuffix
+                            );
+                        } catch (waErr: any) {
+                            console.error(`[Order] Distributor WhatsApp failed for ${orderId} (non-critical):`, waErr.message);
+                        }
+                    }
                 }
             }
 
@@ -1606,14 +1678,54 @@ export class OrderController {
         }
     }
 
+    // ─── Helper: build the order PDF for a given order id (shared by authed + public routes) ──
+    private static async buildOrderPdfById(orderId: string): Promise<Buffer | null> {
+        const [orderRows]: any = await db.execute('SELECT * FROM store_orders WHERE id = ?', [orderId]);
+        if (orderRows.length === 0) return null;
+        const order = orderRows[0];
+
+        const [items]: any = await db.execute(
+            'SELECT * FROM store_order_items WHERE order_id = ?', [orderId]
+        );
+
+        const [vendorRows]: any = await db.execute(
+            `SELECT vd.id, vd.store_name, vd.city, vd.state, vd.pincode,
+                    p.name as contact_name, p.phone_number
+             FROM vendor_details vd
+             JOIN profiles p ON vd.user_id = p.id
+             WHERE vd.user_id = ?`,
+            [order.vendor_id]
+        );
+        const franchise = vendorRows[0] || { store_name: 'Franchise Partner' };
+
+        const [distRows]: any = await db.execute(
+            'SELECT * FROM distributors WHERE id = ?', [order.distributor_id]
+        );
+        const distributor = distRows[0] || { name: 'Distributor Partner' };
+
+        return OrderController.generateOrderPDF(order, items, franchise, distributor);
+    }
+
+    /**
+     * Sign a time-limited token that authorizes downloading one order's invoice PDF
+     * without a login session — used for the "Download Invoice" link in WhatsApp/email.
+     */
+    static signInvoiceToken(orderId: string, expiresIn: string = '30d'): string {
+        return jwt.sign(
+            { purpose: 'invoice', orderId },
+            process.env.JWT_SECRET as string,
+            { expiresIn } as jwt.SignOptions
+        );
+    }
+
     static async downloadOrderPDF(req: Request, res: Response) {
         try {
             const { id } = req.params;
             const user = (req as any).user;
 
-            // Fetch order
+            // Fetch order (for access-control check)
             const [orderRows]: any = await db.execute(
-                'SELECT * FROM store_orders WHERE id = ?', [id]
+                'SELECT vendor_id, distributor_id FROM store_orders WHERE id = ?', [id]
             );
 
             if (orderRows.length === 0) {
@@ -1636,32 +1748,8 @@ export class OrderController {
                 }
             }
 
-            // Fetch order items
-            const [items]: any = await db.execute(
-                'SELECT * FROM store_order_items WHERE order_id = ?', [id]
-            );
-
-            // Fetch franchise/vendor details
-            const [vendorRows]: any = await db.execute(
-                `SELECT vd.id, vd.store_name, vd.city, vd.state, vd.pincode,
-                        p.name as contact_name, p.phone_number
-                 FROM vendor_details vd
-                 JOIN profiles p ON vd.user_id = p.id
-                 WHERE vd.user_id = ?`,
-                [order.vendor_id]
-            );
-
-            const franchise = vendorRows[0] || { store_name: 'Franchise Partner' };
-
-            // Fetch distributor details
-            const [distRows]: any = await db.execute(
-                'SELECT * FROM distributors WHERE id = ?', [order.distributor_id]
-            );
-
-            const distributor = distRows[0] || { name: 'Distributor Partner' };
-
-            // Generate on-the-fly PDF
-            const pdfBuffer = await OrderController.generateOrderPDF(order, items, franchise, distributor);
+            const pdfBuffer = await OrderController.buildOrderPdfById(id);
+            if (!pdfBuffer) return res.status(404).json({ error: 'Order not found' });
 
             res.setHeader('Content-Type', 'application/pdf');
             res.setHeader('Content-Disposition', `attachment; filename="Order-${id}.pdf"`);
@@ -1670,6 +1758,50 @@ export class OrderController {
         } catch (error: any) {
             console.error('Download order PDF error:', error);
             res.status(500).json({ error: 'Failed to generate order PDF' });
+        }
+    }
+
+    /**
+     * Public, token-authorized invoice download — no login session required.
+     * The token is a signed JWT ({ purpose: 'invoice', orderId }) generated at
+     * order creation and embedded in the WhatsApp "Download Invoice" button.
+     *
+     * The order id is carried INSIDE the token (not the URL) so the whole link is
+     * a single path segment with no query string / '?' / '=' — WhatsApp dynamic-URL
+     * buttons URL-encode query characters, which would otherwise break the link.
+     * GET /orders/invoice/:token
+     */
+    static async downloadOrderInvoicePublic(req: Request, res: Response) {
+        try {
+            // Accept the token from the path (:token) — falls back to ?token= for compatibility.
+            const token = (req.params.token as string) || (req.query.token as string);
+
+            if (!token || typeof token !== 'string') {
+                return res.status(400).send('Missing invoice token.');
+            }
+
+            let decoded: any;
+            try {
+                decoded = jwt.verify(token, process.env.JWT_SECRET as string);
+            } catch {
+                return res.status(401).send('This invoice link is invalid or has expired.');
+            }
+
+            if (decoded.purpose !== 'invoice' || !decoded.orderId) {
+                return res.status(403).send('This invoice link is not valid.');
+            }
+
+            const id = decoded.orderId;
+            const pdfBuffer = await OrderController.buildOrderPdfById(id);
+            if (!pdfBuffer) return res.status(404).send('Order not found.');
+
+            res.setHeader('Content-Type', 'application/pdf');
+            res.setHeader('Content-Disposition', `inline; filename="Order-${id}.pdf"`);
+            res.send(pdfBuffer);
+
+        } catch (error: any) {
+            console.error('Public invoice download error:', error);
+            res.status(500).send('Failed to generate invoice.');
         }
     }
 

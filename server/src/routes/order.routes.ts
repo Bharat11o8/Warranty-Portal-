@@ -8,6 +8,11 @@ const router = Router();
 // Note: This endpoint does NOT require standard auth token because the email link contains a secure JWT confirmation token.
 router.get('/confirm-external', OrderController.confirmExternal);
 
+// Public route: token-authorized invoice download (WhatsApp/email "Download Invoice" link).
+// No login session — the token (a signed JWT carrying the order id) authorizes the PDF.
+// Path-only form (no query string) so WhatsApp dynamic-URL buttons don't mangle it.
+router.get('/invoice/:token', OrderController.downloadOrderInvoicePublic);
+
 // Franchise/Vendor routes (authenticated, vendor role required)
 router.post('/', authenticateToken, requireRole('vendor'), OrderController.createOrder);
 router.get('/my-orders', authenticateToken, requireRole('vendor'), OrderController.getMyOrders);

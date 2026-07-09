@@ -743,4 +743,68 @@ export class WhatsAppService {
             warrantyId
         );
     }
+
+    /**
+     * Notify the FRANCHISE that their store order was placed.
+     * Template: af_order_placed_franchise
+     *   Body:
+     *     {{1}} = Franchise contact/store name
+     *     {{2}} = Order ID
+     *     {{3}} = Distributor name (who it was placed with)
+     *     {{4}} = Total quantity (units)
+     *     {{5}} = Item count (number of products)
+     *   Buttons (dynamic-URL, register these in the Interakt template):
+     *     Button 0 "Download Invoice" — base URL `<APP_URL>/api/orders/`, dynamic suffix = invoiceUrlSuffix
+     *     Button 1 "Manage Orders"   — static URL to the dashboard/login (no dynamic value needed)
+     */
+    static async sendOrderPlacedFranchise(
+        phone: string,
+        franchiseName: string,
+        orderId: string,
+        distributorName: string,
+        totalQuantity: number | string,
+        itemCount: number | string,
+        invoiceUrlSuffix?: string
+    ): Promise<boolean> {
+        return this.sendTemplateMessage(
+            phone,
+            'af_order_placed_franchise',
+            [franchiseName, orderId, distributorName, String(totalQuantity), String(itemCount)],
+            'order_placed_franchise',
+            orderId,
+            invoiceUrlSuffix ? [invoiceUrlSuffix] : undefined
+        );
+    }
+
+    /**
+     * Notify the DISTRIBUTOR that a new order came in from a franchise.
+     * Template: af_order_received_distributor
+     *   Body:
+     *     {{1}} = Distributor name
+     *     {{2}} = Order ID
+     *     {{3}} = Franchise store name (who placed it)
+     *     {{4}} = Total quantity (units)
+     *     {{5}} = Item count (number of products)
+     *   Buttons (dynamic-URL, register these in the Interakt template):
+     *     Button 0 "Download Invoice" — base URL `<APP_URL>/api/orders/`, dynamic suffix = invoiceUrlSuffix
+     *     Button 1 "Manage Orders"   — static URL to the dashboard/login (no dynamic value needed)
+     */
+    static async sendOrderReceivedDistributor(
+        phone: string,
+        distributorName: string,
+        orderId: string,
+        franchiseName: string,
+        totalQuantity: number | string,
+        itemCount: number | string,
+        invoiceUrlSuffix?: string
+    ): Promise<boolean> {
+        return this.sendTemplateMessage(
+            phone,
+            'af_order_received_distributor',
+            [distributorName, orderId, franchiseName, String(totalQuantity), String(itemCount)],
+            'order_received_distributor',
+            orderId,
+            invoiceUrlSuffix ? [invoiceUrlSuffix] : undefined
+        );
+    }
 }
