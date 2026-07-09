@@ -3484,12 +3484,19 @@ const B2BOrderManagement: React.FC = () => {
                   )}
                   <div ref={brandFilterDropdownRef} className="relative w-full sm:w-auto">
                     {(() => {
-                      const brandOpts = [
+                      // Only offer brand filters this distributor actually carries.
+                      // AFAC distributors see all; AF/AC-only distributors see just
+                      // "All Brands" + their own brand.
+                      const myBrand = franchiseProfile?.allowed_brands || 'AFAC';
+                      const allBrandOpts = [
                         { value: '', label: 'All Brands' },
                         { value: 'AF', label: 'Autoform', tag: 'AF' },
                         { value: 'AC', label: 'Autocruze', tag: 'AC' },
                         { value: 'AFAC', label: 'AFAC Franchises', tag: 'AFAC' },
                       ];
+                      const brandOpts = myBrand === 'AFAC'
+                        ? allBrandOpts
+                        : allBrandOpts.filter(b => b.value === '' || b.value === myBrand);
                       const current = brandOpts.find(b => b.value === incomingBrand) || brandOpts[0];
                       return (
                         <>
