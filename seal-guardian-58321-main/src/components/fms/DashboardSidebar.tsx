@@ -18,7 +18,7 @@ import {
     LogOut,
     User
 }
-from "lucide-react";
+    from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNotifications } from "@/contexts/NotificationContext";
 import { Button } from "@/components/ui/button";
@@ -153,11 +153,11 @@ export const menuGroups = [
     {
         label: "Operations",
         items: [
-            // { // Hidden - not public yet
-            //     id: 'catalogue' as const,
-            //     label: "Product Catalogue",
-            //     icon: Box,
-            // },
+            {
+                id: 'catalogue' as const,
+                label: "Product Catalogue",
+                icon: Box,
+            },
             {
                 id: 'ecatalogue' as const,
                 label: "E-Catalogue",
