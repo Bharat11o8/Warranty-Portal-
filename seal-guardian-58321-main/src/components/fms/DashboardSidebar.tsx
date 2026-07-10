@@ -153,11 +153,11 @@ export const menuGroups = [
     {
         label: "Operations",
         items: [
-            {
-                id: 'catalogue' as const,
-                label: "Product Catalogue",
-                icon: Box,
-            },
+            // { // Hidden - not public yet
+            //     id: 'catalogue' as const,
+            //     label: "Product Catalogue",
+            //     icon: Box,
+            // },
             {
                 id: 'ecatalogue' as const,
                 label: "E-Catalogue",
@@ -168,11 +168,11 @@ export const menuGroups = [
                 label: "POSM Requirements",
                 icon: ImageIcon,
             },
-            {
-                id: 'orders' as const,
-                label: "Order Management",
-                icon: ShoppingBag,
-            },
+            // { // Hidden - not public yet
+            //     id: 'orders' as const,
+            //     label: "Order Management",
+            //     icon: ShoppingBag,
+            // },
             {
                 id: 'offers' as const,
                 label: "Offers & Schemes",
