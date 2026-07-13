@@ -79,4 +79,33 @@ api.interceptors.response.use(
   }
 );
 
+// ---------------------------------------------------------------------------
+// Error message extraction
+//
+// The backend returns errors in two shapes:
+//   • inline controller errors → { error: "some string" }
+//   • global error handler      → { error: { code, message } }
+// Rendering the object form directly into JSX (e.g. a toast) crashes React
+// with "Objects are not valid as a React child". This helper always returns a
+// plain string, so call sites can safely do `getErrorMessage(err)`.
+// ---------------------------------------------------------------------------
+
+export function getErrorMessage(error: any, fallback = 'Something went wrong. Please try again.'): string {
+  const data = error?.response?.data;
+
+  const err = data?.error;
+  if (typeof err === 'string' && err.trim()) return err;
+  if (err && typeof err === 'object' && typeof err.message === 'string' && err.message.trim()) {
+    return err.message;
+  }
+
+  if (typeof data?.message === 'string' && data.message.trim()) return data.message;
+  if (typeof error?.message === 'string' && error.message.trim() && !error.response) {
+    // network / no-response errors — surface axios message
+    return error.message;
+  }
+
+  return fallback;
+}
+
 export default api;

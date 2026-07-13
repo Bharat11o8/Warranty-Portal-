@@ -23,7 +23,7 @@ import {
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { AlertCircle, Crown, Edit2, Loader2, Plus, Shield, Trash2, UserCheck, ChevronDown, ChevronUp, CheckCircle2 } from "lucide-react";
-import api from "@/lib/api";
+import api, { getErrorMessage } from "@/lib/api";
 import { AdminPermissionMatrix, DEFAULT_PERMISSIONS, ModulePermissions } from "./AdminPermissionMatrix";
 import { cn } from "@/lib/utils";
 
@@ -110,7 +110,7 @@ export const AdminAdmins = () => {
                 fetchAdmins();
             }
         } catch (error: any) {
-            toast({ title: "Error", description: error.response?.data?.error || "Failed to create admin", variant: "destructive" });
+            toast({ title: "Error", description: getErrorMessage(error, "Failed to create admin"), variant: "destructive" });
         } finally {
             setAddingAdmin(false);
         }
@@ -134,7 +134,7 @@ export const AdminAdmins = () => {
                 fetchAdmins();
             }
         } catch (error: any) {
-            toast({ title: "Error", description: error.response?.data?.error || "Failed to update permissions", variant: "destructive" });
+            toast({ title: "Error", description: getErrorMessage(error, "Failed to update permissions"), variant: "destructive" });
         } finally {
             setSavingPerms(false);
         }
@@ -151,7 +151,7 @@ export const AdminAdmins = () => {
                 fetchAdmins();
             }
         } catch (error: any) {
-            toast({ title: "Error", description: error.response?.data?.error || "Failed to remove admin", variant: "destructive" });
+            toast({ title: "Error", description: getErrorMessage(error, "Failed to remove admin"), variant: "destructive" });
         } finally {
             setDeleting(false);
         }

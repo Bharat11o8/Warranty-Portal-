@@ -13,7 +13,7 @@ import { cn, getWarrantyExpiration, formatToIST } from "@/lib/utils";
 import { useState, useEffect, createContext, useContext } from "react";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import api from "@/lib/api";
+import api, { getErrorMessage } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 
 interface WarrantySpecSheetProps {
@@ -111,7 +111,7 @@ export const WarrantySpecSheet = ({ isOpen, onClose, warranty, isAdmin, onRefres
                 if (onRefresh) onRefresh();
             }
         } catch (err: any) {
-            toast({ title: "Error", description: err.response?.data?.error || "Failed to update details", variant: "destructive" });
+            toast({ title: "Error", description: getErrorMessage(err, "Failed to update details"), variant: "destructive" });
         } finally {
             setSaving(false);
         }

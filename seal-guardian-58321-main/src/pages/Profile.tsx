@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { Shield, Store, UserCircle, Mail, Phone, User, ArrowLeft, Download, ExternalLink, QrCode } from "lucide-react";
-import api from "@/lib/api";
+import api, { getErrorMessage } from "@/lib/api";
 import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { QRCodeSVG } from "qrcode.react";
@@ -103,7 +103,7 @@ const Profile = ({ embedded }: { embedded?: boolean }) => {
         } catch (error: any) {
             toast({
                 title: "Update Failed",
-                description: error.response?.data?.error || error.message || "Failed to update profile",
+                description: getErrorMessage(error, "Failed to update profile"),
                 variant: "destructive",
             });
         } finally {

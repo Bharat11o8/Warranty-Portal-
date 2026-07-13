@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import api from "@/lib/api";
+import api, { getErrorMessage } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import {
     Card,
@@ -245,7 +245,7 @@ export const AdminOrderManagement = () => {
             console.error("Failed to save allowed categories", err);
             toast({
                 title: "Save Failed",
-                description: err.response?.data?.error || "Could not update allowed categories",
+                description: getErrorMessage(err, "Could not update allowed categories"),
                 variant: "destructive"
             });
         } finally {
@@ -333,7 +333,7 @@ export const AdminOrderManagement = () => {
             console.error("Failed to map franchise", err);
             toast({
                 title: "Mapping Failed",
-                description: err.response?.data?.error || "Could not map franchise",
+                description: getErrorMessage(err, "Could not map franchise"),
                 variant: "destructive"
             });
         } finally {
@@ -362,7 +362,7 @@ export const AdminOrderManagement = () => {
             console.error("Failed to unmap franchise", err);
             toast({
                 title: "Unmapping Failed",
-                description: err.response?.data?.error || "Could not unmap franchise",
+                description: getErrorMessage(err, "Could not unmap franchise"),
                 variant: "destructive"
             });
         } finally {

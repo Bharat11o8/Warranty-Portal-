@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
-import api from "@/lib/api";
+import api, { getErrorMessage } from "@/lib/api";
 import { submitWarranty, updateWarranty } from "@/lib/warrantyApi";
 import InstallerDetails from "./steps/InstallerDetails";
 import CustomerDetails from "./steps/CustomerDetails";
@@ -510,12 +510,12 @@ const EVProductsForm = ({ initialData, warrantyId, onSuccess, isUniversal, isEdi
         errorTitle = "Files Too Large";
         errorMessage = "The total upload size is too large. Please use smaller images (under 2MB each).";
       } else if (error.response?.status === 400) {
-        errorMessage = error.response?.data?.error || "Invalid form data. Please check all fields and try again.";
+        errorMessage = getErrorMessage(error, "Invalid form data. Please check all fields and try again.");
       } else if (error.response?.status === 401 || error.response?.status === 403) {
         errorTitle = "Session Expired";
         errorMessage = "Your session has expired. Please log in again.";
       } else if (error.response?.data?.error) {
-        errorMessage = error.response.data.error;
+        errorMessage = getErrorMessage(error, errorMessage);
       } else if (error.message) {
         errorMessage = error.message;
       }

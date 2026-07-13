@@ -13,7 +13,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn, optimizeCloudinaryUrl } from "@/lib/utils";
-import api from "@/lib/api";
+import api, { getErrorMessage } from "@/lib/api";
 import { Badge } from "@/components/ui/badge";
 import React from "react";
 
@@ -173,7 +173,7 @@ export const AdminAnnouncements = () => {
         } catch (error: any) {
             toast({
                 title: "Upload Failed",
-                description: error.response?.data?.error || "Failed to upload file",
+                description: getErrorMessage(error, "Failed to upload file"),
                 variant: "destructive"
             });
         } finally {

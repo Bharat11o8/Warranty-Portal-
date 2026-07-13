@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Navigate, useOutletContext } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
-import api from "@/lib/api";
+import api, { getErrorMessage } from "@/lib/api";
 import { Loader2, X, ChevronRight, Search, Hash } from "lucide-react";
 import { cn, formatToIST, getISTTodayISO } from "@/lib/utils";
 import { fetchProducts, Product, fetchCategories, Category } from '@/lib/catalogService';
@@ -312,7 +312,7 @@ const FranchiseDashboard = () => {
                 fetchWarranties(warrantyPagination.currentPage, warrantyLimit, true);
             }
         } catch (error: any) {
-            toast({ title: "Action Failed", description: error.response?.data?.error || "Could not approve", variant: "destructive" });
+            toast({ title: "Action Failed", description: getErrorMessage(error, "Could not approve"), variant: "destructive" });
         } finally {
             setActionLoadingId(null);
         }
@@ -334,7 +334,7 @@ const FranchiseDashboard = () => {
                 fetchWarranties(warrantyPagination.currentPage, warrantyLimit, true);
             }
         } catch (error: any) {
-            toast({ title: "Action Failed", description: error.response?.data?.error || "Could not reject", variant: "destructive" });
+            toast({ title: "Action Failed", description: getErrorMessage(error, "Could not reject"), variant: "destructive" });
         } finally {
             setActionLoadingId(null);
         }
@@ -354,7 +354,7 @@ const FranchiseDashboard = () => {
                 return true;
             }
         } catch (error: any) {
-            toast({ title: "Addition Failed", description: error.response?.data?.error || "Could not add", variant: "destructive" });
+            toast({ title: "Addition Failed", description: getErrorMessage(error, "Could not add"), variant: "destructive" });
         } finally {
             setAddingManpower(false);
         }
@@ -376,7 +376,7 @@ const FranchiseDashboard = () => {
                 return true;
             }
         } catch (error: any) {
-            toast({ title: "Update Failed", description: error.response?.data?.error || "Could not update", variant: "destructive" });
+            toast({ title: "Update Failed", description: getErrorMessage(error, "Could not update"), variant: "destructive" });
         } finally {
             setUpdatingManpower(false);
         }
@@ -392,7 +392,7 @@ const FranchiseDashboard = () => {
                 setManpowerList(manpowerList.filter(m => m.id !== id));
             }
         } catch (error: any) {
-            toast({ title: "Removal Failed", description: error.response?.data?.error || "Could not remove", variant: "destructive" });
+            toast({ title: "Removal Failed", description: getErrorMessage(error, "Could not remove"), variant: "destructive" });
         }
     };
 
@@ -412,7 +412,7 @@ const FranchiseDashboard = () => {
             console.error("Failed to fetch manpower warranties", error);
             toast({
                 title: "Failed to load warranties",
-                description: error.response?.data?.error || "Could not fetch warranty details",
+                description: getErrorMessage(error, "Could not fetch warranty details"),
                 variant: "destructive"
             });
         }

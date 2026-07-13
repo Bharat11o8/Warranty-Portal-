@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import api from "@/lib/api";
+import api, { getErrorMessage } from "@/lib/api";
 import { formatToIST, cn, getISTTodayISO } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent } from "@/components/ui/card";
@@ -271,7 +271,7 @@ export const AdminGrievances = () => {
         } catch (error: any) {
             toast({
                 title: "Error",
-                description: error.response?.data?.error || "Failed to save changes",
+                description: getErrorMessage(error, "Failed to save changes"),
                 variant: "destructive",
             });
         } finally {
@@ -991,7 +991,7 @@ export const AdminGrievances = () => {
                                                         setAssigneeRemarks("");
                                                     }
                                                 } catch (error: any) {
-                                                    toast({ title: "Error", description: error.response?.data?.error || "Failed to send email", variant: "destructive" });
+                                                    toast({ title: "Error", description: getErrorMessage(error, "Failed to send email"), variant: "destructive" });
                                                 } finally {
                                                     setSendingEmail(false);
                                                 }

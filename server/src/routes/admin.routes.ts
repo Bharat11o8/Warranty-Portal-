@@ -51,6 +51,8 @@ router.put('/warranties/:uid/details',    ...adminAuth, requirePermission('warra
 
 // ── Customers ────────────────────────────────────────────────────────────────
 router.get('/customers',                  ...adminAuth, requirePermission('customers', 'read'),  AdminController.getCustomers);
+router.get('/customers/mobile-limits/:phone',  ...adminAuth, requirePermission('customers', 'read'),  AdminController.getCustomerMobileLimit);
+router.put('/customers/mobile-limits/:phone',  ...adminAuth, requirePermission('customers', 'write'), AdminController.updateCustomerMobileLimit);
 router.get('/customers/:email',           ...adminAuth, requirePermission('customers', 'read'),  AdminController.getCustomerDetails);
 router.delete('/customers/:email',        ...adminAuth, requirePermission('customers', 'write'), AdminController.deleteCustomer);
 

@@ -27,7 +27,7 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import api from "@/lib/api";
+import api, { getErrorMessage } from "@/lib/api";
 import { formatToIST } from "@/lib/utils";
 import { Trash2, Plus, Package, Pencil } from "lucide-react";
 
@@ -99,7 +99,7 @@ export function AdminWarrantyProducts() {
             console.error("Failed to add product", error);
             toast({
                 title: "Couldn't Add Product",
-                description: error.response?.data?.error || "Something went wrong. Please try again.",
+                description: getErrorMessage(error, "Something went wrong. Please try again."),
                 variant: "destructive",
             });
         }
@@ -130,7 +130,7 @@ export function AdminWarrantyProducts() {
             console.error("Failed to update product", error);
             toast({
                 title: "Couldn't Update Product",
-                description: error.response?.data?.error || "Something went wrong. Please try again.",
+                description: getErrorMessage(error, "Something went wrong. Please try again."),
                 variant: "destructive",
             });
         }
@@ -152,7 +152,7 @@ export function AdminWarrantyProducts() {
             console.error("Failed to delete product", error);
             toast({
                 title: "Couldn't Delete Product",
-                description: error.response?.data?.error || "Something went wrong. Please try again.",
+                description: getErrorMessage(error, "Something went wrong. Please try again."),
                 variant: "destructive",
             });
         }

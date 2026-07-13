@@ -21,7 +21,7 @@ import {
     PaginationPrevious,
 } from "@/components/ui/pagination";
 import { downloadCSV, formatToIST, cn } from "@/lib/utils";
-import api from "@/lib/api";
+import api, { getErrorMessage } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 
 interface AdminVendorDetailsProps {
@@ -151,7 +151,7 @@ export const AdminVendorDetails = ({ vendor: initialVendor, onBack, isDistributo
             }));
             toast({ title: "Brand Updated", description: `Brand set to ${pendingBrand}` });
         } catch (error: any) {
-            toast({ title: "Update Failed", description: error.response?.data?.error || "Failed to update brand", variant: "destructive" });
+            toast({ title: "Update Failed", description: getErrorMessage(error, "Failed to update brand"), variant: "destructive" });
         } finally {
             setUpdatingBrand(false);
             setPendingBrand(null);
@@ -181,7 +181,7 @@ export const AdminVendorDetails = ({ vendor: initialVendor, onBack, isDistributo
         } catch (error: any) {
             toast({
                 title: "Error",
-                description: error.response?.data?.error || "Failed to save store code",
+                description: getErrorMessage(error, "Failed to save store code"),
                 variant: "destructive"
             });
         } finally {
@@ -265,7 +265,7 @@ export const AdminVendorDetails = ({ vendor: initialVendor, onBack, isDistributo
         } catch (error: any) {
             toast({
                 title: "Error",
-                description: error.response?.data?.error || "Failed to update coordinates",
+                description: getErrorMessage(error, "Failed to update coordinates"),
                 variant: "destructive"
             });
         } finally {
@@ -279,7 +279,13 @@ export const AdminVendorDetails = ({ vendor: initialVendor, onBack, isDistributo
         store_name: '',
         contact_name: '',
         email: '',
-        phone_number: ''
+        phone_number: '',
+        address: '',
+        city: '',
+        state: '',
+        pincode: '',
+        gst_number: '',
+        area_head_name: ''
     });
     const [savingProfile, setSavingProfile] = useState(false);
 
@@ -288,7 +294,13 @@ export const AdminVendorDetails = ({ vendor: initialVendor, onBack, isDistributo
             store_name: vendor.store_name || '',
             contact_name: vendor.contact_name || '',
             email: vendor.email || '',
-            phone_number: vendor.phone_number || ''
+            phone_number: vendor.phone_number || '',
+            address: vendor.address || '',
+            city: vendor.city || '',
+            state: vendor.state || '',
+            pincode: vendor.pincode || '',
+            gst_number: vendor.gst_number || '',
+            area_head_name: vendor.area_head_name || ''
         });
         setIsEditProfileOpen(true);
     };
@@ -310,7 +322,7 @@ export const AdminVendorDetails = ({ vendor: initialVendor, onBack, isDistributo
         } catch (error: any) {
             toast({
                 title: 'Error',
-                description: error.response?.data?.error || 'Failed to update profile',
+                description: getErrorMessage(error, 'Failed to update profile'),
                 variant: 'destructive'
             });
         } finally {
@@ -380,7 +392,7 @@ export const AdminVendorDetails = ({ vendor: initialVendor, onBack, isDistributo
         } catch (error: any) {
             toast({
                 title: "Update Failed",
-                description: error.response?.data?.error || "Failed to update warranty status",
+                description: getErrorMessage(error, "Failed to update warranty status"),
                 variant: "destructive"
             });
         } finally {
@@ -574,47 +586,110 @@ export const AdminVendorDetails = ({ vendor: initialVendor, onBack, isDistributo
 
             {/* Edit Profile Dialog */}
             <Dialog open={isEditProfileOpen} onOpenChange={setIsEditProfileOpen}>
-                <DialogContent className="sm:max-w-[425px]">
+                <DialogContent className="sm:max-w-[560px] max-h-[90vh] overflow-y-auto">
                     <DialogHeader>
                         <DialogTitle>Edit {isDistributorsView ? "Distributor" : "Franchise"} Profile</DialogTitle>
                         <DialogDescription>
-                            Make changes to the {isDistributorsView ? "distributor's" : "franchise's"} basic details here.
+                            Make changes to the {isDistributorsView ? "distributor's" : "franchise's"} details here.
                         </DialogDescription>
                     </DialogHeader>
                     <div className="grid gap-4 py-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                                <Label htmlFor="store_name">Store Name *</Label>
+                                <Input
+                                    id="store_name"
+                                    value={editProfileForm.store_name}
+                                    onChange={(e) => setEditProfileForm({ ...editProfileForm, store_name: e.target.value })}
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="contact_name">Contact Name *</Label>
+                                <Input
+                                    id="contact_name"
+                                    value={editProfileForm.contact_name}
+                                    onChange={(e) => setEditProfileForm({ ...editProfileForm, contact_name: e.target.value })}
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="email">Email *</Label>
+                                <Input
+                                    id="email"
+                                    type="email"
+                                    value={editProfileForm.email}
+                                    onChange={(e) => setEditProfileForm({ ...editProfileForm, email: e.target.value })}
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="phone_number">Phone Number *</Label>
+                                <Input
+                                    id="phone_number"
+                                    value={editProfileForm.phone_number}
+                                    onChange={(e) => setEditProfileForm({ ...editProfileForm, phone_number: e.target.value })}
+                                />
+                            </div>
+                        </div>
+
                         <div className="space-y-2">
-                            <Label htmlFor="store_name">Store Name</Label>
+                            <Label htmlFor="address">Address</Label>
                             <Input
-                                id="store_name"
-                                value={editProfileForm.store_name}
-                                onChange={(e) => setEditProfileForm({ ...editProfileForm, store_name: e.target.value })}
+                                id="address"
+                                placeholder="Plot No, Street, Area"
+                                value={editProfileForm.address}
+                                onChange={(e) => setEditProfileForm({ ...editProfileForm, address: e.target.value })}
                             />
                         </div>
-                        <div className="space-y-2">
-                            <Label htmlFor="contact_name">Contact Name</Label>
-                            <Input
-                                id="contact_name"
-                                value={editProfileForm.contact_name}
-                                onChange={(e) => setEditProfileForm({ ...editProfileForm, contact_name: e.target.value })}
-                            />
+
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                            <div className="space-y-2">
+                                <Label htmlFor="city">City</Label>
+                                <Input
+                                    id="city"
+                                    value={editProfileForm.city}
+                                    onChange={(e) => setEditProfileForm({ ...editProfileForm, city: e.target.value })}
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="state">State</Label>
+                                <Input
+                                    id="state"
+                                    value={editProfileForm.state}
+                                    onChange={(e) => setEditProfileForm({ ...editProfileForm, state: e.target.value })}
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="pincode">Pincode</Label>
+                                <Input
+                                    id="pincode"
+                                    value={editProfileForm.pincode}
+                                    onChange={(e) => setEditProfileForm({ ...editProfileForm, pincode: e.target.value })}
+                                />
+                            </div>
                         </div>
-                        <div className="space-y-2">
-                            <Label htmlFor="email">Email</Label>
-                            <Input
-                                id="email"
-                                type="email"
-                                value={editProfileForm.email}
-                                onChange={(e) => setEditProfileForm({ ...editProfileForm, email: e.target.value })}
-                            />
-                        </div>
-                        <div className="space-y-2">
-                            <Label htmlFor="phone_number">Phone Number</Label>
-                            <Input
-                                id="phone_number"
-                                value={editProfileForm.phone_number}
-                                onChange={(e) => setEditProfileForm({ ...editProfileForm, phone_number: e.target.value })}
-                            />
-                        </div>
+
+                        {isDistributorsView && (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                    <Label htmlFor="gst_number">GST Number</Label>
+                                    <Input
+                                        id="gst_number"
+                                        className="font-mono uppercase"
+                                        maxLength={15}
+                                        placeholder="e.g. 22AAAAA0000A1Z5"
+                                        value={editProfileForm.gst_number}
+                                        onChange={(e) => setEditProfileForm({ ...editProfileForm, gst_number: e.target.value.toUpperCase() })}
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label htmlFor="area_head_name">Area Head Name</Label>
+                                    <Input
+                                        id="area_head_name"
+                                        value={editProfileForm.area_head_name}
+                                        onChange={(e) => setEditProfileForm({ ...editProfileForm, area_head_name: e.target.value })}
+                                    />
+                                </div>
+                            </div>
+                        )}
                     </div>
                     <div className="flex justify-end gap-3">
                         <Button variant="outline" onClick={() => setIsEditProfileOpen(false)}>Cancel</Button>
@@ -625,6 +700,47 @@ export const AdminVendorDetails = ({ vendor: initialVendor, onBack, isDistributo
                     </div>
                 </DialogContent>
             </Dialog>
+
+            {/* Business / Registration Details */}
+            <Card className="mb-6 border-orange-100 shadow-sm">
+                <CardHeader className="pb-3">
+                    <CardTitle className="text-lg">
+                        {isDistributorsView ? "Distributor" : "Franchise"} Details
+                    </CardTitle>
+                </CardHeader>
+                <CardContent>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                        <div className="sm:col-span-2 lg:col-span-3 bg-slate-50 p-4 rounded-lg border border-slate-100 flex flex-col">
+                            <span className="text-xs uppercase font-semibold tracking-wider text-slate-500 mb-1">Address</span>
+                            <span className="font-medium text-slate-800">{vendor.address || 'Not set'}</span>
+                        </div>
+                        <div className="bg-slate-50 p-4 rounded-lg border border-slate-100 flex flex-col">
+                            <span className="text-xs uppercase font-semibold tracking-wider text-slate-500 mb-1">City</span>
+                            <span className="font-medium text-slate-800">{vendor.city || 'Not set'}</span>
+                        </div>
+                        <div className="bg-slate-50 p-4 rounded-lg border border-slate-100 flex flex-col">
+                            <span className="text-xs uppercase font-semibold tracking-wider text-slate-500 mb-1">State</span>
+                            <span className="font-medium text-slate-800">{vendor.state || 'Not set'}</span>
+                        </div>
+                        <div className="bg-slate-50 p-4 rounded-lg border border-slate-100 flex flex-col">
+                            <span className="text-xs uppercase font-semibold tracking-wider text-slate-500 mb-1">Pincode</span>
+                            <span className="font-medium text-slate-800">{vendor.pincode || 'Not set'}</span>
+                        </div>
+                        {isDistributorsView && (
+                            <>
+                                <div className="bg-slate-50 p-4 rounded-lg border border-slate-100 flex flex-col">
+                                    <span className="text-xs uppercase font-semibold tracking-wider text-slate-500 mb-1">GST Number</span>
+                                    <span className="font-medium text-slate-800 font-mono">{vendor.gst_number || 'Not set'}</span>
+                                </div>
+                                <div className="bg-slate-50 p-4 rounded-lg border border-slate-100 flex flex-col">
+                                    <span className="text-xs uppercase font-semibold tracking-wider text-slate-500 mb-1">Area Head</span>
+                                    <span className="font-medium text-slate-800">{vendor.area_head_name || 'Not set'}</span>
+                                </div>
+                            </>
+                        )}
+                    </div>
+                </CardContent>
+            </Card>
 
             {/* Location Coordinates Section */}
             <Card className="mb-6 border-orange-100 shadow-sm">

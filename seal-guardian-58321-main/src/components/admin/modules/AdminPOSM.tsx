@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import api from "@/lib/api";
+import api, { getErrorMessage } from "@/lib/api";
 import { formatToIST, cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent } from "@/components/ui/card";
@@ -184,7 +184,7 @@ export const AdminPOSM = () => {
         } catch (error: any) {
             toast({
                 title: "Error",
-                description: error.response?.data?.error || "Failed to update request",
+                description: getErrorMessage(error, "Failed to update request"),
                 variant: "destructive",
             });
         } finally {

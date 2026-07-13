@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import api from "@/lib/api";
+import api, { getErrorMessage } from "@/lib/api";
 import { downloadCSV } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -225,7 +225,7 @@ export const AdminCustomers = () => {
             }
         } catch (error: any) {
             toast({
-                description: error?.response?.data?.error || "Failed to update mobile limit",
+                description: getErrorMessage(error, "Failed to update mobile limit"),
                 variant: "destructive"
             });
         } finally {

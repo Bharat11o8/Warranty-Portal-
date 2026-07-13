@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import api from "@/lib/api";
+import api, { getErrorMessage } from "@/lib/api";
 import { downloadCSV, getISTTodayISO } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -106,7 +106,7 @@ export const AdminVendors = () => {
             ));
             toast({ title: "Brand Updated", description: `${vendor.store_name} set to ${brand}` });
         } catch (error: any) {
-            toast({ title: "Update Failed", description: error.response?.data?.error || "Failed to update brand", variant: "destructive" });
+            toast({ title: "Update Failed", description: getErrorMessage(error, "Failed to update brand"), variant: "destructive" });
         } finally {
             setUpdatingBrand(null);
             setPendingBrandChange(null);
@@ -177,7 +177,7 @@ export const AdminVendors = () => {
             console.error("Vendor verification error:", error);
             toast({
                 title: "Verification Update Failed",
-                description: error.response?.data?.error || "Failed to update vendor status",
+                description: getErrorMessage(error, "Failed to update vendor status"),
                 variant: "destructive"
             });
         } finally {
@@ -207,7 +207,7 @@ export const AdminVendors = () => {
             console.error("Vendor activation error:", error);
             toast({
                 title: "Activation Update Failed",
-                description: error.response?.data?.error || "Failed to update vendor status",
+                description: getErrorMessage(error, "Failed to update vendor status"),
                 variant: "destructive"
             });
         } finally {
@@ -234,7 +234,7 @@ export const AdminVendors = () => {
             console.error("Toggle distributor status error:", error);
             toast({
                 title: "Failed to Update Distributor Status",
-                description: error.response?.data?.error || "Failed to update distributor status",
+                description: getErrorMessage(error, "Failed to update distributor status"),
                 variant: "destructive"
             });
         } finally {
@@ -311,7 +311,8 @@ export const AdminVendors = () => {
     const filteredVendors = vendors
         .filter((vendor) => {
             if (leaderboardMode) return Number(vendor[leaderboardCountField] || 0) > 0;
-            if (filter === 'approved') return vendor.is_verified;
+            if (filter === 'approved') return vendor.is_verified && vendor.is_active !== false;
+            if (filter === 'inactive') return vendor.is_verified && vendor.is_active === false;
             if (filter === 'disapproved') return !vendor.is_verified && vendor.verified_at; // Assuming verified_at + !is_verified = rejected
             if (filter === 'pending') return !vendor.is_verified && !vendor.verified_at;
             return true;
@@ -404,7 +405,7 @@ export const AdminVendors = () => {
                     The leaderboard always ranks by total, so hide them there. */}
                 {!leaderboardMode && (
                 <Tabs value={filter} onValueChange={setFilter} className="w-full md:w-auto">
-                    <TabsList className="grid w-full grid-cols-4 md:inline-flex bg-white/50 border border-orange-100 p-1 h-auto">
+                    <TabsList className="grid w-full grid-cols-3 md:grid-cols-5 md:inline-flex bg-white/50 border border-orange-100 p-1 h-auto">
                         <TabsTrigger value="all" className="gap-2">
                             All
                             <Badge variant="secondary" className="bg-slate-100 text-slate-600 border-none px-1.5 py-0 h-4 text-[10px] font-bold">
@@ -414,13 +415,19 @@ export const AdminVendors = () => {
                         <TabsTrigger value="approved" className="gap-2 data-[state=active]:bg-green-50 data-[state=active]:text-green-700">
                             Approved
                             <Badge variant="secondary" className="bg-green-100/50 text-green-700 border-none px-1.5 py-0 h-4 text-[10px] font-bold">
-                                {vendors.filter(v => v.is_verified).length}
+                                {vendors.filter(v => v.is_verified && v.is_active !== false).length}
                             </Badge>
                         </TabsTrigger>
                         <TabsTrigger value="pending" className="gap-2 data-[state=active]:bg-amber-50 data-[state=active]:text-amber-700">
                             Pending
                             <Badge variant="secondary" className="bg-amber-100/50 text-amber-700 border-none px-1.5 py-0 h-4 text-[10px] font-bold">
                                 {vendors.filter(v => !v.is_verified && !v.verified_at).length}
+                            </Badge>
+                        </TabsTrigger>
+                        <TabsTrigger value="inactive" className="gap-2 data-[state=active]:bg-slate-100 data-[state=active]:text-slate-700">
+                            Inactive
+                            <Badge variant="secondary" className="bg-slate-200/70 text-slate-600 border-none px-1.5 py-0 h-4 text-[10px] font-bold">
+                                {vendors.filter(v => v.is_verified && v.is_active === false).length}
                             </Badge>
                         </TabsTrigger>
                         <TabsTrigger value="disapproved" className="gap-2 data-[state=active]:bg-red-50 data-[state=active]:text-red-700">
@@ -651,7 +658,11 @@ export const AdminVendors = () => {
                                                 {leaderboardMode ? (
                                                     <Badge variant="outline" className="bg-slate-50 text-slate-600 border-slate-200">In Range</Badge>
                                                 ) : vendor.is_verified ? (
-                                                    <Badge className="bg-green-100 text-green-700 hover:bg-green-100 border-green-200">Active</Badge>
+                                                    vendor.is_active === false ? (
+                                                        <Badge className="bg-slate-200 text-slate-600 hover:bg-slate-200 border-slate-300">Inactive</Badge>
+                                                    ) : (
+                                                        <Badge className="bg-green-100 text-green-700 hover:bg-green-100 border-green-200">Active</Badge>
+                                                    )
                                                 ) : vendor.verified_at ? (
                                                     <Badge variant="destructive" className="bg-red-100 text-red-700 hover:bg-red-100 border-red-200">Rejected</Badge>
                                                 ) : (
@@ -730,7 +741,11 @@ export const AdminVendors = () => {
                                             {!leaderboardMode && (
                                                 <td className="px-6 py-4 text-center">
                                                     {vendor.is_verified ? (
-                                                        <Badge className="bg-green-100 text-green-700 hover:bg-green-100 border-green-200">Active</Badge>
+                                                        vendor.is_active === false ? (
+                                                            <Badge className="bg-slate-200 text-slate-600 hover:bg-slate-200 border-slate-300">Inactive</Badge>
+                                                        ) : (
+                                                            <Badge className="bg-green-100 text-green-700 hover:bg-green-100 border-green-200">Active</Badge>
+                                                        )
                                                     ) : vendor.verified_at ? (
                                                         <Badge variant="destructive" className="bg-red-100 text-red-700 hover:bg-red-100 border-red-200">Rejected</Badge>
                                                     ) : (

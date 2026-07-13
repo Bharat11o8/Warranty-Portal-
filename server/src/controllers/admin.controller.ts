@@ -317,7 +317,10 @@ export class AdminController {
                     vd.pincode,
                     vd.latitude,
                     vd.longitude,
+                    dist.gst_number,
+                    dist.area_head_name,
                     vv.is_verified,
+                    COALESCE(vv.is_active, true) as is_active,
                     vv.verified_at,
                     COALESCE(dist.allowed_brands, 'AF') as distributor_allowed_brands,
                     COALESCE(vd.allowed_brands, 'AF') as franchise_allowed_brands
@@ -848,16 +851,23 @@ export class AdminController {
     static async updateVendorProfile(req: Request, res: Response) {
         try {
             const { id } = req.params;
-            let { store_name, contact_name, email, phone_number } = req.body;
+            let { store_name, contact_name, email, phone_number, address, city, state, pincode, gst_number, area_head_name } = req.body;
 
             // SBP-DB: Trim string lengths to prevent database overflow (Data Too Long) edge cases
             store_name = store_name?.substring(0, 255);
             contact_name = contact_name?.substring(0, 100);
             email = email?.substring(0, 100);
             phone_number = phone_number?.substring(0, 15);
+            // Optional address/registration fields — normalize empty strings to null
+            address = address ? String(address).substring(0, 500) : null;
+            city = city ? String(city).substring(0, 100) : null;
+            state = state ? String(state).substring(0, 100) : null;
+            pincode = pincode ? String(pincode).substring(0, 10) : null;
+            gst_number = gst_number ? String(gst_number).substring(0, 20) : null;
+            area_head_name = area_head_name ? String(area_head_name).substring(0, 255) : null;
 
             if (!store_name || !contact_name || !email || !phone_number) {
-                return res.status(400).json({ error: 'All fields are required' });
+                return res.status(400).json({ error: 'Store name, contact name, email and phone number are required' });
             }
 
             const connection = await db.getConnection();
@@ -886,16 +896,16 @@ export class AdminController {
                 );
 
                 await connection.execute(
-                    'UPDATE vendor_details SET store_name = ?, store_email = ? WHERE user_id = ?',
-                    [store_name, email, id]
+                    'UPDATE vendor_details SET store_name = ?, store_email = ?, address = ?, city = ?, state = ?, pincode = ? WHERE user_id = ?',
+                    [store_name, email, address, city, state, pincode, id]
                 );
 
                 // Keep the distributor dashboard in sync with the updated profile.
                 // The distributor-facing UI reads from the distributors table, so if we
                 // only update profiles/vendor_details it will continue showing stale data.
                 await connection.execute(
-                    'UPDATE distributors SET name = ?, email = ?, phone_number = ? WHERE profile_id = ?',
-                    [store_name, email, phone_number, id]
+                    'UPDATE distributors SET name = ?, email = ?, phone_number = ?, address = ?, city = ?, state = ?, pincode = ?, gst_number = ?, area_head_name = ? WHERE profile_id = ?',
+                    [store_name, email, phone_number, address, city, state, pincode, gst_number, area_head_name, id]
                 );
 
                 await connection.commit();

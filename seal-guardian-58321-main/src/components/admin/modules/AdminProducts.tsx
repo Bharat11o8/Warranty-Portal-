@@ -44,7 +44,7 @@ import {
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
-import api from "@/lib/api";
+import api, { getErrorMessage } from "@/lib/api";
 import { downloadCSV } from "@/lib/utils";
 import { Trash2, Plus, Package, Pencil, FolderTree, X, Loader2, Search, Download, Upload, ImageIcon, Video } from "lucide-react";
 import {
@@ -265,7 +265,7 @@ export function AdminProducts() {
         } catch (error: any) {
             toast({
                 title: "Upload Failed",
-                description: error.response?.data?.error || "Failed to upload file",
+                description: getErrorMessage(error, "Failed to upload file"),
                 variant: "destructive"
             });
         } finally {

@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Upload, Star, Send, RefreshCw, X, ImageIcon, MessageSquare, Store, FileText, HelpCircle, AlertTriangle, Clock, Shield, Car } from "lucide-react";
-import api from "@/lib/api";
+import api, { getErrorMessage } from "@/lib/api";
 import { formatToIST, cn } from "@/lib/utils";
 import { compressImage, isCompressibleImage } from "@/lib/imageCompression";
 
@@ -262,7 +262,7 @@ const GrievancePage = () => {
         } catch (error: any) {
             toast({
                 title: "Submission Failed",
-                description: error.response?.data?.error || "Failed to submit grievance",
+                description: getErrorMessage(error, "Failed to submit grievance"),
                 variant: "destructive",
             });
         } finally {
@@ -296,7 +296,7 @@ const GrievancePage = () => {
         } catch (error: any) {
             toast({
                 title: "Error",
-                description: (error as any).response?.data?.error || "Failed to submit rating",
+                description: getErrorMessage((error as any), "Failed to submit rating"),
                 variant: "destructive",
             });
         }

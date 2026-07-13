@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { AlertCircle, ArrowLeft } from "lucide-react";
-import api from "@/lib/api";
+import api, { getErrorMessage } from "@/lib/api";
 
 const AdminManagement = () => {
     const navigate = useNavigate();
@@ -71,7 +71,7 @@ const AdminManagement = () => {
             console.error("Failed to create admin:", error);
             toast({
                 title: "Error",
-                description: error.response?.data?.error || "Failed to create admin",
+                description: getErrorMessage(error, "Failed to create admin"),
                 variant: "destructive"
             });
         } finally {

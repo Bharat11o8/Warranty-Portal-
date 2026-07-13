@@ -32,7 +32,7 @@ import {
     DialogTitle,
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import api from "@/lib/api";
+import api, { getErrorMessage } from "@/lib/api";
 
 interface UIDRecord {
     uid: string;
@@ -203,7 +203,7 @@ export const AdminUIDManagement = ({ onBack }: UIDManagementProps) => {
                 fetchUIDs();
             }
         } catch (error: any) {
-            const msg = error.response?.data?.error || "Failed to add UID";
+            const msg = getErrorMessage(error, "Failed to add UID");
             toast({ title: "Error", description: msg, variant: "destructive" });
         } finally {
             setAddLoading(false);
@@ -270,7 +270,7 @@ export const AdminUIDManagement = ({ onBack }: UIDManagementProps) => {
                 fetchUIDs();
             }
         } catch (error: any) {
-            const msg = error.response?.data?.error || "Failed to upload UIDs";
+            const msg = getErrorMessage(error, "Failed to upload UIDs");
             toast({ title: "Error", description: msg, variant: "destructive" });
         } finally {
             setBulkLoading(false);
@@ -288,7 +288,7 @@ export const AdminUIDManagement = ({ onBack }: UIDManagementProps) => {
                 fetchUIDs();
             }
         } catch (error: any) {
-            const msg = error.response?.data?.error || "Failed to delete UID";
+            const msg = getErrorMessage(error, "Failed to delete UID");
             toast({ title: "Error", description: msg, variant: "destructive" });
         } finally {
             setDeleteLoading(false);

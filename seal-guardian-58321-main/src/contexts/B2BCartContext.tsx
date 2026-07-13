@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import api from '@/lib/api';
+import api, { getErrorMessage } from '@/lib/api';
 import { useAuth } from './AuthContext';
 import { useToast } from '@/hooks/use-toast';
 
@@ -247,7 +247,7 @@ export const B2BCartProvider: React.FC<{ children: React.ReactNode }> = ({ child
     } catch (error: any) {
       toast({
         title: 'Checkout Failed',
-        description: error.response?.data?.error || 'Failed to submit order.',
+        description: getErrorMessage(error, 'Failed to submit order.'),
         variant: 'destructive',
       });
       return false;

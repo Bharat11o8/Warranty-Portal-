@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Package, Plus, Search, Filter, CheckCircle, Clock, XCircle, Users, User, Trash2, Edit2, X, Check, ArrowLeft, Edit, FileText, Eye, Download, Loader2 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useState, useEffect } from "react";
-import api from "@/lib/api";
+import api, { getErrorMessage } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import { downloadCSV, getWarrantyExpiration, cn, formatToIST, getISTTodayISO } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
@@ -241,7 +241,7 @@ const VendorDashboard = () => {
             console.error("Verification failed", error);
             toast({
                 title: "Action Failed",
-                description: error.response?.data?.error || "Could not approve warranty",
+                description: getErrorMessage(error, "Could not approve warranty"),
                 variant: "destructive",
             });
         }
@@ -267,7 +267,7 @@ const VendorDashboard = () => {
             console.error("Rejection failed", error);
             toast({
                 title: "Action Failed",
-                description: error.response?.data?.error || "Could not reject warranty",
+                description: getErrorMessage(error, "Could not reject warranty"),
                 variant: "destructive",
             });
         }
@@ -500,7 +500,7 @@ const VendorDashboard = () => {
         } catch (error: any) {
             toast({
                 title: "Addition Failed",
-                description: error.response?.data?.error || "Could not add manpower",
+                description: getErrorMessage(error, "Could not add manpower"),
                 variant: "destructive",
             });
         } finally {
@@ -521,7 +521,7 @@ const VendorDashboard = () => {
         } catch (error: any) {
             toast({
                 title: "Removal Failed",
-                description: error.response?.data?.error || "Could not remove manpower",
+                description: getErrorMessage(error, "Could not remove manpower"),
                 variant: "destructive",
             });
         }
@@ -563,7 +563,7 @@ const VendorDashboard = () => {
         } catch (error: any) {
             toast({
                 title: "Update Failed",
-                description: error.response?.data?.error || "Could not update manpower",
+                description: getErrorMessage(error, "Could not update manpower"),
                 variant: "destructive",
             });
         } finally {

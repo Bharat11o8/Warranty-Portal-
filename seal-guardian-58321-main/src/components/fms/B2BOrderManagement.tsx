@@ -2,7 +2,7 @@
 import { useB2BCart, type CartItem } from '@/contexts/B2BCartContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
-import api from '@/lib/api';
+import api, { getErrorMessage } from '@/lib/api';
 import { B2BOrderSpecSheet } from './B2BOrderSpecSheet';
 import {
   ShoppingBag, Package, ClipboardList, RefreshCw, Minus, Plus, Trash2,
@@ -660,7 +660,7 @@ const B2BOrderManagement: React.FC = () => {
     } catch (err: any) {
       toast({
         title: 'Failed to share docket',
-        description: err.response?.data?.error || 'Could not update docket ID.',
+        description: getErrorMessage(err, 'Could not update docket ID.'),
         variant: 'destructive'
       });
     } finally {
@@ -771,7 +771,7 @@ const B2BOrderManagement: React.FC = () => {
     } catch (err: any) {
       toast({
         title: 'Update Failed',
-        description: err.response?.data?.error || 'Could not update stock.',
+        description: getErrorMessage(err, 'Could not update stock.'),
         variant: 'destructive'
       });
     } finally {
@@ -1076,7 +1076,7 @@ const B2BOrderManagement: React.FC = () => {
     } catch (err: any) {
       toast({
         title: 'Confirmation Failed',
-        description: err.response?.data?.error || 'Could not confirm order.',
+        description: getErrorMessage(err, 'Could not confirm order.'),
         variant: 'destructive'
       });
     } finally {
@@ -1120,7 +1120,7 @@ const B2BOrderManagement: React.FC = () => {
     } catch (err: any) {
       toast({
         title: 'Failed to Send Note',
-        description: err.response?.data?.error || 'Could not send note.',
+        description: getErrorMessage(err, 'Could not send note.'),
         variant: 'destructive'
       });
     } finally {
@@ -1161,7 +1161,7 @@ const B2BOrderManagement: React.FC = () => {
     } catch (err: any) {
       toast({
         title: 'Decline Failed',
-        description: err.response?.data?.error || 'Could not decline order.',
+        description: getErrorMessage(err, 'Could not decline order.'),
         variant: 'destructive'
       });
     } finally {
@@ -1195,7 +1195,7 @@ const B2BOrderManagement: React.FC = () => {
     } catch (err: any) {
       toast({
         title: 'Hold Failed',
-        description: err.response?.data?.error || 'Could not put order on hold.',
+        description: getErrorMessage(err, 'Could not put order on hold.'),
         variant: 'destructive'
       });
     } finally {
@@ -1218,7 +1218,7 @@ const B2BOrderManagement: React.FC = () => {
     } catch (err: any) {
       toast({
         title: 'Resume Failed',
-        description: err.response?.data?.error || 'Could not resume order.',
+        description: getErrorMessage(err, 'Could not resume order.'),
         variant: 'destructive'
       });
     } finally {
@@ -1474,7 +1474,7 @@ const B2BOrderManagement: React.FC = () => {
         refreshStock();
       }
     } catch (err: any) {
-      toast({ title: 'Decline Failed', description: err.response?.data?.error || 'Could not decline', variant: 'destructive' });
+      toast({ title: 'Decline Failed', description: getErrorMessage(err, 'Could not decline'), variant: 'destructive' });
     } finally {
       setCancellingId(null);
     }
@@ -1519,7 +1519,7 @@ const B2BOrderManagement: React.FC = () => {
     } catch (err: any) {
       toast({
         title: 'Could not mark received',
-        description: err.response?.data?.error || 'Please try again.',
+        description: getErrorMessage(err, 'Please try again.'),
         variant: 'destructive',
       });
     } finally {

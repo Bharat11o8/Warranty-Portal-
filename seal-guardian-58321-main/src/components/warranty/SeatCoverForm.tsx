@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import api from "@/lib/api";
+import api, { getErrorMessage } from "@/lib/api";
 import {
   validateEmail,
   getPhoneError,
@@ -741,7 +741,7 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
         errorTitle = "Files Too Large";
         errorMessage = "One or more files exceed the 5 MB limit. Please use smaller images.";
       } else if (error.response?.data?.error) {
-        errorMessage = error.response.data.error;
+        errorMessage = getErrorMessage(error, errorMessage);
       } else if (error.message) {
         errorMessage = error.message;
       }

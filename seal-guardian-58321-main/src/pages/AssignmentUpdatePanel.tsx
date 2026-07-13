@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import api from '../lib/api';
+import api, { getErrorMessage } from '../lib/api';
 import {
     CheckCircle2,
     Clock,
@@ -50,7 +50,7 @@ export default function AssignmentUpdatePanel() {
                 console.error('Failed to fetch assignment details:', error);
                 toast({
                     title: "Error",
-                    description: error.response?.data?.error || "Invalid or expired assignment link",
+                    description: getErrorMessage(error, "Invalid or expired assignment link"),
                     variant: "destructive"
                 });
             } finally {
@@ -85,7 +85,7 @@ export default function AssignmentUpdatePanel() {
             console.error('Update failed:', error);
             toast({
                 title: "Update Failed",
-                description: error.response?.data?.error || "Failed to update assignment status",
+                description: getErrorMessage(error, "Failed to update assignment status"),
                 variant: "destructive"
             });
         } finally {

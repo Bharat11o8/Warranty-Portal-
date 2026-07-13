@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import api from "@/lib/api";
+import api, { getErrorMessage } from "@/lib/api";
 import { formatToIST, cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent } from "@/components/ui/card";
@@ -254,7 +254,7 @@ const VendorGrievances = () => {
             console.error("Submit grievance error:", error);
             toast({
                 title: "Submission Failed",
-                description: error.response?.data?.error || "Failed to submit grievance",
+                description: getErrorMessage(error, "Failed to submit grievance"),
                 variant: "destructive"
             });
         } finally {
@@ -295,7 +295,7 @@ const VendorGrievances = () => {
         } catch (error: any) {
             toast({
                 title: "Failed to Add Remark",
-                description: error.response?.data?.error || "An error occurred",
+                description: getErrorMessage(error, "An error occurred"),
                 variant: "destructive",
             });
         } finally {

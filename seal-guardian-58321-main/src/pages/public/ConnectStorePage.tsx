@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Loader2, MapPin, Phone, Mail, Store, ShieldCheck, Sofa } from "lucide-react";
 import EVProductsForm from "@/components/warranty/EVProductsForm";
 import SeatCoverForm from "@/components/warranty/SeatCoverForm";
-import api from "@/lib/api";
+import api, { getErrorMessage } from "@/lib/api";
 import AutoformLoadingScreen from "@/components/ui/AutoformLoadingScreen";
 
 interface StoreDetails {
@@ -78,7 +78,7 @@ const ConnectStorePage = () => {
                 // Allow partial failure if store found but products fail? No, better to show error or just no products.
                 // Prioritize store error
                 if (!storeDetails && err.config?.url?.includes('/public/stores')) {
-                    setError(err.response?.data?.error || "Store not found or not verified");
+                    setError(getErrorMessage(err, "Store not found or not verified"));
                 }
                 setLoading(false);
             }
