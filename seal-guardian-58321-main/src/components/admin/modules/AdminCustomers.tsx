@@ -60,6 +60,9 @@ export const AdminCustomers = () => {
     const [search, setSearch] = useState("");
     const [sortField, setSortField] = useState("created_at");
     const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+    const [totalCustomers, setTotalCustomers] = useState(0);
+    const [refreshKey, setRefreshKey] = useState(0);
+    const [exportingCustomers, setExportingCustomers] = useState(false);
 
     // Pagination
     const [currentPage, setCurrentPage] = useState(1);
@@ -92,32 +95,51 @@ export const AdminCustomers = () => {
     };
 
     useEffect(() => {
-        fetchCustomers();
-    }, []);
+        let cancelled = false;
+        const timeout = window.setTimeout(() => {
+            const fetchCustomers = async () => {
+                setLoading(true);
+                try {
+                    const response = await api.get("/admin/customers", {
+                        params: {
+                            page: currentPage,
+                            pageSize: itemsPerPage,
+                            search: search.trim(),
+                            sortField,
+                            sortOrder
+                        }
+                    });
+                    if (!cancelled && response.data.success) {
+                        setCustomers(response.data.customers);
+                        setTotalCustomers(response.data.pagination?.total ?? response.data.customers.length);
+                    }
+                } catch (error) {
+                    if (!cancelled) {
+                        console.error("Failed to fetch customers:", error);
+                        toast({
+                            title: "Customer Fetch Failed",
+                            description: "Failed to fetch customers",
+                            variant: "destructive"
+                        });
+                    }
+                } finally {
+                    if (!cancelled) setLoading(false);
+                }
+            };
 
-    // Reset pagination on search
+            void fetchCustomers();
+        }, search ? 300 : 0);
+
+        return () => {
+            cancelled = true;
+            window.clearTimeout(timeout);
+        };
+    }, [currentPage, itemsPerPage, refreshKey, search, sortField, sortOrder, toast]);
+
+    // Search and sort changes always restart from the first server-side page.
     useEffect(() => {
         setCurrentPage(1);
-    }, [search]);
-
-    const fetchCustomers = async () => {
-        setLoading(true);
-        try {
-            const response = await api.get("/admin/customers");
-            if (response.data.success) {
-                setCustomers(response.data.customers);
-            }
-        } catch (error) {
-            console.error("Failed to fetch customers:", error);
-            toast({
-                title: "Customer Fetch Failed",
-                description: "Failed to fetch customers",
-                variant: "destructive"
-            });
-        } finally {
-            setLoading(false);
-        }
-    };
+    }, [search, sortField, sortOrder]);
 
     // Customers without an email (e.g. fallback-UID submissions) are looked up
     // by phone instead, since the backend identifier is "email OR phone".
@@ -131,7 +153,7 @@ export const AdminCustomers = () => {
         try {
             const basicInfo = customers.find(c => getCustomerIdentifier(c) === identifier);
 
-            const response = await api.get(`/admin/customers/${identifier}`);
+            const response = await api.get(`/admin/customers/${encodeURIComponent(identifier)}`);
             if (response.data.success) {
                 setSelectedCustomer({ ...basicInfo, warranties: response.data.warranties });
                 setViewingCustomer(true);
@@ -160,8 +182,12 @@ export const AdminCustomers = () => {
         if (!identifier) return;
         if (!confirm("Delete this customer?")) return;
         try {
-            await api.delete(`/admin/customers/${identifier}`);
-            setCustomers(prev => prev.filter(c => getCustomerIdentifier(c) !== identifier));
+            await api.delete(`/admin/customers/${encodeURIComponent(identifier)}`);
+            if (customers.length === 1 && currentPage > 1) {
+                setCurrentPage(page => page - 1);
+            } else {
+                setRefreshKey(key => key + 1);
+            }
             toast({ description: "Customer deleted" });
         } catch (error) {
             toast({ description: "Failed to delete", variant: "destructive" });
@@ -233,14 +259,25 @@ export const AdminCustomers = () => {
         }
     };
 
-    const handleExportCustomers = () => {
+    const handleExportCustomers = async () => {
+        setExportingCustomers(true);
         try {
-            if (filteredCustomers.length === 0) {
+            const response = await api.get("/admin/customers", {
+                params: {
+                    export: true,
+                    search: search.trim(),
+                    sortField,
+                    sortOrder
+                }
+            });
+            const exportCustomers = response.data.success ? response.data.customers : [];
+
+            if (exportCustomers.length === 0) {
                 toast({ description: "No customers to export", variant: "destructive" });
                 return;
             }
 
-            const exportData = filteredCustomers.map(c => ({
+            const exportData = exportCustomers.map((c) => ({
                 "Customer Name": c.customer_name,
                 "Email": c.customer_email,
                 "Phone": c.customer_phone,
@@ -258,39 +295,20 @@ export const AdminCustomers = () => {
         } catch (e) {
             console.error("Export error:", e);
             toast({ description: "Export failed", variant: "destructive" });
+        } finally {
+            setExportingCustomers(false);
         }
     };
 
-    // Filter Logic
-    const filteredCustomers = customers.filter(c => {
-        if (!search) return true;
-        const term = search.toLowerCase();
-        return c.customer_name?.toLowerCase().includes(term) || c.customer_email?.toLowerCase().includes(term) || c.customer_phone?.includes(term);
-    }).sort((a, b) => {
-        let aVal = a[sortField];
-        let bVal = b[sortField];
-
-        // Map sort field to data field if necessary
-        if (sortField === 'created_at' || sortField === 'first_warranty_date' || sortField === 'registered_at') {
-            aVal = new Date(a.registered_at || a.first_warranty_date || 0).getTime();
-            bVal = new Date(b.registered_at || b.first_warranty_date || 0).getTime();
-        } else if (sortField === 'total_warranties' || sortField === 'warranty_count') {
-            aVal = Number(a.total_warranties) || 0;
-            bVal = Number(b.total_warranties) || 0;
-        } else {
-            aVal = (aVal || '').toString().toLowerCase();
-            bVal = (bVal || '').toString().toLowerCase();
-        }
-
-        if (aVal === bVal) return 0;
-        const result = aVal > bVal ? 1 : -1;
-        return sortOrder === 'asc' ? result : -result;
-    });
-
-    // Pagination Calculation
-    const totalPages = Math.ceil(filteredCustomers.length / itemsPerPage);
-    const startIndex = (currentPage - 1) * itemsPerPage;
-    const paginatedCustomers = filteredCustomers.slice(startIndex, startIndex + itemsPerPage);
+    const paginatedCustomers = customers;
+    const totalPages = Math.ceil(totalCustomers / itemsPerPage);
+    const visiblePages = Array.from(new Set([
+        1,
+        currentPage - 1,
+        currentPage,
+        currentPage + 1,
+        totalPages
+    ])).filter(page => page >= 1 && page <= totalPages);
 
     const renderLimitDialog = () => (
         <Dialog open={limitDialogOpen} onOpenChange={setLimitDialogOpen}>
@@ -434,7 +452,7 @@ export const AdminCustomers = () => {
                         />
                     </div>
                     <Badge variant="outline" className="h-10 md:h-10 px-4 border-orange-200 bg-orange-50 text-orange-700 font-bold whitespace-nowrap rounded-xl shadow-sm border-2">
-                        Total: {customers.length}
+                        Total: {totalCustomers}
                     </Badge>
                 </div>
                 <div className="flex gap-2 w-full md:w-auto">
@@ -487,8 +505,10 @@ export const AdminCustomers = () => {
                             </DropdownMenuItem>
                         </DropdownMenuContent>
                     </DropdownMenu>
-                    <Button variant="outline" onClick={handleExportCustomers} className="flex-1 md:flex-none h-11 md:h-10">
-                        <Download className="h-4 w-4 mr-2" />
+                    <Button variant="outline" onClick={handleExportCustomers} disabled={exportingCustomers} className="flex-1 md:flex-none h-11 md:h-10">
+                        {exportingCustomers
+                            ? <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            : <Download className="h-4 w-4 mr-2" />}
                         <span className="md:inline">Export</span>
                     </Button>
                 </div>
@@ -503,7 +523,7 @@ export const AdminCustomers = () => {
                 ) : paginatedCustomers.length === 0 ? (
                     <div className="p-8 text-center text-slate-400 bg-white rounded-2xl border border-orange-100">No customers found</div>
                 ) : paginatedCustomers.map((customer) => (
-                    <Card key={customer.customer_email} className="border-orange-100 shadow-sm overflow-hidden rounded-2xl">
+                    <Card key={getCustomerIdentifier(customer)} className="border-orange-100 shadow-sm overflow-hidden rounded-2xl">
                         <div className="p-5 space-y-4">
                             <div className="flex justify-between items-start">
                                 <div>
@@ -567,7 +587,7 @@ export const AdminCustomers = () => {
                             ) : paginatedCustomers.length === 0 ? (
                                 <tr><td colSpan={6} className="p-8 text-center text-muted-foreground">No customers found</td></tr>
                             ) : paginatedCustomers.map((customer) => (
-                                <tr key={customer.customer_email} className="hover:bg-slate-50/50">
+                                <tr key={getCustomerIdentifier(customer)} className="hover:bg-slate-50/50">
                                     <td className="px-6 py-4 font-medium text-slate-900">{customer.customer_name}</td>
                                     <td className="px-6 py-4 text-slate-600">
                                         <div>{customer.customer_email}</div>
@@ -615,13 +635,7 @@ export const AdminCustomers = () => {
                             />
                         </PaginationItem>
 
-                        {Array.from({ length: totalPages }, (_, i) => i + 1)
-                            .filter(page => {
-                                return page === 1 ||
-                                    page === totalPages ||
-                                    Math.abs(page - currentPage) <= 1;
-                            })
-                            .map((page, index, array) => {
+                        {visiblePages.map((page, index, array) => {
                                 if (index > 0 && array[index - 1] !== page - 1) {
                                     return (
                                         <div key={`ellipsis-${page}`} className="flex items-center">

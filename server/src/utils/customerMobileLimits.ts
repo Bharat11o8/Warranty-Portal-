@@ -43,8 +43,6 @@ export async function getMobileRegistrationUsage(phone: string) {
         };
     }
 
-    await ensureCustomerMobileLimitTable();
-
     const [existing]: any = await db.execute(
         `SELECT COUNT(*) as count
          FROM warranty_registrations

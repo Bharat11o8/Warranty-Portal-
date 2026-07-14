@@ -6,7 +6,6 @@ import { NotificationService } from '../services/notification.service.js';
 import { WhatsAppService } from '../services/whatsapp.service.js';
 import { v4 as uuidv4 } from 'uuid';
 import {
-    ensureCustomerMobileLimitTable,
     getMobileRegistrationUsage,
     normalizeCustomerMobile
 } from '../utils/customerMobileLimits.js';
@@ -1766,106 +1765,176 @@ export class AdminController {
         }
     }
 
-    static async getCustomers(_req: Request, res: Response) {
+    static async getCustomers(req: Request, res: Response) {
         try {
-            // Get both registered customers (from profiles) and guests (from registrations)
-            const [customers]: any = await db.execute(`
-                SELECT 
-                    customer_name,
-                    customer_email,
-                    customer_phone,
-                    NULL as customer_address,
-                    total_warranties,
-                    validated_warranties,
-                    pending_warranties,
-                    rejected_warranties,
-                    first_warranty_date,
-                    last_warranty_date,
-                    registered_at
-                FROM (
-                    -- 1. Registered Customers (from profiles)
-                    SELECT 
-                        p.name as customer_name,
-                        p.email as customer_email,
-                        p.phone_number as customer_phone,
-                        COUNT(wr.uid) as total_warranties,
-                        SUM(CASE WHEN wr.status = 'validated' THEN 1 ELSE 0 END) as validated_warranties,
-                        SUM(CASE WHEN wr.status IN ('pending', 'pending_vendor') THEN 1 ELSE 0 END) as pending_warranties,
-                        SUM(CASE WHEN wr.status = 'rejected' THEN 1 ELSE 0 END) as rejected_warranties,
-                        MIN(wr.created_at) as first_warranty_date,
-                        MAX(wr.created_at) as last_warranty_date,
-                        p.created_at as registered_at
+            const exportAll = req.query.export === 'true';
+            const requestedPage = Number(req.query.page || 1);
+            const requestedPageSize = Number(req.query.pageSize || 10);
+            const page = Number.isInteger(requestedPage) && requestedPage > 0 ? requestedPage : 1;
+            const pageSize = Number.isInteger(requestedPageSize)
+                ? Math.min(Math.max(requestedPageSize, 1), 100)
+                : 10;
+            const offset = (page - 1) * pageSize;
+            const search = typeof req.query.search === 'string' ? req.query.search.trim().slice(0, 100) : '';
+            const searchPattern = `%${search}%`;
+
+            const sortColumns: Record<string, string> = {
+                created_at: 'registered_at',
+                first_warranty_date: 'registered_at',
+                registered_at: 'registered_at',
+                customer_name: 'customer_name',
+                total_warranties: 'total_warranties',
+                warranty_count: 'total_warranties'
+            };
+            const requestedSort = typeof req.query.sortField === 'string' ? req.query.sortField : 'registered_at';
+            const sortColumn = sortColumns[requestedSort] || 'registered_at';
+            const sortOrder = req.query.sortOrder === 'asc' ? 'ASC' : 'DESC';
+
+            const paginationSql = exportAll ? '' : 'LIMIT ? OFFSET ?';
+            const customerParams: any[] = [search, searchPattern, searchPattern, searchPattern];
+            if (!exportAll) {
+                customerParams.push(pageSize, offset);
+            }
+
+            const customersSql = `
+                WITH customer_profiles AS (
+                    SELECT p.id, p.name, p.email, p.phone_number, p.created_at
                     FROM profiles p
-                    JOIN user_roles ur ON p.id = ur.user_id
-                    LEFT JOIN warranty_registrations wr ON p.id = wr.user_id
-                    WHERE ur.role = 'customer'
-                    -- Exclude exact vendor profile matches (NULL emails can never match a vendor, so always keep them)
-                    AND (p.email IS NULL OR p.email NOT IN (SELECT email FROM profiles p2 JOIN user_roles ur2 ON p2.id = ur2.user_id WHERE ur2.role = 'vendor'))
-                    GROUP BY p.id
-
-                    UNION ALL
-
-                    -- 2. Guest Customers (identified by Name + Phone + Email combo)
-                    SELECT 
-                        sub.customer_name,
-                        sub.customer_email,
-                        sub.customer_phone,
-                        sub.total_warranties,
-                        sub.validated_warranties,
-                        sub.pending_warranties,
-                        sub.rejected_warranties,
-                        sub.first_warranty_date,
-                        sub.last_warranty_date,
-                        sub.first_warranty_date as registered_at
-                    FROM (
-                        SELECT 
-                            customer_name,
-                            customer_email,
-                            customer_phone,
-                            COUNT(uid) as total_warranties,
-                            SUM(CASE WHEN status = 'validated' THEN 1 ELSE 0 END) as validated_warranties,
-                            SUM(CASE WHEN status IN ('pending', 'pending_vendor') THEN 1 ELSE 0 END) as pending_warranties,
-                            SUM(CASE WHEN status = 'rejected' THEN 1 ELSE 0 END) as rejected_warranties,
-                            MIN(created_at) as first_warranty_date,
-                            MAX(created_at) as last_warranty_date
-                        FROM warranty_registrations
-                        GROUP BY customer_name, customer_email, customer_phone
-                    ) sub
-                    -- Exclude if they are already in the "Registered Customers" list
-                    LEFT JOIN (
-                        SELECT p.email, p.phone_number, p.id FROM profiles p 
-                        JOIN user_roles ur ON p.id = ur.user_id WHERE ur.role = 'customer'
-                    ) reg_cust ON (sub.customer_email = reg_cust.email OR sub.customer_phone = reg_cust.phone_number)
-                    -- SMARTS: Exclude if the customer name EXACTLY matches a vendor name using that email
-                    -- This allows "Jignesh" to show up even if he used "Ishan's" email.
-                    LEFT JOIN (
-                        SELECT p.email, p.name FROM profiles p 
-                        JOIN user_roles ur ON p.id = ur.user_id WHERE ur.role = 'vendor'
-                    ) vendor_match ON sub.customer_email = vendor_match.email AND sub.customer_name = vendor_match.name
-                    
-                    WHERE reg_cust.id IS NULL      -- Not a registered customer
-                    AND vendor_match.name IS NULL  -- Name doesn't match the vendor profile
-                    -- Basic sanity: must have either a valid email OR a valid phone
-                    AND (
-                        (sub.customer_email IS NOT NULL AND sub.customer_email != '' AND sub.customer_email != 'N/A')
-                        OR 
-                        (sub.customer_phone IS NOT NULL AND sub.customer_phone != '' AND sub.customer_phone != 'N/A')
+                    WHERE EXISTS (
+                        SELECT 1
+                        FROM user_roles ur
+                        WHERE ur.user_id = p.id AND ur.role = 'customer'
                     )
-                ) combined
-                ORDER BY registered_at DESC
-            `);
+                ),
+                vendor_profiles AS (
+                    SELECT p.id, p.name, p.email
+                    FROM profiles p
+                    WHERE EXISTS (
+                        SELECT 1
+                        FROM user_roles ur
+                        WHERE ur.user_id = p.id AND ur.role = 'vendor'
+                    )
+                ),
+                registered_customers AS (
+                    SELECT
+                        p.name AS customer_name,
+                        p.email AS customer_email,
+                        p.phone_number AS customer_phone,
+                        NULL AS customer_address,
+                        COUNT(wr.uid) AS total_warranties,
+                        COALESCE(SUM(CASE WHEN wr.status = 'validated' THEN 1 ELSE 0 END), 0) AS validated_warranties,
+                        COALESCE(SUM(CASE WHEN wr.status IN ('pending', 'pending_vendor') THEN 1 ELSE 0 END), 0) AS pending_warranties,
+                        COALESCE(SUM(CASE WHEN wr.status = 'rejected' THEN 1 ELSE 0 END), 0) AS rejected_warranties,
+                        MIN(wr.created_at) AS first_warranty_date,
+                        MAX(wr.created_at) AS last_warranty_date,
+                        p.created_at AS registered_at
+                    FROM customer_profiles p
+                    LEFT JOIN warranty_registrations wr ON wr.user_id = p.id
+                    WHERE NOT EXISTS (
+                        SELECT 1
+                        FROM vendor_profiles vp
+                        WHERE vp.id = p.id
+                    )
+                    GROUP BY p.id, p.name, p.email, p.phone_number, p.created_at
+                ),
+                guest_aggregates AS (
+                    SELECT
+                        customer_name,
+                        customer_email,
+                        customer_phone,
+                        COUNT(uid) AS total_warranties,
+                        SUM(CASE WHEN status = 'validated' THEN 1 ELSE 0 END) AS validated_warranties,
+                        SUM(CASE WHEN status IN ('pending', 'pending_vendor') THEN 1 ELSE 0 END) AS pending_warranties,
+                        SUM(CASE WHEN status = 'rejected' THEN 1 ELSE 0 END) AS rejected_warranties,
+                        MIN(created_at) AS first_warranty_date,
+                        MAX(created_at) AS last_warranty_date
+                    FROM warranty_registrations
+                    WHERE (customer_email IS NOT NULL AND customer_email != '' AND customer_email != 'N/A')
+                       OR (customer_phone IS NOT NULL AND customer_phone != '' AND customer_phone != 'N/A')
+                    GROUP BY customer_name, customer_email, customer_phone
+                ),
+                guest_customers AS (
+                    SELECT
+                        guest.customer_name,
+                        guest.customer_email,
+                        guest.customer_phone,
+                        NULL AS customer_address,
+                        guest.total_warranties,
+                        guest.validated_warranties,
+                        guest.pending_warranties,
+                        guest.rejected_warranties,
+                        guest.first_warranty_date,
+                        guest.last_warranty_date,
+                        guest.first_warranty_date AS registered_at
+                    FROM guest_aggregates guest
+                    WHERE NOT EXISTS (
+                        SELECT 1
+                        FROM customer_profiles customer
+                        WHERE guest.customer_email IS NOT NULL
+                          AND guest.customer_email != ''
+                          AND guest.customer_email != 'N/A'
+                          AND customer.email = guest.customer_email
+                    )
+                    AND NOT EXISTS (
+                        SELECT 1
+                        FROM customer_profiles customer
+                        WHERE guest.customer_phone IS NOT NULL
+                          AND guest.customer_phone != ''
+                          AND guest.customer_phone != 'N/A'
+                          AND customer.phone_number = guest.customer_phone
+                    )
+                    AND NOT EXISTS (
+                        SELECT 1
+                        FROM vendor_profiles vendor
+                        WHERE vendor.email = guest.customer_email
+                          AND vendor.name = guest.customer_name
+                    )
+                ),
+                combined AS (
+                    SELECT * FROM registered_customers
+                    UNION ALL
+                    SELECT * FROM guest_customers
+                )
+                SELECT combined.*, COUNT(*) OVER() AS total_count
+                FROM combined
+                WHERE ? = ''
+                   OR customer_name LIKE ?
+                   OR customer_email LIKE ?
+                   OR customer_phone LIKE ?
+                ORDER BY ${sortColumn} ${sortOrder}, customer_email ASC, customer_phone ASC
+                ${paginationSql}
+            `;
 
-            await ensureCustomerMobileLimitTable();
+            const timedQuery = async (label: string, operation: () => Promise<any>) => {
+                const startedAt = Date.now();
+                const result = await operation();
+                const duration = Date.now() - startedAt;
+                if (duration >= 250) {
+                    console.info(`[Customers] ${label}: ${duration}ms`);
+                }
+                return result;
+            };
 
-            const [phoneUsageRows]: any = await db.execute(`
-                SELECT customer_phone, COUNT(*) as used_count
-                FROM warranty_registrations
-                WHERE customer_phone IS NOT NULL
-                  AND customer_phone != ''
-                  AND customer_phone != 'N/A'
-                  AND status != 'rejected'
-                GROUP BY customer_phone
-            `);
+            const [customerResult, phoneUsageResult, limitResult] = await Promise.all([
+                timedQuery('main query', () => db.execute(customersSql, customerParams)),
+                timedQuery('phone usage query', () => db.execute(`
+                    SELECT customer_phone, COUNT(*) AS used_count
+                    FROM warranty_registrations
+                    WHERE customer_phone IS NOT NULL
+                      AND customer_phone != ''
+                      AND customer_phone != 'N/A'
+                      AND status != 'rejected'
+                    GROUP BY customer_phone
+                `)),
+                timedQuery('mobile limits query', () => db.execute(
+                    'SELECT mobile_number, allowed_registrations FROM customer_mobile_limits'
+                ))
+            ]);
+
+            const customerRows: any[] = customerResult[0];
+            const phoneUsageRows: any[] = phoneUsageResult[0];
+            const limitRows: any[] = limitResult[0];
+            const total = Number(customerRows[0]?.total_count || 0);
 
             const mobileUsageMap = new Map<string, number>();
             phoneUsageRows.forEach((row: any) => {
@@ -1874,9 +1943,6 @@ export class AdminController {
                 mobileUsageMap.set(mobileNumber, (mobileUsageMap.get(mobileNumber) || 0) + Number(row.used_count || 0));
             });
 
-            const [limitRows]: any = await db.execute(
-                'SELECT mobile_number, allowed_registrations FROM customer_mobile_limits'
-            );
             const mobileLimitMap = new Map<string, number>();
             limitRows.forEach((row: any) => {
                 const mobileNumber = normalizeCustomerMobile(row.mobile_number);
@@ -1884,7 +1950,8 @@ export class AdminController {
                 mobileLimitMap.set(mobileNumber, Math.max(1, Number(row.allowed_registrations || 1)));
             });
 
-            const customersWithLimits = customers.map((customer: any) => {
+            const customersWithLimits = customerRows.map((row: any) => {
+                const { total_count: _totalCount, ...customer } = row;
                 const mobileNumber = normalizeCustomerMobile(customer.customer_phone);
                 const usedCount = mobileNumber ? (mobileUsageMap.get(mobileNumber) || 0) : 0;
                 const hasOverride = mobileNumber ? mobileLimitMap.has(mobileNumber) : false;
@@ -1901,7 +1968,13 @@ export class AdminController {
 
             res.json({
                 success: true,
-                customers: customersWithLimits
+                customers: customersWithLimits,
+                pagination: exportAll ? null : {
+                    page,
+                    pageSize,
+                    total,
+                    totalPages: Math.ceil(total / pageSize)
+                }
             });
         } catch (error: any) {
             console.error('Get customers error:', error);
@@ -2026,8 +2099,6 @@ export class AdminController {
             if (!Number.isInteger(allowedCount) || allowedCount < 1 || allowedCount > 50) {
                 return res.status(400).json({ error: 'Allowed registrations must be a whole number between 1 and 50.' });
             }
-
-            await ensureCustomerMobileLimitTable();
 
             const admin = (req as any).user;
             await db.execute(

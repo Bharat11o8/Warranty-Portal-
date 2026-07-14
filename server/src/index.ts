@@ -34,6 +34,7 @@ import { AssignmentSchedulerService } from './services/assignment-scheduler.serv
 import { initSocket } from './socket.js';
 import { getISTTimestamp } from './utils/dateUtils.js';
 import pool, { getDbRetryStats, pingDatabase } from './config/database.js';
+import { ensureCustomerMobileLimitTable } from './utils/customerMobileLimits.js';
 
 // Run inline database migrations
 async function runMigrations() {
@@ -45,14 +46,18 @@ async function runMigrations() {
     } else {
       console.log('ℹ️ Migration: product_name already exists in pre_generated_uids.');
     }
+
+    await ensureCustomerMobileLimitTable();
+    console.log('Migration: customer_mobile_limits is ready.');
   } catch (error: any) {
     console.error('❌ Migration Error:', error.message);
+    throw error;
   }
 }
 
 // Start background services
+await runMigrations();
 AssignmentSchedulerService.start();
-runMigrations();
 
 // Get current directory for ES modules
 const __filename = fileURLToPath(import.meta.url);
