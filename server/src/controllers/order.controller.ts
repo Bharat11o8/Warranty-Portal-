@@ -212,7 +212,8 @@ export class OrderController {
     // ─── Helper: Generate Order PDF as Buffer ──────────────────
     private static async generateOrderPDF(order: any, items: any[], franchise: any, distributor: any): Promise<Buffer> {
         return new Promise((resolve, reject) => {
-            const doc = new PDFDocument({ size: 'A4', margin: 50 });
+            // bufferPages lets us stamp "Page X of Y" after the total page count is known.
+            const doc = new PDFDocument({ size: 'A4', margin: 50, bufferPages: true });
             const chunks: Buffer[] = [];
 
             doc.on('data', (chunk: Buffer) => chunks.push(chunk));
@@ -292,20 +293,63 @@ export class OrderController {
                 doc.rect(x, y + 13, Math.min(w, 60), 2).fill(yellow);
             };
 
-            // ─── Header: company identity (left) + title (right) ─────────────────────
-            doc.font('Helvetica-Bold').fontSize(15).fillColor(navy).text('AFAC INDIA PVT LTD', leftX, 30, { width: 260 });
-            const addressLines = [
-                'Khasra No. 122/13 Min, Central Hope Town',
-                'Industrial Area, Selaqui, Dehradun - 248011 (Uttarakhand)',
-                'GSTIN: 05AAWCA7727K1Z1',
-            ];
-            doc.font('Helvetica').fontSize(8).fillColor('#64748B').text(addressLines.join('\n'), leftX, 50, { width: 260 });
+            // ─── Header: supplying distributor (left) + title (right) ────────────────
+            // Drawn on every page (see pageAdded hook below) so each sheet carries the
+            // distributor letterhead and the order reference.
+            const headerBottomY = 118;
+            const drawPageHeader = () => {
+                doc.font('Helvetica-Bold').fontSize(15).fillColor(navy)
+                    .text(distributor.name || 'Distributor Partner', leftX, 30, { width: 260 });
+                const addressLines = [
+                    distributor.address,
+                    [distributor.city, distributor.state].filter(Boolean).join(', '),
+                    distributor.pincode ? `Pin: ${distributor.pincode}` : '',
+                    distributor.phone_number ? `Phone: ${distributor.phone_number}` : '',
+                    distributor.email || '',
+                ].filter(Boolean);
+                doc.font('Helvetica').fontSize(8).fillColor('#64748B')
+                    .text(addressLines.join('\n'), leftX, 50, { width: 260 });
 
-            doc.font('Helvetica-Bold').fontSize(22).fillColor(navy).text('PURCHASE ORDER', 0, 34, { width: pageWidth, align: 'right' });
-            doc.font('Helvetica-Bold').fontSize(9).fillColor('#64748B').text(`#${order.id}`, 0, 62, { width: pageWidth, align: 'right', characterSpacing: 0.6 });
+                doc.font('Helvetica-Bold').fontSize(22).fillColor(navy)
+                    .text('PURCHASE ORDER', 0, 34, { width: pageWidth, align: 'right' });
+                doc.font('Helvetica-Bold').fontSize(9).fillColor('#64748B')
+                    .text(`#${order.id}`, 0, 62, { width: pageWidth, align: 'right', characterSpacing: 0.6 });
 
-            doc.rect(leftX, 100, pageWidth - leftX, 3).fill(navy);
-            doc.y = 118;
+                doc.rect(leftX, 100, pageWidth - leftX, 3).fill(navy);
+            };
+
+            // ─── Footer: divider + brand logo strip (drawn on every page) ────────────
+            const footerLogoMaxHeight = 36;
+            const footerLogoMaxWidth = 74;
+            const footerLogoGap = 7;
+            const footerLogoRowGap = 6;
+            const footerDividerY = 736;
+            const footerLogoRowTop = 748;
+            // Rows must stop before the footer zone.
+            const contentBottomLimit = footerDividerY - 14;
+
+            const footerLogos = brandLogoFiles
+                .map((file) => scaleToBox(file, footerLogoMaxWidth, footerLogoMaxHeight))
+                .filter((l): l is NonNullable<typeof l> => l !== null);
+            const footerLogoRows = wrapIntoRows(footerLogos, footerLogoGap);
+
+            const drawPageFooter = () => {
+                doc.moveTo(leftX, footerDividerY).lineTo(pageWidth, footerDividerY).stroke('#E5E7EB');
+                drawLogoRows(footerLogoRows, footerLogoRowTop, footerLogoGap, footerLogoRowGap);
+            };
+
+            // Every new page gets the same header + footer chrome.
+            doc.on('pageAdded', () => {
+                drawPageHeader();
+                drawPageFooter();
+                doc.x = leftX;
+                doc.y = headerBottomY;
+            });
+
+            // First page: pageAdded doesn't fire for it, so draw manually.
+            drawPageHeader();
+            drawPageFooter();
+            doc.y = headerBottomY;
 
             // ─── Order meta row: Date (left) / Status (right) ────────────────────────
             const metaTop = doc.y;
@@ -319,23 +363,22 @@ export class OrderController {
 
             // ─── FROM / TO ─────────────────────────────────────────────────────────
             const partyTop = doc.y;
+            // Left: who placed the order (franchise store + contact person).
             sectionLabel('ORDER FROM', leftX, partyTop);
             doc.font('Helvetica-Bold').fontSize(11).fillColor(navy)
-                .text(franchise.store_name || 'Franchise Partner', leftX, partyTop + 22);
+                .text(franchise.store_name || 'Franchise Partner', leftX, partyTop + 22, { width: 230 });
             doc.font('Helvetica').fontSize(9).fillColor('#475569')
-                .text(franchise.contact_name || '', leftX, partyTop + 38)
-                .text([franchise.city, franchise.state].filter(Boolean).join(', '), leftX)
-                .text(`Pin: ${franchise.pincode || '-'}`, leftX)
-                .text(`Phone: ${franchise.phone_number || '-'}`, leftX);
+                .text(franchise.contact_name || '', leftX, partyTop + 38, { width: 230 })
+                .text(`Phone: ${franchise.phone_number || '-'}`, leftX, undefined, { width: 230 });
 
+            // Right: where the goods go (franchise address).
             sectionLabel('DELIVER TO', rightX, partyTop);
             doc.font('Helvetica-Bold').fontSize(11).fillColor(navy)
-                .text(distributor.name || 'Distributor Partner', rightX, partyTop + 22);
+                .text(franchise.store_name || 'Franchise Partner', rightX, partyTop + 22, { width: 250 });
             doc.font('Helvetica').fontSize(9).fillColor('#475569')
-                .text(distributor.email || '', rightX, partyTop + 38)
-                .text([distributor.city, distributor.state].filter(Boolean).join(', '), rightX)
-                .text(`Pin: ${distributor.pincode || '-'}`, rightX)
-                .text(`Phone: ${distributor.phone_number || '-'}`, rightX);
+                .text(franchise.address || '', rightX, partyTop + 38, { width: 250 })
+                .text([franchise.city, franchise.state].filter(Boolean).join(', '), rightX, undefined, { width: 250 })
+                .text(`Pin: ${franchise.pincode || '-'}`, rightX, undefined, { width: 250 });
 
             doc.y = partyTop + 108;
 
@@ -378,13 +421,6 @@ export class OrderController {
             items.forEach((item: any, index: number) => {
                 const itemQuantity = Number(item.quantity || 0);
 
-                if (rowY > 700) {
-                    doc.addPage();
-                    rowY = 60;
-                    drawTableHeader(rowY);
-                    rowY += tableHeaderHeight;
-                }
-
                 const itemNotes: string[] = [];
                 if (item.needs_customization) {
                     itemNotes.push('Customization requested');
@@ -397,6 +433,15 @@ export class OrderController {
                     ? doc.heightOfString(noteText, { width: pageWidth - leftX - 34, align: 'left' }) + 6
                     : 0;
                 const rowHeight = 22 + noteHeight;
+
+                // Break BEFORE drawing if this row (including its notes) would run into
+                // the footer zone — checked with the real height, not a fixed guess.
+                if (rowY + rowHeight > contentBottomLimit) {
+                    doc.addPage();
+                    rowY = headerBottomY;
+                    drawTableHeader(rowY);
+                    rowY += tableHeaderHeight;
+                }
 
                 if (index % 2 === 1) {
                     doc.rect(leftX, rowY, pageWidth - leftX, rowHeight).fill('#F8FAFC');
@@ -439,9 +484,9 @@ export class OrderController {
                     width: pageWidth - 26,
                     align: 'left'
                 }) + 22);
-                if (rowY + remarksBoxHeight > 720) {
+                if (rowY + remarksBoxHeight > contentBottomLimit) {
                     doc.addPage();
-                    rowY = 60;
+                    rowY = headerBottomY;
                 }
 
                 doc.roundedRect(leftX, rowY, pageWidth - leftX, remarksBoxHeight, 4).fillAndStroke('#FEFCE8', '#FDE68A');
@@ -454,9 +499,9 @@ export class OrderController {
 
             // ─── Total bar: yellow highlight with dark text (mirrors reference) ──────
             const totalBarHeight = 34;
-            if (rowY + totalBarHeight > 720) {
+            if (rowY + totalBarHeight > contentBottomLimit) {
                 doc.addPage();
-                rowY = 60;
+                rowY = headerBottomY;
             }
             // Left portion navy label, right portion yellow value block.
             const totalValueBlockWidth = 170;
@@ -467,21 +512,17 @@ export class OrderController {
             doc.font('Helvetica-Bold').fontSize(13).fillColor(navy)
                 .text(`${totalQuantity} UNITS`, pageWidth - totalValueBlockWidth, rowY + 11, { width: totalValueBlockWidth - 16, align: 'right' });
 
-            // ─── Footer: divider line, then brand logos (no caption text). ───────────
-            const footerLogoMaxHeight = 36;
-            const footerLogoMaxWidth = 74;
-            const footerLogoGap = 7;
-            const footerLogoRowGap = 6;
-            const footerDividerY = 736;
-            const footerLogoRowTop = 748;
-
-            doc.moveTo(leftX, footerDividerY).lineTo(pageWidth, footerDividerY).stroke('#E5E7EB');
-
-            const footerLogos = brandLogoFiles
-                .map((file) => scaleToBox(file, footerLogoMaxWidth, footerLogoMaxHeight))
-                .filter((l): l is NonNullable<typeof l> => l !== null);
-            const footerLogoRows = wrapIntoRows(footerLogos, footerLogoGap);
-            drawLogoRows(footerLogoRows, footerLogoRowTop, footerLogoGap, footerLogoRowGap);
+            // ─── Page numbers: stamp "Page X of Y" once the total is known ───────────
+            const pageRange = doc.bufferedPageRange();
+            for (let i = 0; i < pageRange.count; i++) {
+                doc.switchToPage(pageRange.start + i);
+                doc.font('Helvetica').fontSize(8).fillColor('#94A3B8')
+                    .text(`Page ${i + 1} of ${pageRange.count}`, leftX, footerDividerY + 4, {
+                        width: pageWidth - leftX,
+                        align: 'right'
+                    });
+            }
+            doc.flushPages();
 
             doc.end();
         });
@@ -1689,7 +1730,7 @@ export class OrderController {
         );
 
         const [vendorRows]: any = await db.execute(
-            `SELECT vd.id, vd.store_name, vd.city, vd.state, vd.pincode,
+            `SELECT vd.id, vd.store_name, vd.address, vd.city, vd.state, vd.pincode,
                     p.name as contact_name, p.phone_number
              FROM vendor_details vd
              JOIN profiles p ON vd.user_id = p.id
