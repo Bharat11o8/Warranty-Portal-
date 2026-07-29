@@ -6,7 +6,6 @@ import {
     LifeBuoy,
     Users,
     Gift,
-    Box,
     Bell,
     Home,
     ClipboardCheck,
@@ -153,11 +152,11 @@ export const menuGroups = [
     {
         label: "Operations",
         items: [
-            {
-                id: 'catalogue' as const,
-                label: "Product Catalogue",
-                icon: Box,
-            },
+            // { // Hidden by request — not public yet
+            //     id: 'catalogue' as const,
+            //     label: "Product Catalogue",
+            //     icon: Box,
+            // },
             {
                 id: 'ecatalogue' as const,
                 label: "E-Catalogue",
