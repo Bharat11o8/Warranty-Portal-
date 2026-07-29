@@ -202,25 +202,6 @@ export const menuGroups = [
         ]
     }
 ];
-// ─── TEMP: Order Management access control ──────────────────────────────────
-// Order Management is not public yet. Distributors always get it (their whole
-// dashboard is the order flow). Franchises only get it if their login mobile is
-// listed here, so we can test with a specific store on live.
-// Add the 10-digit mobile number(s), e.g. ['9876543210'].
-// Remove this gate (and the filter below) when Order Management goes public.
-const ORDER_MODULE_TEST_FRANCHISE_PHONES: string[] = [
-    '9999900337', // TestFranchise (Tanya Chopra) — live test store for Order Management
-];
-
-/** Reduce a phone to bare digits, dropping +91 / 0 prefixes, for reliable comparison. */
-const normalizePhone = (phone?: string | null): string => {
-    if (!phone) return '';
-    let cleaned = String(phone).replace(/\D/g, '');
-    if (cleaned.length === 12 && cleaned.startsWith('91')) cleaned = cleaned.slice(2);
-    else if (cleaned.length === 11 && cleaned.startsWith('0')) cleaned = cleaned.slice(1);
-    return cleaned;
-};
-
 export const DashboardSidebar = ({ activeModule, onModuleChange, isCollapsed, onToggleCollapse }: DashboardSidebarProps) => {
     const { logout, user } = useAuth();
     const { notifications } = useNotifications();
@@ -249,19 +230,8 @@ export const DashboardSidebar = ({ activeModule, onModuleChange, isCollapsed, on
         })
     }));
 
-    // Order Management visibility (temporary — not public yet):
-    // distributors always; franchises only if their mobile is whitelisted above.
-    const myPhone = normalizePhone(user?.phoneNumber);
-    const canSeeOrderModule =
-        isDistributor ||
-        (myPhone !== '' && ORDER_MODULE_TEST_FRANCHISE_PHONES.map(normalizePhone).includes(myPhone));
-
     const filteredGroups = groupsWithBadges.map(group => {
         let items = group.items;
-
-        if (!canSeeOrderModule) {
-            items = items.filter(item => item.id !== 'orders');
-        }
 
         if (isDistributor && !isFranchise) {
             const franchiseOnly = ['warranty', 'register', 'manpower', 'posm', 'offers', 'audit', 'targets'];

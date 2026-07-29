@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useCallback, useRef } from 'react';
+﻿import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useB2BCart, type CartItem } from '@/contexts/B2BCartContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
@@ -287,6 +287,20 @@ const B2BOrderManagement: React.FC = () => {
   const [allCategories, setAllCategories] = useState<Category[]>([]);
   const [mainCategories, setMainCategories] = useState<Category[]>([]);
 
+  // Selected distributor for the order-punching view. A franchise can be
+  // assigned to multiple distributors (split by product/brand), so the product
+  // list, categories, and search are all scoped to the distributor chosen in the
+  // selector below. Null = none selected yet → show nothing until one is picked.
+  const [focusedDistId, setFocusedDistId] = useState<string | null>(null);
+
+  // The catalogue narrowed to the selected distributor. Everything the franchise
+  // browses for ordering (products, category tabs, nav dropdowns) reads from this
+  // instead of the full multi-distributor union in `distributorStock`.
+  const visibleStock = useMemo(
+    () => (focusedDistId ? distributorStock.filter((item: any) => item.distributor_id === focusedDistId) : []),
+    [distributorStock, focusedDistId]
+  );
+
   // Product detail dialog (view-and-order)
   const [detailProductId, setDetailProductId] = useState<string | null>(null);
   const [detailImageIndex, setDetailImageIndex] = useState(0);
@@ -332,7 +346,7 @@ const B2BOrderManagement: React.FC = () => {
     };
 
     const visibleCategoryIds = new Set(
-      distributorStock.map((item: any) => item.category_id).filter(Boolean)
+      visibleStock.map((item: any) => item.category_id).filter(Boolean)
     );
 
     const priority = ["seat cover", "accessories", "mat"];
@@ -350,7 +364,7 @@ const B2BOrderManagement: React.FC = () => {
         return aName.localeCompare(bName);
       });
     setMainCategories(main);
-  }, [allCategories, distributorStock]);
+  }, [allCategories, visibleStock]);
 
   const getCategoryIcon = (name: string) => {
     const lowerName = name.toLowerCase();
@@ -364,7 +378,7 @@ const B2BOrderManagement: React.FC = () => {
   };
 
   const categoryHasVisibleProduct = (catId: string, allCats: Category[]): boolean => {
-    const visibleCategoryIds = new Set(distributorStock.map((item: any) => item.category_id).filter(Boolean));
+    const visibleCategoryIds = new Set(visibleStock.map((item: any) => item.category_id).filter(Boolean));
     if (visibleCategoryIds.has(catId)) return true;
     const directChildren = allCats.filter(c => c.parentId === catId);
     return directChildren.some(c => categoryHasVisibleProduct(c.id, allCats));
@@ -539,7 +553,6 @@ const B2BOrderManagement: React.FC = () => {
   const distFilterDropdownRef = useRef<HTMLDivElement>(null);
   const [brandFilterDropdownOpen, setBrandFilterDropdownOpen] = useState(false);
   const brandFilterDropdownRef = useRef<HTMLDivElement>(null);
-  const [focusedDistId, setFocusedDistId] = useState<string | null>(null);
   const [distSelectorOpen, setDistSelectorOpen] = useState(false);
   const distSelectorRef = useRef<HTMLDivElement>(null);
 
@@ -1291,7 +1304,7 @@ const B2BOrderManagement: React.FC = () => {
     return seatCoverIds.has(categoryId);
   };
 
-  const filteredStock = distributorStock.filter((item: any) => {
+  const filteredStock = visibleStock.filter((item: any) => {
     if (selectedCategory) {
       const allowedCategories = getCategoryDescendants(selectedCategory, allCategories);
       if (!allowedCategories.includes(item.category_id)) {
@@ -2620,6 +2633,14 @@ const B2BOrderManagement: React.FC = () => {
             {loadingStock ? (
               <div className="flex items-center justify-center py-20">
                 <RefreshCw className="w-8 h-8 animate-spin text-orange-400" />
+              </div>
+            ) : !focusedDistId && distributorStock.length > 0 ? (
+              <div className="flex flex-col items-center justify-center py-20 text-slate-400">
+                <Building2 className="w-16 h-16 mb-4 opacity-30" />
+                <p className="font-bold text-lg text-slate-600">Select a distributor to start ordering</p>
+                <p className="text-sm mt-1 text-center max-w-xs">
+                  Choose a distributor from the selector above to see the products you can order from them.
+                </p>
               </div>
             ) : Object.keys(grouped).length === 0 ? (
               <div className="flex flex-col items-center justify-center py-20 text-slate-400">
