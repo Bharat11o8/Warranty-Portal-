@@ -11,9 +11,9 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Combobox } from "@/components/ui/combobox";
 import {
     Search,
-    Plus,
     Users,
     MapPin,
     Phone,
@@ -642,22 +642,19 @@ export const AdminOrderManagement = () => {
                             <h3 className="text-xs font-black text-slate-600 uppercase tracking-wider mb-3">Map Franchise to Network</h3>
                             
                             <div className="flex flex-col sm:flex-row gap-3">
-                                <div className="flex-1 relative">
-                                    <select
+                                <div className="flex-1">
+                                    <Combobox
+                                        options={availableFranchises.map(franchise => ({
+                                            value: franchise.user_id,
+                                            label: `${franchise.store_name} (${franchise.city}, ${franchise.state})`
+                                        }))}
                                         value={selectedFranchiseId}
-                                        onChange={e => setSelectedFranchiseId(e.target.value)}
-                                        className="w-full bg-white border border-orange-100 focus:border-orange-300 focus:ring-orange-200 h-10 px-3 rounded-xl text-xs font-bold text-slate-700 outline-none appearance-none"
-                                    >
-                                        <option value="">-- Select Franchise Store --</option>
-                                        {availableFranchises.map(franchise => (
-                                            <option key={franchise.user_id} value={franchise.user_id}>
-                                                {franchise.store_name} ({franchise.city}, {franchise.state})
-                                            </option>
-                                        ))}
-                                    </select>
-                                    <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-slate-400">
-                                        <Plus className="w-4 h-4" />
-                                    </div>
+                                        onChange={setSelectedFranchiseId}
+                                        placeholder="-- Select Franchise Store --"
+                                        searchPlaceholder="Search franchise by name or city..."
+                                        emptyMessage="No franchise found."
+                                        className="h-10 bg-white border-orange-100 rounded-xl text-xs font-bold text-slate-700"
+                                    />
                                 </div>
                                 
                                 <Button
