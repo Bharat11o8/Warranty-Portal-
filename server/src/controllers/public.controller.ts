@@ -7,7 +7,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { geolocateIP, getClientIP } from '../utils/ipGeolocation.js';
 import { calculateFraudScore } from '../utils/fraudScoring.js';
 import { WhatsAppService } from '../services/whatsapp.service.js';
-import { getMobileRegistrationUsage, normalizeCustomerMobile, matchFallbackUidSequence, resolveFallbackUid } from '../utils/customerMobileLimits.js';
+import { getMobileRegistrationUsage, normalizeCustomerMobile, matchFallbackUidSequence, resolveFallbackUid, FALLBACK_UID_YEAR } from '../utils/customerMobileLimits.js';
 
 export class PublicController {
     static async getStores(req: Request, res: Response) {
@@ -193,13 +193,12 @@ export class PublicController {
             // typing the same base value and the system silently advances it
             // (e.g. ...01, ...02) as long as their mobile limit allows it.
             if (phone && typeof phone === 'string') {
-                const currentYear = new Date().getFullYear();
-                const resolved = await resolveFallbackUid(uid, phone, currentYear);
+                const resolved = await resolveFallbackUid(uid, phone, FALLBACK_UID_YEAR);
                 if (resolved) {
                     return res.json({ success: true, valid: true, resolvedUid: resolved.uid });
                 }
 
-                if (matchFallbackUidSequence(uid, phone, currentYear) !== null) {
+                if (matchFallbackUidSequence(uid, phone, FALLBACK_UID_YEAR) !== null) {
                     return res.json({
                         success: true,
                         valid: false,
@@ -218,7 +217,7 @@ export class PublicController {
                 return res.json({
                     success: true,
                     valid: false,
-                    reason: 'Invalid UID. This UID does not exist in our system. Please check the UID on your product packaging, or enter your mobile number followed by the current year if the UID is missing/unreadable.'
+                    reason: 'Invalid UID. This UID does not exist in our system. Please check the UID on your product packaging. If the UID is missing or unreadable, please contact the store where you purchased the product.'
                 });
             }
 
@@ -553,11 +552,10 @@ export class PublicController {
                 // year), resolve it to the next unused sequence for this mobile —
                 // this transparently handles repeat submissions where the customer
                 // re-enters the same base value.
-                const currentYear = new Date().getFullYear();
-                const isFallbackPattern = matchFallbackUidSequence(uid, warrantyData.customerPhone, currentYear) !== null;
+                const isFallbackPattern = matchFallbackUidSequence(uid, warrantyData.customerPhone, FALLBACK_UID_YEAR) !== null;
 
                 if (isFallbackPattern) {
-                    const resolved = await resolveFallbackUid(uid, warrantyData.customerPhone, currentYear);
+                    const resolved = await resolveFallbackUid(uid, warrantyData.customerPhone, FALLBACK_UID_YEAR);
 
                     if (!resolved) {
                         return res.status(400).json({

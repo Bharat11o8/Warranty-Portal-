@@ -9,7 +9,7 @@ import { NotificationService } from '../services/notification.service.js';
 import { WhatsAppService } from '../services/whatsapp.service.js';
 import { geolocateIP, getClientIP } from '../utils/ipGeolocation.js';
 import { calculateFraudScore } from '../utils/fraudScoring.js';
-import { matchFallbackUidSequence, resolveFallbackUid } from '../utils/customerMobileLimits.js';
+import { matchFallbackUidSequence, resolveFallbackUid, FALLBACK_UID_YEAR } from '../utils/customerMobileLimits.js';
 
 
 // Extending WarrantyData interface locally if not updated in types file yet
@@ -145,11 +145,10 @@ export class WarrantyController {
       // re-entering the same base value would collide with their own prior
       // (already-approved) warranty instead of getting a fresh UID.
       if (warrantyData.productType === 'seat-cover' && uid) {
-        const currentYear = new Date().getFullYear();
-        const isFallbackPattern = matchFallbackUidSequence(uid, warrantyData.customerPhone, currentYear) !== null;
+        const isFallbackPattern = matchFallbackUidSequence(uid, warrantyData.customerPhone, FALLBACK_UID_YEAR) !== null;
 
         if (isFallbackPattern) {
-          const resolved = await resolveFallbackUid(uid, warrantyData.customerPhone, currentYear);
+          const resolved = await resolveFallbackUid(uid, warrantyData.customerPhone, FALLBACK_UID_YEAR);
 
           if (!resolved) {
             return res.status(400).json({

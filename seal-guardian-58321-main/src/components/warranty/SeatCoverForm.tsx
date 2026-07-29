@@ -453,7 +453,7 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
           setUidMessage(uidCheckRes.data.reason);
           toast({
             title: "Invalid UID",
-            description: uidCheckRes.data.reason || "If the product UID is missing or unreadable, enter your mobile number followed by the current year instead.",
+            description: uidCheckRes.data.reason || "Invalid UID. Please check the UID on your product packaging. If it is missing or unreadable, contact the store where you purchased the product.",
             variant: "destructive",
           });
           setLoading(false);

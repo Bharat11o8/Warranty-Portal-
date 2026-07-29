@@ -1,6 +1,6 @@
 ﻿import { Request, Response } from 'express';
 import db, { getISTTimestamp } from '../config/database.js';
-import { matchFallbackUidSequence, resolveFallbackUid } from '../utils/customerMobileLimits.js';
+import { matchFallbackUidSequence, resolveFallbackUid, FALLBACK_UID_YEAR } from '../utils/customerMobileLimits.js';
 import { v4 as uuidv4 } from 'uuid';
 import { NotificationService } from '../services/notification.service.js';
 
@@ -244,18 +244,17 @@ export class UIDController {
             // this also covers repeat submissions where the customer keeps
             // typing the same base value and the system silently advances it.
             if (phone && typeof phone === 'string') {
-                const currentYear = new Date().getFullYear();
-                const resolved = await resolveFallbackUid(uid, phone, currentYear);
+                const resolved = await resolveFallbackUid(uid, phone, FALLBACK_UID_YEAR);
                 if (resolved) {
                     return res.json({
                         valid: true,
                         available: true,
-                        message: 'Customer-added UID accepted (mobile + year)',
+                        message: 'UID accepted',
                         resolvedUid: resolved.uid
                     });
                 }
 
-                if (matchFallbackUidSequence(uid, phone, currentYear) !== null) {
+                if (matchFallbackUidSequence(uid, phone, FALLBACK_UID_YEAR) !== null) {
                     return res.json({
                         valid: false,
                         available: false,
