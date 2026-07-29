@@ -1444,11 +1444,11 @@ export class AdminController {
     static async updateWarrantyDetails(req: Request, res: Response) {
         try {
             const { uid } = req.params;
-            const { 
-                customer_name, customer_email, customer_phone, 
-                car_make, car_model, 
+            const {
+                customer_name, customer_email, customer_phone,
+                car_make, car_model,
                 registration_number, product_name, warranty_type,
-                purchase_date
+                purchase_date, new_uid, serial_number
             } = req.body;
 
             const [existingRows]: any = await db.execute(
@@ -1465,12 +1465,28 @@ export class AdminController {
             if (existing.status === 'validated') {
                 return res.status(403).json({ error: 'Approved warranties cannot be edited.' });
             }
-            
+
+            // Determine the target UID. Admins may correct the UID (seat covers)
+            // — validate and guard against collisions before we relink anything.
+            const isSeatCover = existing.product_type === 'seat-cover';
+            let targetUid = uid;
+            if (new_uid !== undefined && String(new_uid).trim() !== '' && String(new_uid).trim() !== uid) {
+                targetUid = String(new_uid).trim();
+
+                const [clash]: any = await db.execute(
+                    'SELECT id FROM warranty_registrations WHERE uid = ? AND id != ?',
+                    [targetUid, existing.id]
+                );
+                if (clash.length > 0) {
+                    return res.status(400).json({ error: 'That UID is already used by another warranty registration.' });
+                }
+            }
+
             // Update the JSON product_details to keep the frontend in sync
             let productDetails: any = {};
             try {
-                productDetails = typeof existing.product_details === 'string' 
-                    ? JSON.parse(existing.product_details) 
+                productDetails = typeof existing.product_details === 'string'
+                    ? JSON.parse(existing.product_details)
                     : (existing.product_details || {});
             } catch (e) {
                 console.error('Failed to parse product_details', e);
@@ -1481,32 +1497,64 @@ export class AdminController {
             if (customer_phone !== undefined) productDetails.customerPhone = customer_phone;
             if (registration_number !== undefined) productDetails.carRegistration = registration_number;
             if (product_name !== undefined) productDetails.productName = product_name;
+            // PPF/EV warranties store the identifier as a serial number in JSON.
+            if (serial_number !== undefined) productDetails.serialNumber = serial_number;
+            // Keep the mirrored uid inside product_details in sync when the UID changes.
+            if (targetUid !== uid) productDetails.uid = targetUid;
 
-            await db.execute(
-                `UPDATE warranty_registrations SET
-                    customer_name = ?,
-                    customer_email = ?,
-                    customer_phone = ?,
-                    car_make = ?,
-                    car_model = ?,
-                    registration_number = ?,
-                    warranty_type = ?,
-                    purchase_date = ?,
-                    product_details = ?
-                 WHERE uid = ?`,
-                [
-                    customer_name !== undefined ? customer_name : existing.customer_name,
-                    customer_email !== undefined ? customer_email : existing.customer_email,
-                    customer_phone !== undefined ? customer_phone : existing.customer_phone,
-                    car_make !== undefined ? car_make : existing.car_make,
-                    car_model !== undefined ? car_model : existing.car_model,
-                    registration_number !== undefined ? registration_number : existing.registration_number,
-                    warranty_type !== undefined ? warranty_type : existing.warranty_type,
-                    purchase_date !== undefined ? purchase_date : existing.purchase_date,
-                    JSON.stringify(productDetails),
-                    uid
-                ]
-            );
+            const connection = await db.getConnection();
+            try {
+                await connection.beginTransaction();
+
+                await connection.execute(
+                    `UPDATE warranty_registrations SET
+                        uid = ?,
+                        customer_name = ?,
+                        customer_email = ?,
+                        customer_phone = ?,
+                        car_make = ?,
+                        car_model = ?,
+                        registration_number = ?,
+                        warranty_type = ?,
+                        purchase_date = ?,
+                        product_details = ?
+                     WHERE id = ?`,
+                    [
+                        targetUid,
+                        customer_name !== undefined ? customer_name : existing.customer_name,
+                        customer_email !== undefined ? customer_email : existing.customer_email,
+                        customer_phone !== undefined ? customer_phone : existing.customer_phone,
+                        car_make !== undefined ? car_make : existing.car_make,
+                        car_model !== undefined ? car_model : existing.car_model,
+                        registration_number !== undefined ? registration_number : existing.registration_number,
+                        warranty_type !== undefined ? warranty_type : existing.warranty_type,
+                        purchase_date !== undefined ? purchase_date : existing.purchase_date,
+                        JSON.stringify(productDetails),
+                        existing.id
+                    ]
+                );
+
+                // For seat covers the UID is drawn from pre_generated_uids stock.
+                // When the admin corrects it, release the old pre-generated UID and
+                // mark the new one as used (only if that new UID exists in stock).
+                if (isSeatCover && targetUid !== uid) {
+                    await connection.execute(
+                        'UPDATE pre_generated_uids SET is_used = FALSE, used_at = NULL WHERE uid = ?',
+                        [uid]
+                    );
+                    await connection.execute(
+                        'UPDATE pre_generated_uids SET is_used = TRUE, used_at = NOW() WHERE uid = ?',
+                        [targetUid]
+                    );
+                }
+
+                await connection.commit();
+            } catch (txErr) {
+                await connection.rollback();
+                throw txErr;
+            } finally {
+                connection.release();
+            }
 
             const admin = (req as any).user;
 
@@ -1531,6 +1579,22 @@ export class AdminController {
             if (product_name !== undefined && product_name !== productDetails.productName) {
                 changes['Product Name'] = { before: productDetails.productName ?? null, after: product_name };
             }
+            if (targetUid !== uid) {
+                changes['UID'] = { before: uid, after: targetUid };
+            }
+            if (serial_number !== undefined) {
+                // Compare against the serial number stored before this edit.
+                let prevSerial: any = null;
+                try {
+                    const pd = typeof existing.product_details === 'string'
+                        ? JSON.parse(existing.product_details)
+                        : (existing.product_details || {});
+                    prevSerial = pd.serialNumber ?? null;
+                } catch { /* leave prevSerial null */ }
+                if (String(serial_number) !== String(prevSerial ?? '')) {
+                    changes['Serial Number'] = { before: prevSerial, after: serial_number };
+                }
+            }
 
             await ActivityLogService.log({
                 adminId: admin.id,
@@ -1538,8 +1602,8 @@ export class AdminController {
                 adminEmail: admin.email,
                 actionType: 'WARRANTY_UPDATED',
                 targetType: 'WARRANTY',
-                targetId: uid,
-                targetName: `${existing.customer_name} (${uid})`,
+                targetId: targetUid,
+                targetName: `${existing.customer_name} (${targetUid})`,
                 details: {
                     summary: `Admin edited warranty details for ${existing.customer_name}`,
                     changes
