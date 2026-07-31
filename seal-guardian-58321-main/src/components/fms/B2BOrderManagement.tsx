@@ -293,13 +293,43 @@ const B2BOrderManagement: React.FC = () => {
   // selector below. Null = none selected yet → show nothing until one is picked.
   const [focusedDistId, setFocusedDistId] = useState<string | null>(null);
 
-  // The catalogue narrowed to the selected distributor. Everything the franchise
-  // browses for ordering (products, category tabs, nav dropdowns) reads from this
-  // instead of the full multi-distributor union in `distributorStock`.
+  // When the selected distributor carries BOTH brands (AFAC), the franchise picks
+  // which brand to browse — otherwise AF and AC categories with the same name
+  // (e.g. two "Accessories") would appear side by side. For single-brand
+  // distributors this stays null and no picker is shown.
+  const [selectedBrand, setSelectedBrand] = useState<'AF' | 'AC' | null>(null);
+
+  // The catalogue narrowed to the selected distributor (and, for AFAC
+  // distributors, the chosen brand). Everything the franchise browses for
+  // ordering (products, category tabs, nav dropdowns) reads from this instead of
+  // the full multi-distributor union in `distributorStock`.
   const visibleStock = useMemo(
-    () => (focusedDistId ? distributorStock.filter((item: any) => item.distributor_id === focusedDistId) : []),
-    [distributorStock, focusedDistId]
+    () => {
+      if (!focusedDistId) return [];
+      return distributorStock.filter((item: any) =>
+        item.distributor_id === focusedDistId &&
+        (!selectedBrand || (item.product_brand || 'AF') === selectedBrand)
+      );
+    },
+    [distributorStock, focusedDistId, selectedBrand]
   );
+
+  // An AFAC franchise carries products of BOTH brands, and the AF/AC category
+  // trees are separate (e.g. two "Accessories"). So an AFAC franchise must pick a
+  // brand to browse — otherwise both trees show at once. AF-/AC-only franchises
+  // have a single brand, so no picker (and the backend already scopes their
+  // catalogue to that one brand).
+  const showBrandPicker = franchiseProfile?.allowed_brands === 'AFAC';
+
+  // When the picker applies, default to AF; otherwise no brand scoping.
+  useEffect(() => {
+    if (showBrandPicker) {
+      setSelectedBrand(prev => prev ?? 'AF');
+    } else {
+      setSelectedBrand(null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showBrandPicker]);
 
   // Product detail dialog (view-and-order)
   const [detailProductId, setDetailProductId] = useState<string | null>(null);
@@ -315,10 +345,18 @@ const B2BOrderManagement: React.FC = () => {
   const [additionalRemarks, setAdditionalRemarks] = useState('');
   const [pendingItems, setPendingItems] = useState<PendingReplenishItem[]>([]);
 
+  // Load the full category tree for the brand being browsed. We want the COMPLETE
+  // brand catalogue here (not just what the distributor sells) so the nav can show
+  // every category — the ones the distributor doesn't stock render as "Coming
+  // Soon". For an AFAC distributor we scope to the brand the franchise picked
+  // (selectedBrand) so the AF and AC trees don't both show (e.g. two "Accessories").
   useEffect(() => {
     const loadCategories = async () => {
       try {
-        const res = await api.get('/catalog/categories');
+        // effective brand: the picked brand (AFAC case) → else the franchise's own brand
+        const effectiveBrand = selectedBrand || franchiseProfile?.allowed_brands;
+        const params = (effectiveBrand === 'AF' || effectiveBrand === 'AC') ? `?brand=${effectiveBrand}` : '';
+        const res = await api.get(`/catalog/categories${params}`);
         const cats = res.data.success ? res.data.categories : [];
         setAllCategories(cats);
       } catch (err) {
@@ -326,7 +364,7 @@ const B2BOrderManagement: React.FC = () => {
       }
     };
     loadCategories();
-  }, []);
+  }, [franchiseProfile?.allowed_brands, selectedBrand]);
 
   // Only show parent categories that actually have at least one orderable
   // product (i.e. their own category or a descendant's has stock for this
@@ -345,14 +383,13 @@ const B2BOrderManagement: React.FC = () => {
       return [catId, ...childIds, ...grandchildIds];
     };
 
-    const visibleCategoryIds = new Set(
-      visibleStock.map((item: any) => item.category_id).filter(Boolean)
-    );
-
     const priority = ["seat cover", "accessories", "mat"];
+    // Show EVERY top-level brand category in the nav (whether or not the selected
+    // distributor stocks it). Categories with no orderable products just render a
+    // "Coming Soon" empty state in the product area when clicked — handled there,
+    // NOT hidden or disabled here.
     const main = allCategories
       .filter(c => !c.parentId)
-      .filter(c => getDescendantIds(c.id).some(id => visibleCategoryIds.has(id)))
       .sort((a, b) => {
         const aName = a.name.toLowerCase();
         const bName = b.name.toLowerCase();
@@ -2608,7 +2645,7 @@ const B2BOrderManagement: React.FC = () => {
                 </div>
                 {/* Desktop — existing hover nav dropdowns */}
                 <div className={`hidden sm:flex relative bg-white border border-slate-100 rounded-3xl p-4 mb-6 shadow-sm items-center gap-x-6 gap-y-4 overflow-visible no-scrollbar ${customizationOpen || detailProductId ? 'z-0' : 'z-[100]'}`}>
-                  <div className="flex items-center gap-x-6 lg:gap-x-8">
+                  <div className="flex items-center gap-x-6 lg:gap-x-8 flex-wrap">
                     {mainCategories.map(cat => (
                       <NavDropdown
                         key={cat.id}
@@ -2621,13 +2658,36 @@ const B2BOrderManagement: React.FC = () => {
               </>
             )}
 
-            {/* Info notice */}
-            <div className="flex items-center gap-2 bg-blue-50 border border-blue-100 rounded-xl px-4 py-2.5 mb-5 text-blue-700 text-xs font-medium">
+            {/* Info notice + (AFAC only) brand picker */}
+            <div className="flex items-center gap-3 bg-blue-50 border border-blue-100 rounded-xl px-4 py-2.5 mb-5 text-blue-700 text-xs font-medium">
               <Info className="w-4 h-4 shrink-0" />
-              {!isUserFranchise 
-                ? "View product catalogue and variations. As a distributor, you can view the items but cannot place orders."
-                : "Select products and quantities, then add to cart to request an order from your distributor."
-              }
+              <span className="flex-1">
+                {!isUserFranchise
+                  ? "View product catalogue and variations. As a distributor, you can view the items but cannot place orders."
+                  : "Select products and quantities, then add to cart to request an order from your distributor."
+                }
+              </span>
+              {showBrandPicker && (
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <span className="text-[10px] font-black uppercase tracking-wider text-blue-400">Brand</span>
+                  <div className="flex items-center bg-white border border-blue-200 rounded-lg p-0.5">
+                    {(['AF', 'AC'] as const).map(b => (
+                      <button
+                        key={b}
+                        onClick={() => { setSelectedBrand(b); setSelectedCategory(null); }}
+                        className={cn(
+                          'px-3 py-1 rounded-md text-[11px] font-black transition-colors',
+                          selectedBrand === b
+                            ? b === 'AF' ? 'bg-orange-500 text-white' : 'bg-blue-600 text-white'
+                            : 'text-slate-500 hover:text-slate-700'
+                        )}
+                      >
+                        {b}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
             {loadingStock ? (
@@ -2640,6 +2700,16 @@ const B2BOrderManagement: React.FC = () => {
                 <p className="font-bold text-lg text-slate-600">Select a distributor to start ordering</p>
                 <p className="text-sm mt-1 text-center max-w-xs">
                   Choose a distributor from the selector above to see the products you can order from them.
+                </p>
+              </div>
+            ) : Object.keys(grouped).length === 0 && selectedCategory && !searchQuery && !categoryHasVisibleProduct(selectedCategory, allCategories) ? (
+              // A category IS selected but the distributor stocks nothing in it — this
+              // is the "Coming Soon" case the franchise sees on clicking such a category.
+              <div className="flex flex-col items-center justify-center py-20 text-slate-400">
+                <Clock className="w-16 h-16 mb-4 opacity-30" />
+                <p className="font-bold text-lg text-slate-600">Coming Soon</p>
+                <p className="text-sm mt-1 text-center max-w-xs">
+                  Your distributor doesn't stock products in this category yet. Check back soon or explore other categories.
                 </p>
               </div>
             ) : Object.keys(grouped).length === 0 ? (
