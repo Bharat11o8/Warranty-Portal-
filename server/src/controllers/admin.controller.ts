@@ -3057,37 +3057,26 @@ export class AdminController {
                 }
             }
 
-            // Guard: the categories this distributor sells must not overlap with categories
-            // already covered by another distributor assigned to this franchise â€” checking
-            // both the legacy single-FK mapping and the many-to-many franchise_distributors table.
-            const [overlaps]: any = await db.execute(
-                `SELECT DISTINCT sc.name as category_name, d.name as distributor_name
-                 FROM distributor_allowed_categories dac
-                 JOIN store_categories sc ON sc.id = dac.category_id
-                 JOIN distributors d ON d.id = dac.distributor_id
-                 WHERE dac.distributor_id != ?
-                   AND dac.category_id IN (
-                       SELECT category_id FROM distributor_allowed_categories WHERE distributor_id = ?
-                   )
-                   AND (
-                       dac.distributor_id IN (
-                           SELECT distributor_id FROM franchise_distributors WHERE franchise_user_id = ?
-                       )
-                       OR dac.distributor_id = (
-                           SELECT distributor_id FROM vendor_details WHERE user_id = ?
-                       )
-                   )`,
-                [id, id, vendorId, vendorId]
+            // NOTE: no category-overlap restriction. A franchise may be connected to
+            // as many distributors as needed (any brand) — the admin manages these
+            // assignments manually. (Order routing resolves the distributor per
+            // product's category/brand at order time.)
+
+            // Record the mapping in the many-to-many table — a franchise can be
+            // connected to several distributors. (This previously overwrote the single
+            // vendor_details.distributor_id column, so mapping a 2nd distributor
+            // silently replaced the 1st and the franchise's distributor selector,
+            // which reads franchise_distributors, only ever showed one.)
+            await db.execute(
+                `INSERT INTO franchise_distributors (id, franchise_user_id, distributor_id)
+                 VALUES (?, ?, ?)
+                 ON DUPLICATE KEY UPDATE id = id`,
+                [uuidv4(), vendorId, id]
             );
 
-            if (overlaps.length > 0) {
-                const conflictList = overlaps.map((o: any) => `${o.category_name} (already via ${o.distributor_name})`).join(', ');
-                return res.status(400).json({
-                    error: `Cannot assign: category overlap with an existing distributor for this franchise â€” ${conflictList}`
-                });
-            }
-
-            // Update mapping
+            // Keep the legacy single-FK pointing at a valid distributor for any older
+            // queries that still read it (it can only hold one; the M2M table is the
+            // source of truth).
             await db.execute(
                 'UPDATE vendor_details SET distributor_id = ? WHERE user_id = ?',
                 [id, vendorId]
@@ -3132,7 +3121,14 @@ export class AdminController {
                 return res.status(404).json({ error: 'Distributor not found' });
             }
 
-            // Update mapping to NULL
+            // Remove the many-to-many mapping (the source of truth for which
+            // distributors a franchise can order from).
+            await db.execute(
+                'DELETE FROM franchise_distributors WHERE franchise_user_id = ? AND distributor_id = ?',
+                [vendorId, id]
+            );
+
+            // Clear the legacy single-FK only if it pointed at this distributor.
             await db.execute(
                 'UPDATE vendor_details SET distributor_id = NULL WHERE user_id = ? AND distributor_id = ?',
                 [vendorId, id]
@@ -3319,35 +3315,9 @@ export class AdminController {
                 return res.status(400).json({ error: 'Only franchise stores can be assigned to a distributor.' });
             }
 
-            // Guard: the categories this distributor sells must not overlap with categories
-            // already covered by another distributor assigned to this franchise â€” checking
-            // both the many-to-many franchise_distributors table and the legacy single-FK mapping.
-            const [overlaps]: any = await db.execute(
-                `SELECT DISTINCT sc.name as category_name, d.name as distributor_name
-                 FROM distributor_allowed_categories dac
-                 JOIN store_categories sc ON sc.id = dac.category_id
-                 JOIN distributors d ON d.id = dac.distributor_id
-                 WHERE dac.distributor_id != ?
-                   AND dac.category_id IN (
-                       SELECT category_id FROM distributor_allowed_categories WHERE distributor_id = ?
-                   )
-                   AND (
-                       dac.distributor_id IN (
-                           SELECT distributor_id FROM franchise_distributors WHERE franchise_user_id = ?
-                       )
-                       OR dac.distributor_id = (
-                           SELECT distributor_id FROM vendor_details WHERE user_id = ?
-                       )
-                   )`,
-                [id, id, vendorId, vendorId]
-            );
-
-            if (overlaps.length > 0) {
-                const conflictList = overlaps.map((o: any) => `${o.category_name} (already via ${o.distributor_name})`).join(', ');
-                return res.status(400).json({
-                    error: `Cannot assign: category overlap with an existing distributor for this franchise â€” ${conflictList}`
-                });
-            }
+            // NOTE: no category-overlap restriction. A franchise may be connected to
+            // as many distributors as needed (any brand) — the admin manages these
+            // assignments manually.
 
             await db.execute(
                 `INSERT INTO franchise_distributors (id, franchise_user_id, distributor_id)
