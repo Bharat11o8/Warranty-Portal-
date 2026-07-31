@@ -554,6 +554,13 @@ const B2BOrderManagement: React.FC = () => {
   // Inventory filters
   const [invSearch, setInvSearch] = useState('');
   const [invCategoryId, setInvCategoryId] = useState('');
+  // Brand filter — an AFAC distributor stocks both AF and AC products, and the AF
+  // and AC catalogues share product names (the AC range is a copy of the AF one),
+  // so without this the list shows two same-named rows with no way to tell them
+  // apart. Empty string = show all brands.
+  const [invBrand, setInvBrand] = useState<'' | 'AF' | 'AC'>('');
+  const [invBrandDropdownOpen, setInvBrandDropdownOpen] = useState(false);
+  const invBrandDropdownRef = useRef<HTMLDivElement>(null);
   const [invShowLowStock, setInvShowLowStock] = useState(false);
   const [invCatDropdownOpen, setInvCatDropdownOpen] = useState(false);
   const [invCatExpandedParents, setInvCatExpandedParents] = useState<Set<string>>(new Set());
@@ -621,6 +628,9 @@ const B2BOrderManagement: React.FC = () => {
       }
       if (invCatDropdownRef.current && !invCatDropdownRef.current.contains(event.target as Node)) {
         setInvCatDropdownOpen(false);
+      }
+      if (invBrandDropdownRef.current && !invBrandDropdownRef.current.contains(event.target as Node)) {
+        setInvBrandDropdownOpen(false);
       }
       if (orderFilterDropdownRef.current && !orderFilterDropdownRef.current.contains(event.target as Node)) {
         setOrderFilterDropdownOpen(false);
@@ -840,9 +850,16 @@ const B2BOrderManagement: React.FC = () => {
 
   // Build two-level category tree from inventory items for the filter dropdown
   const invCategoryTree = (() => {
+    // Only categories belonging to the selected brand — AF and AC have separate
+    // (identically named) category trees, so without this the dropdown lists e.g.
+    // "4 Wheeler Accessories" twice with no way to tell which brand it belongs to.
+    const brandScopedInventory = invBrand
+      ? ownInventory.filter((item: any) => (item.product_brand || 'AF') === invBrand)
+      : ownInventory;
+
     // Collect all unique categories (with parent info)
     const catMap = new Map<string, { id: string; name: string; parentId: string | null; parentName: string | null }>();
-    ownInventory.forEach((item: any) => {
+    brandScopedInventory.forEach((item: any) => {
       if (!catMap.has(item.category_id)) {
         catMap.set(item.category_id, {
           id: item.category_id,
@@ -876,8 +893,29 @@ const B2BOrderManagement: React.FC = () => {
     return groups;
   })();
 
+  // Brands actually present in this distributor's inventory — the brand filter is
+  // only meaningful (and only shown) when they stock more than one.
+  const invAvailableBrands = Array.from(
+    new Set(ownInventory.map((item: any) => item.product_brand || 'AF'))
+  ).sort();
+  const showInvBrandFilter = invAvailableBrands.length > 1;
+
+  // Switching brand invalidates a category picked from the other brand's tree
+  // (AF and AC categories are different ids), so reset it rather than leave a
+  // stale filter that matches nothing.
+  useEffect(() => {
+    if (!invCategoryId) return;
+    const stillValid = ownInventory.some((item: any) =>
+      item.category_id === invCategoryId &&
+      (!invBrand || (item.product_brand || 'AF') === invBrand)
+    );
+    if (!stillValid) setInvCategoryId('');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [invBrand]);
+
   const filteredInventory = ownInventory.filter((item: any) => {
     if (invShowLowStock && !isItemLowStock(item)) return false;
+    if (invBrand && (item.product_brand || 'AF') !== invBrand) return false;
     if (invCategoryId && item.category_id !== invCategoryId) return false;
     if (invSearch) {
       const q = invSearch.toLowerCase();
@@ -943,18 +981,23 @@ const B2BOrderManagement: React.FC = () => {
   };
 
   const handleExportInventoryCSV = () => {
-    if (ownInventory.length === 0) {
+    // Export what's currently on screen (respects the brand/category/search filters)
+    // so a brand-filtered export can be edited and re-imported without touching the
+    // other brand's rows.
+    if (filteredInventory.length === 0) {
       toast({ description: 'No inventory to export', variant: 'destructive' });
       return;
     }
-    const exportData = ownInventory.map((item: any) => ({
+    const exportData = filteredInventory.map((item: any) => ({
       'Product': item.product_name,
+      'Brand': item.product_brand || 'AF',
       'Variation': item.variation_name || '',
       'SKU': item.sku || '',
       'Category': item.category_name || '',
       'Stock Quantity': item.stock_quantity
     }));
-    downloadCSV(exportData, `inventory_${new Date().toISOString().slice(0, 10)}.csv`);
+    const brandSuffix = invBrand ? `_${invBrand}` : '';
+    downloadCSV(exportData, `inventory${brandSuffix}_${new Date().toISOString().slice(0, 10)}.csv`);
   };
 
   const handleExportOrders = (scope: 'orders' | 'incoming', statusFilter: 'all' | 'active' | 'onhold' | 'completed' | 'declined') => {
@@ -1033,11 +1076,17 @@ const B2BOrderManagement: React.FC = () => {
       const headers = parseCsvLine(lines[0]).map(h => h.toLowerCase());
       const skuIdx = headers.indexOf('sku');
       const qtyIdx = headers.indexOf('stock quantity');
+      const productIdx = headers.indexOf('product');
+      const brandIdx = headers.indexOf('brand');
+      const variationIdx = headers.indexOf('variation');
 
-      if (skuIdx === -1 || qtyIdx === -1) {
+      // Many products have no SKU, so SKU alone can't identify a row. We need
+      // either a SKU or the Product name (plus Brand/Variation to disambiguate
+      // the AF and AC copies, which share the same product name).
+      if (qtyIdx === -1 || (skuIdx === -1 && productIdx === -1)) {
         toast({
           title: 'Invalid CSV Format',
-          description: 'CSV must include "SKU" and "Stock Quantity" columns (use Export CSV as a template).',
+          description: 'CSV must include "Stock Quantity" plus "Product" (and "Brand"/"Variation") or "SKU" — use Export CSV as a template.',
           variant: 'destructive'
         });
         return;
@@ -1045,21 +1094,52 @@ const B2BOrderManagement: React.FC = () => {
 
       let updated = 0;
       let skipped = 0;
+      let ambiguous = 0;
+
+      const norm = (v: string | null | undefined) => String(v ?? '').trim().toLowerCase();
 
       for (const line of lines.slice(1)) {
         const cells = parseCsvLine(line);
-        const sku = cells[skuIdx];
+        const sku = skuIdx === -1 ? '' : cells[skuIdx];
+        const productName = productIdx === -1 ? '' : cells[productIdx];
+        const brand = brandIdx === -1 ? '' : cells[brandIdx];
+        const variation = variationIdx === -1 ? '' : cells[variationIdx];
         const qty = Number(cells[qtyIdx]);
-        if (!sku || Number.isNaN(qty) || qty < 0) {
+
+        if (Number.isNaN(qty) || qty < 0 || (!sku && !productName)) {
           skipped++;
           continue;
         }
 
-        const matchedItem = ownInventory.find((item: any) => item.sku === sku);
-        if (!matchedItem) {
+        // Prefer an exact SKU match; otherwise identify by product name, narrowed
+        // by brand and variation when those columns are present.
+        let candidates: any[] = [];
+        if (sku) {
+          candidates = ownInventory.filter((item: any) => norm(item.sku) === norm(sku));
+        }
+        if (candidates.length === 0 && productName) {
+          candidates = ownInventory.filter((item: any) => norm(item.product_name) === norm(productName));
+          if (brand) {
+            candidates = candidates.filter((item: any) => norm(item.product_brand || 'AF') === norm(brand));
+          }
+          if (variation) {
+            candidates = candidates.filter((item: any) => norm(item.variation_name) === norm(variation));
+          }
+        }
+
+        if (candidates.length === 0) {
           skipped++;
           continue;
         }
+        // Refuse to guess when a row still matches more than one product (e.g. the
+        // AF and AC copies when the CSV has no Brand column) — updating the wrong
+        // brand's stock silently would be worse than skipping.
+        if (candidates.length > 1) {
+          ambiguous++;
+          skipped++;
+          continue;
+        }
+        const matchedItem = candidates[0];
 
         try {
           const res = await api.put('/orders/distributor/inventory', {
@@ -1084,7 +1164,7 @@ const B2BOrderManagement: React.FC = () => {
 
       toast({
         title: 'CSV Import Complete',
-        description: `${updated} updated${skipped > 0 ? `, ${skipped} skipped (no SKU match or invalid quantity)` : ''}.`,
+        description: `${updated} updated${skipped > 0 ? `, ${skipped} skipped` : ''}${ambiguous > 0 ? ` — ${ambiguous} matched more than one product; add a "Brand" column to tell AF and AC apart` : ''}.`,
         variant: skipped > 0 && updated === 0 ? 'destructive' : 'default'
       });
     } catch (err) {
@@ -1885,17 +1965,6 @@ const B2BOrderManagement: React.FC = () => {
                             </a>
                           )}
                         </div>
-                        {/* Category tags */}
-                        {focused.allowed_category_names && (
-                          <div className="flex flex-wrap gap-1.5">
-                            <span className="text-[10px] text-slate-500 font-bold self-center">Sells:</span>
-                            {focused.allowed_category_names.split(', ').map((cat: string) => (
-                              <span key={cat} className="text-[10px] font-bold px-2 py-0.5 rounded-lg bg-white/10 text-slate-300 border border-white/10">
-                                {cat}
-                              </span>
-                            ))}
-                          </div>
-                        )}
                       </div>
                     </div>
                   )}
@@ -2083,18 +2152,25 @@ const B2BOrderManagement: React.FC = () => {
             {/* Low-stock threshold dialog */}
             {thresholdDialogOpen && (() => {
               // ── shared data ──────────────────────────────────────────────
-              const parentFromSubs = Array.from(new Map(ownInventory
+              // Scope to the brand selected in the inventory filter — AF and AC have
+              // separate, identically-named category trees, so an unscoped list would
+              // show every category twice with no way to tell them apart.
+              const tdInventory = invBrand
+                ? ownInventory.filter((i: any) => (i.product_brand || 'AF') === invBrand)
+                : ownInventory;
+
+              const parentFromSubs = Array.from(new Map(tdInventory
                 .filter((i: any) => i.category_parent_id)
                 .map((i: any) => [i.category_parent_id, { id: i.category_parent_id, name: i.parent_category_name }])
               ).values());
-              const topLevelCats = Array.from(new Map(ownInventory
+              const topLevelCats = Array.from(new Map(tdInventory
                 .filter((i: any) => !i.category_parent_id)
                 .map((i: any) => [i.category_id, { id: i.category_id, name: i.category_name }])
               ).values());
               const allParents = Array.from(new Map([...topLevelCats, ...parentFromSubs].map(p => [p.id, p])).values())
                 .sort((a, b) => a.name.localeCompare(b.name));
 
-              const subCats = tdParentCatId ? Array.from(new Map(ownInventory
+              const subCats = tdParentCatId ? Array.from(new Map(tdInventory
                 .filter((i: any) => i.category_parent_id === tdParentCatId)
                 .map((i: any) => [i.category_id, { id: i.category_id, name: i.category_name }])
               ).values()).sort((a, b) => a.name.localeCompare(b.name)) : [];
@@ -2102,7 +2178,7 @@ const B2BOrderManagement: React.FC = () => {
               const parentIsLeaf = tdParentCatId && subCats.length === 0;
               const activeCatId = parentIsLeaf ? tdParentCatId : tdSubCatId;
 
-              const productsInCat = activeCatId ? Array.from(new Map(ownInventory
+              const productsInCat = activeCatId ? Array.from(new Map(tdInventory
                 .filter((i: any) => i.category_id === activeCatId)
                 .map((i: any) => [i.product_id, { id: i.product_id, name: i.product_name }])
               ).values()).sort((a, b) => a.name.localeCompare(b.name)) : [];
@@ -2419,6 +2495,44 @@ const B2BOrderManagement: React.FC = () => {
                     className="pl-9 rounded-xl border-slate-200 focus-visible:ring-orange-500 h-9 text-sm"
                   />
                 </div>
+                {/* Brand filter — only for distributors stocking more than one brand */}
+                {showInvBrandFilter && (
+                  <div ref={invBrandDropdownRef} className="relative">
+                    <button
+                      type="button"
+                      onClick={() => setInvBrandDropdownOpen(v => !v)}
+                      className={`h-9 flex items-center gap-2 rounded-xl border px-3 pr-2.5 bg-white text-sm font-medium transition-colors w-full sm:min-w-[130px] ${invBrand ? 'border-orange-400 text-orange-600' : 'border-slate-200 text-slate-700'}`}
+                    >
+                      <span className="flex-1 text-left truncate">
+                        {invBrand === 'AF' ? 'Autoform (AF)' : invBrand === 'AC' ? 'Autocruze (AC)' : 'All Brands'}
+                      </span>
+                      <ChevronDown className={`w-4 h-4 shrink-0 transition-transform ${invBrandDropdownOpen ? 'rotate-180' : ''}`} />
+                    </button>
+                    {invBrandDropdownOpen && (
+                      <div className="absolute left-0 top-full mt-1 z-50 bg-white border border-slate-200 rounded-xl shadow-lg min-w-[160px] py-1">
+                        <button
+                          type="button"
+                          onClick={() => { setInvBrand(''); setInvBrandDropdownOpen(false); }}
+                          className={`w-full text-left px-4 py-2 text-sm transition-colors ${!invBrand ? 'bg-orange-50 text-orange-600 font-bold' : 'text-slate-700 hover:bg-slate-50'}`}
+                        >
+                          All Brands
+                        </button>
+                        {(['AF', 'AC'] as const)
+                          .filter(b => invAvailableBrands.includes(b))
+                          .map(b => (
+                            <button
+                              key={b}
+                              type="button"
+                              onClick={() => { setInvBrand(b); setInvBrandDropdownOpen(false); }}
+                              className={`w-full text-left px-4 py-2 text-sm transition-colors ${invBrand === b ? 'bg-orange-50 text-orange-600 font-bold' : 'text-slate-700 hover:bg-slate-50'}`}
+                            >
+                              {b === 'AF' ? 'Autoform (AF)' : 'Autocruze (AC)'}
+                            </button>
+                          ))}
+                      </div>
+                    )}
+                  </div>
+                )}
                 {/* Custom collapsible category dropdown */}
                 <div ref={invCatDropdownRef} className="relative">
                   <button
@@ -2520,6 +2634,7 @@ const B2BOrderManagement: React.FC = () => {
                   <thead className="bg-slate-50 border-b border-slate-100 text-slate-500 font-bold uppercase text-[10px] tracking-wider">
                     <tr>
                       <th className="px-5 py-3">Product</th>
+                      {showInvBrandFilter && <th className="px-5 py-3">Brand</th>}
                       <th className="px-5 py-3">Variation</th>
                       <th className="px-5 py-3">Category</th>
                       <th className="px-5 py-3 text-center">Current Stock</th>
@@ -2536,6 +2651,18 @@ const B2BOrderManagement: React.FC = () => {
                       return (
                         <tr key={key} className="hover:bg-slate-50/50">
                           <td className="px-5 py-3 font-bold text-slate-800">{item.product_name}</td>
+                          {showInvBrandFilter && (
+                            <td className="px-5 py-3">
+                              <Badge className={cn(
+                                'border text-[10px] font-black',
+                                (item.product_brand || 'AF') === 'AC'
+                                  ? 'bg-blue-50 text-blue-700 hover:bg-blue-50 border-blue-200'
+                                  : 'bg-orange-50 text-orange-700 hover:bg-orange-50 border-orange-200'
+                              )}>
+                                {item.product_brand || 'AF'}
+                              </Badge>
+                            </td>
+                          )}
                           <td className="px-5 py-3 text-slate-600">{item.variation_name}</td>
                           <td className="px-5 py-3">
                             <Badge className="bg-slate-100 text-slate-600 hover:bg-slate-100 border-slate-200">{item.category_name}</Badge>

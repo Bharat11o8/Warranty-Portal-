@@ -577,8 +577,10 @@ export class OrderController {
                     return res.status(400).json({ error: 'One or more products are no longer available.' });
                 }
 
-                // Resolve the distributor assigned to this franchise that is allowed to
-                // sell this product's category AND brand (admin enforces no overlap, so this is unambiguous).
+                // Resolve a distributor assigned to this franchise that is allowed to
+                // sell this product's category AND brand. A franchise may have several
+                // distributors covering the same category (admin-managed), so if more
+                // than one qualifies we route to the first match.
                 const [routeRows]: any = await connection.execute(
                     `SELECT d.* FROM franchise_distributors fd
                      JOIN distributor_allowed_categories dac ON dac.distributor_id = fd.distributor_id
@@ -1620,6 +1622,7 @@ export class OrderController {
                     sp.name as product_name,
                     sp.description as product_description,
                     sp.category_id,
+                    sp.brand as product_brand,
                     sc.name as category_name,
                     sc.parent_id as category_parent_id,
                     parent_sc.name as parent_category_name,
