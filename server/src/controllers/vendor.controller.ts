@@ -427,6 +427,9 @@ export class VendorController {
     try {
       const userId = (req as any).user?.id;
       const { active } = req.query; // 'true', 'false', or 'all'
+      // approved: 'true' (default — only admin-approved staff), 'false' (pending
+      // only, for the store's "awaiting approval" list), or 'all'.
+      const approved = (req.query.approved as string) || 'true';
       const page = parseInt(req.query.page as string) || 1;
       const limit = parseInt(req.query.limit as string) || 30;
       const offset = (page - 1) * limit;
@@ -455,6 +458,14 @@ export class VendorController {
         whereClause += ' AND m.is_active = TRUE';
       } else if (active === 'false') {
         whereClause += ' AND m.is_active = FALSE';
+      }
+
+      // Pending staff are not usable until an admin approves them, so they are
+      // excluded by default (e.g. from the installer picker on warranty forms).
+      if (approved === 'true') {
+        whereClause += ' AND m.is_approved = TRUE';
+      } else if (approved === 'false') {
+        whereClause += ' AND m.is_approved = FALSE';
       }
 
       // Get total count
@@ -528,31 +539,51 @@ export class VendorController {
       const vendorId = vendorDetails[0].id;
       const id = uuidv4();
 
+      // A phone number identifies one staff member across the whole system, so
+      // reject it if any other ACTIVE manpower row already uses it.
+      const [phoneClash]: any = await db.execute(
+        `SELECT m.name, vd.store_name
+         FROM manpower m
+         LEFT JOIN vendor_details vd ON vd.id = m.vendor_id
+         WHERE m.phone_number = ? AND m.is_active = TRUE
+         LIMIT 1`,
+        [phoneNumber]
+      );
+      if (phoneClash.length > 0) {
+        return res.status(400).json({
+          error: `This phone number is already registered to ${phoneClash[0].name}${phoneClash[0].store_name ? ` at ${phoneClash[0].store_name}` : ''}. Each staff member needs a unique phone number.`
+        });
+      }
+
       // Generate manpower_id if not provided
       let finalManpowerId = manpowerId;
       if (!finalManpowerId && name && phoneNumber) {
         const namePart = name.slice(0, 3).toUpperCase();
         const phonePart = phoneNumber.slice(-4);
-        finalManpowerId = (namePart && phonePart) ? `${namePart}${phonePart} ` : `MP - ${Date.now()} `;
+        finalManpowerId = (namePart && phonePart) ? `${namePart}${phonePart}` : `MP-${Date.now()}`;
       }
 
+      // New staff start PENDING (is_approved = 0). An admin approves them from
+      // the franchise's Manpower tab before they become usable.
       await db.execute(
         `INSERT INTO manpower
-        (id, vendor_id, name, phone_number, manpower_id, applicator_type, is_active)
-      VALUES(?, ?, ?, ?, ?, ?, TRUE)`,
+        (id, vendor_id, name, phone_number, manpower_id, applicator_type, is_active, is_approved)
+      VALUES(?, ?, ?, ?, ?, ?, TRUE, FALSE)`,
         [id, vendorId, name, phoneNumber, finalManpowerId, applicatorType]
       );
 
       res.status(201).json({
         success: true,
-        message: 'Manpower added successfully',
+        message: 'Manpower added — awaiting admin approval',
         manpower: {
           id,
           vendor_id: vendorId,
           name,
           phone_number: phoneNumber,
           manpower_id: finalManpowerId,
-          applicator_type: applicatorType
+          applicator_type: applicatorType,
+          is_active: 1,
+          is_approved: 0
         }
       });
 
@@ -643,6 +674,104 @@ export class VendorController {
     }
   }
 
+  /**
+   * Bring an archived (Ex-Team) staff member back onto the team.
+   *
+   * Restoring returns them as PENDING — an admin re-verifies before they can be
+   * selected as an installer again. The phone-uniqueness rule still applies, so
+   * a restore is blocked if someone else now uses that number.
+   */
+  static async restoreManpower(req: Request, res: Response) {
+    try {
+      const userId = (req as any).user?.id;
+      const { id } = req.params;
+
+      if (!userId) {
+        return res.status(401).json({ error: 'User not authenticated' });
+      }
+
+      // Admins can restore any store's staff; a vendor is scoped to their own.
+      const isAdmin = (req as any).user?.role === 'admin';
+      let vendorId: string | null = null;
+
+      if (!isAdmin) {
+        const [vendorDetails]: any = await db.execute(
+          'SELECT id FROM vendor_details WHERE user_id = ?',
+          [userId]
+        );
+        if (vendorDetails.length === 0) {
+          return res.status(404).json({ error: 'Vendor details not found' });
+        }
+        vendorId = vendorDetails[0].id;
+      }
+
+      const [rows]: any = isAdmin
+        ? await db.execute(
+            'SELECT id, name, phone_number, is_active, vendor_id FROM manpower WHERE id = ?',
+            [id]
+          )
+        : await db.execute(
+            'SELECT id, name, phone_number, is_active, vendor_id FROM manpower WHERE id = ? AND vendor_id = ?',
+            [id, vendorId]
+          );
+      if (rows.length === 0) {
+        return res.status(404).json({ error: 'Manpower entry not found or unauthorized' });
+      }
+      const member = rows[0];
+      // For admins, act on the row's own store.
+      if (isAdmin) vendorId = member.vendor_id;
+
+      if (member.is_active) {
+        return res.status(400).json({ error: `${member.name} is already on your team.` });
+      }
+
+      // Someone else may have taken this phone number while they were archived.
+      const [clash]: any = await db.execute(
+        `SELECT m.name, vd.store_name
+         FROM manpower m
+         LEFT JOIN vendor_details vd ON vd.id = m.vendor_id
+         WHERE m.phone_number = ? AND m.is_active = TRUE AND m.id != ?
+         LIMIT 1`,
+        [member.phone_number, id]
+      );
+      if (clash.length > 0) {
+        return res.status(400).json({
+          error: `Cannot restore ${member.name}: their phone number is now used by ${clash[0].name}${clash[0].store_name ? ` at ${clash[0].store_name}` : ''}. Update the number first.`
+        });
+      }
+
+      // Back on the team, but pending admin approval again.
+      await db.execute(
+        `UPDATE manpower
+         SET is_active = TRUE, removed_at = NULL, removed_reason = NULL,
+             is_approved = FALSE, approved_at = NULL, approved_by = NULL
+         WHERE id = ? AND vendor_id = ?`,
+        [id, vendorId]
+      );
+
+      res.json({
+        success: true,
+        message: `${member.name} restored — awaiting admin approval`
+      });
+
+      // Let admins know there's a new approval request waiting.
+      try {
+        const [store]: any = await db.execute('SELECT store_name FROM vendor_details WHERE id = ?', [vendorId]);
+        await NotificationService.broadcast({
+          title: 'Staff Restored — Approval Needed',
+          message: `${store[0]?.store_name || 'A store'} restored ${member.name} to their team. Approve them to make them selectable again.`,
+          type: 'warranty',
+          targetRole: 'admin'
+        });
+      } catch (e) {
+        console.error('Failed to notify admin of manpower restore', e);
+      }
+    } catch (error: any) {
+      console.error('Restore manpower error:', error);
+      res.status(500).json({ error: 'Failed to restore manpower' });
+    }
+  }
+
   static async updateManpower(req: Request, res: Response) {
     try {
       const userId = (req as any).user?.id;
@@ -669,10 +798,26 @@ export class VendorController {
 
       const vendorId = vendorDetails[0].id;
 
+      // A phone number identifies one staff member across the whole system.
+      // Exclude the row being edited so re-saving unchanged details is allowed.
+      const [phoneClash]: any = await db.execute(
+        `SELECT m.name, vd.store_name
+         FROM manpower m
+         LEFT JOIN vendor_details vd ON vd.id = m.vendor_id
+         WHERE m.phone_number = ? AND m.is_active = TRUE AND m.id != ?
+         LIMIT 1`,
+        [phoneNumber, id]
+      );
+      if (phoneClash.length > 0) {
+        return res.status(400).json({
+          error: `This phone number is already registered to ${phoneClash[0].name}${phoneClash[0].store_name ? ` at ${phoneClash[0].store_name}` : ''}. Each staff member needs a unique phone number.`
+        });
+      }
+
       // Generate manpower_id if name or phone changed
       const namePart = name.slice(0, 3).toUpperCase();
       const phonePart = phoneNumber.slice(-4);
-      const manpowerId = (namePart && phonePart) ? `${namePart}${phonePart} ` : `MP - ${Date.now()} `;
+      const manpowerId = (namePart && phonePart) ? `${namePart}${phonePart}` : `MP-${Date.now()}`;
 
       // Update manpower entry ensuring it belongs to this vendor
       const [result]: any = await db.execute(
