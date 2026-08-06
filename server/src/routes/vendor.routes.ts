@@ -20,5 +20,6 @@ router.get('/manpower/:manpowerId/warranties', authenticateToken, requireRole(['
 router.post('/manpower', authenticateToken, requireRole(['vendor', 'admin']), VendorController.addManpower);
 router.put('/manpower/:id', authenticateToken, requireRole(['vendor', 'admin']), VendorController.updateManpower);
 router.delete('/manpower/:id', authenticateToken, requireRole(['vendor', 'admin']), VendorController.removeManpower);
+router.put('/manpower/:id/restore', authenticateToken, requireRole(['vendor', 'admin']), VendorController.restoreManpower);
 
 export default router;

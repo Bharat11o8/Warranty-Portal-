@@ -9,6 +9,11 @@ import {
     getMobileRegistrationUsage,
     normalizeCustomerMobile
 } from '../utils/customerMobileLimits.js';
+import {
+    NOTIFICATION_TYPES,
+    getNotificationSettings as loadNotificationSettings,
+    saveNotificationSettings
+} from '../services/notificationSettings.service.js';
 
 /**
  * Run a promise-returning function with retries and exponential backoff
@@ -514,6 +519,346 @@ export class AdminController {
     }
 
     /**
+     * All manpower across every franchise — powers the admin Manpower module
+     * (leaderboard + per-franchise drill-down).
+     *
+     * Returns one row per staff member with their store, approval/active state and
+     * warranty tallies, so the client can rank them and group by franchise without
+     * N+1 requests.
+     */
+    static async getAllManpower(req: Request, res: Response) {
+        try {
+            // Optional period filter — narrows the WARRANTY TALLIES only. Staff
+            // themselves are always all returned, so the roster/approval view is
+            // unaffected; only the leaderboard numbers change.
+            const period = (req.query.period as string) || 'all';
+            const year = req.query.year as string;
+            const month = req.query.month as string;
+            const startDate = req.query.startDate as string;
+            const endDate = req.query.endDate as string;
+
+            let dateClause = '';
+            const dateParams: any[] = [];
+            if (period === 'year') {
+                dateClause = 'AND YEAR(created_at) = ?';
+                dateParams.push(year || String(new Date().getFullYear()));
+            } else if (period === 'month') {
+                dateClause = 'AND YEAR(created_at) = ? AND MONTH(created_at) = ?';
+                dateParams.push(year || String(new Date().getFullYear()), month || String(new Date().getMonth() + 1));
+            } else if (period === 'week') {
+                dateClause = 'AND DATE(created_at) >= DATE_SUB(CURDATE(), INTERVAL 6 DAY)';
+            } else if (period === 'custom' && startDate && endDate) {
+                dateClause = 'AND DATE(created_at) >= ? AND DATE(created_at) <= ?';
+                dateParams.push(startDate, endDate);
+            }
+
+            const [rows]: any = await db.execute(`
+                SELECT
+                    m.id, m.name, m.phone_number, m.manpower_id, m.applicator_type,
+                    m.is_active, m.is_approved, m.approved_at, m.created_at,
+                    m.removed_at, m.removed_reason,
+                    m.request_type, m.request_reason, m.requested_at,
+                    m.request_status, m.request_reviewed_at, m.request_review_note,
+                    vd.id            AS vendor_details_id,
+                    vd.user_id       AS franchise_user_id,
+                    vd.store_name,
+                    vd.store_code,
+                    vd.city, vd.state,
+                    COALESCE(w.total_applications, 0) AS total_applications,
+                    COALESCE(w.points, 0)            AS points,
+                    COALESCE(w.pending_points, 0)    AS pending_points,
+                    COALESCE(w.rejected_points, 0)   AS rejected_points
+                FROM manpower m
+                JOIN vendor_details vd ON vd.id = m.vendor_id
+                LEFT JOIN (
+                    SELECT manpower_id,
+                           COUNT(*) AS total_applications,
+                           SUM(status = 'validated') AS points,
+                           SUM(status IN ('pending','pending_vendor')) AS pending_points,
+                           SUM(status = 'rejected') AS rejected_points
+                    FROM warranty_registrations
+                    WHERE manpower_id IS NOT NULL AND manpower_id <> ''
+                    ${dateClause}
+                    GROUP BY manpower_id
+                ) w ON w.manpower_id = m.id
+                ORDER BY points DESC, m.name ASC
+            `, dateParams);
+
+            res.json({ success: true, manpower: rows, period });
+        } catch (error: any) {
+            console.error('Get all manpower error:', error);
+            res.status(500).json({ error: 'Failed to fetch manpower list' });
+        }
+    }
+
+    /**
+     * List the controllable WhatsApp message types with their current on/off
+     * state and live traffic stats, for the admin notification settings screen.
+     *
+     * Interakt exposes no template-listing API, so the type list comes from the
+     * code registry and the health picture is derived from message_logs.
+     */
+    static async getNotificationSettings(req: Request, res: Response) {
+        try {
+            const settings = await loadNotificationSettings(true);
+
+            // 30-day traffic per context, so the admin can see what each toggle
+            // actually controls before flipping it.
+            const [stats]: any = await db.execute(
+                `SELECT context,
+                        COUNT(*) AS total,
+                        SUM(status = 'failed') AS failed,
+                        SUM(status IN ('delivered', 'read')) AS delivered,
+                        MAX(created_at) AS last_sent
+                 FROM message_logs
+                 WHERE channel = 'whatsapp'
+                   AND created_at >= NOW() - INTERVAL 30 DAY
+                 GROUP BY context`
+            );
+            const byContext = new Map<string, any>(stats.map((r: any) => [r.context, r]));
+
+            // Interakt returns this exact wording when a template isn't approved
+            // yet — surface it so a dead toggle is obvious rather than silent.
+            const [tmplErrors]: any = await db.execute(
+                `SELECT DISTINCT context
+                 FROM message_logs
+                 WHERE channel = 'whatsapp'
+                   AND status = 'failed'
+                   AND error_message LIKE '%No approved template found%'
+                   AND created_at >= NOW() - INTERVAL 30 DAY`
+            );
+            const unapproved = new Set(tmplErrors.map((r: any) => r.context));
+
+            const types = NOTIFICATION_TYPES.map(t => {
+                const s = byContext.get(t.context);
+                return {
+                    ...t,
+                    enabled: settings[t.key] !== false,
+                    stats: {
+                        total: Number(s?.total || 0),
+                        failed: Number(s?.failed || 0),
+                        delivered: Number(s?.delivered || 0),
+                        lastSent: s?.last_sent || null
+                    },
+                    templateApproved: !unapproved.has(t.context)
+                };
+            });
+
+            res.json({
+                success: true,
+                masterEnabled: process.env.ENABLE_WHATSAPP === 'true',
+                types
+            });
+        } catch (error: any) {
+            console.error('Get notification settings error:', error);
+            res.status(500).json({ error: 'Failed to load notification settings' });
+        }
+    }
+
+    /** Flip one or more message-type toggles. Takes effect within ~30s. */
+    static async updateNotificationSettings(req: Request, res: Response) {
+        try {
+            const { updates } = req.body || {};
+            if (!updates || typeof updates !== 'object' || Array.isArray(updates)) {
+                return res.status(400).json({ error: 'updates must be an object of { key: boolean }' });
+            }
+
+            const validKeys = new Set(NOTIFICATION_TYPES.map(t => t.key));
+            const unknown = Object.keys(updates).filter(k => !validKeys.has(k));
+            if (unknown.length > 0) {
+                return res.status(400).json({ error: `Unknown notification type(s): ${unknown.join(', ')}` });
+            }
+
+            const admin = (req as any).user;
+            const saved = await saveNotificationSettings(updates, admin?.email || 'admin');
+
+            res.json({ success: true, settings: saved });
+
+            try {
+                await ActivityLogService.log({
+                    adminId: admin?.id,
+                    adminName: admin?.name,
+                    adminEmail: admin?.email,
+                    actionType: 'SYSTEM_SETTING_UPDATED',
+                    targetType: 'SYSTEM_SETTING',
+                    targetId: 'whatsapp_notifications',
+                    targetName: 'WhatsApp Notification Toggles',
+                    details: { updates },
+                    ipAddress: req.ip || req.socket?.remoteAddress
+                });
+            } catch (logErr) {
+                console.error('Failed to log notification settings change', logErr);
+            }
+        } catch (error: any) {
+            console.error('Update notification settings error:', error);
+            res.status(500).json({ error: 'Failed to update notification settings' });
+        }
+    }
+
+    /**
+     * Decide a franchise's pending REMOVAL request.
+     *
+     *   approve -> the member is actually removed (is_active = 0) and the
+     *              original reason is kept as removed_reason.
+     *   reject  -> the member stays on the team; the request is closed with the
+     *              admin's note so the store can see why.
+     */
+    static async reviewManpowerRemoval(req: Request, res: Response) {
+        try {
+            const { id } = req.params;
+            const { approve, note } = req.body;
+            const admin = (req as any).user;
+
+            if (typeof approve !== 'boolean') {
+                return res.status(400).json({ error: 'approve must be a boolean' });
+            }
+
+            const [rows]: any = await db.execute(
+                `SELECT m.id, m.name, m.manpower_id, m.vendor_id, m.request_status, m.request_type,
+                        m.request_reason, vd.user_id AS franchise_user_id, vd.store_name
+                 FROM manpower m
+                 JOIN vendor_details vd ON vd.id = m.vendor_id
+                 WHERE m.id = ?`,
+                [id]
+            );
+            if (rows.length === 0) {
+                return res.status(404).json({ error: 'Manpower entry not found' });
+            }
+            const member = rows[0];
+
+            if (member.request_status !== 'pending' || member.request_type !== 'remove') {
+                return res.status(400).json({ error: `There is no pending removal request for ${member.name}.` });
+            }
+
+            if (approve) {
+                await db.execute(
+                    `UPDATE manpower
+                     SET is_active = FALSE, removed_at = NOW(), removed_reason = ?,
+                         request_status = 'approved', request_reviewed_at = NOW(),
+                         request_reviewed_by = ?, request_review_note = ?
+                     WHERE id = ?`,
+                    [member.request_reason, admin.id, note ? String(note).substring(0, 500) : null, id]
+                );
+            } else {
+                await db.execute(
+                    `UPDATE manpower
+                     SET request_status = 'rejected', request_reviewed_at = NOW(),
+                         request_reviewed_by = ?, request_review_note = ?
+                     WHERE id = ?`,
+                    [admin.id, note ? String(note).substring(0, 500) : null, id]
+                );
+            }
+
+            // Tell the store what was decided.
+            try {
+                await NotificationService.notify(member.franchise_user_id, {
+                    title: approve ? 'Removal Approved' : 'Removal Request Declined',
+                    message: approve
+                        ? `${member.name} has been removed from your team as requested.`
+                        : `Your request to remove ${member.name} was declined${note ? `: ${note}` : '.'} They remain on your team.`,
+                    type: 'system'
+                });
+            } catch (e) {
+                console.error('Failed to notify franchise of removal decision', e);
+            }
+
+            res.json({
+                success: true,
+                message: approve
+                    ? `${member.name} removed from ${member.store_name}`
+                    : `Removal request for ${member.name} declined`
+            });
+        } catch (error: any) {
+            console.error('Review manpower removal error:', error);
+            res.status(500).json({ error: 'Failed to review removal request' });
+        }
+    }
+
+    /**
+     * Approve (or send back to pending) a franchise's manpower entry.
+     *
+     * Stores add staff themselves, but a staff member only becomes usable once an
+     * admin approves them from the franchise's Manpower tab. Approval can be
+     * revoked by passing is_approved = false.
+     */
+    static async updateManpowerApproval(req: Request, res: Response) {
+        try {
+            const { id } = req.params;
+            const { is_approved } = req.body;
+
+            if (typeof is_approved !== 'boolean') {
+                return res.status(400).json({ error: 'is_approved must be a boolean' });
+            }
+
+            const [rows]: any = await db.execute(
+                `SELECT m.id, m.name, m.manpower_id, m.is_approved, m.vendor_id,
+                        vd.store_name, vd.user_id AS franchise_user_id
+                 FROM manpower m
+                 LEFT JOIN vendor_details vd ON vd.id = m.vendor_id
+                 WHERE m.id = ?`,
+                [id]
+            );
+
+            if (rows.length === 0) {
+                return res.status(404).json({ error: 'Manpower entry not found' });
+            }
+            const member = rows[0];
+
+            const admin = (req as any).user;
+
+            // Approving closes out any restore request that put them here, so the
+            // "Restore Requested" badge doesn't linger once they're back on the team.
+            await db.execute(
+                `UPDATE manpower
+                 SET is_approved = ?, approved_at = ?, approved_by = ?,
+                     request_status = CASE WHEN ? AND request_type = 'restore' THEN 'approved' ELSE request_status END,
+                     request_reviewed_at = CASE WHEN ? AND request_type = 'restore' THEN NOW() ELSE request_reviewed_at END,
+                     request_reviewed_by = CASE WHEN ? AND request_type = 'restore' THEN ? ELSE request_reviewed_by END
+                 WHERE id = ?`,
+                [is_approved, is_approved ? new Date() : null, is_approved ? admin.id : null,
+                 is_approved, is_approved, is_approved, admin.id, id]
+            );
+
+            // Tell the store their staff member is now usable (or no longer is).
+            if (member.franchise_user_id) {
+                try {
+                    await NotificationService.notify(member.franchise_user_id, {
+                        title: is_approved ? 'Staff Approved' : 'Staff Approval Revoked',
+                        message: is_approved
+                            ? `${member.name} has been approved and can now be selected for warranty registrations.`
+                            : `${member.name} is pending approval again and cannot be selected for warranty registrations.`,
+                        type: is_approved ? 'system' : 'alert'
+                    });
+                } catch (notifyError) {
+                    console.error('Failed to notify franchise of manpower approval:', notifyError);
+                }
+            }
+
+            await ActivityLogService.log({
+                adminId: admin.id,
+                adminName: admin.name,
+                adminEmail: admin.email,
+                actionType: is_approved ? 'MANPOWER_APPROVED' : 'MANPOWER_APPROVAL_REVOKED',
+                targetType: 'VENDOR',
+                targetId: id,
+                targetName: `${member.name} (${member.store_name || 'Unknown store'})`,
+                details: { manpower_id: member.manpower_id, store_name: member.store_name },
+                ipAddress: req.ip || req.socket?.remoteAddress
+            });
+
+            res.json({
+                success: true,
+                message: is_approved
+                    ? `${member.name} approved successfully`
+                    : `${member.name} moved back to pending`
+            });
+        } catch (error: any) {
+            console.error('Update manpower approval error:', error);
+            res.status(500).json({ error: 'Failed to update manpower approval' });
+        }
+    }
+
+    /**
      * Toggle vendor activation status
      */
     static async toggleVendorActivation(req: Request, res: Response) {
@@ -1012,7 +1357,10 @@ export class AdminController {
                     vd.address as store_address,
                     vd.city as store_city,
                     vd.state as store_state,
-                    m.name as applicator_name
+                    m.name as applicator_name,
+                    m.phone_number as applicator_phone,
+                    m.manpower_id as applicator_code,
+                    m.is_active as applicator_active
                 FROM warranty_registrations wr
                 LEFT JOIN manpower m ON wr.manpower_id = m.id
                 LEFT JOIN vendor_details vd ON (wr.installer_name = vd.store_name AND wr.installer_contact = vd.store_email)
@@ -1231,6 +1579,70 @@ export class AdminController {
                         }
                     } else {
                         console.log(`â„¹ï¸ No customer email provided, skipping email notification for warranty ${warrantyData.uid}`);
+                    }
+
+                    // ── Installer (manpower) approval notice ──────────────────
+                    // Deliberately outside the customer-email block above: whether
+                    // the customer left an email has no bearing on telling the
+                    // installer their work was approved.
+                    // Gated by the 'manpower_warranty_approved' admin toggle inside
+                    // the WhatsApp service, so no extra check is needed here.
+                    if (
+                        status === 'validated' &&
+                        process.env.ENABLE_WHATSAPP === 'true' &&
+                        warrantyData.applicator_phone &&
+                        warrantyData.applicator_active
+                    ) {
+                        try {
+                            // productName is a bare model code (e.g. "D3"); fall back to
+                            // the product type on the ~0.1% of rows that lack it.
+                            const rawProduct =
+                                (productDetails as any)?.productName ||
+                                (productDetails as any)?.product ||
+                                (warrantyData.product_type === 'seat-cover' ? 'Seat Cover'
+                                    : warrantyData.product_type === 'ev-products' ? 'Paint Protection Film'
+                                        : warrantyData.product_type) ||
+                                'Autoform Product';
+
+                            // Running total for this installer. The status update is
+                            // already committed above, so this count includes the
+                            // warranty we're notifying about. Indexed on manpower_id.
+                            let totalApproved = 0;
+                            try {
+                                const [tally]: any = await db.execute(
+                                    `SELECT COUNT(*) AS n FROM warranty_registrations
+                                     WHERE manpower_id = ? AND status = 'validated'`,
+                                    [warrantyData.manpower_id]
+                                );
+                                totalApproved = Number(tally[0]?.n || 0);
+                            } catch (tallyErr) {
+                                console.error('[WhatsApp] Installer tally failed:', tallyErr);
+                            }
+
+                            // A zero total would mean the count query failed — skip
+                            // rather than send "Total approved installations: 0"
+                            // right after telling them one was approved.
+                            if (totalApproved < 1) {
+                                console.warn(`[WhatsApp] Skipping installer notice for ${warrantyData.uid} — tally unavailable`);
+                            } else {
+                                await runWithRetry(
+                                    () => WhatsAppService.sendManpowerWarrantyApproved(
+                                        warrantyData.applicator_phone,
+                                        warrantyData.applicator_name || 'Installer',
+                                        String(rawProduct),
+                                        warrantyData.customer_name || 'Customer',
+                                        warrantyData.uid,
+                                        totalApproved
+                                    ),
+                                    3,
+                                    5000,
+                                    `WhatsApp Installer Approval (${warrantyData.uid})`
+                                );
+                                console.log(`[WhatsApp] Installer approval sent to ${warrantyData.applicator_name} (total: ${totalApproved})`);
+                            }
+                        } catch (mpErr) {
+                            console.error('[WhatsApp] Failed to notify installer:', mpErr);
+                        }
                     }
 
                     // Send email + notification to franchise/vendor
@@ -3267,6 +3679,269 @@ export class AdminController {
     // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
     //  GET FRANCHISE'S ASSIGNED DISTRIBUTORS (many-to-many)
     // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+    /**
+     * Reverse hierarchy: every franchise with the distributors it buys from, and
+     * the categories it can buy from each.
+     *
+     * The existing screens only go distributor -> franchises, which cannot answer
+     * "who does this franchise buy from, and for what?" — the question that matters
+     * when one franchise sources different categories from different distributors
+     * (e.g. mats from one, seat covers from another).
+     *
+     * Category scope lives on the distributor (distributor_allowed_categories), so
+     * what a franchise may buy from a given distributor is that distributor's
+     * category list.
+     */
+    static async getFranchiseDistributorMap(req: Request, res: Response) {
+        try {
+            const search = (req.query.search as string || '').trim();
+            const onlyMulti = req.query.onlyMulti === 'true';
+            const unmappedOnly = req.query.unmapped === 'true';
+
+            const params: any[] = [];
+            let searchClause = '';
+            if (search) {
+                searchClause = ` AND (vd.store_name LIKE ? OR vd.store_code LIKE ? OR vd.city LIKE ?)`;
+                const like = `%${search}%`;
+                params.push(like, like, like);
+            }
+
+            // One row per franchise-distributor pair; franchises with no
+            // distributor still appear (LEFT JOIN) so gaps are visible.
+            const [rows]: any = await db.execute(
+                `SELECT
+                    vd.user_id            AS franchise_user_id,
+                    vd.id                 AS franchise_id,
+                    vd.store_name,
+                    vd.store_code,
+                    vd.city,
+                    vd.state,
+                    vd.is_distributor,
+                    d.id                  AS distributor_id,
+                    d.name                AS distributor_name,
+                    d.city                AS distributor_city,
+                    d.allowed_brands      AS distributor_brands,
+                    -- Tag the brand: AF and AC categories share names, so the bare
+                    -- name would render as an unexplained duplicate chip.
+                    GROUP_CONCAT(DISTINCT CONCAT(sc.name, ' (', CASE WHEN sc.id LIKE '%-ac' THEN 'AC' ELSE 'AF' END, ')')
+                                 ORDER BY sc.name SEPARATOR '||') AS category_names,
+                    (fd.category_scope = 'selected') AS has_limit
+                 FROM vendor_details vd
+                 LEFT JOIN franchise_distributors fd ON fd.franchise_user_id = vd.user_id
+                 LEFT JOIN distributors d           ON d.id = fd.distributor_id
+                 -- Effective categories = distributor's list narrowed by any
+                 -- per-franchise limit. No limit rows = inherit everything.
+                 LEFT JOIN distributor_allowed_categories dac ON dac.distributor_id = d.id
+                    AND (
+                      fd.category_scope = 'all'
+                      OR EXISTS (
+                        SELECT 1 FROM franchise_distributor_categories fdc
+                        WHERE fdc.franchise_user_id = vd.user_id AND fdc.distributor_id = d.id
+                          AND fdc.category_id = dac.category_id
+                      )
+                    )
+                 LEFT JOIN store_categories sc      ON sc.id = dac.category_id
+                 WHERE vd.is_franchise = 1 ${searchClause}
+                 GROUP BY vd.user_id, vd.id, vd.store_name, vd.store_code, vd.city, vd.state,
+                          vd.is_distributor, d.id, d.name, d.city, d.allowed_brands, fd.category_scope
+                 ORDER BY vd.store_name ASC, d.name ASC`,
+                params
+            );
+
+            // Collapse the pair rows into one entry per franchise.
+            const byFranchise = new Map<string, any>();
+            for (const r of rows) {
+                if (!byFranchise.has(r.franchise_user_id)) {
+                    byFranchise.set(r.franchise_user_id, {
+                        franchise_user_id: r.franchise_user_id,
+                        franchise_id: r.franchise_id,
+                        store_name: r.store_name,
+                        store_code: r.store_code,
+                        city: r.city,
+                        state: r.state,
+                        is_distributor: Boolean(r.is_distributor),
+                        distributors: []
+                    });
+                }
+                if (r.distributor_id) {
+                    byFranchise.get(r.franchise_user_id).distributors.push({
+                        id: r.distributor_id,
+                        name: r.distributor_name,
+                        city: r.distributor_city,
+                        brands: r.distributor_brands,
+                        categories: r.category_names ? String(r.category_names).split('||') : [],
+                        hasLimit: Boolean(Number(r.has_limit))
+                    });
+                }
+            }
+
+            let franchises = Array.from(byFranchise.values());
+            if (onlyMulti)     franchises = franchises.filter(f => f.distributors.length > 1);
+            if (unmappedOnly)  franchises = franchises.filter(f => f.distributors.length === 0);
+
+            res.json({
+                success: true,
+                franchises,
+                summary: {
+                    total: byFranchise.size,
+                    mapped: Array.from(byFranchise.values()).filter(f => f.distributors.length > 0).length,
+                    multiDistributor: Array.from(byFranchise.values()).filter(f => f.distributors.length > 1).length,
+                    unmapped: Array.from(byFranchise.values()).filter(f => f.distributors.length === 0).length
+                }
+            });
+        } catch (error: any) {
+            console.error('Get franchise-distributor map error:', error);
+            res.status(500).json({ error: 'Failed to load franchise-distributor mapping' });
+        }
+    }
+
+    /**
+     * Categories a specific franchise may buy from a specific distributor.
+     *
+     * Returns the distributor's full catalogue of categories, each flagged with
+     * whether this franchise is allowed it. When no limit rows exist for the pair
+     * the franchise inherits everything, so all come back selected and
+     * `inherits` is true — that is the default for every existing mapping.
+     */
+    static async getFranchiseDistributorCategories(req: Request, res: Response) {
+        try {
+            const { vendorId, distributorId } = req.params;
+
+            // Category names are NOT unique — the AF and AC brand trees carry the
+            // same names (the AC twin has an '-ac' id suffix). Return the brand and
+            // parent so the UI can tell otherwise-identical rows apart.
+            const [categories]: any = await db.execute(
+                `SELECT sc.id, sc.name, sc.parent_id,
+                        parent.name AS parent_name,
+                        CASE WHEN sc.id LIKE '%-ac' THEN 'AC' ELSE 'AF' END AS brand,
+                        (SELECT COUNT(*) FROM store_products sp WHERE sp.category_id = sc.id) AS product_count,
+                        EXISTS (
+                          SELECT 1 FROM franchise_distributor_categories fdc
+                          WHERE fdc.franchise_user_id = ?
+                            AND fdc.distributor_id = ?
+                            AND fdc.category_id = sc.id
+                        ) AS is_allowed
+                 FROM distributor_allowed_categories dac
+                 JOIN store_categories sc ON sc.id = dac.category_id
+                 LEFT JOIN store_categories parent ON parent.id = sc.parent_id
+                 WHERE dac.distributor_id = ?
+                 ORDER BY sc.name ASC, brand ASC`,
+                [vendorId, distributorId, distributorId]
+            );
+
+            // 'all' = inherit the distributor's full range. 'selected' = only the
+            // listed categories, which may legitimately be an empty list.
+            const [scopeRows]: any = await db.execute(
+                `SELECT category_scope FROM franchise_distributors
+                 WHERE franchise_user_id = ? AND distributor_id = ? LIMIT 1`,
+                [vendorId, distributorId]
+            );
+            const inherits = (scopeRows[0]?.category_scope ?? 'all') === 'all';
+
+            res.json({
+                success: true,
+                inherits,
+                categories: categories.map((c: any) => ({
+                    id: c.id,
+                    name: c.name,
+                    parent_id: c.parent_id,
+                    parentName: c.parent_name || null,
+                    brand: c.brand,
+                    productCount: Number(c.product_count || 0),
+                    // While inheriting, everything is effectively allowed.
+                    allowed: inherits ? true : Boolean(Number(c.is_allowed))
+                }))
+            });
+        } catch (error: any) {
+            console.error('Get franchise-distributor categories error:', error);
+            res.status(500).json({ error: 'Failed to load category limits' });
+        }
+    }
+
+    /**
+     * Set which categories a franchise may buy from a distributor.
+     *
+     * Send `categoryIds: []` (or `inherit: true`) to clear the limit and go back
+     * to inheriting the distributor's full list.
+     */
+    static async setFranchiseDistributorCategories(req: Request, res: Response) {
+        const connection = await db.getConnection();
+        try {
+            const { vendorId, distributorId } = req.params;
+            const { categoryIds, inherit } = req.body || {};
+
+            if (!inherit && !Array.isArray(categoryIds)) {
+                return res.status(400).json({ error: 'categoryIds must be an array, or pass inherit: true' });
+            }
+
+            // Only categories the distributor actually sells can be granted.
+            const [valid]: any = await connection.execute(
+                'SELECT category_id FROM distributor_allowed_categories WHERE distributor_id = ?',
+                [distributorId]
+            );
+            const validIds = new Set(valid.map((r: any) => r.category_id));
+            const requested: string[] = inherit ? [] : categoryIds.filter((id: string) => validIds.has(id));
+
+            await connection.beginTransaction();
+            await connection.execute(
+                'DELETE FROM franchise_distributor_categories WHERE franchise_user_id = ? AND distributor_id = ?',
+                [vendorId, distributorId]
+            );
+
+            for (const categoryId of requested) {
+                await connection.execute(
+                    `INSERT INTO franchise_distributor_categories (id, franchise_user_id, distributor_id, category_id)
+                     VALUES (?, ?, ?, ?)`,
+                    [uuidv4(), vendorId, distributorId, categoryId]
+                );
+            }
+
+            // The scope flag is what distinguishes "buy everything" from "buy
+            // nothing yet" — both of which have zero category rows. Without it an
+            // empty selection would silently mean the opposite of what was chosen.
+            await connection.execute(
+                `UPDATE franchise_distributors SET category_scope = ?
+                 WHERE franchise_user_id = ? AND distributor_id = ?`,
+                [inherit ? 'all' : 'selected', vendorId, distributorId]
+            );
+            await connection.commit();
+
+            res.json({
+                success: true,
+                inherits: Boolean(inherit),
+                count: requested.length,
+                message: inherit
+                    ? 'Cleared — this store can buy everything this distributor sells.'
+                    : requested.length === 0
+                        ? 'Saved — this store cannot order anything from this distributor yet.'
+                        : `Limited to ${requested.length} categor${requested.length === 1 ? 'y' : 'ies'}.`
+            });
+
+            try {
+                const admin = (req as any).user;
+                await ActivityLogService.log({
+                    adminId: admin?.id,
+                    adminName: admin?.name,
+                    adminEmail: admin?.email,
+                    actionType: 'SYSTEM_SETTING_UPDATED',
+                    targetType: 'SYSTEM_SETTING',
+                    targetId: `${vendorId}:${distributorId}`,
+                    targetName: 'Franchise purchase categories',
+                    details: { vendorId, distributorId, categoryIds: requested, inherit: requested.length === 0 },
+                    ipAddress: req.ip || req.socket?.remoteAddress
+                });
+            } catch (logErr) {
+                console.error('Failed to log category limit change', logErr);
+            }
+        } catch (error: any) {
+            await connection.rollback();
+            console.error('Set franchise-distributor categories error:', error);
+            res.status(500).json({ error: 'Failed to save category limits' });
+        } finally {
+            connection.release();
+        }
+    }
+
     static async getFranchiseDistributors(req: Request, res: Response) {
         try {
             const { vendorId } = req.params; // Franchise user_id

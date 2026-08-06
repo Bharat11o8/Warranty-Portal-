@@ -24,6 +24,15 @@ router.put('/vendors/:id/allowed-brands', ...adminAuth, requirePermission('vendo
 router.put('/vendors/:id/distributor-status', ...adminAuth, requirePermission('vendors', 'write'), AdminController.updateVendorDistributorStatus);
 router.delete('/vendors/:id',             ...adminAuth, requirePermission('vendors', 'write'), AdminController.deleteVendor);
 
+// ── Manpower ─────────────────────────────────────────────────────────────────
+router.get('/manpower',                   ...adminAuth, requirePermission('vendors', 'read'),  AdminController.getAllManpower);
+router.put('/manpower/:id/approval',      ...adminAuth, requirePermission('vendors', 'write'), AdminController.updateManpowerApproval);
+router.put('/manpower/:id/removal-review', ...adminAuth, requirePermission('vendors', 'write'), AdminController.reviewManpowerRemoval);
+
+// ── WhatsApp notification toggles ────────────────────────────────────────────
+router.get('/notification-settings', ...adminAuth, requirePermission('announcements', 'read'),  AdminController.getNotificationSettings);
+router.put('/notification-settings', ...adminAuth, requirePermission('announcements', 'write'), AdminController.updateNotificationSettings);
+
 // ── Distributors ─────────────────────────────────────────────────────────────
 router.get('/distributors',                                     ...adminAuth, requirePermission('vendors', 'read'),  AdminController.getAllDistributors);
 router.post('/distributors',                                    ...adminAuth, requirePermission('vendors', 'write'), AdminController.createDistributor);
@@ -34,9 +43,12 @@ router.get('/distributors/:id/categories',                      ...adminAuth, re
 router.put('/distributors/:id/categories',                      ...adminAuth, requirePermission('vendors', 'write'), AdminController.setDistributorAllowedCategories);
 
 // ── Franchises ───────────────────────────────────────────────────────────────
+router.get('/franchises/distributor-map',              ...adminAuth, requirePermission('vendors', 'read'),  AdminController.getFranchiseDistributorMap);
 router.get('/franchises/eligible',                     ...adminAuth, requirePermission('vendors', 'read'),  AdminController.getEligibleFranchises);
 router.get('/franchises/:vendorId/orders',             ...adminAuth, requirePermission('vendors', 'read'),  AdminController.getFranchiseOrders);
 router.get('/franchises/:vendorId/distributors',       ...adminAuth, requirePermission('vendors', 'read'),  AdminController.getFranchiseDistributors);
+router.get('/franchises/:vendorId/distributors/:distributorId/categories', ...adminAuth, requirePermission('vendors', 'read'),  AdminController.getFranchiseDistributorCategories);
+router.put('/franchises/:vendorId/distributors/:distributorId/categories', ...adminAuth, requirePermission('vendors', 'write'), AdminController.setFranchiseDistributorCategories);
 router.post('/distributors/:id/franchises',             ...adminAuth, requirePermission('vendors', 'write'), AdminController.assignDistributorToFranchise);
 router.delete('/distributors/:id/franchises/:vendorId', ...adminAuth, requirePermission('vendors', 'write'), AdminController.unassignDistributorFromFranchise);
 

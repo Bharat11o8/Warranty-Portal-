@@ -21,7 +21,8 @@ import {
     History,
     LayoutGrid,
     List,
-    RefreshCw
+    RefreshCw,
+    Clock
 } from "lucide-react";
 import {
     Select,
@@ -30,13 +31,24 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from "@/components/ui/dialog";
 
 interface ManpowerManagementProps {
     manpowerList: any[];
     pastManpowerList: any[];
     onAdd: (data: any) => Promise<boolean>;
     onEdit: (id: string, data: any) => Promise<boolean>;
-    onDelete: (id: string) => void;
+    /** Raise a removal REQUEST (admin approves before the member actually goes). */
+    onDelete: (id: string, reason?: string) => Promise<boolean> | void;
+    /** Bring an Ex-Team member back (returns them as pending admin approval). */
+    onRestore?: (id: string, reason?: string) => Promise<boolean> | boolean | void;
     onShowWarranties: (member: any, status: 'validated' | 'pending' | 'rejected') => void;
     editingId: string | null;
     setEditingId: (id: string | null) => void;
@@ -67,6 +79,7 @@ export const StaffManagement = ({
     onAdd,
     onEdit,
     onDelete,
+    onRestore,
     onShowWarranties,
     editingId,
     setEditingId,
@@ -128,24 +141,80 @@ export const StaffManagement = ({
         );
     };
 
-    const filteredCurrent = filterList(manpowerList);
+    // Both removal and restore are request-based: the store gives a reason, an
+    // admin approves. One dialog serves both — `removeMode` says which.
+    const [removeTarget, setRemoveTarget] = useState<any | null>(null);
+    const [removeMode, setRemoveMode] = useState<"remove" | "restore">("remove");
+    const [removeReason, setRemoveReason] = useState("");
+    const [removing, setRemoving] = useState(false);
+
+    const openRequestDialog = (member: any, mode: "remove" | "restore") => {
+        setRemoveTarget(member);
+        setRemoveMode(mode);
+        setRemoveReason("");
+    };
+    const closeRequestDialog = () => { setRemoveTarget(null); setRemoveReason(""); };
+
+    const submitRemovalRequest = async () => {
+        if (!removeTarget || !removeReason.trim()) return;
+        setRemoving(true);
+        const ok = removeMode === "restore"
+            ? await onRestore?.(removeTarget.id, removeReason.trim())
+            : await onDelete(removeTarget.id, removeReason.trim());
+        setRemoving(false);
+        if (ok !== false) closeRequestDialog();
+    };
+
+    // Staff a store adds must be approved by an admin before they can be picked
+    // as an installer, so split the active roster into approved vs pending.
+    // (is_approved may be undefined on older cached payloads — treat as approved.)
+    const isApproved = (m: any) => m?.is_approved === undefined || Boolean(m.is_approved);
+    const awaitingRemoval = (m: any) => m?.request_status === "pending" && m?.request_type === "remove";
+
+    const approvedList = (manpowerList || []).filter(m => isApproved(m) && !awaitingRemoval(m));
+    // "Pending" splits into two queues: waiting to join, and waiting to be removed.
+    const pendingAddList = (manpowerList || []).filter((m: any) => !isApproved(m) && !awaitingRemoval(m));
+    const pendingRemoveList = (manpowerList || []).filter(awaitingRemoval);
+    const pendingList = [...pendingAddList, ...pendingRemoveList];
+
+    const [activeTab, setActiveTab] = useState<string>('current');
+    // Within the Pending tab: 'add' = waiting to join, 'remove' = waiting to leave.
+    const [pendingSubTab, setPendingSubTab] = useState<'add' | 'remove'>('add');
+
+    const filteredApproved = filterList(approvedList);
+    const filteredPendingAdd = filterList(pendingAddList);
+    const filteredPendingRemove = filterList(pendingRemoveList);
     const filteredPast = filterList(pastManpowerList);
+
+    // The Current and Pending tabs share the same card layout — only the list
+    // differs — so the roster block below renders whichever tab is active.
+    const filteredCurrent = activeTab === 'pending'
+        ? (pendingSubTab === 'remove' ? filteredPendingRemove : filteredPendingAdd)
+        : filteredApproved;
 
     return (
         <div className="space-y-8 max-w-7xl mx-auto">
-            <Tabs defaultValue="current" className="w-full">
-                <div className="flex flex-col lg:flex-row justify-evenly items-center gap-6 mb-8 top-0 z-30 bg-white/95 backdrop-blur-md py-4 md:py-6 px-4 md:px-2 -mx-4 md:-mx-2 rounded-2xl md:rounded-3xl border-b md:border border-orange-100 shadow-sm">
-                    <TabsList className="bg-white p-1 rounded-xl md:rounded-full h-10 md:h-11 w-full lg:w-auto flex md:inline-flex gap-0.5 shadow-sm border border-orange-100 justify-evenly">
-                        <TabsTrigger value="current" className="relative z-10 rounded-full px-4 md:px-8 py-2 text-xs md:text-sm font-bold text-slate-500 data-[state=active]:text-orange-600 data-[state=active]:bg-orange-50/50 data-[state=active]:shadow-sm transition-all duration-500 ease-out whitespace-nowrap flex items-center gap-2">
-                            <Users className="h-4 w-4" /> Current Team <span className="hidden sm:inline">({manpowerList?.length || 0})</span>
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+                <div className="flex flex-col lg:flex-row lg:flex-wrap justify-between items-center gap-4 mb-8 top-0 z-30 bg-white/95 backdrop-blur-md py-4 md:py-6 px-4 md:px-2 -mx-4 md:-mx-2 rounded-2xl md:rounded-3xl border-b md:border border-orange-100 shadow-sm">
+                    <TabsList className="bg-white p-1 rounded-xl md:rounded-full h-10 md:h-11 w-full lg:w-auto flex md:inline-flex gap-0.5 shadow-sm border border-orange-100 justify-evenly shrink-0">
+                        <TabsTrigger value="current" className="relative z-10 rounded-full px-3 md:px-5 py-2 text-xs md:text-sm font-bold text-slate-500 data-[state=active]:text-orange-600 data-[state=active]:bg-orange-50/50 data-[state=active]:shadow-sm transition-all duration-500 ease-out whitespace-nowrap flex items-center gap-2">
+                            <Users className="h-4 w-4" /> Current Team <span className="hidden sm:inline">({approvedList.length})</span>
                         </TabsTrigger>
-                        <TabsTrigger value="past" className="relative z-10 rounded-full px-4 md:px-8 py-2 text-xs md:text-sm font-bold text-slate-500 data-[state=active]:text-orange-600 data-[state=active]:bg-orange-50/50 data-[state=active]:shadow-sm transition-all duration-500 ease-out whitespace-nowrap flex items-center gap-2">
+                        <TabsTrigger value="pending" className="relative z-10 rounded-full px-3 md:px-5 py-2 text-xs md:text-sm font-bold text-slate-500 data-[state=active]:text-orange-600 data-[state=active]:bg-orange-50/50 data-[state=active]:shadow-sm transition-all duration-500 ease-out whitespace-nowrap flex items-center gap-2">
+                            <Clock className="h-4 w-4" /> Pending
+                            {pendingList.length > 0 ? (
+                                <span className="text-[10px] font-black bg-amber-500 text-white px-1.5 py-0.5 rounded-full">{pendingList.length}</span>
+                            ) : (
+                                <span className="hidden sm:inline">(0)</span>
+                            )}
+                        </TabsTrigger>
+                        <TabsTrigger value="past" className="relative z-10 rounded-full px-3 md:px-5 py-2 text-xs md:text-sm font-bold text-slate-500 data-[state=active]:text-orange-600 data-[state=active]:bg-orange-50/50 data-[state=active]:shadow-sm transition-all duration-500 ease-out whitespace-nowrap flex items-center gap-2">
                             <History className="h-4 w-4" /> Ex-Team <span className="hidden sm:inline">({pastManpowerList?.length || 0})</span>
                         </TabsTrigger>
                     </TabsList>
 
-                    <div className="flex flex-row sm:flex-row items-center gap-3 w-full lg:w-auto">
-                        <div className="relative w-full sm:w-64 lg:w-80 group">
+                    <div className="flex flex-row items-center gap-3 w-full lg:w-auto lg:flex-1 lg:justify-end min-w-0">
+                        <div className="relative w-full sm:w-64 lg:w-auto lg:max-w-xs lg:flex-1 min-w-0 group">
                             <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 group-focus-within:text-orange-500 transition-colors" />
                             <input
                                 placeholder="Search member..."
@@ -155,7 +224,7 @@ export const StaffManagement = ({
                             />
                         </div>
 
-                        <div className="flex items-center gap-2 w-full sm:w-auto justify-evenly sm:justify-end">
+                        <div className="flex items-center gap-2 w-full sm:w-auto justify-evenly sm:justify-end shrink-0">
                             <div className="flex items-center gap-1 bg-white p-1 rounded-full h-10 md:h-11 border border-orange-100 shadow-sm">
                                 <Button
                                     variant="ghost"
@@ -198,8 +267,62 @@ export const StaffManagement = ({
                     </div>
                 </div>
 
-                <TabsContent value="current" className="space-y-8 animate-in fade-in duration-500">
-                    <div className="animate-in fade-in slide-in-from-top-4 duration-700">
+                {/* Current and Pending share this block; `filteredCurrent` above
+                    resolves to the right list for the active tab. */}
+                <TabsContent value={activeTab === 'pending' ? 'pending' : 'current'} className="space-y-8 animate-in fade-in duration-500">
+                    {activeTab === 'pending' && (
+                        <div className="space-y-3">
+                            {/* Two queues: joining the team, and leaving it */}
+                            <div className="flex flex-wrap items-center gap-2">
+                                <button
+                                    onClick={() => setPendingSubTab('add')}
+                                    className={cn(
+                                        "px-4 py-2 rounded-xl text-xs font-bold border transition-colors flex items-center gap-2",
+                                        pendingSubTab === 'add'
+                                            ? "bg-amber-500 text-white border-amber-500"
+                                            : "bg-white text-slate-600 border-slate-200 hover:border-amber-300"
+                                    )}
+                                >
+                                    <Clock className="h-3.5 w-3.5" /> Approval to Add ({pendingAddList.length})
+                                </button>
+                                <button
+                                    onClick={() => setPendingSubTab('remove')}
+                                    className={cn(
+                                        "px-4 py-2 rounded-xl text-xs font-bold border transition-colors flex items-center gap-2",
+                                        pendingSubTab === 'remove'
+                                            ? "bg-rose-500 text-white border-rose-500"
+                                            : "bg-white text-slate-600 border-slate-200 hover:border-rose-300"
+                                    )}
+                                >
+                                    <Trash2 className="h-3.5 w-3.5" /> Removal Requests ({pendingRemoveList.length})
+                                </button>
+                            </div>
+
+                            {pendingSubTab === 'add' ? (
+                                <div className="flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4">
+                                    <Clock className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+                                    <div>
+                                        <p className="text-sm font-bold text-amber-800">Awaiting admin approval</p>
+                                        <p className="text-xs text-amber-700 mt-0.5">
+                                            These members can't be selected on warranty forms yet. Our team reviews new staff and you'll be notified once they're approved.
+                                        </p>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="flex items-start gap-3 rounded-2xl border border-rose-200 bg-rose-50 px-5 py-4">
+                                    <Trash2 className="h-5 w-5 text-rose-600 shrink-0 mt-0.5" />
+                                    <div>
+                                        <p className="text-sm font-bold text-rose-800">Removal requests under review</p>
+                                        <p className="text-xs text-rose-700 mt-0.5">
+                                            You've asked for these members to be removed. They stay on your team and can still be selected until an admin approves the request.
+                                        </p>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    )}
+                    {/* Add-member form only belongs on the Current tab */}
+                    <div className={cn("animate-in fade-in slide-in-from-top-4 duration-700", activeTab === 'pending' && "hidden")}>
                         <Card className="border-orange-100 shadow-xl shadow-orange-500/5 bg-white overflow-hidden relative group">
                             <div className="absolute top-0 right-0 w-64 h-64 bg-orange-500/5 blur-3xl rounded-full -mr-32 -mt-32 pointer-events-none group-hover:bg-orange-500/10 transition-colors duration-700" />
 
@@ -329,7 +452,7 @@ export const StaffManagement = ({
                                                         <Button variant="ghost" size="icon" onClick={() => handleEditClick(member)} className="h-8 w-8 rounded-full text-slate-400 hover:bg-orange-50 hover:text-orange-600 transition-all">
                                                             <Edit2 className="h-3.5 w-3.5" />
                                                         </Button>
-                                                        <Button variant="ghost" size="icon" onClick={() => onDelete(member.id)} className="h-8 w-8 rounded-full text-slate-400 hover:bg-red-50 hover:text-red-600 transition-all">
+                                                        <Button variant="ghost" size="icon" onClick={() => openRequestDialog(member, "remove")} className="h-8 w-8 rounded-full text-slate-400 hover:bg-red-50 hover:text-red-600 transition-all">
                                                             <Trash2 className="h-3.5 w-3.5" />
                                                         </Button>
                                                     </div>
@@ -337,7 +460,17 @@ export const StaffManagement = ({
 
                                                 <div className="space-y-3 md:space-y-4 mb-4 md:mb-6">
                                                     <div>
-                                                        <h3 className="text-lg md:text-xl font-bold text-slate-800 group-hover:text-orange-600 transition-colors">{toTitleCase(member.name)}</h3>
+                                                        <div className="flex flex-wrap items-center gap-2">
+                                                            <h3 className="text-lg md:text-xl font-bold text-slate-800 group-hover:text-orange-600 transition-colors">{toTitleCase(member.name)}</h3>
+                                                            {member.is_approved !== undefined && !Boolean(member.is_approved) && (
+                                                                <span
+                                                                    title="Awaiting admin approval — this member can't be selected on warranty forms yet."
+                                                                    className="text-[9px] font-black uppercase tracking-wider bg-amber-100 text-amber-700 border border-amber-200 px-2 py-0.5 rounded-full"
+                                                                >
+                                                                    Pending Approval
+                                                                </span>
+                                                            )}
+                                                        </div>
                                                         <p className="text-[9px] md:text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">ID: {member.manpower_id}</p>
                                                     </div>
                                                     <div className="space-y-2">
@@ -429,6 +562,11 @@ export const StaffManagement = ({
                                                     <div className="min-w-0">
                                                         <h4 className="font-bold text-slate-800 group-hover:text-orange-600 transition-colors truncate">{toTitleCase(member.name)}</h4>
                                                         <p className="text-[9px] md:text-[10px] font-bold text-slate-400 uppercase truncate">ID: {member.manpower_id}</p>
+                                                        {member.request_reason && (awaitingRemoval(member) || member.request_type === 'restore') && (
+                                                            <p className={`text-[10px] italic mt-0.5 line-clamp-2 ${awaitingRemoval(member) ? 'text-rose-600' : 'text-orange-600'}`}>
+                                                                {awaitingRemoval(member) ? 'Removal reason' : 'Restore reason'}: {member.request_reason}
+                                                            </p>
+                                                        )}
                                                     </div>
                                                 </div>
                                                 <div className="col-span-12 md:col-span-2 text-xs md:text-sm font-bold text-slate-500 flex items-center gap-2">
@@ -453,7 +591,7 @@ export const StaffManagement = ({
                                                     <Button variant="ghost" size="icon" onClick={() => handleEditClick(member)} className="h-9 w-9 md:h-10 md:w-10 rounded-xl text-slate-400 hover:bg-orange-50 hover:text-orange-600">
                                                         <Edit2 className="h-3.5 w-3.5 md:h-4 md:w-4" />
                                                     </Button>
-                                                    <Button variant="ghost" size="icon" onClick={() => onDelete(member.id)} className="h-9 w-9 md:h-10 md:w-10 rounded-xl text-slate-400 hover:bg-red-50 hover:text-red-600">
+                                                    <Button variant="ghost" size="icon" onClick={() => openRequestDialog(member, "remove")} className="h-9 w-9 md:h-10 md:w-10 rounded-xl text-slate-400 hover:bg-red-50 hover:text-red-600">
                                                         <Trash2 className="h-3.5 w-3.5 md:h-4 md:w-4" />
                                                     </Button>
                                                 </div>
@@ -467,7 +605,9 @@ export const StaffManagement = ({
                     {filteredCurrent.length === 0 && (
                         <div className="col-span-full py-20 text-center border-2 border-dashed border-slate-100 rounded-[32px] bg-slate-50/50 mt-6">
                             <Users className="h-10 w-10 text-slate-200 mx-auto mb-3" />
-                            <p className="text-slate-400 font-bold uppercase text-xs tracking-widest">No team members found</p>
+                            <p className="text-slate-400 font-bold uppercase text-xs tracking-widest">
+                                {activeTab === 'pending' ? 'No members awaiting approval' : 'No team members found'}
+                            </p>
                         </div>
                     )}
 
@@ -520,6 +660,16 @@ export const StaffManagement = ({
                                                 </div>
                                             )}
                                         </div>
+
+                                        {onRestore && (
+                                            <Button
+                                                variant="outline"
+                                                onClick={() => openRequestDialog(member, "restore")}
+                                                className="w-full mt-4 rounded-2xl border-orange-200 text-orange-600 hover:bg-orange-50 hover:text-orange-700 font-bold text-xs"
+                                            >
+                                                <RefreshCw className="h-3.5 w-3.5 mr-2" /> Restore to Team
+                                            </Button>
+                                        )}
                                     </div>
                                 </Card>
                             ))}
@@ -551,6 +701,16 @@ export const StaffManagement = ({
                                                 </div>
                                             )}
                                             <Badge variant="outline" className="text-[8px] md:text-[9px] font-black uppercase tracking-widest bg-slate-100 border-slate-200 text-slate-400 h-fit px-3 py-1">Inactive</Badge>
+                                            {onRestore && (
+                                                <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    onClick={() => openRequestDialog(member, "restore")}
+                                                    className="rounded-xl border-orange-200 text-orange-600 hover:bg-orange-50 hover:text-orange-700 font-bold text-[10px] md:text-xs h-8 shrink-0"
+                                                >
+                                                    <RefreshCw className="h-3 w-3 mr-1.5" /> Restore
+                                                </Button>
+                                            )}
                                         </div>
                                     </div>
                                 </Card>
@@ -577,6 +737,51 @@ export const StaffManagement = ({
                     )}
                 </TabsContent>
             </Tabs>
+
+            {/* Removal request — a store asks, an admin decides */}
+            <Dialog open={!!removeTarget} onOpenChange={(open) => { if (!open) closeRequestDialog(); }}>
+                <DialogContent className="sm:max-w-[460px]">
+                    <DialogHeader>
+                        <DialogTitle>{removeMode === "restore" ? "Request Restore" : "Request Removal"}</DialogTitle>
+                        <DialogDescription>
+                            {removeMode === "restore"
+                                ? <>Bringing a member back needs admin approval. Tell us why{removeTarget ? ` ${toTitleCase(removeTarget.name)}` : ""} should rejoin — they stay in Ex-Team until the request is approved.</>
+                                : <>Removing a team member needs admin approval. Tell us why{removeTarget ? ` ${toTitleCase(removeTarget.name)}` : ""} should be removed — they stay on your team until the request is approved.</>}
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <div className="space-y-2 py-2">
+                        <label className="text-xs font-bold text-slate-600 uppercase tracking-wider">Reason *</label>
+                        <textarea
+                            value={removeReason}
+                            onChange={(e) => setRemoveReason(e.target.value)}
+                            placeholder={removeMode === "restore"
+                                ? "e.g. Rejoined the store, was removed by mistake, back from leave..."
+                                : "e.g. Resigned, no longer with the store, moved to another branch..."}
+                            rows={4}
+                            maxLength={500}
+                            className="w-full rounded-xl border border-slate-200 p-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500/20 focus-visible:border-orange-400"
+                        />
+                        <p className="text-[11px] text-slate-400">{removeReason.length}/500</p>
+                    </div>
+
+                    <DialogFooter className="gap-2">
+                        <Button variant="outline" onClick={closeRequestDialog}>
+                            Cancel
+                        </Button>
+                        <Button
+                            onClick={submitRemovalRequest}
+                            disabled={!removeReason.trim() || removing}
+                            className={removeMode === "restore"
+                                ? "bg-orange-600 hover:bg-orange-700 text-white"
+                                : "bg-rose-600 hover:bg-rose-700 text-white"}
+                        >
+                            {removing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                            Send Request
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 };

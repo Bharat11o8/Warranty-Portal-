@@ -631,46 +631,64 @@ export class VendorController {
 
       const vendorId = vendorDetails[0].id;
 
-      // Soft delete: Set is_active to FALSE and record removal timestamp
-      const [result]: any = await db.execute(
-        `UPDATE manpower 
-         SET is_active = FALSE, removed_at = NOW(), removed_reason = ?
-         WHERE id = ? AND vendor_id = ?`,
-        [reason || null, id, vendorId]
-      );
+      // Removal is no longer immediate: the franchise RAISES A REQUEST with a
+      // reason and an admin approves it. The member stays active meanwhile.
+      if (!reason || !String(reason).trim()) {
+        return res.status(400).json({ error: 'Please provide a reason for the removal request.' });
+      }
 
-      if (result.affectedRows === 0) {
+      const [rows]: any = await db.execute(
+        'SELECT id, name, is_active, request_status, request_type FROM manpower WHERE id = ? AND vendor_id = ?',
+        [id, vendorId]
+      );
+      if (rows.length === 0) {
         return res.status(404).json({ error: 'Manpower entry not found or unauthorized' });
       }
+      const member = rows[0];
+
+      if (!member.is_active) {
+        return res.status(400).json({ error: `${member.name} is already removed from your team.` });
+      }
+      if (member.request_status === 'pending') {
+        return res.status(400).json({
+          error: `A ${member.request_type} request for ${member.name} is already awaiting admin review.`
+        });
+      }
+
+      await db.execute(
+        `UPDATE manpower
+         SET request_type = 'remove', request_reason = ?, requested_at = NOW(),
+             request_status = 'pending', request_reviewed_at = NULL,
+             request_reviewed_by = NULL, request_review_note = NULL
+         WHERE id = ? AND vendor_id = ?`,
+        [String(reason).trim().substring(0, 500), id, vendorId]
+      );
 
       res.json({
         success: true,
-        message: 'Manpower archived successfully'
+        message: `Removal request raised for ${member.name} — awaiting admin approval`
       });
 
-      // Notify Admin about manpower removal
+      // Let admins know there's a removal request waiting for review.
       try {
-        // Fetch Store Name and Manpower Name for context
-        // Note: we might need to fetch before update if we want the name, but let's try to fetch active=false record or just use generic message if strictly needed. 
-        // Actually, let's just say "A staff member was removed". Or better, query the manpower details we just updated.
         const [mp]: any = await db.execute('SELECT name, manpower_id, vendor_id FROM manpower WHERE id = ?', [id]);
         if (mp.length > 0) {
           const [store]: any = await db.execute('SELECT store_name FROM vendor_details WHERE id = ?', [mp[0].vendor_id]);
           const storeName = store[0]?.store_name || 'Vendor';
 
           await NotificationService.broadcast({
-            title: 'Staff Member Removed',
-            message: `${storeName} has removed staff member: ${mp[0].name} (${mp[0].manpower_id}). Reason: ${reason || 'None provided'}`,
+            title: 'Staff Removal Requested',
+            message: `${storeName} has requested removal of ${mp[0].name} (${mp[0].manpower_id}). Reason: ${String(reason).trim()}`,
             type: 'warranty',
             targetRole: 'admin'
           });
         }
       } catch (e) {
-        console.error("Failed to notify admin of manpower removal", e);
+        console.error("Failed to notify admin of manpower removal request", e);
       }
     } catch (error: any) {
-      console.error('Remove manpower error:', error);
-      res.status(500).json({ error: 'Failed to remove manpower' });
+      console.error('Remove manpower request error:', error);
+      res.status(500).json({ error: 'Failed to raise removal request' });
     }
   }
 
@@ -685,6 +703,7 @@ export class VendorController {
     try {
       const userId = (req as any).user?.id;
       const { id } = req.params;
+      const { reason } = req.body || {};
 
       if (!userId) {
         return res.status(401).json({ error: 'User not authenticated' });
@@ -707,11 +726,11 @@ export class VendorController {
 
       const [rows]: any = isAdmin
         ? await db.execute(
-            'SELECT id, name, phone_number, is_active, vendor_id FROM manpower WHERE id = ?',
+            'SELECT id, name, phone_number, is_active, vendor_id, request_status, request_type FROM manpower WHERE id = ?',
             [id]
           )
         : await db.execute(
-            'SELECT id, name, phone_number, is_active, vendor_id FROM manpower WHERE id = ? AND vendor_id = ?',
+            'SELECT id, name, phone_number, is_active, vendor_id, request_status, request_type FROM manpower WHERE id = ? AND vendor_id = ?',
             [id, vendorId]
           );
       if (rows.length === 0) {
@@ -740,26 +759,58 @@ export class VendorController {
         });
       }
 
-      // Back on the team, but pending admin approval again.
+      // An admin restores immediately; a franchise raises a request for review.
+      if (isAdmin) {
+        await db.execute(
+          `UPDATE manpower
+           SET is_active = TRUE, removed_at = NULL, removed_reason = NULL,
+               is_approved = FALSE, approved_at = NULL, approved_by = NULL,
+               request_type = NULL, request_reason = NULL, requested_at = NULL,
+               request_status = NULL, request_reviewed_at = NULL,
+               request_reviewed_by = NULL, request_review_note = NULL
+           WHERE id = ? AND vendor_id = ?`,
+          [id, vendorId]
+        );
+        res.json({ success: true, message: `${member.name} restored — awaiting approval to become selectable` });
+        return;
+      }
+
+      if (member.request_status === 'pending') {
+        return res.status(400).json({
+          error: `A ${member.request_type} request for ${member.name} is already awaiting admin review.`
+        });
+      }
+
+      if (!reason || !String(reason).trim()) {
+        return res.status(400).json({ error: 'Please provide a reason for the restore request.' });
+      }
+
+      // A restore is logically "adding them back", so the member returns to the
+      // team as NOT approved — landing in the normal pending-approval queue that
+      // new staff use, rather than a separate request list. The reason is kept
+      // so the reviewing admin can see why the store wants them back.
       await db.execute(
         `UPDATE manpower
          SET is_active = TRUE, removed_at = NULL, removed_reason = NULL,
-             is_approved = FALSE, approved_at = NULL, approved_by = NULL
+             is_approved = FALSE, approved_at = NULL, approved_by = NULL,
+             request_type = 'restore', request_reason = ?, requested_at = NOW(),
+             request_status = NULL, request_reviewed_at = NULL,
+             request_reviewed_by = NULL, request_review_note = NULL
          WHERE id = ? AND vendor_id = ?`,
-        [id, vendorId]
+        [String(reason).trim().slice(0, 500), id, vendorId]
       );
 
       res.json({
         success: true,
-        message: `${member.name} restored — awaiting admin approval`
+        message: `${member.name} moved back to your team — awaiting admin approval`
       });
 
-      // Let admins know there's a new approval request waiting.
+      // Let admins know there's a restore request waiting.
       try {
         const [store]: any = await db.execute('SELECT store_name FROM vendor_details WHERE id = ?', [vendorId]);
         await NotificationService.broadcast({
-          title: 'Staff Restored — Approval Needed',
-          message: `${store[0]?.store_name || 'A store'} restored ${member.name} to their team. Approve them to make them selectable again.`,
+          title: 'Staff Restore Requested',
+          message: `${store[0]?.store_name || 'A store'} has requested to restore ${member.name} to their team. Reason: ${String(reason).trim()}`,
           type: 'warranty',
           targetRole: 'admin'
         });
