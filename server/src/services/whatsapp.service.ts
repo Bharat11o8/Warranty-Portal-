@@ -2,6 +2,7 @@ import axios from 'axios';
 import db from '../config/database.js';
 import { v4 as uuidv4 } from 'uuid';
 import dotenv from 'dotenv';
+import { isContextEnabled } from './notificationSettings.service.js';
 
 dotenv.config();
 
@@ -76,6 +77,30 @@ export class WhatsAppService {
     ): Promise<boolean> {
         const logId = uuidv4();
         const { countryCode, phoneNumber } = this.formatPhoneNumber(phone);
+
+        // Admin toggle gate. Checked here rather than at each call site so no
+        // sender can bypass it. Skipped messages are logged as 'failed' with a
+        // clear reason so the admin UI can show them as suppressed, not broken.
+        try {
+            if (!(await isContextEnabled(context))) {
+                console.log(`[WhatsApp] Skipped "${templateName}" — "${context}" is turned off by admin.`);
+                await this.logMessage({
+                    id: logId,
+                    recipient_phone: `${countryCode}${phoneNumber}`,
+                    channel: 'whatsapp',
+                    template_name: templateName,
+                    status: 'failed',
+                    context,
+                    reference_id: referenceId,
+                    error_message: 'Skipped: disabled by admin',
+                    campaign_id: campaignId
+                });
+                return false;
+            }
+        } catch (gateErr) {
+            // A settings failure must never block messaging — fail open.
+            console.error('[WhatsApp] Toggle check failed, allowing send:', gateErr);
+        }
 
         if (!this.API_KEY) {
             console.error('[WhatsApp] Configuration missing. Set INTERAKT_API_KEY in .env');
@@ -432,6 +457,47 @@ export class WhatsAppService {
             'af_warranty_approved_customer',
             [customerName, productName, registrationNumber, uid, storeName, status, purchaseDate, warrantyType],
             'warranty_approved_customer',
+            uid
+        );
+    }
+
+    /**
+     * Notify the INSTALLER (manpower) that a warranty they fitted was approved.
+     * Template: af_manpower_warranty_approved_2
+     *   {{1}} = Installer Name
+     *   {{2}} = Product Name
+     *   {{3}} = Customer Name
+     *   {{4}} = Total approved warranties for this installer (includes this one)
+     *
+     * Full text:
+     *   "Hi {{1}}
+     *    Good news! The warranty for {{2}} installed by you has been approved
+     *    for the customer {{3}}. Credited to your profile
+     *    Total approved installations: {{4}}"
+     *
+     * Gated by the 'manpower_warranty_approved' admin toggle, which ships OFF
+     * until the template is approved in Interakt.
+     */
+    static async sendManpowerWarrantyApproved(
+        phone: string,
+        installerName: string,
+        productName: string,
+        customerName: string,
+        uid: string,
+        totalApproved: number | string
+    ): Promise<boolean> {
+        // Names are stored with inconsistent casing ("SAGAR PATEL", "Jayesh bhai"),
+        // so normalise them here rather than shouting at the recipient.
+        const titleCase = (s: string) =>
+            String(s || '')
+                .toLowerCase()
+                .replace(/\b[a-z]/g, ch => ch.toUpperCase());
+
+        return this.sendTemplateMessage(
+            phone,
+            'af_manpower_warranty_approved_2',
+            [titleCase(installerName), productName, titleCase(customerName), String(totalApproved)],
+            'manpower_warranty_approved',
             uid
         );
     }
