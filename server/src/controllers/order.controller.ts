@@ -530,6 +530,9 @@ export class OrderController {
 
     static async createOrder(req: Request, res: Response) {
         const connection = await db.getConnection();
+        // Released early once the order is committed so the pooled connection is
+        // not held for the duration of the background notification work.
+        let orderConnectionReleased = false;
         try {
             const user = (req as any).user;
             const { items, shippingAddress, shippingCity, shippingState, shippingPincode, additionalRemarks } = req.body;
@@ -723,8 +726,28 @@ export class OrderController {
             }
 
             await connection.commit();
+            // The order is durable from here, so release the pooled connection and
+            // answer the user now. Everything below is notification work.
+            connection.release();
+            orderConnectionReleased = true;
 
-            // 4. Generate PDF + email per distributor sub-order (after commit — non-critical)
+            res.status(201).json({
+                success: true,
+                message: createdOrders.length > 1
+                    ? `Order placed and split across ${createdOrders.length} distributors. They have been notified.`
+                    : 'Order placed successfully. Your distributor has been notified.',
+                orderGroupId,
+                orders: createdOrders.map(o => ({ id: o.orderId, distributorName: o.distributor.name, totalAmount: o.totalAmount, itemCount: o.orderItems.length }))
+            });
+
+            // 4. PDF + email + WhatsApp per sub-order.
+            //
+            // These used to be awaited before responding, so the franchise sat on a
+            // spinner through PDF generation, two SMTP handshakes and two WhatsApp
+            // calls per distributor — several seconds, and worse for a split order.
+            // None of it affects whether the order exists, so it now runs detached
+            // and failures are logged rather than surfaced.
+            void (async () => {
             for (const { orderId, distributor, orderItems, totalAmount } of createdOrders) {
                 const order = {
                     id: orderId, status: 'processing', total_amount: totalAmount,
@@ -871,21 +894,22 @@ export class OrderController {
                 }
             }
 
-            res.status(201).json({
-                success: true,
-                message: createdOrders.length > 1
-                    ? `Order placed and split across ${createdOrders.length} distributors. They have been notified.`
-                    : 'Order placed successfully. Your distributor has been notified.',
-                orderGroupId,
-                orders: createdOrders.map(o => ({ id: o.orderId, distributorName: o.distributor.name, totalAmount: o.totalAmount, itemCount: o.orderItems.length }))
-            });
+            })().catch(err =>
+                console.error('[Order] Background notification task failed (non-critical):', err)
+            );
 
         } catch (error: any) {
-            await connection.rollback();
-            console.error('Create order error:', error);
-            res.status(500).json({ error: 'Failed to create order' });
+            // Only roll back if we still own the transaction. Past the commit the
+            // response is already sent, so failures there must not touch it.
+            if (!orderConnectionReleased) {
+                await connection.rollback();
+                console.error('Create order error:', error);
+                res.status(500).json({ error: 'Failed to create order' });
+            } else {
+                console.error('[Order] Post-commit error (order was created):', error);
+            }
         } finally {
-            connection.release();
+            if (!orderConnectionReleased) connection.release();
         }
     }
 
