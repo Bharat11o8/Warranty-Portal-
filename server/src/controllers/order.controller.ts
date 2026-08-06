@@ -581,12 +581,25 @@ export class OrderController {
                 // sell this product's category AND brand. A franchise may have several
                 // distributors covering the same category (admin-managed), so if more
                 // than one qualifies we route to the first match.
+                // Per-mapping limits (franchise_distributor_categories) narrow what
+                // THIS franchise may buy from THIS distributor. No rows for a pair
+                // means "inherit everything the distributor sells", so existing
+                // mappings are unaffected.
                 const [routeRows]: any = await connection.execute(
                     `SELECT d.* FROM franchise_distributors fd
                      JOIN distributor_allowed_categories dac ON dac.distributor_id = fd.distributor_id
                      JOIN distributors d ON d.id = fd.distributor_id
                      WHERE fd.franchise_user_id = ? AND dac.category_id = ?
                        AND (d.allowed_brands = 'AFAC' OR d.allowed_brands = ?)
+                       AND (
+                         fd.category_scope = 'all'
+                         OR EXISTS (
+                           SELECT 1 FROM franchise_distributor_categories fdc
+                           WHERE fdc.franchise_user_id = fd.franchise_user_id
+                             AND fdc.distributor_id = fd.distributor_id
+                             AND fdc.category_id = dac.category_id
+                         )
+                       )
                      LIMIT 1`,
                     [user.id, prodRows[0].category_id, prodRows[0].brand]
                 );
@@ -1224,7 +1237,18 @@ export class OrderController {
                         GROUP_CONCAT(sc.name ORDER BY sc.name SEPARATOR ', ') as allowed_category_names
                  FROM franchise_distributors fd
                  JOIN distributors d ON d.id = fd.distributor_id
+                 -- Show the EFFECTIVE categories for this franchise: the distributor's
+                 -- list, narrowed by any per-mapping limit the admin has set.
                  LEFT JOIN distributor_allowed_categories dac ON dac.distributor_id = d.id
+                    AND (
+                      fd.category_scope = 'all'
+                      OR EXISTS (
+                        SELECT 1 FROM franchise_distributor_categories fdc
+                        WHERE fdc.franchise_user_id = fd.franchise_user_id
+                          AND fdc.distributor_id = fd.distributor_id
+                          AND fdc.category_id = dac.category_id
+                      )
+                    )
                  LEFT JOIN store_categories sc ON sc.id = dac.category_id
                  WHERE fd.franchise_user_id = ?
                  GROUP BY d.id, d.name, d.city, d.state, d.phone_number, d.email, d.allowed_brands
@@ -1281,6 +1305,18 @@ export class OrderController {
                     AND di.distributor_id = fd.distributor_id
                  WHERE fd.franchise_user_id = ?
                    AND (d.allowed_brands = 'AFAC' OR d.allowed_brands = sp.brand)
+                   -- Per-mapping limit: 'all' inherits the distributor's full
+                   -- range; 'selected' allows only the listed categories (which
+                   -- may legitimately be none).
+                   AND (
+                     fd.category_scope = 'all'
+                     OR EXISTS (
+                       SELECT 1 FROM franchise_distributor_categories fdc
+                       WHERE fdc.franchise_user_id = fd.franchise_user_id
+                         AND fdc.distributor_id = fd.distributor_id
+                         AND fdc.category_id = dac.category_id
+                     )
+                   )
                    ${brandFilterClause}
                  ORDER BY sp.name ASC, spv.name ASC`,
                 [user.id, ...brandFilterParams]

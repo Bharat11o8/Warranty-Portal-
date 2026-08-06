@@ -13,6 +13,7 @@ import { AdminHome } from "../modules/AdminHome";
 import { AdminWarranties } from "../modules/AdminWarranties";
 import { AdminVendors } from "../modules/AdminVendors";
 import { AdminDistributors } from "../modules/AdminDistributors";
+import { AdminManpower } from "../modules/AdminManpower";
 import { AdminCustomers } from "../modules/AdminCustomers";
 import { AdminAdmins } from "../modules/AdminAdmins";
 import { AdminActivityLogs } from "../modules/AdminActivityLogs";
@@ -22,6 +23,8 @@ import { AdminTerms } from "../modules/AdminTerms";
 import { AdminContentManager } from "../modules/AdminContentManager";
 import { AdminWarrantyForm } from "../modules/AdminWarrantyForm";
 import { AdminAnnouncements } from "../modules/AdminAnnouncements";
+import { AdminNotificationSettings } from "../modules/AdminNotificationSettings";
+import { AdminFranchiseDistributorMap } from "../modules/AdminFranchiseDistributorMap";
 import { AdminOldWarranties } from "../modules/AdminOldWarranties";
 import { AdminWarrantyProducts } from "../modules/AdminWarrantyProducts";
 import { AdminPOSM } from "../modules/AdminPOSM";
@@ -62,6 +65,7 @@ export const AdminLayout = () => {
             case 'warranties': return <AdminWarranties />;
             case 'vendors': return <AdminVendors />;
             case 'distributors': return <AdminDistributors />;
+            case 'manpower': return <AdminManpower />;
             case 'customers': return <AdminCustomers />;
             case 'warranty-products': return <AdminWarrantyProducts />;
             case 'old-warranties': return <AdminOldWarranties />;
@@ -78,6 +82,10 @@ export const AdminLayout = () => {
                 return <AdminWarrantyForm />;
             case 'announcements':
                 return <AdminAnnouncements />;
+            case 'notification-settings':
+                return <AdminNotificationSettings />;
+            case 'franchise-distributor-map':
+                return <AdminFranchiseDistributorMap />;
             case 'posm':
                 return <AdminPOSM />;
             case 'uid-management':
@@ -99,6 +107,7 @@ export const AdminLayout = () => {
             'old-warranties': 'Archived Records',
             'vendors': 'Franchise Network',
             'distributors': 'Distributor Network',
+            'manpower': 'Manpower & Leaderboard',
             'customers': 'Customer Database',
             'admins': 'Access Control',
             'activity-logs': 'System Audit',
@@ -109,10 +118,12 @@ export const AdminLayout = () => {
             'content-manager': 'Form Content Manager',
             'warranty-form': 'Manual Registration',
             'announcements': 'Broadcast & Announcements',
+            'notification-settings': 'WhatsApp Message Controls',
             'posm': 'POSM Requirements',
             'uid-management': 'Product UID Management',
             'ecatalogue': 'E-Catalogue CMS',
             'order-management': 'B2B Order Hierarchy',
+            'franchise-distributor-map': 'Franchise Sourcing Map',
             'profile': 'My Profile'
         };
         return titles[activeModule];

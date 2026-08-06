@@ -18,7 +18,9 @@ import {
     BookOpen,
     Crown,
     Network,
-    Building2
+    Building2,
+    BellRing,
+    Layers
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNotifications } from "@/contexts/NotificationContext";
@@ -34,6 +36,7 @@ export type AdminModule =
     | 'overview'
     | 'vendors'
     | 'distributors'
+    | 'manpower'
     | 'customers'
     | 'products'
     | 'warranty-products'
@@ -47,11 +50,13 @@ export type AdminModule =
     | 'content-manager'
     | 'warranty-form'
     | 'announcements'
+    | 'notification-settings'
     | 'posm'
     | 'uid-management'
     | 'ecatalogue'
     | 'analytics'
     | 'order-management'
+    | 'franchise-distributor-map'
     | 'profile';
 
 interface SidebarItemProps {
@@ -136,9 +141,11 @@ const moduleToPermKey: Record<string, string> = {
     'warranty-form': 'warranty_form',
     'vendors': 'vendors',
     'distributors': 'vendors',
+    'manpower': 'vendors',
     'customers': 'customers',
     'products': 'products',
     'announcements': 'announcements',
+    'notification-settings': 'announcements',
     'grievances': 'grievances',
     'posm': 'posm',
     'ecatalogue': 'ecatalogue',
@@ -149,6 +156,7 @@ const moduleToPermKey: Record<string, string> = {
     'admins': 'admins',   // Super Admin only
     'analytics': 'overview',
     'order-management': 'vendors',
+    'franchise-distributor-map': 'vendors',
     'profile': 'profile',  // Always visible
 };
 
@@ -205,15 +213,18 @@ export const SidebarContent = ({
             items: [
                 { id: 'vendors' as const, label: "Franchises", icon: Store },
                 { id: 'distributors' as const, label: "Distributors", icon: Building2 },
+                { id: 'manpower' as const, label: "Manpower", icon: Users },
                 { id: 'customers' as const, label: "Customers", icon: Users },
                 { id: 'products' as const, label: "Product Catalogue", icon: Package },
                 { id: 'order-management' as const, label: "Order Management", icon: Network },
+                { id: 'franchise-distributor-map' as const, label: "Sourcing Map", icon: Layers },
             ]
         },
         {
             label: "Communication",
             items: [
                 { id: 'announcements' as const, label: "Announcements", icon: Megaphone },
+                { id: 'notification-settings' as const, label: "WhatsApp Messages", icon: BellRing },
                 {
                     id: 'grievances' as const,
                     label: "Grievances",
