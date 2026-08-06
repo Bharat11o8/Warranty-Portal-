@@ -80,7 +80,8 @@ export class PublicController {
 
             // Also fetch installers/manpower for this store
             const [manpower]: any = await db.execute(
-                'SELECT id, name, manpower_id, applicator_type FROM manpower WHERE vendor_id = ? AND is_active = TRUE ORDER BY name ASC',
+                // Only admin-approved staff can be picked as the installer.
+                'SELECT id, name, manpower_id, applicator_type FROM manpower WHERE vendor_id = ? AND is_active = TRUE AND is_approved = TRUE ORDER BY name ASC',
                 [stores[0].vendor_details_id]
             );
 
@@ -104,7 +105,8 @@ export class PublicController {
             }
 
             const [manpower]: any = await db.execute(
-                'SELECT id, name, manpower_id, applicator_type FROM manpower WHERE vendor_id = ? AND is_active = TRUE ORDER BY name ASC',
+                // Only admin-approved staff can be picked as the installer.
+                'SELECT id, name, manpower_id, applicator_type FROM manpower WHERE vendor_id = ? AND is_active = TRUE AND is_approved = TRUE ORDER BY name ASC',
                 [vendorDetailsId]
             );
 

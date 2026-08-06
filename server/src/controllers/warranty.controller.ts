@@ -49,6 +49,21 @@ export class WarrantyController {
       if (warrantyData.carMake) warrantyData.carMake = String(warrantyData.carMake).substring(0, 100);
       if (warrantyData.carModel) warrantyData.carModel = String(warrantyData.carModel).substring(0, 100);
       if (warrantyData.carYear) warrantyData.carYear = String(warrantyData.carYear).substring(0, 4);
+
+      // Staff must be admin-approved before they can be credited as the installer.
+      // The picker already hides pending staff; this is the server-side guard.
+      // 'owner' is the store-owner sentinel, not a manpower row, so it's exempt.
+      if (warrantyData.manpowerId && warrantyData.manpowerId !== 'owner') {
+        const [mpRows]: any = await db.execute(
+          'SELECT is_approved, is_active, name FROM manpower WHERE id = ?',
+          [warrantyData.manpowerId]
+        );
+        if (mpRows.length > 0 && !mpRows[0].is_approved) {
+          return res.status(400).json({
+            error: `${mpRows[0].name} is still awaiting admin approval and cannot be selected as the installer yet.`
+          });
+        }
+      }
       if (warrantyData.warrantyType) warrantyData.warrantyType = String(warrantyData.warrantyType).substring(0, 50);
 
       // Handle uploaded files

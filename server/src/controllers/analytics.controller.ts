@@ -110,14 +110,24 @@ export class AnalyticsController {
                 db.execute(`
                     SELECT 
                         (
+                            -- A warranty is attributed to a store by any of three paths
+                            -- (same as the admin vendor list): its manpower, an installer
+                            -- name+email match, or the submitting user. Counting only the
+                            -- first two under-reported participation.
                             SELECT COUNT(DISTINCT vd.id)
                             FROM vendor_details vd
-                            WHERE EXISTS (
-                                SELECT 1 FROM warranty_registrations wr WHERE wr.user_id = vd.user_id
-                            ) OR EXISTS (
-                                SELECT 1 FROM manpower m
-                                JOIN warranty_registrations wr ON wr.manpower_id = m.id
-                                WHERE m.vendor_id = vd.id
+                            WHERE vd.is_franchise = 1 AND (
+                                EXISTS (
+                                    SELECT 1 FROM warranty_registrations wr WHERE wr.user_id = vd.user_id
+                                ) OR EXISTS (
+                                    SELECT 1 FROM manpower m
+                                    JOIN warranty_registrations wr ON wr.manpower_id = m.id
+                                    WHERE m.vendor_id = vd.id
+                                ) OR EXISTS (
+                                    SELECT 1 FROM warranty_registrations wr
+                                    WHERE wr.installer_name = vd.store_name
+                                      AND wr.installer_contact = vd.store_email
+                                )
                             )
                         ) as warranty_participation,
                         (SELECT COUNT(DISTINCT customer_id) FROM grievances WHERE source_type = 'franchise') as grievance_participation,
