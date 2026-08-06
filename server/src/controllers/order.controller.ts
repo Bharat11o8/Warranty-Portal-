@@ -581,13 +581,22 @@ export class OrderController {
                 }
 
                 // Resolve a distributor assigned to this franchise that is allowed to
-                // sell this product's category AND brand. A franchise may have several
-                // distributors covering the same category (admin-managed), so if more
-                // than one qualifies we route to the first match.
+                // sell this product's category AND brand.
+                //
+                // When the client pins the distributor the item was browsed from we
+                // honour it. Several of a franchise's distributors can stock the same
+                // category, and picking "the first match" routed orders to a
+                // distributor the franchise never chose — which then failed on stock
+                // it was never expected to hold.
+                //
                 // Per-mapping limits (franchise_distributor_categories) narrow what
                 // THIS franchise may buy from THIS distributor. No rows for a pair
                 // means "inherit everything the distributor sells", so existing
                 // mappings are unaffected.
+                const pinnedDistributorId = typeof item.distributorId === 'string' && item.distributorId
+                    ? item.distributorId
+                    : null;
+
                 const [routeRows]: any = await connection.execute(
                     `SELECT d.* FROM franchise_distributors fd
                      JOIN distributor_allowed_categories dac ON dac.distributor_id = fd.distributor_id
@@ -603,13 +612,22 @@ export class OrderController {
                              AND fdc.category_id = dac.category_id
                          )
                        )
+                       ${pinnedDistributorId ? 'AND fd.distributor_id = ?' : ''}
                      LIMIT 1`,
-                    [user.id, prodRows[0].category_id, prodRows[0].brand]
+                    pinnedDistributorId
+                        ? [user.id, prodRows[0].category_id, prodRows[0].brand, pinnedDistributorId]
+                        : [user.id, prodRows[0].category_id, prodRows[0].brand]
                 );
 
                 if (routeRows.length === 0) {
                     await connection.rollback();
-                    return res.status(400).json({ error: `No distributor available for "${prodRows[0].name}". Contact your admin.` });
+                    // A pinned distributor that no longer qualifies means the client's
+                    // catalogue is stale (mapping or category limit changed since).
+                    return res.status(400).json({
+                        error: pinnedDistributorId
+                            ? `"${prodRows[0].name}" is no longer available from the selected distributor. Refresh the catalogue and try again.`
+                            : `No distributor available for "${prodRows[0].name}". Contact your admin.`
+                    });
                 }
                 const distributor = routeRows[0];
 

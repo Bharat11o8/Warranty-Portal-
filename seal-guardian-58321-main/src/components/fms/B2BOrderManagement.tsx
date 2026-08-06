@@ -133,6 +133,10 @@ type PendingReplenishItem = {
   categoryId?: string;
   categoryName?: string;
   canCustomize: boolean;
+  // Carried through so the order is placed with the distributor the item was
+  // actually browsed from, not one re-derived from its category.
+  distributorId?: string;
+  distributorName?: string;
 };
 
 const hasMeaningfulOrderText = (value?: string | null) => {
@@ -1477,7 +1481,9 @@ const B2BOrderManagement: React.FC = () => {
         customizationRemarks: '',
         categoryId,
         categoryName: categoryId ? categoryMap[categoryId] : undefined,
-        canCustomize: isSeatCoverCategory(categoryId)
+        canCustomize: isSeatCoverCategory(categoryId),
+        distributorId: stockItem.distributor_id,
+        distributorName: stockItem.distributor_name
       });
     }
     
@@ -1520,6 +1526,8 @@ const B2BOrderManagement: React.FC = () => {
         sku: item.sku,
         needsCustomization: item.canCustomize && item.needsCustomization,
         customizationRemarks: item.canCustomize && item.needsCustomization ? item.customizationRemarks : '',
+        distributorId: item.distributorId,
+        distributorName: item.distributorName,
       }, item.quantity);
     }
     setReplenishQtys({});
