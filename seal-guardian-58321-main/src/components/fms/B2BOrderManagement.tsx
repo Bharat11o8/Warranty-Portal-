@@ -1463,8 +1463,13 @@ const B2BOrderManagement: React.FC = () => {
       if (qty <= 0) continue;
       const [productId, variationPart] = key.split('::');
       const variationId = variationPart || null;
+      // The same product appears once per distributor that sells its category,
+      // so this must be scoped to the distributor currently being ordered from.
+      // Without it, .find() returns whichever row comes first and the item gets
+      // added — and later ordered — against the wrong distributor.
       const stockItem = distributorStock.find(
         (s: any) => s.product_id === productId && s.variation_id === variationId
+          && (!focusedDistId || s.distributor_id === focusedDistId)
       );
       if (!stockItem) continue;
       const categoryId = stockItem.category_id || undefined;

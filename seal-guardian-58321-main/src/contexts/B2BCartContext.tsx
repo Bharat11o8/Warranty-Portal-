@@ -132,10 +132,13 @@ export const B2BCartProvider: React.FC<{ children: React.ReactNode }> = ({ child
           if (!prev.some(i => !i.distributorId)) return prev;
           return prev.map(i => {
             if (i.distributorId) return i;
-            const match = inventory.find((s: any) =>
+            // Only backfill when exactly one distributor sells this line. If
+            // several do, guessing would pin the wrong one — leave it unset and
+            // let the server fall back rather than silently choose.
+            const matches = inventory.filter((s: any) =>
               s.product_id === i.productId && (s.variation_id ?? null) === (i.variationId ?? null));
-            return match
-              ? { ...i, distributorId: match.distributor_id, distributorName: match.distributor_name }
+            return matches.length === 1
+              ? { ...i, distributorId: matches[0].distributor_id, distributorName: matches[0].distributor_name }
               : i;
           });
         });
