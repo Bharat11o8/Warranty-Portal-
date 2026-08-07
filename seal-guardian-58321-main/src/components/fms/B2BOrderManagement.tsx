@@ -9,7 +9,8 @@ import {
   Download, XCircle, Search, Building2, MapPin, Phone, Mail,
   CheckCircle2, Clock, Truck, AlertCircle, Ban, ChevronDown, ChevronUp,
   ShoppingCart, FileText, Warehouse, TrendingUp, BarChart3, Info,
-  Car, Settings, LayoutList, Lightbulb, Volume2, Wind, Eye, Send, ArrowLeft, Pencil, Upload, MessageSquare
+  Car, Settings, LayoutList, Lightbulb, Volume2, Wind, Eye, Send, ArrowLeft, Pencil, Upload, MessageSquare,
+  Loader2
 } from 'lucide-react';
 import { cn, downloadCSV } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
@@ -1625,20 +1626,74 @@ const B2BOrderManagement: React.FC = () => {
 
   // â"€â"€ PDF Download â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
 
-  const handleDownloadPDF = async (orderId: string) => {
+  const fetchInvoice = async (orderId: string, distributorName?: string) => {
+    const res = await api.get(`/orders/${orderId}/pdf`, { responseType: 'blob' });
+    const blob = new Blob([res.data], { type: 'application/pdf' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    // Name by distributor so a split order's invoices are tellable apart in the
+    // downloads folder, where the order id alone means nothing.
+    const safe = (distributorName || '').replace(/[^\w\s-]/g, '').trim().replace(/\s+/g, '-');
+    a.download = safe ? `Invoice-${safe}-${orderId}.pdf` : `Order-${orderId}.pdf`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleDownloadPDF = async (orderId: string, distributorName?: string) => {
     try {
-      const res = await api.get(`/orders/${orderId}/pdf`, { responseType: 'blob' });
-      const blob = new Blob([res.data], { type: 'application/pdf' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `Order-${orderId}.pdf`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+      await fetchInvoice(orderId, distributorName);
     } catch (err) {
-      toast({ title: 'Download Failed', description: 'Could not download the PDF.', variant: 'destructive' });
+      toast({ title: 'Download Failed', description: 'Could not download the invoice.', variant: 'destructive' });
+    }
+  };
+
+  /**
+   * One checkout across several distributors becomes one order each, so the
+   * franchise would otherwise have to find every sibling row and download it
+   * separately. Files stay separate — each invoice is addressed to a different
+   * distributor with its own total, so merging them would muddle reconciliation.
+   */
+  const [downloadingGroup, setDownloadingGroup] = useState<string | null>(null);
+
+  const handleDownloadGroup = async (orderId: string) => {
+    setDownloadingGroup(orderId);
+    try {
+      const res = await api.get(`/orders/${orderId}/group`);
+      const siblings: any[] = res.data.orders || [];
+      if (siblings.length === 0) throw new Error('No invoices found');
+
+      let failed = 0;
+      for (const o of siblings) {
+        try {
+          await fetchInvoice(o.id, o.distributor_name);
+          // Browsers drop rapid successive downloads; a short gap avoids it.
+          await new Promise(r => setTimeout(r, 400));
+        } catch { failed++; }
+      }
+
+      if (failed === 0) {
+        toast({
+          title: 'Invoices downloaded',
+          description: `${siblings.length} invoice${siblings.length > 1 ? 's' : ''}, one per distributor.`
+        });
+      } else {
+        toast({
+          title: 'Some invoices failed',
+          description: `${siblings.length - failed} of ${siblings.length} downloaded. Try the rest individually.`,
+          variant: 'destructive'
+        });
+      }
+    } catch (err: any) {
+      toast({
+        title: 'Download Failed',
+        description: getErrorMessage(err, 'Could not download the invoices.'),
+        variant: 'destructive'
+      });
+    } finally {
+      setDownloadingGroup(null);
     }
   };
 
@@ -3363,6 +3418,14 @@ const B2BOrderManagement: React.FC = () => {
                             {order.distributor_name && (
                               <p className="text-[11px] text-orange-600 font-bold mt-1">{order.distributor_name}</p>
                             )}
+                            {/* Without this, the sub-orders of one checkout look like
+                                unrelated orders sitting next to each other. */}
+                            {Number((order as any).group_size) > 1 && (
+                              <p className="text-[10px] text-slate-500 font-semibold mt-1 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-slate-100">
+                                <Package className="w-3 h-3" />
+                                1 of {(order as any).group_size} - split by distributor
+                              </p>
+                            )}
                             {(order as any).docket_id && (
                               <p className="text-[10px] text-emerald-600 font-bold mt-1 flex items-center gap-1">
                                 <Truck className="w-3 h-3" /> Docket: {(order as any).docket_id}
@@ -3435,20 +3498,47 @@ const B2BOrderManagement: React.FC = () => {
                               <p className="text-[11px] text-slate-500 mt-0.5 truncate">
                                 {currentOrder.distributor_name || 'Distributor'} - {new Date(currentOrder.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}
                               </p>
+                              {Number(currentOrder.group_size) > 1 && (
+                                <p className="text-[11px] text-orange-600 font-semibold mt-0.5">
+                                  Part of one order placed with {currentOrder.group_size} distributors
+                                </p>
+                              )}
                             </div>
                           </div>
                           <div className="flex items-center gap-1.5 shrink-0">
                             <Tooltip>
                               <TooltipTrigger asChild>
                                 <button
-                                  onClick={() => handleDownloadPDF(currentOrder.id)}
+                                  onClick={() => handleDownloadPDF(currentOrder.id, currentOrder.distributor_name)}
                                   className="h-8 w-8 flex items-center justify-center rounded-xl bg-white border border-slate-200 text-slate-500 hover:bg-orange-50 hover:text-orange-600 hover:border-orange-200 transition-all"
                                 >
                                   <Download className="w-4 h-4" />
                                 </button>
                               </TooltipTrigger>
-                              <TooltipContent>Download PDF</TooltipContent>
+                              <TooltipContent>
+                                {Number(currentOrder.group_size) > 1
+                                  ? `Invoice from ${currentOrder.distributor_name || 'this distributor'} only`
+                                  : 'Download invoice'}
+                              </TooltipContent>
                             </Tooltip>
+                            {/* Split order — one invoice per distributor, so offer them all at once */}
+                            {Number(currentOrder.group_size) > 1 && (
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <button
+                                    onClick={() => handleDownloadGroup(currentOrder.id)}
+                                    disabled={downloadingGroup === currentOrder.id}
+                                    className="h-8 px-2.5 flex items-center gap-1.5 rounded-xl bg-orange-50 border border-orange-200 text-orange-600 hover:bg-orange-100 transition-all text-[11px] font-bold disabled:opacity-60"
+                                  >
+                                    {downloadingGroup === currentOrder.id
+                                      ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                      : <Download className="w-3.5 h-3.5" />}
+                                    All {currentOrder.group_size}
+                                  </button>
+                                </TooltipTrigger>
+                                <TooltipContent>Download all {currentOrder.group_size} invoices</TooltipContent>
+                              </Tooltip>
+                            )}
                             {(currentOrder.status === 'processing' || currentOrder.status === 'shipped') && (
                               <Button
                                 size="sm"

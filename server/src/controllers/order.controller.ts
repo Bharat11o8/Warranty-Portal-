@@ -1206,7 +1206,14 @@ export class OrderController {
 
             const [orders]: any = await db.execute(
                 `SELECT o.*, d.name as distributor_name, d.phone_number as distributor_phone, d.email as distributor_email,
-                        d.allowed_brands as distributor_brand
+                        d.allowed_brands as distributor_brand,
+                        -- One checkout spanning several distributors becomes one
+                        -- sub-order each, sharing an order_group_id. Surfacing the
+                        -- sibling count lets the UI show them as one order instead
+                        -- of unrelated rows.
+                        (SELECT COUNT(*) FROM store_orders g
+                          WHERE g.order_group_id = o.order_group_id
+                            AND g.order_group_id IS NOT NULL) AS group_size
                  FROM store_orders o
                  LEFT JOIN distributors d ON o.distributor_id = d.id
                  WHERE o.vendor_id = ?
@@ -1221,6 +1228,59 @@ export class OrderController {
         } catch (error: any) {
             console.error('Get my orders error:', error);
             res.status(500).json({ error: 'Failed to fetch orders' });
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    //  GET SIBLING ORDERS IN THE SAME CHECKOUT
+    // ═══════════════════════════════════════════════════════════
+    /**
+     * Every sub-order created by one checkout, so the franchise can download all
+     * of its invoices at once instead of hunting for each distributor's row.
+     *
+     * Scoped to the caller's own orders — a group id from another vendor returns
+     * nothing rather than leaking their order list.
+     */
+    static async getOrderGroup(req: Request, res: Response) {
+        try {
+            const { id } = req.params;
+            const user = (req as any).user;
+
+            const [own]: any = await db.execute(
+                'SELECT order_group_id, vendor_id FROM store_orders WHERE id = ?', [id]
+            );
+            if (own.length === 0) {
+                return res.status(404).json({ error: 'Order not found' });
+            }
+            if (user?.role !== 'admin' && own[0].vendor_id !== user.id) {
+                return res.status(403).json({ error: 'Not your order' });
+            }
+
+            const groupId = own[0].order_group_id;
+            // Older orders predate grouping — treat them as a group of one.
+            if (!groupId) {
+                const [single]: any = await db.execute(
+                    `SELECT o.id, o.total_amount, o.status, d.name AS distributor_name
+                     FROM store_orders o
+                     LEFT JOIN distributors d ON d.id = o.distributor_id
+                     WHERE o.id = ?`, [id]
+                );
+                return res.json({ success: true, groupId: null, orders: single });
+            }
+
+            const [orders]: any = await db.execute(
+                `SELECT o.id, o.total_amount, o.status, d.name AS distributor_name
+                 FROM store_orders o
+                 LEFT JOIN distributors d ON d.id = o.distributor_id
+                 WHERE o.order_group_id = ? AND o.vendor_id = ?
+                 ORDER BY d.name ASC`,
+                [groupId, own[0].vendor_id]
+            );
+
+            res.json({ success: true, groupId, orders });
+        } catch (error: any) {
+            console.error('Get order group error:', error);
+            res.status(500).json({ error: 'Failed to load order group' });
         }
     }
 

@@ -34,6 +34,7 @@ router.post('/:id/received', authenticateToken, requireRole('vendor'), OrderCont
 router.post('/:id/cancel', authenticateToken, requireRole('admin'), OrderController.cancelOrder);
 
 // Chat / Messages routes
+router.get('/:id/group', authenticateToken, OrderController.getOrderGroup);
 router.get('/:id/messages', authenticateToken, OrderController.getOrderMessages);
 router.post('/:id/messages', authenticateToken, OrderController.createOrderMessage);
 
