@@ -296,26 +296,38 @@ export class OrderController {
             // ─── Header: supplying distributor (left) + title (right) ────────────────
             // Drawn on every page (see pageAdded hook below) so each sheet carries the
             // distributor letterhead and the order reference.
-            const headerBottomY = 118;
+            // The address block is variable height — a long street address wraps to
+            // two lines and pushes the email down. Measure it and place the divider
+            // below, rather than at a fixed y that clipped the last line.
+            const addressTopY = 50;
+            const addressLines = [
+                distributor.address,
+                [distributor.city, distributor.state].filter(Boolean).join(', '),
+                distributor.pincode ? `Pin: ${distributor.pincode}` : '',
+                distributor.phone_number ? `Phone: ${distributor.phone_number}` : '',
+                distributor.email || '',
+            ].filter(Boolean);
+            const addressText = addressLines.join('\n');
+
+            doc.font('Helvetica').fontSize(8);
+            const addressHeight = doc.heightOfString(addressText, { width: 260 });
+            // Keep the old spacing when the block is short, so existing invoices are
+            // unchanged; grow only when the content actually needs it.
+            const dividerY = Math.max(100, addressTopY + addressHeight + 8);
+            const headerBottomY = dividerY + 18;
+
             const drawPageHeader = () => {
                 doc.font('Helvetica-Bold').fontSize(15).fillColor(navy)
                     .text(distributor.name || 'Distributor Partner', leftX, 30, { width: 260 });
-                const addressLines = [
-                    distributor.address,
-                    [distributor.city, distributor.state].filter(Boolean).join(', '),
-                    distributor.pincode ? `Pin: ${distributor.pincode}` : '',
-                    distributor.phone_number ? `Phone: ${distributor.phone_number}` : '',
-                    distributor.email || '',
-                ].filter(Boolean);
                 doc.font('Helvetica').fontSize(8).fillColor('#64748B')
-                    .text(addressLines.join('\n'), leftX, 50, { width: 260 });
+                    .text(addressText, leftX, addressTopY, { width: 260 });
 
                 doc.font('Helvetica-Bold').fontSize(22).fillColor(navy)
                     .text('PURCHASE ORDER', 0, 34, { width: pageWidth, align: 'right' });
                 doc.font('Helvetica-Bold').fontSize(9).fillColor('#64748B')
                     .text(`#${order.id}`, 0, 62, { width: pageWidth, align: 'right', characterSpacing: 0.6 });
 
-                doc.rect(leftX, 100, pageWidth - leftX, 3).fill(navy);
+                doc.rect(leftX, dividerY, pageWidth - leftX, 3).fill(navy);
             };
 
             // ─── Footer: divider + brand logo strip (drawn on every page) ────────────
