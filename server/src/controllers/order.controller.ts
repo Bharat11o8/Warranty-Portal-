@@ -1989,8 +1989,29 @@ export class OrderController {
             const pdfBuffer = await OrderController.buildOrderPdfById(id);
             if (!pdfBuffer) return res.status(404).send('Order not found.');
 
+            // Name it after the distributor, matching the in-app download: a split
+            // order sends one link per distributor, and "Order-<id>.pdf" gives the
+            // recipient no way to tell which invoice is which.
+            let filename = `Order-${id}.pdf`;
+            try {
+                const [rows]: any = await db.execute(
+                    `SELECT d.name FROM store_orders o
+                     LEFT JOIN distributors d ON d.id = o.distributor_id
+                     WHERE o.id = ?`, [id]
+                );
+                const distName = rows[0]?.name;
+                if (distName) {
+                    const safe = String(distName).replace(/[^\w\s-]/g, '').trim().replace(/\s+/g, '-');
+                    if (safe) filename = `Invoice-${safe}-${id}.pdf`;
+                }
+            } catch {
+                // Fall back to the plain name — never fail the download over this.
+            }
+
             res.setHeader('Content-Type', 'application/pdf');
-            res.setHeader('Content-Disposition', `inline; filename="Order-${id}.pdf"`);
+            // 'attachment', not 'inline' — this link is labelled "Download Invoice"
+            // in WhatsApp, but inline made the browser just display it.
+            res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
             res.send(pdfBuffer);
 
         } catch (error: any) {
