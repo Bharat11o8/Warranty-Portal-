@@ -421,8 +421,10 @@ class GrievanceController {
             const updateToken = uuidv4();
             await db.execute(
                 `INSERT INTO grievance_assignments 
+                 -- sent_by holds a user id (varchar UUID); an auto-assignment has no
+                 -- acting user, so it is NULL and sent_by_name carries the label.
                  (grievance_id, assignee_name, assignee_email, remarks, assignment_type, sent_by, sent_by_name, status, update_token, email_sent_at)
-                 VALUES (?, ?, ?, ?, 'initial', 'system', 'System Auto-Assign', 'pending', ?, ?)`,
+                 VALUES (?, ?, ?, ?, 'initial', NULL, 'System Auto-Assign', 'pending', ?, ?)`,
                 [newGrievanceId, assignee.name, assignee.email, 'Auto-assigned based on category', updateToken, getISTTimestamp()]
             );
 
