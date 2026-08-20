@@ -1484,15 +1484,22 @@ class GrievanceController {
             const [gRows]: any = await db.execute('SELECT ticket_id FROM grievances WHERE id = ?', [assignment.grievance_id]);
             const ticketId = gRows[0]?.ticket_id || assignment.grievance_id;
 
-            await db.execute(
-                `INSERT INTO grievance_remarks (grievance_id, added_by, added_by_name, added_by_id, remark)
-                 VALUES (?, 'assignee', ?, 'external', ?)`,
-                [
-                    assignment.grievance_id,
-                    assignment.assignee_name,
-                    `Status Update [${status}]: ${remarks || 'No remarks provided'}`
-                ]
-            );
+            // History only — a logging failure must not abort the update. It used to
+            // throw after the assignment status had already been written, leaving the
+            // assignment "completed" while the grievance stayed "submitted".
+            try {
+                await db.execute(
+                    `INSERT INTO grievance_remarks (grievance_id, added_by, added_by_name, added_by_id, remark)
+                     VALUES (?, 'assignee', ?, 'external', ?)`,
+                    [
+                        assignment.grievance_id,
+                        assignment.assignee_name,
+                        `Status Update [${status}]: ${remarks || 'No remarks provided'}`
+                    ]
+                );
+            } catch (historyError) {
+                console.error('Failed to log assignee remark history:', historyError);
+            }
 
             // 4. Update main grievance status based on assignee progress
             let mainGrievanceStatus = null;
