@@ -16,7 +16,8 @@ const requireSettingPermission = (req: express.Request, res: express.Response, n
 
     // Form Content owns form-specific terms/disclaimers. The legacy Terms page
     // may still update terms_conditions, so either assigned permission is valid.
-    if (key === 'seat_cover_disclaimer' || key === 'ppf_disclaimer' || key === 'ppf_terms_conditions') {
+    if (key === 'seat_cover_disclaimer' || key === 'ppf_disclaimer' || key === 'ppf_terms_conditions'
+        || key.endsWith('_claim_process')) {
         return requirePermission('content_manager', 'write')(req, res, next);
     }
 

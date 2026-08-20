@@ -9,6 +9,7 @@ import {
     Bell,
     Home,
     ClipboardCheck,
+    ClipboardList,
     Target,
     Image as ImageIcon,
     BookOpen,
@@ -44,6 +45,7 @@ export type FmsModule =
     | 'targets'
     | 'posm'
     | 'terms'
+    | 'claim-process'
     | 'profile';
 
 interface SidebarItemProps {
@@ -191,6 +193,7 @@ export const menuGroups = [
             },
             { id: 'grievances' as const, label: "Grievance Redressal", icon: LifeBuoy },
             { id: 'terms' as const, label: "Terms & Conditions", icon: BookOpen },
+            { id: 'claim-process' as const, label: "Claim Process", icon: ClipboardList },
         ]
     },
     {

@@ -23,6 +23,8 @@ import ECatalogue from "@/components/fms/ECatalogue";
 import B2BOrderManagement from "@/components/fms/B2BOrderManagement";
 import Profile from "./Profile";
 import Terms from "./Terms";
+import ClaimProcess from "./ClaimProcess";
+import { ClaimProcessAnnouncement } from "@/components/fms/ClaimProcessAnnouncement";
 import { useB2BCart } from "@/contexts/B2BCartContext";
 import CategoryPage from "./eshop/CategoryPage";
 import ProductPage from "./eshop/ProductPage";
@@ -707,6 +709,12 @@ const FranchiseDashboard = () => {
                         <Terms />
                     </div>
                 );
+            case 'claim-process':
+                return (
+                    <div className="-mt-8 md:-mt-14">
+                        <ClaimProcess />
+                    </div>
+                );
             case 'manpower':
                 return (
                     <div className="-mt-8 md:-mt-14">
@@ -826,6 +834,8 @@ const FranchiseDashboard = () => {
             news: "News & Alerts",
             orders: "Order Management",
             grievances: "Grievance Redressal",
+            terms: "Terms & Conditions",
+            "claim-process": "Claim Process",
             offers: "Offers & Schemes",
             audit: "Audit & Compliance",
             targets: "Targets & Achievements",
@@ -900,6 +910,9 @@ const FranchiseDashboard = () => {
 
     return (
         <div className="flex h-screen bg-[#fffaf5]">
+            {/* One-time-per-login notice pointing franchises at the new Claim Process */}
+            <ClaimProcessAnnouncement onView={() => setActiveModule('claim-process')} />
+
             <DashboardSidebar
                 activeModule={activeModule}
                 onModuleChange={setActiveModule}

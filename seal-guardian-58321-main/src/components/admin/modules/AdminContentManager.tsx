@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardDescription } from "@/components/ui/
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
-import { Save, Eye, Code, Lock, FileText, ShieldCheck, Armchair, AlertTriangle } from "lucide-react";
+import { Save, Eye, Code, Lock, FileText, ShieldCheck, Armchair, AlertTriangle, ClipboardList } from "lucide-react";
 import api from "@/lib/api";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
@@ -17,8 +17,10 @@ interface FormTypeConfig {
   color: string;               // Tailwind color token e.g. "orange", "blue"
   termsSettingKey: string;     // system_settings key for T&C
   disclaimerSettingKey: string;// system_settings key for Disclaimer
+  claimSettingKey: string;     // system_settings key for Claim Process
   defaultTerms: string;        // Fallback HTML shown before admin saves anything
   defaultDisclaimer: string;   // Fallback HTML for disclaimer
+  defaultClaim: string;        // Fallback HTML for claim process
 }
 
 const FORM_TYPES: FormTypeConfig[] = [
@@ -29,7 +31,9 @@ const FORM_TYPES: FormTypeConfig[] = [
     color: 'orange',
     termsSettingKey: 'terms_conditions',      // keep existing DB key — no migration needed
     disclaimerSettingKey: 'seat_cover_disclaimer',
+    claimSettingKey: 'seat_cover_claim_process',
     defaultDisclaimer: '',
+    defaultClaim: '',
     defaultTerms: `
 <div class="space-y-4 p-8 bg-orange-50 border-l-8 border-orange-500 rounded-3xl">
   <p class="font-black text-xl text-orange-700 leading-tight">This Warranty Is Only Valid for Products Purchased from Autoform and being used in India Only.</p>
@@ -110,11 +114,13 @@ const FORM_TYPES: FormTypeConfig[] = [
   },
   {
     key: 'ppf',
-    label: 'Paint Protection Film (PPF)',
+    label: 'EV Products',
     icon: ShieldCheck,
     color: 'blue',
     termsSettingKey: 'ppf_terms_conditions',
     disclaimerSettingKey: 'ppf_disclaimer',
+    claimSettingKey: 'ppf_claim_process',
+    defaultClaim: '',
     defaultDisclaimer: `
 <div class="p-4 bg-amber-50 border-l-4 border-amber-400 rounded-lg">
   <p class="font-bold text-amber-800 mb-1">Important Notice</p>
@@ -142,51 +148,53 @@ const FormTypeEditor = ({ config, canWrite }: { config: FormTypeConfig; canWrite
   const { toast } = useToast();
   const [termsContent, setTermsContent]       = useState("");
   const [disclaimerContent, setDisclaimerContent] = useState("");
+  const [claimContent, setClaimContent] = useState("");
   const [fetching, setFetching]   = useState(true);
   const [savingTerms, setSavingTerms]         = useState(false);
   const [savingDisclaimer, setSavingDisclaimer] = useState(false);
+  const [savingClaim, setSavingClaim] = useState(false);
 
   useEffect(() => {
     setFetching(true);
-    const fetchBoth = async () => {
-      try {
-        const [termsRes, disclaimerRes] = await Promise.allSettled([
-          api.get(`/settings/public/${config.termsSettingKey}`),
-          api.get(`/settings/public/${config.disclaimerSettingKey}`),
-        ]);
+    const fetchAll = async () => {
+      // A key that has never been saved 404s, so allSettled keeps one missing
+      // document from blanking the others.
+      const [termsRes, disclaimerRes, claimRes] = await Promise.allSettled([
+        api.get(`/settings/public/${config.termsSettingKey}`),
+        api.get(`/settings/public/${config.disclaimerSettingKey}`),
+        api.get(`/settings/public/${config.claimSettingKey}`),
+      ]);
 
-        if (termsRes.status === 'fulfilled' && termsRes.value.data.success && termsRes.value.data.value) {
-          setTermsContent(termsRes.value.data.value);
-        } else {
-          setTermsContent(config.defaultTerms);
-        }
+      const pick = (r: PromiseSettledResult<any>, fallback: string) =>
+        r.status === 'fulfilled' && r.value.data.success && r.value.data.value
+          ? r.value.data.value
+          : fallback;
 
-        if (disclaimerRes.status === 'fulfilled' && disclaimerRes.value.data.success && disclaimerRes.value.data.value) {
-          setDisclaimerContent(disclaimerRes.value.data.value);
-        } else {
-          setDisclaimerContent(config.defaultDisclaimer);
-        }
-      } catch {
-        setTermsContent(config.defaultTerms);
-        setDisclaimerContent(config.defaultDisclaimer);
-      } finally {
-        setFetching(false);
-      }
+      setTermsContent(pick(termsRes, config.defaultTerms));
+      setDisclaimerContent(pick(disclaimerRes, config.defaultDisclaimer));
+      setClaimContent(pick(claimRes, config.defaultClaim));
+      setFetching(false);
     };
-    fetchBoth();
+    fetchAll();
   }, [config.key]);
 
-  const handleSave = async (type: 'terms' | 'disclaimer') => {
-    const key     = type === 'terms' ? config.termsSettingKey : config.disclaimerSettingKey;
-    const value   = type === 'terms' ? termsContent : disclaimerContent;
-    const setLoad = type === 'terms' ? setSavingTerms : setSavingDisclaimer;
+  type ContentType = 'terms' | 'disclaimer' | 'claim';
+
+  const CONTENT_META: Record<ContentType, { key: string; value: string; setLoad: (v: boolean) => void; title: string; noun: string }> = {
+    terms:      { key: config.termsSettingKey,      value: termsContent,      setLoad: setSavingTerms,      title: 'Terms Updated',         noun: 'terms & conditions' },
+    disclaimer: { key: config.disclaimerSettingKey, value: disclaimerContent, setLoad: setSavingDisclaimer, title: 'Disclaimer Updated',    noun: 'disclaimer' },
+    claim:      { key: config.claimSettingKey,      value: claimContent,      setLoad: setSavingClaim,      title: 'Claim Process Updated', noun: 'claim process' },
+  };
+
+  const handleSave = async (type: ContentType) => {
+    const { key, value, setLoad, title, noun } = CONTENT_META[type];
 
     setLoad(true);
     try {
       await api.put(`/settings/admin/${key}`, { value });
       toast({
-        title: type === 'terms' ? "Terms Updated" : "Disclaimer Updated",
-        description: `${config.label} ${type === 'terms' ? 'terms & conditions' : 'disclaimer'} saved and now live.`,
+        title,
+        description: `${config.label} ${noun} saved and now live.`,
         className: "bg-green-50 border-green-200 text-green-900",
       });
     } catch {
@@ -202,12 +210,15 @@ const FormTypeEditor = ({ config, canWrite }: { config: FormTypeConfig; canWrite
 
   return (
     <Tabs defaultValue="terms" className="w-full">
-      <TabsList className="grid w-full grid-cols-2 max-w-xs mb-6">
+      <TabsList className="grid w-full grid-cols-3 max-w-lg mb-6">
         <TabsTrigger value="terms" className="gap-2 text-xs font-bold">
           <FileText className="h-3.5 w-3.5" /> Terms &amp; Conditions
         </TabsTrigger>
         <TabsTrigger value="disclaimer" className="gap-2 text-xs font-bold">
           <AlertTriangle className="h-3.5 w-3.5" /> Disclaimer
+        </TabsTrigger>
+        <TabsTrigger value="claim" className="gap-2 text-xs font-bold">
+          <ClipboardList className="h-3.5 w-3.5" /> Claim Process
         </TabsTrigger>
       </TabsList>
 
@@ -245,6 +256,24 @@ const FormTypeEditor = ({ config, canWrite }: { config: FormTypeConfig; canWrite
           )}
         </div>
         <ContentEditor value={disclaimerContent} onChange={setDisclaimerContent} readOnly={!canWrite} placeholder="Enter disclaimer HTML... (leave blank to hide from form)" />
+      </TabsContent>
+
+      {/* ── Claim Process ── */}
+      <TabsContent value="claim" className="mt-0 space-y-4">
+        <div className="flex items-center justify-between">
+          <p className="text-sm text-slate-500">Shown to franchises under Support &rsaquo; Claim Process.</p>
+          {canWrite ? (
+            <Button onClick={() => handleSave('claim')} disabled={savingClaim} size="sm" className="bg-orange-600 hover:bg-orange-700 shrink-0">
+              {savingClaim ? <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-t-transparent mr-1.5" /> : <Save className="h-3.5 w-3.5 mr-1.5" />}
+              Save Claim Process
+            </Button>
+          ) : (
+            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-100 border border-slate-200">
+              <Lock className="h-3 w-3 text-slate-400" /><span className="text-[10px] font-black text-slate-500 uppercase tracking-wide">View Only</span>
+            </div>
+          )}
+        </div>
+        <ContentEditor value={claimContent} onChange={setClaimContent} readOnly={!canWrite} placeholder="Enter Claim Process HTML... (leave blank to hide from the franchise dashboard)" />
       </TabsContent>
     </Tabs>
   );
@@ -344,7 +373,7 @@ export const AdminContentManager = () => {
           {(() => { const Icon = activeConfig.icon; return <div className="p-2 bg-orange-50 rounded-xl"><Icon className="h-5 w-5 text-orange-600" /></div>; })()}
           <div>
             <h3 className="font-black text-slate-800 text-base">{activeConfig.label}</h3>
-            <p className="text-xs text-slate-400">T&amp;C key: <code className="bg-slate-100 px-1 rounded">{activeConfig.termsSettingKey}</code> &nbsp;·&nbsp; Disclaimer key: <code className="bg-slate-100 px-1 rounded">{activeConfig.disclaimerSettingKey}</code></p>
+            <p className="text-xs text-slate-400">T&amp;C key: <code className="bg-slate-100 px-1 rounded">{activeConfig.termsSettingKey}</code> &nbsp;·&nbsp; Disclaimer key: <code className="bg-slate-100 px-1 rounded">{activeConfig.disclaimerSettingKey}</code> &nbsp;·&nbsp; Claim key: <code className="bg-slate-100 px-1 rounded">{activeConfig.claimSettingKey}</code></p>
           </div>
         </div>
         <FormTypeEditor key={activeConfig.key} config={activeConfig} canWrite={canWrite} />
