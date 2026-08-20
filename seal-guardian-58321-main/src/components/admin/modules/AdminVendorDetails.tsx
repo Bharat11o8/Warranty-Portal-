@@ -413,6 +413,66 @@ export const AdminVendorDetails = ({ vendor: initialVendor, onBack, isDistributo
         downloadCSV(exportData, `vendor_manpower_export_${new Date().toISOString().split('T')[0]}.csv`);
     };
 
+    // Stores add their own staff, but a member is only usable once an admin
+    // approves them here. Approval can also be revoked (back to pending).
+    const [approvingManpowerId, setApprovingManpowerId] = useState<string | null>(null);
+
+    const handleManpowerApproval = async (member: any, approve: boolean) => {
+        setApprovingManpowerId(member.id);
+        try {
+            const res = await api.put(`/admin/manpower/${member.id}/approval`, { is_approved: approve });
+            if (res.data.success) {
+                toast({
+                    title: approve ? 'Staff Approved' : 'Moved to Pending',
+                    description: res.data.message
+                });
+                // Reflect the change locally so the row updates without a refetch.
+                setVendor((prev: any) => ({
+                    ...prev,
+                    manpower: (prev.manpower || []).map((m: any) =>
+                        m.id === member.id ? { ...m, is_approved: approve ? 1 : 0 } : m
+                    )
+                }));
+            }
+        } catch (error: any) {
+            toast({
+                title: 'Update Failed',
+                description: getErrorMessage(error, 'Could not update approval status'),
+                variant: 'destructive'
+            });
+        } finally {
+            setApprovingManpowerId(null);
+        }
+    };
+
+    // Bring an Ex-Team member back onto the roster. They return as pending so
+    // they're re-verified before becoming selectable again.
+    const handleRestoreManpower = async (member: any) => {
+        setApprovingManpowerId(member.id);
+        try {
+            const res = await api.put(`/vendor/manpower/${member.id}/restore`);
+            if (res.data.success) {
+                toast({ title: 'Member Restored', description: res.data.message });
+                setVendor((prev: any) => ({
+                    ...prev,
+                    manpower: (prev.manpower || []).map((m: any) =>
+                        m.id === member.id
+                            ? { ...m, is_active: 1, is_approved: 0, removed_at: null, removed_reason: null }
+                            : m
+                    )
+                }));
+            }
+        } catch (error: any) {
+            toast({
+                title: 'Restore Failed',
+                description: getErrorMessage(error, 'Could not restore member'),
+                variant: 'destructive'
+            });
+        } finally {
+            setApprovingManpowerId(null);
+        }
+    };
+
     const showManpowerWarranties = (member: any, status: 'validated' | 'pending' | 'rejected') => {
         const manpowerWarranties = (vendor.warranties || []).filter((w: any) =>
             w.manpower_id === member.id && w.status === status
@@ -1055,20 +1115,38 @@ export const AdminVendorDetails = ({ vendor: initialVendor, onBack, isDistributo
                             <Tabs defaultValue="active" className="space-y-6">
                                 <TabsList className="w-full justify-start p-0 bg-transparent border-b h-auto rounded-none">
                                     <TabsTrigger value="active" className="data-[state=active]:border-b-2 data-[state=active]:border-orange-500 rounded-none px-6 py-3">
-                                        Current Team ({vendor.manpower?.filter((m: any) => Boolean(m.is_active)).length || 0})
+                                        Current Team ({vendor.manpower?.filter((m: any) => Boolean(m.is_active) && Boolean(m.is_approved)).length || 0})
+                                    </TabsTrigger>
+                                    <TabsTrigger value="pending" className="data-[state=active]:border-b-2 data-[state=active]:border-orange-500 rounded-none px-6 py-3">
+                                        Pending Approval
+                                        {(() => {
+                                            const n = vendor.manpower?.filter((m: any) => Boolean(m.is_active) && !Boolean(m.is_approved)).length || 0;
+                                            return n > 0 ? (
+                                                <span className="ml-2 text-[10px] font-black bg-amber-500 text-white px-1.5 py-0.5 rounded-full">{n}</span>
+                                            ) : <span className="ml-2 text-slate-400">(0)</span>;
+                                        })()}
                                     </TabsTrigger>
                                     <TabsTrigger value="inactive" className="data-[state=active]:border-b-2 data-[state=active]:border-orange-500 rounded-none px-6 py-3">
                                         Ex-Team ({vendor.manpower?.filter((m: any) => !Boolean(m.is_active)).length || 0})
                                     </TabsTrigger>
                                 </TabsList>
 
-                                {['active', 'inactive'].map((status) => (
+                                {['active', 'pending', 'inactive'].map((status) => (
                                     <TabsContent key={status} value={status}>
                                         <div className="space-y-4">
                                             {vendor.manpower
                                                 ?.filter((m: any) => {
-                                                    const isActive = status === 'active';
-                                                    if (Boolean(m.is_active) !== isActive) return false;
+                                                    // active  = on the team AND approved
+                                                    // pending = on the team but awaiting admin approval
+                                                    // inactive= removed by the store (Ex-Team)
+                                                    if (status === 'inactive') {
+                                                        if (Boolean(m.is_active)) return false;
+                                                    } else {
+                                                        if (!Boolean(m.is_active)) return false;
+                                                        const approved = Boolean(m.is_approved);
+                                                        if (status === 'active' && !approved) return false;
+                                                        if (status === 'pending' && approved) return false;
+                                                    }
                                                     if (manpowerSearch) {
                                                         const s = manpowerSearch.toLowerCase();
                                                         return m.name?.toLowerCase().includes(s) || m.phone_number?.includes(s);
@@ -1083,7 +1161,14 @@ export const AdminVendorDetails = ({ vendor: initialVendor, onBack, isDistributo
                                                                 {member.name.charAt(0)}
                                                             </div>
                                                             <div>
-                                                                <p className="font-semibold text-slate-800">{member.name}</p>
+                                                                <div className="flex items-center gap-2">
+                                                                    <p className="font-semibold text-slate-800">{member.name}</p>
+                                                                    {Boolean(member.is_active) && !Boolean(member.is_approved) && (
+                                                                        <span className="text-[10px] font-black uppercase tracking-wider bg-amber-100 text-amber-700 border border-amber-200 px-2 py-0.5 rounded-full">
+                                                                            Pending Approval
+                                                                        </span>
+                                                                    )}
+                                                                </div>
                                                                 <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground mt-1">
                                                                     <span className="font-mono bg-white border px-1.5 py-0.5 rounded">{member.phone_number}</span>
                                                                     <span>•</span>
@@ -1092,7 +1177,48 @@ export const AdminVendorDetails = ({ vendor: initialVendor, onBack, isDistributo
                                                             </div>
                                                         </div>
 
-                                                        <div className="flex gap-2">
+                                                        <div className="flex items-center gap-2">
+                                                            {/* Ex-Team members can be brought back; they return as pending. */}
+                                                            {!Boolean(member.is_active) && (
+                                                                <Button
+                                                                    size="sm"
+                                                                    variant="outline"
+                                                                    disabled={approvingManpowerId === member.id}
+                                                                    onClick={() => handleRestoreManpower(member)}
+                                                                    className="h-7 text-xs border-orange-200 text-orange-600 hover:bg-orange-50"
+                                                                >
+                                                                    {approvingManpowerId === member.id
+                                                                        ? <Loader2 className="h-3 w-3 animate-spin" />
+                                                                        : 'Restore'}
+                                                                </Button>
+                                                            )}
+                                                            {/* Approve / revoke — only meaningful while the member is on the team */}
+                                                            {Boolean(member.is_active) && (
+                                                                Boolean(member.is_approved) ? (
+                                                                    <Button
+                                                                        size="sm"
+                                                                        variant="outline"
+                                                                        disabled={approvingManpowerId === member.id}
+                                                                        onClick={() => handleManpowerApproval(member, false)}
+                                                                        className="h-7 text-xs border-slate-200 text-slate-600 hover:bg-slate-100"
+                                                                    >
+                                                                        {approvingManpowerId === member.id
+                                                                            ? <Loader2 className="h-3 w-3 animate-spin" />
+                                                                            : 'Move to Pending'}
+                                                                    </Button>
+                                                                ) : (
+                                                                    <Button
+                                                                        size="sm"
+                                                                        disabled={approvingManpowerId === member.id}
+                                                                        onClick={() => handleManpowerApproval(member, true)}
+                                                                        className="h-7 text-xs bg-emerald-600 hover:bg-emerald-700 text-white"
+                                                                    >
+                                                                        {approvingManpowerId === member.id
+                                                                            ? <Loader2 className="h-3 w-3 animate-spin" />
+                                                                            : 'Approve'}
+                                                                    </Button>
+                                                                )
+                                                            )}
                                                             <button
                                                                 onClick={() => showManpowerWarranties(member, 'validated')}
                                                                 className="px-3 py-1 bg-emerald-100 text-emerald-700 rounded-full text-xs font-semibold hover:bg-emerald-200 transition-colors"
@@ -1117,8 +1243,15 @@ export const AdminVendorDetails = ({ vendor: initialVendor, onBack, isDistributo
 
                                             {(() => {
                                                 const tabManpower = (vendor.manpower || []).filter((m: any) => {
-                                                    const isActive = status === 'active';
-                                                    if (Boolean(m.is_active) !== isActive) return false;
+                                                    // Keep in sync with the render filter above.
+                                                    if (status === 'inactive') {
+                                                        if (Boolean(m.is_active)) return false;
+                                                    } else {
+                                                        if (!Boolean(m.is_active)) return false;
+                                                        const approved = Boolean(m.is_approved);
+                                                        if (status === 'active' && !approved) return false;
+                                                        if (status === 'pending' && approved) return false;
+                                                    }
                                                     if (manpowerSearch) {
                                                         const s = manpowerSearch.toLowerCase();
                                                         return m.name?.toLowerCase().includes(s) || m.phone_number?.includes(s);
@@ -1129,7 +1262,13 @@ export const AdminVendorDetails = ({ vendor: initialVendor, onBack, isDistributo
                                                 return (
                                                     <>
                                                         {tabManpower.length === 0 && (
-                                                            <div className="text-center py-8 text-slate-400 italic">No {status} team members found.</div>
+                                                            <div className="text-center py-8 text-slate-400 italic">
+                                                                {status === 'pending'
+                                                                    ? 'No staff awaiting approval.'
+                                                                    : status === 'inactive'
+                                                                        ? 'No past team members found.'
+                                                                        : 'No active team members found.'}
+                                                            </div>
                                                         )}
                                                         {tabManpower.length > itemsPerPage && (
                                                             <Pagination className="mt-4">

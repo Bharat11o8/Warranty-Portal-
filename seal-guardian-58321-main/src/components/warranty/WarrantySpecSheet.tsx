@@ -96,7 +96,10 @@ export const WarrantySpecSheet = ({ isOpen, onClose, warranty, isAdmin, onRefres
                 registration_number: warranty.registration_number || pd.carRegistration || '',
                 product_name: pd.product || pd.productName || '',
                 warranty_type: warranty.warranty_type || '',
-                purchase_date: warranty.purchase_date ? new Date(warranty.purchase_date).toISOString().split('T')[0] : ''
+                purchase_date: warranty.purchase_date ? new Date(warranty.purchase_date).toISOString().split('T')[0] : '',
+                // Editable identifiers: UID (seat covers) and Serial Number (PPF/EV).
+                new_uid: warranty.uid || pd.uid || '',
+                serial_number: pd.serialNumber || warranty.uid || ''
             });
         }
     }, [isEditing, warranty]);
@@ -233,14 +236,14 @@ export const WarrantySpecSheet = ({ isOpen, onClose, warranty, isAdmin, onRefres
                                 {/* Seat Cover Specific Fields */}
                                 {warranty.product_type === 'seat-cover' && (
                                     <>
-                                        <SpecRow label="UID" value={warranty.uid || productDetails.uid || "N/A"} mono />
+                                        <SpecRow label="UID" value={warranty.uid || productDetails.uid || "N/A"} mono editField="new_uid" />
                                     </>
                                 )}
 
                                 {/* EV/PPF Specific Fields */}
                                 {warranty.product_type !== 'seat-cover' && (
                                     <>
-                                        <SpecRow label="Serial Number" value={productDetails.serialNumber || warranty.uid || "N/A"} mono />
+                                        <SpecRow label="Serial Number" value={productDetails.serialNumber || warranty.uid || "N/A"} mono editField="serial_number" />
                                         {productDetails.installArea && (
                                             <SpecRow label="Installation Area" value={productDetails.installArea} />
                                         )}

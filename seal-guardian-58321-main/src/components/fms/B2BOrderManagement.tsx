@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useCallback, useRef } from 'react';
+﻿import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useB2BCart, type CartItem } from '@/contexts/B2BCartContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
@@ -9,7 +9,8 @@ import {
   Download, XCircle, Search, Building2, MapPin, Phone, Mail,
   CheckCircle2, Clock, Truck, AlertCircle, Ban, ChevronDown, ChevronUp,
   ShoppingCart, FileText, Warehouse, TrendingUp, BarChart3, Info,
-  Car, Settings, LayoutList, Lightbulb, Volume2, Wind, Eye, Send, ArrowLeft, Pencil, Upload, MessageSquare
+  Car, Settings, LayoutList, Lightbulb, Volume2, Wind, Eye, Send, ArrowLeft, Pencil, Upload, MessageSquare,
+  Loader2
 } from 'lucide-react';
 import { cn, downloadCSV } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
@@ -133,6 +134,10 @@ type PendingReplenishItem = {
   categoryId?: string;
   categoryName?: string;
   canCustomize: boolean;
+  // Carried through so the order is placed with the distributor the item was
+  // actually browsed from, not one re-derived from its category.
+  distributorId?: string;
+  distributorName?: string;
 };
 
 const hasMeaningfulOrderText = (value?: string | null) => {
@@ -287,6 +292,50 @@ const B2BOrderManagement: React.FC = () => {
   const [allCategories, setAllCategories] = useState<Category[]>([]);
   const [mainCategories, setMainCategories] = useState<Category[]>([]);
 
+  // Selected distributor for the order-punching view. A franchise can be
+  // assigned to multiple distributors (split by product/brand), so the product
+  // list, categories, and search are all scoped to the distributor chosen in the
+  // selector below. Null = none selected yet → show nothing until one is picked.
+  const [focusedDistId, setFocusedDistId] = useState<string | null>(null);
+
+  // When the selected distributor carries BOTH brands (AFAC), the franchise picks
+  // which brand to browse — otherwise AF and AC categories with the same name
+  // (e.g. two "Accessories") would appear side by side. For single-brand
+  // distributors this stays null and no picker is shown.
+  const [selectedBrand, setSelectedBrand] = useState<'AF' | 'AC' | null>(null);
+
+  // The catalogue narrowed to the selected distributor (and, for AFAC
+  // distributors, the chosen brand). Everything the franchise browses for
+  // ordering (products, category tabs, nav dropdowns) reads from this instead of
+  // the full multi-distributor union in `distributorStock`.
+  const visibleStock = useMemo(
+    () => {
+      if (!focusedDistId) return [];
+      return distributorStock.filter((item: any) =>
+        item.distributor_id === focusedDistId &&
+        (!selectedBrand || (item.product_brand || 'AF') === selectedBrand)
+      );
+    },
+    [distributorStock, focusedDistId, selectedBrand]
+  );
+
+  // An AFAC franchise carries products of BOTH brands, and the AF/AC category
+  // trees are separate (e.g. two "Accessories"). So an AFAC franchise must pick a
+  // brand to browse — otherwise both trees show at once. AF-/AC-only franchises
+  // have a single brand, so no picker (and the backend already scopes their
+  // catalogue to that one brand).
+  const showBrandPicker = franchiseProfile?.allowed_brands === 'AFAC';
+
+  // When the picker applies, default to AF; otherwise no brand scoping.
+  useEffect(() => {
+    if (showBrandPicker) {
+      setSelectedBrand(prev => prev ?? 'AF');
+    } else {
+      setSelectedBrand(null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showBrandPicker]);
+
   // Product detail dialog (view-and-order)
   const [detailProductId, setDetailProductId] = useState<string | null>(null);
   const [detailImageIndex, setDetailImageIndex] = useState(0);
@@ -301,10 +350,18 @@ const B2BOrderManagement: React.FC = () => {
   const [additionalRemarks, setAdditionalRemarks] = useState('');
   const [pendingItems, setPendingItems] = useState<PendingReplenishItem[]>([]);
 
+  // Load the full category tree for the brand being browsed. We want the COMPLETE
+  // brand catalogue here (not just what the distributor sells) so the nav can show
+  // every category — the ones the distributor doesn't stock render as "Coming
+  // Soon". For an AFAC distributor we scope to the brand the franchise picked
+  // (selectedBrand) so the AF and AC trees don't both show (e.g. two "Accessories").
   useEffect(() => {
     const loadCategories = async () => {
       try {
-        const res = await api.get('/catalog/categories');
+        // effective brand: the picked brand (AFAC case) → else the franchise's own brand
+        const effectiveBrand = selectedBrand || franchiseProfile?.allowed_brands;
+        const params = (effectiveBrand === 'AF' || effectiveBrand === 'AC') ? `?brand=${effectiveBrand}` : '';
+        const res = await api.get(`/catalog/categories${params}`);
         const cats = res.data.success ? res.data.categories : [];
         setAllCategories(cats);
       } catch (err) {
@@ -312,7 +369,7 @@ const B2BOrderManagement: React.FC = () => {
       }
     };
     loadCategories();
-  }, []);
+  }, [franchiseProfile?.allowed_brands, selectedBrand]);
 
   // Only show parent categories that actually have at least one orderable
   // product (i.e. their own category or a descendant's has stock for this
@@ -331,14 +388,13 @@ const B2BOrderManagement: React.FC = () => {
       return [catId, ...childIds, ...grandchildIds];
     };
 
-    const visibleCategoryIds = new Set(
-      distributorStock.map((item: any) => item.category_id).filter(Boolean)
-    );
-
     const priority = ["seat cover", "accessories", "mat"];
+    // Show EVERY top-level brand category in the nav (whether or not the selected
+    // distributor stocks it). Categories with no orderable products just render a
+    // "Coming Soon" empty state in the product area when clicked — handled there,
+    // NOT hidden or disabled here.
     const main = allCategories
       .filter(c => !c.parentId)
-      .filter(c => getDescendantIds(c.id).some(id => visibleCategoryIds.has(id)))
       .sort((a, b) => {
         const aName = a.name.toLowerCase();
         const bName = b.name.toLowerCase();
@@ -350,7 +406,7 @@ const B2BOrderManagement: React.FC = () => {
         return aName.localeCompare(bName);
       });
     setMainCategories(main);
-  }, [allCategories, distributorStock]);
+  }, [allCategories, visibleStock]);
 
   const getCategoryIcon = (name: string) => {
     const lowerName = name.toLowerCase();
@@ -364,7 +420,7 @@ const B2BOrderManagement: React.FC = () => {
   };
 
   const categoryHasVisibleProduct = (catId: string, allCats: Category[]): boolean => {
-    const visibleCategoryIds = new Set(distributorStock.map((item: any) => item.category_id).filter(Boolean));
+    const visibleCategoryIds = new Set(visibleStock.map((item: any) => item.category_id).filter(Boolean));
     if (visibleCategoryIds.has(catId)) return true;
     const directChildren = allCats.filter(c => c.parentId === catId);
     return directChildren.some(c => categoryHasVisibleProduct(c.id, allCats));
@@ -503,6 +559,13 @@ const B2BOrderManagement: React.FC = () => {
   // Inventory filters
   const [invSearch, setInvSearch] = useState('');
   const [invCategoryId, setInvCategoryId] = useState('');
+  // Brand filter — an AFAC distributor stocks both AF and AC products, and the AF
+  // and AC catalogues share product names (the AC range is a copy of the AF one),
+  // so without this the list shows two same-named rows with no way to tell them
+  // apart. Empty string = show all brands.
+  const [invBrand, setInvBrand] = useState<'' | 'AF' | 'AC'>('');
+  const [invBrandDropdownOpen, setInvBrandDropdownOpen] = useState(false);
+  const invBrandDropdownRef = useRef<HTMLDivElement>(null);
   const [invShowLowStock, setInvShowLowStock] = useState(false);
   const [invCatDropdownOpen, setInvCatDropdownOpen] = useState(false);
   const [invCatExpandedParents, setInvCatExpandedParents] = useState<Set<string>>(new Set());
@@ -539,7 +602,6 @@ const B2BOrderManagement: React.FC = () => {
   const distFilterDropdownRef = useRef<HTMLDivElement>(null);
   const [brandFilterDropdownOpen, setBrandFilterDropdownOpen] = useState(false);
   const brandFilterDropdownRef = useRef<HTMLDivElement>(null);
-  const [focusedDistId, setFocusedDistId] = useState<string | null>(null);
   const [distSelectorOpen, setDistSelectorOpen] = useState(false);
   const distSelectorRef = useRef<HTMLDivElement>(null);
 
@@ -571,6 +633,9 @@ const B2BOrderManagement: React.FC = () => {
       }
       if (invCatDropdownRef.current && !invCatDropdownRef.current.contains(event.target as Node)) {
         setInvCatDropdownOpen(false);
+      }
+      if (invBrandDropdownRef.current && !invBrandDropdownRef.current.contains(event.target as Node)) {
+        setInvBrandDropdownOpen(false);
       }
       if (orderFilterDropdownRef.current && !orderFilterDropdownRef.current.contains(event.target as Node)) {
         setOrderFilterDropdownOpen(false);
@@ -790,9 +855,16 @@ const B2BOrderManagement: React.FC = () => {
 
   // Build two-level category tree from inventory items for the filter dropdown
   const invCategoryTree = (() => {
+    // Only categories belonging to the selected brand — AF and AC have separate
+    // (identically named) category trees, so without this the dropdown lists e.g.
+    // "4 Wheeler Accessories" twice with no way to tell which brand it belongs to.
+    const brandScopedInventory = invBrand
+      ? ownInventory.filter((item: any) => (item.product_brand || 'AF') === invBrand)
+      : ownInventory;
+
     // Collect all unique categories (with parent info)
     const catMap = new Map<string, { id: string; name: string; parentId: string | null; parentName: string | null }>();
-    ownInventory.forEach((item: any) => {
+    brandScopedInventory.forEach((item: any) => {
       if (!catMap.has(item.category_id)) {
         catMap.set(item.category_id, {
           id: item.category_id,
@@ -826,8 +898,29 @@ const B2BOrderManagement: React.FC = () => {
     return groups;
   })();
 
+  // Brands actually present in this distributor's inventory — the brand filter is
+  // only meaningful (and only shown) when they stock more than one.
+  const invAvailableBrands = Array.from(
+    new Set(ownInventory.map((item: any) => item.product_brand || 'AF'))
+  ).sort();
+  const showInvBrandFilter = invAvailableBrands.length > 1;
+
+  // Switching brand invalidates a category picked from the other brand's tree
+  // (AF and AC categories are different ids), so reset it rather than leave a
+  // stale filter that matches nothing.
+  useEffect(() => {
+    if (!invCategoryId) return;
+    const stillValid = ownInventory.some((item: any) =>
+      item.category_id === invCategoryId &&
+      (!invBrand || (item.product_brand || 'AF') === invBrand)
+    );
+    if (!stillValid) setInvCategoryId('');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [invBrand]);
+
   const filteredInventory = ownInventory.filter((item: any) => {
     if (invShowLowStock && !isItemLowStock(item)) return false;
+    if (invBrand && (item.product_brand || 'AF') !== invBrand) return false;
     if (invCategoryId && item.category_id !== invCategoryId) return false;
     if (invSearch) {
       const q = invSearch.toLowerCase();
@@ -893,18 +986,23 @@ const B2BOrderManagement: React.FC = () => {
   };
 
   const handleExportInventoryCSV = () => {
-    if (ownInventory.length === 0) {
+    // Export what's currently on screen (respects the brand/category/search filters)
+    // so a brand-filtered export can be edited and re-imported without touching the
+    // other brand's rows.
+    if (filteredInventory.length === 0) {
       toast({ description: 'No inventory to export', variant: 'destructive' });
       return;
     }
-    const exportData = ownInventory.map((item: any) => ({
+    const exportData = filteredInventory.map((item: any) => ({
       'Product': item.product_name,
+      'Brand': item.product_brand || 'AF',
       'Variation': item.variation_name || '',
       'SKU': item.sku || '',
       'Category': item.category_name || '',
       'Stock Quantity': item.stock_quantity
     }));
-    downloadCSV(exportData, `inventory_${new Date().toISOString().slice(0, 10)}.csv`);
+    const brandSuffix = invBrand ? `_${invBrand}` : '';
+    downloadCSV(exportData, `inventory${brandSuffix}_${new Date().toISOString().slice(0, 10)}.csv`);
   };
 
   const handleExportOrders = (scope: 'orders' | 'incoming', statusFilter: 'all' | 'active' | 'onhold' | 'completed' | 'declined') => {
@@ -983,11 +1081,17 @@ const B2BOrderManagement: React.FC = () => {
       const headers = parseCsvLine(lines[0]).map(h => h.toLowerCase());
       const skuIdx = headers.indexOf('sku');
       const qtyIdx = headers.indexOf('stock quantity');
+      const productIdx = headers.indexOf('product');
+      const brandIdx = headers.indexOf('brand');
+      const variationIdx = headers.indexOf('variation');
 
-      if (skuIdx === -1 || qtyIdx === -1) {
+      // Many products have no SKU, so SKU alone can't identify a row. We need
+      // either a SKU or the Product name (plus Brand/Variation to disambiguate
+      // the AF and AC copies, which share the same product name).
+      if (qtyIdx === -1 || (skuIdx === -1 && productIdx === -1)) {
         toast({
           title: 'Invalid CSV Format',
-          description: 'CSV must include "SKU" and "Stock Quantity" columns (use Export CSV as a template).',
+          description: 'CSV must include "Stock Quantity" plus "Product" (and "Brand"/"Variation") or "SKU" — use Export CSV as a template.',
           variant: 'destructive'
         });
         return;
@@ -995,21 +1099,52 @@ const B2BOrderManagement: React.FC = () => {
 
       let updated = 0;
       let skipped = 0;
+      let ambiguous = 0;
+
+      const norm = (v: string | null | undefined) => String(v ?? '').trim().toLowerCase();
 
       for (const line of lines.slice(1)) {
         const cells = parseCsvLine(line);
-        const sku = cells[skuIdx];
+        const sku = skuIdx === -1 ? '' : cells[skuIdx];
+        const productName = productIdx === -1 ? '' : cells[productIdx];
+        const brand = brandIdx === -1 ? '' : cells[brandIdx];
+        const variation = variationIdx === -1 ? '' : cells[variationIdx];
         const qty = Number(cells[qtyIdx]);
-        if (!sku || Number.isNaN(qty) || qty < 0) {
+
+        if (Number.isNaN(qty) || qty < 0 || (!sku && !productName)) {
           skipped++;
           continue;
         }
 
-        const matchedItem = ownInventory.find((item: any) => item.sku === sku);
-        if (!matchedItem) {
+        // Prefer an exact SKU match; otherwise identify by product name, narrowed
+        // by brand and variation when those columns are present.
+        let candidates: any[] = [];
+        if (sku) {
+          candidates = ownInventory.filter((item: any) => norm(item.sku) === norm(sku));
+        }
+        if (candidates.length === 0 && productName) {
+          candidates = ownInventory.filter((item: any) => norm(item.product_name) === norm(productName));
+          if (brand) {
+            candidates = candidates.filter((item: any) => norm(item.product_brand || 'AF') === norm(brand));
+          }
+          if (variation) {
+            candidates = candidates.filter((item: any) => norm(item.variation_name) === norm(variation));
+          }
+        }
+
+        if (candidates.length === 0) {
           skipped++;
           continue;
         }
+        // Refuse to guess when a row still matches more than one product (e.g. the
+        // AF and AC copies when the CSV has no Brand column) — updating the wrong
+        // brand's stock silently would be worse than skipping.
+        if (candidates.length > 1) {
+          ambiguous++;
+          skipped++;
+          continue;
+        }
+        const matchedItem = candidates[0];
 
         try {
           const res = await api.put('/orders/distributor/inventory', {
@@ -1034,7 +1169,7 @@ const B2BOrderManagement: React.FC = () => {
 
       toast({
         title: 'CSV Import Complete',
-        description: `${updated} updated${skipped > 0 ? `, ${skipped} skipped (no SKU match or invalid quantity)` : ''}.`,
+        description: `${updated} updated${skipped > 0 ? `, ${skipped} skipped` : ''}${ambiguous > 0 ? ` — ${ambiguous} matched more than one product; add a "Brand" column to tell AF and AC apart` : ''}.`,
         variant: skipped > 0 && updated === 0 ? 'destructive' : 'default'
       });
     } catch (err) {
@@ -1291,7 +1426,7 @@ const B2BOrderManagement: React.FC = () => {
     return seatCoverIds.has(categoryId);
   };
 
-  const filteredStock = distributorStock.filter((item: any) => {
+  const filteredStock = visibleStock.filter((item: any) => {
     if (selectedCategory) {
       const allowedCategories = getCategoryDescendants(selectedCategory, allCategories);
       if (!allowedCategories.includes(item.category_id)) {
@@ -1329,8 +1464,13 @@ const B2BOrderManagement: React.FC = () => {
       if (qty <= 0) continue;
       const [productId, variationPart] = key.split('::');
       const variationId = variationPart || null;
+      // The same product appears once per distributor that sells its category,
+      // so this must be scoped to the distributor currently being ordered from.
+      // Without it, .find() returns whichever row comes first and the item gets
+      // added — and later ordered — against the wrong distributor.
       const stockItem = distributorStock.find(
         (s: any) => s.product_id === productId && s.variation_id === variationId
+          && (!focusedDistId || s.distributor_id === focusedDistId)
       );
       if (!stockItem) continue;
       const categoryId = stockItem.category_id || undefined;
@@ -1347,7 +1487,9 @@ const B2BOrderManagement: React.FC = () => {
         customizationRemarks: '',
         categoryId,
         categoryName: categoryId ? categoryMap[categoryId] : undefined,
-        canCustomize: isSeatCoverCategory(categoryId)
+        canCustomize: isSeatCoverCategory(categoryId),
+        distributorId: stockItem.distributor_id,
+        distributorName: stockItem.distributor_name
       });
     }
     
@@ -1390,6 +1532,8 @@ const B2BOrderManagement: React.FC = () => {
         sku: item.sku,
         needsCustomization: item.canCustomize && item.needsCustomization,
         customizationRemarks: item.canCustomize && item.needsCustomization ? item.customizationRemarks : '',
+        distributorId: item.distributorId,
+        distributorName: item.distributorName,
       }, item.quantity);
     }
     setReplenishQtys({});
@@ -1482,20 +1626,74 @@ const B2BOrderManagement: React.FC = () => {
 
   // â"€â"€ PDF Download â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
 
-  const handleDownloadPDF = async (orderId: string) => {
+  const fetchInvoice = async (orderId: string, distributorName?: string) => {
+    const res = await api.get(`/orders/${orderId}/pdf`, { responseType: 'blob' });
+    const blob = new Blob([res.data], { type: 'application/pdf' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    // Name by distributor so a split order's invoices are tellable apart in the
+    // downloads folder, where the order id alone means nothing.
+    const safe = (distributorName || '').replace(/[^\w\s-]/g, '').trim().replace(/\s+/g, '-');
+    a.download = safe ? `Invoice-${safe}-${orderId}.pdf` : `Order-${orderId}.pdf`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleDownloadPDF = async (orderId: string, distributorName?: string) => {
     try {
-      const res = await api.get(`/orders/${orderId}/pdf`, { responseType: 'blob' });
-      const blob = new Blob([res.data], { type: 'application/pdf' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `Order-${orderId}.pdf`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+      await fetchInvoice(orderId, distributorName);
     } catch (err) {
-      toast({ title: 'Download Failed', description: 'Could not download the PDF.', variant: 'destructive' });
+      toast({ title: 'Download Failed', description: 'Could not download the invoice.', variant: 'destructive' });
+    }
+  };
+
+  /**
+   * One checkout across several distributors becomes one order each, so the
+   * franchise would otherwise have to find every sibling row and download it
+   * separately. Files stay separate — each invoice is addressed to a different
+   * distributor with its own total, so merging them would muddle reconciliation.
+   */
+  const [downloadingGroup, setDownloadingGroup] = useState<string | null>(null);
+
+  const handleDownloadGroup = async (orderId: string) => {
+    setDownloadingGroup(orderId);
+    try {
+      const res = await api.get(`/orders/${orderId}/group`);
+      const siblings: any[] = res.data.orders || [];
+      if (siblings.length === 0) throw new Error('No invoices found');
+
+      let failed = 0;
+      for (const o of siblings) {
+        try {
+          await fetchInvoice(o.id, o.distributor_name);
+          // Browsers drop rapid successive downloads; a short gap avoids it.
+          await new Promise(r => setTimeout(r, 400));
+        } catch { failed++; }
+      }
+
+      if (failed === 0) {
+        toast({
+          title: 'Invoices downloaded',
+          description: `${siblings.length} invoice${siblings.length > 1 ? 's' : ''}, one per distributor.`
+        });
+      } else {
+        toast({
+          title: 'Some invoices failed',
+          description: `${siblings.length - failed} of ${siblings.length} downloaded. Try the rest individually.`,
+          variant: 'destructive'
+        });
+      }
+    } catch (err: any) {
+      toast({
+        title: 'Download Failed',
+        description: getErrorMessage(err, 'Could not download the invoices.'),
+        variant: 'destructive'
+      });
+    } finally {
+      setDownloadingGroup(null);
     }
   };
 
@@ -1835,17 +2033,6 @@ const B2BOrderManagement: React.FC = () => {
                             </a>
                           )}
                         </div>
-                        {/* Category tags */}
-                        {focused.allowed_category_names && (
-                          <div className="flex flex-wrap gap-1.5">
-                            <span className="text-[10px] text-slate-500 font-bold self-center">Sells:</span>
-                            {focused.allowed_category_names.split(', ').map((cat: string) => (
-                              <span key={cat} className="text-[10px] font-bold px-2 py-0.5 rounded-lg bg-white/10 text-slate-300 border border-white/10">
-                                {cat}
-                              </span>
-                            ))}
-                          </div>
-                        )}
                       </div>
                     </div>
                   )}
@@ -2033,18 +2220,25 @@ const B2BOrderManagement: React.FC = () => {
             {/* Low-stock threshold dialog */}
             {thresholdDialogOpen && (() => {
               // ── shared data ──────────────────────────────────────────────
-              const parentFromSubs = Array.from(new Map(ownInventory
+              // Scope to the brand selected in the inventory filter — AF and AC have
+              // separate, identically-named category trees, so an unscoped list would
+              // show every category twice with no way to tell them apart.
+              const tdInventory = invBrand
+                ? ownInventory.filter((i: any) => (i.product_brand || 'AF') === invBrand)
+                : ownInventory;
+
+              const parentFromSubs = Array.from(new Map(tdInventory
                 .filter((i: any) => i.category_parent_id)
                 .map((i: any) => [i.category_parent_id, { id: i.category_parent_id, name: i.parent_category_name }])
               ).values());
-              const topLevelCats = Array.from(new Map(ownInventory
+              const topLevelCats = Array.from(new Map(tdInventory
                 .filter((i: any) => !i.category_parent_id)
                 .map((i: any) => [i.category_id, { id: i.category_id, name: i.category_name }])
               ).values());
               const allParents = Array.from(new Map([...topLevelCats, ...parentFromSubs].map(p => [p.id, p])).values())
                 .sort((a, b) => a.name.localeCompare(b.name));
 
-              const subCats = tdParentCatId ? Array.from(new Map(ownInventory
+              const subCats = tdParentCatId ? Array.from(new Map(tdInventory
                 .filter((i: any) => i.category_parent_id === tdParentCatId)
                 .map((i: any) => [i.category_id, { id: i.category_id, name: i.category_name }])
               ).values()).sort((a, b) => a.name.localeCompare(b.name)) : [];
@@ -2052,7 +2246,7 @@ const B2BOrderManagement: React.FC = () => {
               const parentIsLeaf = tdParentCatId && subCats.length === 0;
               const activeCatId = parentIsLeaf ? tdParentCatId : tdSubCatId;
 
-              const productsInCat = activeCatId ? Array.from(new Map(ownInventory
+              const productsInCat = activeCatId ? Array.from(new Map(tdInventory
                 .filter((i: any) => i.category_id === activeCatId)
                 .map((i: any) => [i.product_id, { id: i.product_id, name: i.product_name }])
               ).values()).sort((a, b) => a.name.localeCompare(b.name)) : [];
@@ -2369,6 +2563,44 @@ const B2BOrderManagement: React.FC = () => {
                     className="pl-9 rounded-xl border-slate-200 focus-visible:ring-orange-500 h-9 text-sm"
                   />
                 </div>
+                {/* Brand filter — only for distributors stocking more than one brand */}
+                {showInvBrandFilter && (
+                  <div ref={invBrandDropdownRef} className="relative">
+                    <button
+                      type="button"
+                      onClick={() => setInvBrandDropdownOpen(v => !v)}
+                      className={`h-9 flex items-center gap-2 rounded-xl border px-3 pr-2.5 bg-white text-sm font-medium transition-colors w-full sm:min-w-[130px] ${invBrand ? 'border-orange-400 text-orange-600' : 'border-slate-200 text-slate-700'}`}
+                    >
+                      <span className="flex-1 text-left truncate">
+                        {invBrand === 'AF' ? 'Autoform (AF)' : invBrand === 'AC' ? 'Autocruze (AC)' : 'All Brands'}
+                      </span>
+                      <ChevronDown className={`w-4 h-4 shrink-0 transition-transform ${invBrandDropdownOpen ? 'rotate-180' : ''}`} />
+                    </button>
+                    {invBrandDropdownOpen && (
+                      <div className="absolute left-0 top-full mt-1 z-50 bg-white border border-slate-200 rounded-xl shadow-lg min-w-[160px] py-1">
+                        <button
+                          type="button"
+                          onClick={() => { setInvBrand(''); setInvBrandDropdownOpen(false); }}
+                          className={`w-full text-left px-4 py-2 text-sm transition-colors ${!invBrand ? 'bg-orange-50 text-orange-600 font-bold' : 'text-slate-700 hover:bg-slate-50'}`}
+                        >
+                          All Brands
+                        </button>
+                        {(['AF', 'AC'] as const)
+                          .filter(b => invAvailableBrands.includes(b))
+                          .map(b => (
+                            <button
+                              key={b}
+                              type="button"
+                              onClick={() => { setInvBrand(b); setInvBrandDropdownOpen(false); }}
+                              className={`w-full text-left px-4 py-2 text-sm transition-colors ${invBrand === b ? 'bg-orange-50 text-orange-600 font-bold' : 'text-slate-700 hover:bg-slate-50'}`}
+                            >
+                              {b === 'AF' ? 'Autoform (AF)' : 'Autocruze (AC)'}
+                            </button>
+                          ))}
+                      </div>
+                    )}
+                  </div>
+                )}
                 {/* Custom collapsible category dropdown */}
                 <div ref={invCatDropdownRef} className="relative">
                   <button
@@ -2470,6 +2702,7 @@ const B2BOrderManagement: React.FC = () => {
                   <thead className="bg-slate-50 border-b border-slate-100 text-slate-500 font-bold uppercase text-[10px] tracking-wider">
                     <tr>
                       <th className="px-5 py-3">Product</th>
+                      {showInvBrandFilter && <th className="px-5 py-3">Brand</th>}
                       <th className="px-5 py-3">Variation</th>
                       <th className="px-5 py-3">Category</th>
                       <th className="px-5 py-3 text-center">Current Stock</th>
@@ -2486,6 +2719,18 @@ const B2BOrderManagement: React.FC = () => {
                       return (
                         <tr key={key} className="hover:bg-slate-50/50">
                           <td className="px-5 py-3 font-bold text-slate-800">{item.product_name}</td>
+                          {showInvBrandFilter && (
+                            <td className="px-5 py-3">
+                              <Badge className={cn(
+                                'border text-[10px] font-black',
+                                (item.product_brand || 'AF') === 'AC'
+                                  ? 'bg-blue-50 text-blue-700 hover:bg-blue-50 border-blue-200'
+                                  : 'bg-orange-50 text-orange-700 hover:bg-orange-50 border-orange-200'
+                              )}>
+                                {item.product_brand || 'AF'}
+                              </Badge>
+                            </td>
+                          )}
                           <td className="px-5 py-3 text-slate-600">{item.variation_name}</td>
                           <td className="px-5 py-3">
                             <Badge className="bg-slate-100 text-slate-600 hover:bg-slate-100 border-slate-200">{item.category_name}</Badge>
@@ -2595,7 +2840,7 @@ const B2BOrderManagement: React.FC = () => {
                 </div>
                 {/* Desktop — existing hover nav dropdowns */}
                 <div className={`hidden sm:flex relative bg-white border border-slate-100 rounded-3xl p-4 mb-6 shadow-sm items-center gap-x-6 gap-y-4 overflow-visible no-scrollbar ${customizationOpen || detailProductId ? 'z-0' : 'z-[100]'}`}>
-                  <div className="flex items-center gap-x-6 lg:gap-x-8">
+                  <div className="flex items-center gap-x-6 lg:gap-x-8 flex-wrap">
                     {mainCategories.map(cat => (
                       <NavDropdown
                         key={cat.id}
@@ -2608,18 +2853,59 @@ const B2BOrderManagement: React.FC = () => {
               </>
             )}
 
-            {/* Info notice */}
-            <div className="flex items-center gap-2 bg-blue-50 border border-blue-100 rounded-xl px-4 py-2.5 mb-5 text-blue-700 text-xs font-medium">
+            {/* Info notice + (AFAC only) brand picker */}
+            <div className="flex items-center gap-3 bg-blue-50 border border-blue-100 rounded-xl px-4 py-2.5 mb-5 text-blue-700 text-xs font-medium">
               <Info className="w-4 h-4 shrink-0" />
-              {!isUserFranchise 
-                ? "View product catalogue and variations. As a distributor, you can view the items but cannot place orders."
-                : "Select products and quantities, then add to cart to request an order from your distributor."
-              }
+              <span className="flex-1">
+                {!isUserFranchise
+                  ? "View product catalogue and variations. As a distributor, you can view the items but cannot place orders."
+                  : "Select products and quantities, then add to cart to request an order from your distributor."
+                }
+              </span>
+              {showBrandPicker && (
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <span className="text-[10px] font-black uppercase tracking-wider text-blue-400">Brand</span>
+                  <div className="flex items-center bg-white border border-blue-200 rounded-lg p-0.5">
+                    {(['AF', 'AC'] as const).map(b => (
+                      <button
+                        key={b}
+                        onClick={() => { setSelectedBrand(b); setSelectedCategory(null); }}
+                        className={cn(
+                          'px-3 py-1 rounded-md text-[11px] font-black transition-colors',
+                          selectedBrand === b
+                            ? b === 'AF' ? 'bg-orange-500 text-white' : 'bg-blue-600 text-white'
+                            : 'text-slate-500 hover:text-slate-700'
+                        )}
+                      >
+                        {b}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
             {loadingStock ? (
               <div className="flex items-center justify-center py-20">
                 <RefreshCw className="w-8 h-8 animate-spin text-orange-400" />
+              </div>
+            ) : !focusedDistId && distributorStock.length > 0 ? (
+              <div className="flex flex-col items-center justify-center py-20 text-slate-400">
+                <Building2 className="w-16 h-16 mb-4 opacity-30" />
+                <p className="font-bold text-lg text-slate-600">Select a distributor to start ordering</p>
+                <p className="text-sm mt-1 text-center max-w-xs">
+                  Choose a distributor from the selector above to see the products you can order from them.
+                </p>
+              </div>
+            ) : Object.keys(grouped).length === 0 && selectedCategory && !searchQuery && !categoryHasVisibleProduct(selectedCategory, allCategories) ? (
+              // A category IS selected but the distributor stocks nothing in it — this
+              // is the "Coming Soon" case the franchise sees on clicking such a category.
+              <div className="flex flex-col items-center justify-center py-20 text-slate-400">
+                <Clock className="w-16 h-16 mb-4 opacity-30" />
+                <p className="font-bold text-lg text-slate-600">Coming Soon</p>
+                <p className="text-sm mt-1 text-center max-w-xs">
+                  Your distributor doesn't stock products in this category yet. Check back soon or explore other categories.
+                </p>
               </div>
             ) : Object.keys(grouped).length === 0 ? (
               <div className="flex flex-col items-center justify-center py-20 text-slate-400">
@@ -3132,6 +3418,14 @@ const B2BOrderManagement: React.FC = () => {
                             {order.distributor_name && (
                               <p className="text-[11px] text-orange-600 font-bold mt-1">{order.distributor_name}</p>
                             )}
+                            {/* Without this, the sub-orders of one checkout look like
+                                unrelated orders sitting next to each other. */}
+                            {Number((order as any).group_size) > 1 && (
+                              <p className="text-[10px] text-slate-500 font-semibold mt-1 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-slate-100">
+                                <Package className="w-3 h-3" />
+                                1 of {(order as any).group_size} - split by distributor
+                              </p>
+                            )}
                             {(order as any).docket_id && (
                               <p className="text-[10px] text-emerald-600 font-bold mt-1 flex items-center gap-1">
                                 <Truck className="w-3 h-3" /> Docket: {(order as any).docket_id}
@@ -3204,20 +3498,47 @@ const B2BOrderManagement: React.FC = () => {
                               <p className="text-[11px] text-slate-500 mt-0.5 truncate">
                                 {currentOrder.distributor_name || 'Distributor'} - {new Date(currentOrder.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}
                               </p>
+                              {Number(currentOrder.group_size) > 1 && (
+                                <p className="text-[11px] text-orange-600 font-semibold mt-0.5">
+                                  Part of one order placed with {currentOrder.group_size} distributors
+                                </p>
+                              )}
                             </div>
                           </div>
                           <div className="flex items-center gap-1.5 shrink-0">
                             <Tooltip>
                               <TooltipTrigger asChild>
                                 <button
-                                  onClick={() => handleDownloadPDF(currentOrder.id)}
+                                  onClick={() => handleDownloadPDF(currentOrder.id, currentOrder.distributor_name)}
                                   className="h-8 w-8 flex items-center justify-center rounded-xl bg-white border border-slate-200 text-slate-500 hover:bg-orange-50 hover:text-orange-600 hover:border-orange-200 transition-all"
                                 >
                                   <Download className="w-4 h-4" />
                                 </button>
                               </TooltipTrigger>
-                              <TooltipContent>Download PDF</TooltipContent>
+                              <TooltipContent>
+                                {Number(currentOrder.group_size) > 1
+                                  ? `Invoice from ${currentOrder.distributor_name || 'this distributor'} only`
+                                  : 'Download invoice'}
+                              </TooltipContent>
                             </Tooltip>
+                            {/* Split order — one invoice per distributor, so offer them all at once */}
+                            {Number(currentOrder.group_size) > 1 && (
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <button
+                                    onClick={() => handleDownloadGroup(currentOrder.id)}
+                                    disabled={downloadingGroup === currentOrder.id}
+                                    className="h-8 px-2.5 flex items-center gap-1.5 rounded-xl bg-orange-50 border border-orange-200 text-orange-600 hover:bg-orange-100 transition-all text-[11px] font-bold disabled:opacity-60"
+                                  >
+                                    {downloadingGroup === currentOrder.id
+                                      ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                      : <Download className="w-3.5 h-3.5" />}
+                                    All {currentOrder.group_size}
+                                  </button>
+                                </TooltipTrigger>
+                                <TooltipContent>Download all {currentOrder.group_size} invoices</TooltipContent>
+                              </Tooltip>
+                            )}
                             {(currentOrder.status === 'processing' || currentOrder.status === 'shipped') && (
                               <Button
                                 size="sm"

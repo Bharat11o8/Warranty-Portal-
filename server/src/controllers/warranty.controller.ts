@@ -9,7 +9,7 @@ import { NotificationService } from '../services/notification.service.js';
 import { WhatsAppService } from '../services/whatsapp.service.js';
 import { geolocateIP, getClientIP } from '../utils/ipGeolocation.js';
 import { calculateFraudScore } from '../utils/fraudScoring.js';
-import { matchFallbackUidSequence, resolveFallbackUid } from '../utils/customerMobileLimits.js';
+import { matchFallbackUidSequence, resolveFallbackUid, FALLBACK_UID_YEAR } from '../utils/customerMobileLimits.js';
 
 
 // Extending WarrantyData interface locally if not updated in types file yet
@@ -49,6 +49,21 @@ export class WarrantyController {
       if (warrantyData.carMake) warrantyData.carMake = String(warrantyData.carMake).substring(0, 100);
       if (warrantyData.carModel) warrantyData.carModel = String(warrantyData.carModel).substring(0, 100);
       if (warrantyData.carYear) warrantyData.carYear = String(warrantyData.carYear).substring(0, 4);
+
+      // Staff must be admin-approved before they can be credited as the installer.
+      // The picker already hides pending staff; this is the server-side guard.
+      // 'owner' is the store-owner sentinel, not a manpower row, so it's exempt.
+      if (warrantyData.manpowerId && warrantyData.manpowerId !== 'owner') {
+        const [mpRows]: any = await db.execute(
+          'SELECT is_approved, is_active, name FROM manpower WHERE id = ?',
+          [warrantyData.manpowerId]
+        );
+        if (mpRows.length > 0 && !mpRows[0].is_approved) {
+          return res.status(400).json({
+            error: `${mpRows[0].name} is still awaiting admin approval and cannot be selected as the installer yet.`
+          });
+        }
+      }
       if (warrantyData.warrantyType) warrantyData.warrantyType = String(warrantyData.warrantyType).substring(0, 50);
 
       // Handle uploaded files
@@ -145,11 +160,10 @@ export class WarrantyController {
       // re-entering the same base value would collide with their own prior
       // (already-approved) warranty instead of getting a fresh UID.
       if (warrantyData.productType === 'seat-cover' && uid) {
-        const currentYear = new Date().getFullYear();
-        const isFallbackPattern = matchFallbackUidSequence(uid, warrantyData.customerPhone, currentYear) !== null;
+        const isFallbackPattern = matchFallbackUidSequence(uid, warrantyData.customerPhone, FALLBACK_UID_YEAR) !== null;
 
         if (isFallbackPattern) {
-          const resolved = await resolveFallbackUid(uid, warrantyData.customerPhone, currentYear);
+          const resolved = await resolveFallbackUid(uid, warrantyData.customerPhone, FALLBACK_UID_YEAR);
 
           if (!resolved) {
             return res.status(400).json({

@@ -393,12 +393,36 @@ export class AuthController {
                 : pending.manpower_data;
 
               if (manpowerList && manpowerList.length > 0) {
+                const seenPhones = new Set<string>();
                 for (const m of manpowerList) {
+                  const phone = String(m.phoneNumber || '').trim();
+
+                  // A phone number identifies one staff member system-wide. Skip a
+                  // clashing entry rather than aborting the whole registration —
+                  // the vendor is still created and can add the person afterwards.
+                  if (seenPhones.has(phone)) continue;
+                  const [clash]: any = await connection.execute(
+                    'SELECT id FROM manpower WHERE phone_number = ? AND is_active = TRUE LIMIT 1',
+                    [phone]
+                  );
+                  if (clash.length > 0) {
+                    console.warn(`[Register] Skipped manpower "${m.name}" — phone ${phone} already registered to another active staff member.`);
+                    continue;
+                  }
+                  seenPhones.add(phone);
+
+                  const namePart = String(m.name || '').slice(0, 3).toUpperCase();
+                  const phonePart = phone.slice(-4);
+                  const manpowerCode = m.manpowerId
+                    || ((namePart && phonePart) ? `${namePart}${phonePart}` : `MP-${Date.now()}`);
+
+                  // Staff added at registration also start PENDING — an admin
+                  // approves them from the franchise's Manpower tab.
                   await connection.execute(
-                    `INSERT INTO manpower 
-                     (id, vendor_id, name, phone_number, manpower_id, applicator_type) 
-                     VALUES (?, ?, ?, ?, ?, ?)`,
-                    [uuidv4(), vendorDetailsId, m.name, m.phoneNumber, m.manpowerId, m.applicatorType]
+                    `INSERT INTO manpower
+                     (id, vendor_id, name, phone_number, manpower_id, applicator_type, is_approved)
+                     VALUES (?, ?, ?, ?, ?, ?, FALSE)`,
+                    [uuidv4(), vendorDetailsId, m.name, phone, manpowerCode, m.applicatorType]
                   );
                 }
               }

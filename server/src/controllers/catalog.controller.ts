@@ -14,19 +14,19 @@ export class CatalogController {
             let categories: any[];
 
             if (brand && ['AF', 'AC'].includes(brand)) {
-                // Return only categories (and their parents) that have at least one product of this brand
+                // Each brand has its own full, mirrored category tree. AC categories
+                // use the `-ac` id suffix; AF categories don't. Return the WHOLE tree
+                // for the requested brand (not only categories that currently have
+                // products) so both brands show an identical nav — empty categories
+                // render "Coming Soon" on the franchise side. This also guarantees AF
+                // categories never appear under AC and vice-versa.
+                const suffixClause = brand === 'AC'
+                    ? "sc.id LIKE '%-ac'"
+                    : "sc.id NOT LIKE '%-ac'";
                 const [rows]: any = await db.execute(
-                    `SELECT DISTINCT sc.* FROM store_categories sc
-                     WHERE sc.id IN (
-                         SELECT DISTINCT category_id FROM store_products WHERE brand = ? AND is_active = 1
-                     )
-                     OR sc.id IN (
-                         SELECT DISTINCT sc2.parent_id FROM store_categories sc2
-                         JOIN store_products sp ON sp.category_id = sc2.id
-                         WHERE sp.brand = ? AND sp.is_active = 1 AND sc2.parent_id IS NOT NULL
-                     )
-                     ORDER BY sc.name ASC`,
-                    [brand, brand]
+                    `SELECT sc.* FROM store_categories sc
+                     WHERE ${suffixClause}
+                     ORDER BY sc.name ASC`
                 );
                 categories = rows;
             } else {

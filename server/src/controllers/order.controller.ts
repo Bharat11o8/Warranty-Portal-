@@ -212,7 +212,8 @@ export class OrderController {
     // ─── Helper: Generate Order PDF as Buffer ──────────────────
     private static async generateOrderPDF(order: any, items: any[], franchise: any, distributor: any): Promise<Buffer> {
         return new Promise((resolve, reject) => {
-            const doc = new PDFDocument({ size: 'A4', margin: 50 });
+            // bufferPages lets us stamp "Page X of Y" after the total page count is known.
+            const doc = new PDFDocument({ size: 'A4', margin: 50, bufferPages: true });
             const chunks: Buffer[] = [];
 
             doc.on('data', (chunk: Buffer) => chunks.push(chunk));
@@ -292,20 +293,75 @@ export class OrderController {
                 doc.rect(x, y + 13, Math.min(w, 60), 2).fill(yellow);
             };
 
-            // ─── Header: company identity (left) + title (right) ─────────────────────
-            doc.font('Helvetica-Bold').fontSize(15).fillColor(navy).text('AFAC INDIA PVT LTD', leftX, 30, { width: 260 });
+            // ─── Header: supplying distributor (left) + title (right) ────────────────
+            // Drawn on every page (see pageAdded hook below) so each sheet carries the
+            // distributor letterhead and the order reference.
+            // The address block is variable height — a long street address wraps to
+            // two lines and pushes the email down. Measure it and place the divider
+            // below, rather than at a fixed y that clipped the last line.
+            const addressTopY = 50;
             const addressLines = [
-                'Khasra No. 122/13 Min, Central Hope Town',
-                'Industrial Area, Selaqui, Dehradun - 248011 (Uttarakhand)',
-                'GSTIN: 05AAWCA7727K1Z1',
-            ];
-            doc.font('Helvetica').fontSize(8).fillColor('#64748B').text(addressLines.join('\n'), leftX, 50, { width: 260 });
+                distributor.address,
+                [distributor.city, distributor.state].filter(Boolean).join(', '),
+                distributor.pincode ? `Pin: ${distributor.pincode}` : '',
+                distributor.phone_number ? `Phone: ${distributor.phone_number}` : '',
+                distributor.email || '',
+            ].filter(Boolean);
+            const addressText = addressLines.join('\n');
 
-            doc.font('Helvetica-Bold').fontSize(22).fillColor(navy).text('PURCHASE ORDER', 0, 34, { width: pageWidth, align: 'right' });
-            doc.font('Helvetica-Bold').fontSize(9).fillColor('#64748B').text(`#${order.id}`, 0, 62, { width: pageWidth, align: 'right', characterSpacing: 0.6 });
+            doc.font('Helvetica').fontSize(8);
+            const addressHeight = doc.heightOfString(addressText, { width: 260 });
+            // Keep the old spacing when the block is short, so existing invoices are
+            // unchanged; grow only when the content actually needs it.
+            const dividerY = Math.max(100, addressTopY + addressHeight + 8);
+            const headerBottomY = dividerY + 18;
 
-            doc.rect(leftX, 100, pageWidth - leftX, 3).fill(navy);
-            doc.y = 118;
+            const drawPageHeader = () => {
+                doc.font('Helvetica-Bold').fontSize(15).fillColor(navy)
+                    .text(distributor.name || 'Distributor Partner', leftX, 30, { width: 260 });
+                doc.font('Helvetica').fontSize(8).fillColor('#64748B')
+                    .text(addressText, leftX, addressTopY, { width: 260 });
+
+                doc.font('Helvetica-Bold').fontSize(22).fillColor(navy)
+                    .text('PURCHASE ORDER', 0, 34, { width: pageWidth, align: 'right' });
+                doc.font('Helvetica-Bold').fontSize(9).fillColor('#64748B')
+                    .text(`#${order.id}`, 0, 62, { width: pageWidth, align: 'right', characterSpacing: 0.6 });
+
+                doc.rect(leftX, dividerY, pageWidth - leftX, 3).fill(navy);
+            };
+
+            // ─── Footer: divider + brand logo strip (drawn on every page) ────────────
+            const footerLogoMaxHeight = 36;
+            const footerLogoMaxWidth = 74;
+            const footerLogoGap = 7;
+            const footerLogoRowGap = 6;
+            const footerDividerY = 736;
+            const footerLogoRowTop = 748;
+            // Rows must stop before the footer zone.
+            const contentBottomLimit = footerDividerY - 14;
+
+            const footerLogos = brandLogoFiles
+                .map((file) => scaleToBox(file, footerLogoMaxWidth, footerLogoMaxHeight))
+                .filter((l): l is NonNullable<typeof l> => l !== null);
+            const footerLogoRows = wrapIntoRows(footerLogos, footerLogoGap);
+
+            const drawPageFooter = () => {
+                doc.moveTo(leftX, footerDividerY).lineTo(pageWidth, footerDividerY).stroke('#E5E7EB');
+                drawLogoRows(footerLogoRows, footerLogoRowTop, footerLogoGap, footerLogoRowGap);
+            };
+
+            // Every new page gets the same header + footer chrome.
+            doc.on('pageAdded', () => {
+                drawPageHeader();
+                drawPageFooter();
+                doc.x = leftX;
+                doc.y = headerBottomY;
+            });
+
+            // First page: pageAdded doesn't fire for it, so draw manually.
+            drawPageHeader();
+            drawPageFooter();
+            doc.y = headerBottomY;
 
             // ─── Order meta row: Date (left) / Status (right) ────────────────────────
             const metaTop = doc.y;
@@ -319,23 +375,22 @@ export class OrderController {
 
             // ─── FROM / TO ─────────────────────────────────────────────────────────
             const partyTop = doc.y;
+            // Left: who placed the order (franchise store + contact person).
             sectionLabel('ORDER FROM', leftX, partyTop);
             doc.font('Helvetica-Bold').fontSize(11).fillColor(navy)
-                .text(franchise.store_name || 'Franchise Partner', leftX, partyTop + 22);
+                .text(franchise.store_name || 'Franchise Partner', leftX, partyTop + 22, { width: 230 });
             doc.font('Helvetica').fontSize(9).fillColor('#475569')
-                .text(franchise.contact_name || '', leftX, partyTop + 38)
-                .text([franchise.city, franchise.state].filter(Boolean).join(', '), leftX)
-                .text(`Pin: ${franchise.pincode || '-'}`, leftX)
-                .text(`Phone: ${franchise.phone_number || '-'}`, leftX);
+                .text(franchise.contact_name || '', leftX, partyTop + 38, { width: 230 })
+                .text(`Phone: ${franchise.phone_number || '-'}`, leftX, undefined, { width: 230 });
 
+            // Right: where the goods go (franchise address).
             sectionLabel('DELIVER TO', rightX, partyTop);
             doc.font('Helvetica-Bold').fontSize(11).fillColor(navy)
-                .text(distributor.name || 'Distributor Partner', rightX, partyTop + 22);
+                .text(franchise.store_name || 'Franchise Partner', rightX, partyTop + 22, { width: 250 });
             doc.font('Helvetica').fontSize(9).fillColor('#475569')
-                .text(distributor.email || '', rightX, partyTop + 38)
-                .text([distributor.city, distributor.state].filter(Boolean).join(', '), rightX)
-                .text(`Pin: ${distributor.pincode || '-'}`, rightX)
-                .text(`Phone: ${distributor.phone_number || '-'}`, rightX);
+                .text(franchise.address || '', rightX, partyTop + 38, { width: 250 })
+                .text([franchise.city, franchise.state].filter(Boolean).join(', '), rightX, undefined, { width: 250 })
+                .text(`Pin: ${franchise.pincode || '-'}`, rightX, undefined, { width: 250 });
 
             doc.y = partyTop + 108;
 
@@ -378,13 +433,6 @@ export class OrderController {
             items.forEach((item: any, index: number) => {
                 const itemQuantity = Number(item.quantity || 0);
 
-                if (rowY > 700) {
-                    doc.addPage();
-                    rowY = 60;
-                    drawTableHeader(rowY);
-                    rowY += tableHeaderHeight;
-                }
-
                 const itemNotes: string[] = [];
                 if (item.needs_customization) {
                     itemNotes.push('Customization requested');
@@ -397,6 +445,15 @@ export class OrderController {
                     ? doc.heightOfString(noteText, { width: pageWidth - leftX - 34, align: 'left' }) + 6
                     : 0;
                 const rowHeight = 22 + noteHeight;
+
+                // Break BEFORE drawing if this row (including its notes) would run into
+                // the footer zone — checked with the real height, not a fixed guess.
+                if (rowY + rowHeight > contentBottomLimit) {
+                    doc.addPage();
+                    rowY = headerBottomY;
+                    drawTableHeader(rowY);
+                    rowY += tableHeaderHeight;
+                }
 
                 if (index % 2 === 1) {
                     doc.rect(leftX, rowY, pageWidth - leftX, rowHeight).fill('#F8FAFC');
@@ -439,9 +496,9 @@ export class OrderController {
                     width: pageWidth - 26,
                     align: 'left'
                 }) + 22);
-                if (rowY + remarksBoxHeight > 720) {
+                if (rowY + remarksBoxHeight > contentBottomLimit) {
                     doc.addPage();
-                    rowY = 60;
+                    rowY = headerBottomY;
                 }
 
                 doc.roundedRect(leftX, rowY, pageWidth - leftX, remarksBoxHeight, 4).fillAndStroke('#FEFCE8', '#FDE68A');
@@ -454,9 +511,9 @@ export class OrderController {
 
             // ─── Total bar: yellow highlight with dark text (mirrors reference) ──────
             const totalBarHeight = 34;
-            if (rowY + totalBarHeight > 720) {
+            if (rowY + totalBarHeight > contentBottomLimit) {
                 doc.addPage();
-                rowY = 60;
+                rowY = headerBottomY;
             }
             // Left portion navy label, right portion yellow value block.
             const totalValueBlockWidth = 170;
@@ -467,21 +524,17 @@ export class OrderController {
             doc.font('Helvetica-Bold').fontSize(13).fillColor(navy)
                 .text(`${totalQuantity} UNITS`, pageWidth - totalValueBlockWidth, rowY + 11, { width: totalValueBlockWidth - 16, align: 'right' });
 
-            // ─── Footer: divider line, then brand logos (no caption text). ───────────
-            const footerLogoMaxHeight = 36;
-            const footerLogoMaxWidth = 74;
-            const footerLogoGap = 7;
-            const footerLogoRowGap = 6;
-            const footerDividerY = 736;
-            const footerLogoRowTop = 748;
-
-            doc.moveTo(leftX, footerDividerY).lineTo(pageWidth, footerDividerY).stroke('#E5E7EB');
-
-            const footerLogos = brandLogoFiles
-                .map((file) => scaleToBox(file, footerLogoMaxWidth, footerLogoMaxHeight))
-                .filter((l): l is NonNullable<typeof l> => l !== null);
-            const footerLogoRows = wrapIntoRows(footerLogos, footerLogoGap);
-            drawLogoRows(footerLogoRows, footerLogoRowTop, footerLogoGap, footerLogoRowGap);
+            // ─── Page numbers: stamp "Page X of Y" once the total is known ───────────
+            const pageRange = doc.bufferedPageRange();
+            for (let i = 0; i < pageRange.count; i++) {
+                doc.switchToPage(pageRange.start + i);
+                doc.font('Helvetica').fontSize(8).fillColor('#94A3B8')
+                    .text(`Page ${i + 1} of ${pageRange.count}`, leftX, footerDividerY + 4, {
+                        width: pageWidth - leftX,
+                        align: 'right'
+                    });
+            }
+            doc.flushPages();
 
             doc.end();
         });
@@ -489,6 +542,9 @@ export class OrderController {
 
     static async createOrder(req: Request, res: Response) {
         const connection = await db.getConnection();
+        // Released early once the order is committed so the pooled connection is
+        // not held for the duration of the background notification work.
+        let orderConnectionReleased = false;
         try {
             const user = (req as any).user;
             const { items, shippingAddress, shippingCity, shippingState, shippingPincode, additionalRemarks } = req.body;
@@ -536,21 +592,54 @@ export class OrderController {
                     return res.status(400).json({ error: 'One or more products are no longer available.' });
                 }
 
-                // Resolve the distributor assigned to this franchise that is allowed to
-                // sell this product's category AND brand (admin enforces no overlap, so this is unambiguous).
+                // Resolve a distributor assigned to this franchise that is allowed to
+                // sell this product's category AND brand.
+                //
+                // When the client pins the distributor the item was browsed from we
+                // honour it. Several of a franchise's distributors can stock the same
+                // category, and picking "the first match" routed orders to a
+                // distributor the franchise never chose — which then failed on stock
+                // it was never expected to hold.
+                //
+                // Per-mapping limits (franchise_distributor_categories) narrow what
+                // THIS franchise may buy from THIS distributor. No rows for a pair
+                // means "inherit everything the distributor sells", so existing
+                // mappings are unaffected.
+                const pinnedDistributorId = typeof item.distributorId === 'string' && item.distributorId
+                    ? item.distributorId
+                    : null;
+
                 const [routeRows]: any = await connection.execute(
                     `SELECT d.* FROM franchise_distributors fd
                      JOIN distributor_allowed_categories dac ON dac.distributor_id = fd.distributor_id
                      JOIN distributors d ON d.id = fd.distributor_id
                      WHERE fd.franchise_user_id = ? AND dac.category_id = ?
                        AND (d.allowed_brands = 'AFAC' OR d.allowed_brands = ?)
+                       AND (
+                         fd.category_scope = 'all'
+                         OR EXISTS (
+                           SELECT 1 FROM franchise_distributor_categories fdc
+                           WHERE fdc.franchise_user_id = fd.franchise_user_id
+                             AND fdc.distributor_id = fd.distributor_id
+                             AND fdc.category_id = dac.category_id
+                         )
+                       )
+                       ${pinnedDistributorId ? 'AND fd.distributor_id = ?' : ''}
                      LIMIT 1`,
-                    [user.id, prodRows[0].category_id, prodRows[0].brand]
+                    pinnedDistributorId
+                        ? [user.id, prodRows[0].category_id, prodRows[0].brand, pinnedDistributorId]
+                        : [user.id, prodRows[0].category_id, prodRows[0].brand]
                 );
 
                 if (routeRows.length === 0) {
                     await connection.rollback();
-                    return res.status(400).json({ error: `No distributor available for "${prodRows[0].name}". Contact your admin.` });
+                    // A pinned distributor that no longer qualifies means the client's
+                    // catalogue is stale (mapping or category limit changed since).
+                    return res.status(400).json({
+                        error: pinnedDistributorId
+                            ? `"${prodRows[0].name}" is no longer available from the selected distributor. Refresh the catalogue and try again.`
+                            : `No distributor available for "${prodRows[0].name}". Contact your admin.`
+                    });
                 }
                 const distributor = routeRows[0];
 
@@ -667,8 +756,28 @@ export class OrderController {
             }
 
             await connection.commit();
+            // The order is durable from here, so release the pooled connection and
+            // answer the user now. Everything below is notification work.
+            connection.release();
+            orderConnectionReleased = true;
 
-            // 4. Generate PDF + email per distributor sub-order (after commit — non-critical)
+            res.status(201).json({
+                success: true,
+                message: createdOrders.length > 1
+                    ? `Order placed and split across ${createdOrders.length} distributors. They have been notified.`
+                    : 'Order placed successfully. Your distributor has been notified.',
+                orderGroupId,
+                orders: createdOrders.map(o => ({ id: o.orderId, distributorName: o.distributor.name, totalAmount: o.totalAmount, itemCount: o.orderItems.length }))
+            });
+
+            // 4. PDF + email + WhatsApp per sub-order.
+            //
+            // These used to be awaited before responding, so the franchise sat on a
+            // spinner through PDF generation, two SMTP handshakes and two WhatsApp
+            // calls per distributor — several seconds, and worse for a split order.
+            // None of it affects whether the order exists, so it now runs detached
+            // and failures are logged rather than surfaced.
+            void (async () => {
             for (const { orderId, distributor, orderItems, totalAmount } of createdOrders) {
                 const order = {
                     id: orderId, status: 'processing', total_amount: totalAmount,
@@ -815,21 +924,22 @@ export class OrderController {
                 }
             }
 
-            res.status(201).json({
-                success: true,
-                message: createdOrders.length > 1
-                    ? `Order placed and split across ${createdOrders.length} distributors. They have been notified.`
-                    : 'Order placed successfully. Your distributor has been notified.',
-                orderGroupId,
-                orders: createdOrders.map(o => ({ id: o.orderId, distributorName: o.distributor.name, totalAmount: o.totalAmount, itemCount: o.orderItems.length }))
-            });
+            })().catch(err =>
+                console.error('[Order] Background notification task failed (non-critical):', err)
+            );
 
         } catch (error: any) {
-            await connection.rollback();
-            console.error('Create order error:', error);
-            res.status(500).json({ error: 'Failed to create order' });
+            // Only roll back if we still own the transaction. Past the commit the
+            // response is already sent, so failures there must not touch it.
+            if (!orderConnectionReleased) {
+                await connection.rollback();
+                console.error('Create order error:', error);
+                res.status(500).json({ error: 'Failed to create order' });
+            } else {
+                console.error('[Order] Post-commit error (order was created):', error);
+            }
         } finally {
-            connection.release();
+            if (!orderConnectionReleased) connection.release();
         }
     }
 
@@ -1108,7 +1218,14 @@ export class OrderController {
 
             const [orders]: any = await db.execute(
                 `SELECT o.*, d.name as distributor_name, d.phone_number as distributor_phone, d.email as distributor_email,
-                        d.allowed_brands as distributor_brand
+                        d.allowed_brands as distributor_brand,
+                        -- One checkout spanning several distributors becomes one
+                        -- sub-order each, sharing an order_group_id. Surfacing the
+                        -- sibling count lets the UI show them as one order instead
+                        -- of unrelated rows.
+                        (SELECT COUNT(*) FROM store_orders g
+                          WHERE g.order_group_id = o.order_group_id
+                            AND g.order_group_id IS NOT NULL) AS group_size
                  FROM store_orders o
                  LEFT JOIN distributors d ON o.distributor_id = d.id
                  WHERE o.vendor_id = ?
@@ -1123,6 +1240,59 @@ export class OrderController {
         } catch (error: any) {
             console.error('Get my orders error:', error);
             res.status(500).json({ error: 'Failed to fetch orders' });
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    //  GET SIBLING ORDERS IN THE SAME CHECKOUT
+    // ═══════════════════════════════════════════════════════════
+    /**
+     * Every sub-order created by one checkout, so the franchise can download all
+     * of its invoices at once instead of hunting for each distributor's row.
+     *
+     * Scoped to the caller's own orders — a group id from another vendor returns
+     * nothing rather than leaking their order list.
+     */
+    static async getOrderGroup(req: Request, res: Response) {
+        try {
+            const { id } = req.params;
+            const user = (req as any).user;
+
+            const [own]: any = await db.execute(
+                'SELECT order_group_id, vendor_id FROM store_orders WHERE id = ?', [id]
+            );
+            if (own.length === 0) {
+                return res.status(404).json({ error: 'Order not found' });
+            }
+            if (user?.role !== 'admin' && own[0].vendor_id !== user.id) {
+                return res.status(403).json({ error: 'Not your order' });
+            }
+
+            const groupId = own[0].order_group_id;
+            // Older orders predate grouping — treat them as a group of one.
+            if (!groupId) {
+                const [single]: any = await db.execute(
+                    `SELECT o.id, o.total_amount, o.status, d.name AS distributor_name
+                     FROM store_orders o
+                     LEFT JOIN distributors d ON d.id = o.distributor_id
+                     WHERE o.id = ?`, [id]
+                );
+                return res.json({ success: true, groupId: null, orders: single });
+            }
+
+            const [orders]: any = await db.execute(
+                `SELECT o.id, o.total_amount, o.status, d.name AS distributor_name
+                 FROM store_orders o
+                 LEFT JOIN distributors d ON d.id = o.distributor_id
+                 WHERE o.order_group_id = ? AND o.vendor_id = ?
+                 ORDER BY d.name ASC`,
+                [groupId, own[0].vendor_id]
+            );
+
+            res.json({ success: true, groupId, orders });
+        } catch (error: any) {
+            console.error('Get order group error:', error);
+            res.status(500).json({ error: 'Failed to load order group' });
         }
     }
 
@@ -1181,7 +1351,18 @@ export class OrderController {
                         GROUP_CONCAT(sc.name ORDER BY sc.name SEPARATOR ', ') as allowed_category_names
                  FROM franchise_distributors fd
                  JOIN distributors d ON d.id = fd.distributor_id
+                 -- Show the EFFECTIVE categories for this franchise: the distributor's
+                 -- list, narrowed by any per-mapping limit the admin has set.
                  LEFT JOIN distributor_allowed_categories dac ON dac.distributor_id = d.id
+                    AND (
+                      fd.category_scope = 'all'
+                      OR EXISTS (
+                        SELECT 1 FROM franchise_distributor_categories fdc
+                        WHERE fdc.franchise_user_id = fd.franchise_user_id
+                          AND fdc.distributor_id = fd.distributor_id
+                          AND fdc.category_id = dac.category_id
+                      )
+                    )
                  LEFT JOIN store_categories sc ON sc.id = dac.category_id
                  WHERE fd.franchise_user_id = ?
                  GROUP BY d.id, d.name, d.city, d.state, d.phone_number, d.email, d.allowed_brands
@@ -1238,6 +1419,18 @@ export class OrderController {
                     AND di.distributor_id = fd.distributor_id
                  WHERE fd.franchise_user_id = ?
                    AND (d.allowed_brands = 'AFAC' OR d.allowed_brands = sp.brand)
+                   -- Per-mapping limit: 'all' inherits the distributor's full
+                   -- range; 'selected' allows only the listed categories (which
+                   -- may legitimately be none).
+                   AND (
+                     fd.category_scope = 'all'
+                     OR EXISTS (
+                       SELECT 1 FROM franchise_distributor_categories fdc
+                       WHERE fdc.franchise_user_id = fd.franchise_user_id
+                         AND fdc.distributor_id = fd.distributor_id
+                         AND fdc.category_id = dac.category_id
+                     )
+                   )
                    ${brandFilterClause}
                  ORDER BY sp.name ASC, spv.name ASC`,
                 [user.id, ...brandFilterParams]
@@ -1579,6 +1772,7 @@ export class OrderController {
                     sp.name as product_name,
                     sp.description as product_description,
                     sp.category_id,
+                    sp.brand as product_brand,
                     sc.name as category_name,
                     sc.parent_id as category_parent_id,
                     parent_sc.name as parent_category_name,
@@ -1689,7 +1883,7 @@ export class OrderController {
         );
 
         const [vendorRows]: any = await db.execute(
-            `SELECT vd.id, vd.store_name, vd.city, vd.state, vd.pincode,
+            `SELECT vd.id, vd.store_name, vd.address, vd.city, vd.state, vd.pincode,
                     p.name as contact_name, p.phone_number
              FROM vendor_details vd
              JOIN profiles p ON vd.user_id = p.id
@@ -1795,8 +1989,29 @@ export class OrderController {
             const pdfBuffer = await OrderController.buildOrderPdfById(id);
             if (!pdfBuffer) return res.status(404).send('Order not found.');
 
+            // Name it after the distributor, matching the in-app download: a split
+            // order sends one link per distributor, and "Order-<id>.pdf" gives the
+            // recipient no way to tell which invoice is which.
+            let filename = `Order-${id}.pdf`;
+            try {
+                const [rows]: any = await db.execute(
+                    `SELECT d.name FROM store_orders o
+                     LEFT JOIN distributors d ON d.id = o.distributor_id
+                     WHERE o.id = ?`, [id]
+                );
+                const distName = rows[0]?.name;
+                if (distName) {
+                    const safe = String(distName).replace(/[^\w\s-]/g, '').trim().replace(/\s+/g, '-');
+                    if (safe) filename = `Invoice-${safe}-${id}.pdf`;
+                }
+            } catch {
+                // Fall back to the plain name — never fail the download over this.
+            }
+
             res.setHeader('Content-Type', 'application/pdf');
-            res.setHeader('Content-Disposition', `inline; filename="Order-${id}.pdf"`);
+            // 'attachment', not 'inline' — this link is labelled "Download Invoice"
+            // in WhatsApp, but inline made the browser just display it.
+            res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
             res.send(pdfBuffer);
 
         } catch (error: any) {

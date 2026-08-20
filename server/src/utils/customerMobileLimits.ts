@@ -2,6 +2,20 @@ import db from '../config/database.js';
 
 const DEFAULT_ALLOWED_REGISTRATIONS = 1;
 
+/**
+ * Fixed suffix for the customer-added fallback UID (mobile + this value).
+ *
+ * This used to be the current calendar year (e.g. 2026), which made the format
+ * trivially guessable — a customer typing their own number + the current year
+ * would land on a valid UID by accident, and the mechanism was never meant to
+ * be discoverable. We use a fixed, non-obvious constant instead so the fallback
+ * can only be used by people who have been told the format out-of-band.
+ *
+ * NOTE: warranties already registered under the old mobile+year UIDs remain
+ * valid — those are stored records and are not re-derived from this constant.
+ */
+export const FALLBACK_UID_YEAR = 1989;
+
 export function normalizeCustomerMobile(phone: string | null | undefined): string {
     if (!phone) return '';
 

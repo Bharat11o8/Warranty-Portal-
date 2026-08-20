@@ -189,8 +189,9 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
               storeEmail: vendorDetails.store_email || "",
             }));
 
-            // Fetch vendor's manpower list
-            const manpowerResponse = await api.get('/vendor/manpower?active=true');
+            // Fetch vendor's manpower list — approved only, since staff awaiting
+            // admin approval can't be credited as the installer yet.
+            const manpowerResponse = await api.get('/vendor/manpower?active=true&approved=true');
             if (manpowerResponse.data.success) {
               const rawList = manpowerResponse.data.manpower || [];
               const list = rawList.filter((mp: any) => mp.applicator_type === 'seat_cover');
@@ -453,7 +454,7 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
           setUidMessage(uidCheckRes.data.reason);
           toast({
             title: "Invalid UID",
-            description: uidCheckRes.data.reason || "If the product UID is missing or unreadable, enter your mobile number followed by the current year instead.",
+            description: uidCheckRes.data.reason || "Invalid UID. Please check the UID on your product packaging. If it is missing or unreadable, contact the store where you purchased the product.",
             variant: "destructive",
           });
           setLoading(false);

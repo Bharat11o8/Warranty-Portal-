@@ -11,9 +11,9 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Combobox } from "@/components/ui/combobox";
 import {
     Search,
-    Plus,
     Users,
     MapPin,
     Phone,
@@ -226,6 +226,73 @@ export const AdminOrderManagement = () => {
             else next.add(categoryId);
             return next;
         });
+    };
+
+    // Recursive category tree renderer — the hierarchy can be many levels deep
+    // (e.g. Accessories > 4 Wheeler Accessories > Healthy Memory For Comfort > …),
+    // so we render every level with its own checkbox + expand/collapse, indenting
+    // each level. This lets an admin check a specific deep leaf instead of only a
+    // whole top-level branch.
+    const getChildCategories = (parentId: string | null) =>
+        allCategories
+            .filter(c => (c.parentId ?? null) === parentId)
+            .sort((a, b) => a.name.localeCompare(b.name));
+
+    const renderCategoryNode = (cat: Category, level: number) => {
+        const children = getChildCategories(cat.id);
+        const hasChildren = children.length > 0;
+        const isExpanded = expandedCategoryIds.has(cat.id);
+        const checked = allowedCategoryIds.includes(cat.id);
+        // How many descendant categories (any depth) are selected — shown as a hint.
+        const countSelectedDescendants = (parentId: string): number =>
+            getChildCategories(parentId).reduce(
+                (acc, ch) => acc + (allowedCategoryIds.includes(ch.id) ? 1 : 0) + countSelectedDescendants(ch.id),
+                0
+            );
+        const selectedDesc = hasChildren ? countSelectedDescendants(cat.id) : 0;
+
+        return (
+            <div key={cat.id} className="rounded-lg">
+                <div
+                    className="flex items-center gap-2 py-1.5"
+                    style={{ paddingLeft: `${level * 18}px` }}
+                >
+                    {hasChildren ? (
+                        <button
+                            type="button"
+                            onClick={() => toggleCategoryExpanded(cat.id)}
+                            className="text-slate-400 hover:text-orange-500 shrink-0"
+                        >
+                            <ChevronRight className={`w-4 h-4 transition-transform ${isExpanded ? "rotate-90" : ""}`} />
+                        </button>
+                    ) : (
+                        <span className="w-4 h-4 shrink-0" />
+                    )}
+                    <button
+                        type="button"
+                        onClick={() => handleToggleCategory(cat.id)}
+                        className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-bold border transition-colors ${
+                            checked
+                                ? "bg-orange-500 text-white border-orange-500"
+                                : "bg-white text-slate-700 border-slate-200 hover:border-orange-200"
+                        }`}
+                    >
+                        {checked && <Check className="w-3 h-3" />}
+                        {cat.name}
+                    </button>
+                    {hasChildren && (
+                        <span className="text-[10px] text-slate-400 font-medium">
+                            {selectedDesc > 0 ? `${selectedDesc} selected` : `${children.length} subcategor${children.length === 1 ? 'y' : 'ies'}`}
+                        </span>
+                    )}
+                </div>
+                {hasChildren && isExpanded && (
+                    <div>
+                        {children.map(child => renderCategoryNode(child, level + 1))}
+                    </div>
+                )}
+            </div>
+        );
     };
 
     const handleSaveAllowedCategories = async () => {
@@ -567,73 +634,8 @@ export const AdminOrderManagement = () => {
                             ) : allCategories.length === 0 ? (
                                 <p className="text-xs text-slate-400">No categories found in the catalog yet.</p>
                             ) : (
-                                <div className="space-y-1.5 max-h-80 overflow-y-auto pr-1">
-                                    {allCategories
-                                        .filter(cat => !cat.parentId)
-                                        .sort((a, b) => a.name.localeCompare(b.name))
-                                        .map(parent => {
-                                            const children = allCategories
-                                                .filter(c => c.parentId === parent.id)
-                                                .sort((a, b) => a.name.localeCompare(b.name));
-                                            const isExpanded = expandedCategoryIds.has(parent.id);
-                                            const parentChecked = allowedCategoryIds.includes(parent.id);
-                                            const checkedChildCount = children.filter(c => allowedCategoryIds.includes(c.id)).length;
-
-                                            return (
-                                                <div key={parent.id} className="rounded-xl border border-slate-100 bg-white overflow-hidden">
-                                                    <div className="flex items-center gap-2 px-3 py-2">
-                                                        {children.length > 0 && (
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => toggleCategoryExpanded(parent.id)}
-                                                                className="text-slate-400 hover:text-orange-500 shrink-0"
-                                                            >
-                                                                <ChevronRight className={`w-4 h-4 transition-transform ${isExpanded ? "rotate-90" : ""}`} />
-                                                            </button>
-                                                        )}
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => handleToggleCategory(parent.id)}
-                                                            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-bold border transition-colors ${
-                                                                parentChecked
-                                                                    ? "bg-orange-500 text-white border-orange-500"
-                                                                    : "bg-white text-slate-700 border-slate-200 hover:border-orange-200"
-                                                            }`}
-                                                        >
-                                                            {parentChecked && <Check className="w-3 h-3" />}
-                                                            {parent.name}
-                                                        </button>
-                                                        {children.length > 0 && (
-                                                            <span className="text-[10px] text-slate-400 font-medium">
-                                                                {checkedChildCount > 0 ? `${checkedChildCount}/${children.length} selected` : `${children.length} subcategories`}
-                                                            </span>
-                                                        )}
-                                                    </div>
-                                                    {isExpanded && children.length > 0 && (
-                                                        <div className="flex flex-wrap gap-1.5 px-3 pb-3 pl-9">
-                                                            {children.map(child => {
-                                                                const checked = allowedCategoryIds.includes(child.id);
-                                                                return (
-                                                                    <button
-                                                                        key={child.id}
-                                                                        type="button"
-                                                                        onClick={() => handleToggleCategory(child.id)}
-                                                                        className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-bold border transition-colors ${
-                                                                            checked
-                                                                                ? "bg-orange-500 text-white border-orange-500"
-                                                                                : "bg-slate-50 text-slate-600 border-slate-200 hover:border-orange-200"
-                                                                        }`}
-                                                                    >
-                                                                        {checked && <Check className="w-2.5 h-2.5" />}
-                                                                        {child.name}
-                                                                    </button>
-                                                                );
-                                                            })}
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            );
-                                        })}
+                                <div className="space-y-0.5 max-h-96 overflow-y-auto pr-1 border border-slate-100 rounded-xl bg-white p-2">
+                                    {getChildCategories(null).map(root => renderCategoryNode(root, 0))}
                                 </div>
                             )}
                         </div>
@@ -642,22 +644,19 @@ export const AdminOrderManagement = () => {
                             <h3 className="text-xs font-black text-slate-600 uppercase tracking-wider mb-3">Map Franchise to Network</h3>
                             
                             <div className="flex flex-col sm:flex-row gap-3">
-                                <div className="flex-1 relative">
-                                    <select
+                                <div className="flex-1">
+                                    <Combobox
+                                        options={availableFranchises.map(franchise => ({
+                                            value: franchise.user_id,
+                                            label: `${franchise.store_name} (${franchise.city}, ${franchise.state})`
+                                        }))}
                                         value={selectedFranchiseId}
-                                        onChange={e => setSelectedFranchiseId(e.target.value)}
-                                        className="w-full bg-white border border-orange-100 focus:border-orange-300 focus:ring-orange-200 h-10 px-3 rounded-xl text-xs font-bold text-slate-700 outline-none appearance-none"
-                                    >
-                                        <option value="">-- Select Franchise Store --</option>
-                                        {availableFranchises.map(franchise => (
-                                            <option key={franchise.user_id} value={franchise.user_id}>
-                                                {franchise.store_name} ({franchise.city}, {franchise.state})
-                                            </option>
-                                        ))}
-                                    </select>
-                                    <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-slate-400">
-                                        <Plus className="w-4 h-4" />
-                                    </div>
+                                        onChange={setSelectedFranchiseId}
+                                        placeholder="-- Select Franchise Store --"
+                                        searchPlaceholder="Search franchise by name or city..."
+                                        emptyMessage="No franchise found."
+                                        className="h-10 bg-white border-orange-100 rounded-xl text-xs font-bold text-slate-700"
+                                    />
                                 </div>
                                 
                                 <Button

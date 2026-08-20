@@ -199,8 +199,11 @@ const FranchiseDashboard = () => {
         try {
             const [warrantyRes, manpowerRes, pastManpowerRes, prods, cats] = await Promise.all([
                 api.get(`/warranty?limit=${warrantyLimit}&page=1`),
-                api.get(`/vendor/manpower?active=true&limit=${manpowerLimit}&page=1`),
-                api.get(`/vendor/manpower?active=false&limit=${pastManpowerLimit}&page=1`),
+                // approved=all so the store still sees staff awaiting admin approval
+                // (shown with a "Pending approval" badge). The installer picker on
+                // warranty forms fetches approved-only separately.
+                api.get(`/vendor/manpower?active=true&approved=all&limit=${manpowerLimit}&page=1`),
+                api.get(`/vendor/manpower?active=false&approved=all&limit=${pastManpowerLimit}&page=1`),
                 fetchProducts(),
                 fetchCategories()
             ]);
@@ -280,7 +283,8 @@ const FranchiseDashboard = () => {
     const fetchManpower = async (page = 1, active = true, currentLimit = active ? manpowerLimit : pastManpowerLimit, background = false) => {
         if (!background) setLoading(true);
         try {
-            const response = await api.get(`/vendor/manpower?page=${page}&limit=${currentLimit}&active=${active}`);
+            // approved=all — the store sees pending staff too (badged in the UI).
+            const response = await api.get(`/vendor/manpower?page=${page}&limit=${currentLimit}&active=${active}&approved=all`);
             if (response.data.success) {
                 if (active) {
                     setManpowerList(response.data.manpower);
@@ -383,16 +387,43 @@ const FranchiseDashboard = () => {
         return false;
     };
 
-    const handleDeleteManpower = async (id: string) => {
-        if (!confirm("Are you sure you want to remove this team member?")) return;
+    // Stores can't remove staff directly — they raise a request with a reason and
+    // an admin approves it. The member stays on the team until then.
+    const handleDeleteManpower = async (id: string, reason?: string) => {
+        if (!reason || !reason.trim()) {
+            toast({ title: "Reason Required", description: "Please tell us why this member should be removed.", variant: "destructive" });
+            return false;
+        }
         try {
-            const response = await api.delete(`/vendor/manpower/${id}`);
+            const response = await api.delete(`/vendor/manpower/${id}`, { data: { reason: reason.trim() } });
             if (response.data.success) {
-                toast({ title: "Manpower Removed" });
-                setManpowerList(manpowerList.filter(m => m.id !== id));
+                toast({ title: "Request Sent", description: response.data.message });
+                // Refresh so the member shows under "Removal Requested".
+                fetchManpower(1, true, manpowerLimit, true);
+                return true;
             }
         } catch (error: any) {
-            toast({ title: "Removal Failed", description: getErrorMessage(error, "Could not remove"), variant: "destructive" });
+            toast({ title: "Request Failed", description: getErrorMessage(error, "Could not raise the removal request"), variant: "destructive" });
+        }
+        return false;
+    };
+
+    // Bring an Ex-Team member back. They return as pending, so an admin
+    // re-approves before they can be picked as an installer again.
+    const handleRestoreManpower = async (id: string, reason?: string) => {
+        try {
+            const response = await api.put(`/vendor/manpower/${id}/restore`, { reason });
+            if (response.data.success) {
+                toast({ title: "Restore Requested", description: response.data.message });
+                // Refresh both lists so they move from Ex-Team into Pending.
+                fetchManpower(1, true, manpowerLimit, true);
+                fetchManpower(1, false, pastManpowerLimit, true);
+                return true;
+            }
+            return false;
+        } catch (error: any) {
+            toast({ title: "Restore Failed", description: getErrorMessage(error, "Could not restore member"), variant: "destructive" });
+            return false;
         }
     };
 
@@ -685,6 +716,7 @@ const FranchiseDashboard = () => {
                             onAdd={handleAddManpower}
                             onEdit={handleUpdateManpower}
                             onDelete={handleDeleteManpower}
+                            onRestore={handleRestoreManpower}
                             onShowWarranties={showManpowerWarranties}
                             editingId={editingId}
                             setEditingId={setEditingId}

@@ -36,6 +36,17 @@ import { getISTTimestamp } from './utils/dateUtils.js';
 import pool, { getDbRetryStats, pingDatabase } from './config/database.js';
 import { ensureCustomerMobileLimitTable } from './utils/customerMobileLimits.js';
 
+// Keep the process alive on stray async errors. A single unhandled promise
+// rejection (e.g. a transient DB error in a background task) would otherwise
+// terminate the whole server. Log it and keep serving — pm2 no longer sees a
+// dead-but-"online" process.
+process.on('unhandledRejection', (reason: any) => {
+  console.error('⚠️ Unhandled promise rejection (kept alive):', reason?.message || reason);
+});
+process.on('uncaughtException', (err: any) => {
+  console.error('⚠️ Uncaught exception (kept alive):', err?.message || err);
+});
+
 // Run inline database migrations
 async function runMigrations() {
   try {
@@ -55,8 +66,36 @@ async function runMigrations() {
   }
 }
 
-// Start background services
-await runMigrations();
+// Wait for the database to become reachable before running startup migrations.
+// On a VPS reboot / MySQL restart / transient network blip, the DB can be briefly
+// unavailable exactly when the process boots. Without this, runMigrations() threw
+// at the top level and the whole process exited — pm2 reported "online" while
+// nothing listened on the port, producing a 502 until a manual restart.
+async function waitForDatabase(maxAttempts = 30, delayMs = 2000): Promise<boolean> {
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    if (await pingDatabase()) {
+      if (attempt > 1) console.log(`✅ Database reachable after ${attempt} attempt(s).`);
+      return true;
+    }
+    console.warn(`⏳ Database not reachable yet (attempt ${attempt}/${maxAttempts}); retrying in ${delayMs}ms...`);
+    await new Promise(res => setTimeout(res, delayMs));
+  }
+  return false;
+}
+
+// Start background services. Boot is resilient: if the DB can't be reached or a
+// migration fails, we log it and still start the HTTP server so the API serves
+// traffic (and recovers) instead of the process crashing and 502-ing.
+const dbReady = await waitForDatabase();
+if (dbReady) {
+  try {
+    await runMigrations();
+  } catch (err: any) {
+    console.error('⚠️ Startup migrations failed — continuing to start the server anyway:', err?.message);
+  }
+} else {
+  console.error('⚠️ Database not reachable after retries — starting server anyway; it will recover once the DB is back.');
+}
 AssignmentSchedulerService.start();
 
 // Get current directory for ES modules

@@ -438,7 +438,9 @@ const VendorDashboard = () => {
     async function fetchManpower(active: string = 'true') {
         setLoadingManpower(true);
         try {
-            const response = await api.get(`/vendor/manpower?active=${active}`);
+            // approved=all so the store also sees staff awaiting admin approval
+            // (badged in the UI); the installer picker fetches approved-only.
+            const response = await api.get(`/vendor/manpower?active=${active}&approved=all`);
             if (response.data.success) {
                 if (active === 'true') {
                     setManpowerList(response.data.manpower);

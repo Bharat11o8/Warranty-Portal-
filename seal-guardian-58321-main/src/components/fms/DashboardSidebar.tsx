@@ -6,7 +6,6 @@ import {
     LifeBuoy,
     Users,
     Gift,
-    Box,
     Bell,
     Home,
     ClipboardCheck,
@@ -153,11 +152,11 @@ export const menuGroups = [
     {
         label: "Operations",
         items: [
-            {
-                id: 'catalogue' as const,
-                label: "Product Catalogue",
-                icon: Box,
-            },
+            // { // Hidden by request — not public yet
+            //     id: 'catalogue' as const,
+            //     label: "Product Catalogue",
+            //     icon: Box,
+            // },
             {
                 id: 'ecatalogue' as const,
                 label: "E-Catalogue",
@@ -168,11 +167,11 @@ export const menuGroups = [
                 label: "POSM Requirements",
                 icon: ImageIcon,
             },
-            // { // Hidden - not public yet
-            //     id: 'orders' as const,
-            //     label: "Order Management",
-            //     icon: ShoppingBag,
-            // },
+            {
+                id: 'orders' as const,
+                label: "Order Management",
+                icon: ShoppingBag,
+            },
             {
                 id: 'offers' as const,
                 label: "Offers & Schemes",
@@ -231,14 +230,14 @@ export const DashboardSidebar = ({ activeModule, onModuleChange, isCollapsed, on
     }));
 
     const filteredGroups = groupsWithBadges.map(group => {
+        let items = group.items;
+
         if (isDistributor && !isFranchise) {
-            const filteredItems = group.items.filter(item => {
-                const franchiseOnly = ['warranty', 'register', 'manpower', 'posm', 'offers', 'audit', 'targets'];
-                return !franchiseOnly.includes(item.id);
-            });
-            return { ...group, items: filteredItems };
+            const franchiseOnly = ['warranty', 'register', 'manpower', 'posm', 'offers', 'audit', 'targets'];
+            items = items.filter(item => !franchiseOnly.includes(item.id));
         }
-        return group;
+
+        return { ...group, items };
     }).filter(group => group.items.length > 0);
 
     return (

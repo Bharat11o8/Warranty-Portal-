@@ -14,6 +14,11 @@ export interface CartItem {
   sku?: string;
   needsCustomization?: boolean;
   customizationRemarks?: string;
+  // Which distributor this line was picked from. The same product can be
+  // stocked by several of a franchise's distributors, so without this the
+  // server has to guess and may route to one that has no stock.
+  distributorId?: string;
+  distributorName?: string;
 }
 
 interface B2BCartContextType {
@@ -116,7 +121,28 @@ export const B2BCartProvider: React.FC<{ children: React.ReactNode }> = ({ child
       // can be routed to different distributors per category.
       const response = await api.get('/orders/catalogue');
       if (response.data.success) {
-        setDistributorStock(response.data.inventory || []);
+        const inventory = response.data.inventory || [];
+        setDistributorStock(inventory);
+
+        // Carts persist in localStorage, so items added before the distributor
+        // was tracked have no distributorId. Backfill from the catalogue, else
+        // checkout falls back to guessing and can route to a distributor that
+        // doesn't stock the item.
+        setCartItems(prev => {
+          if (!prev.some(i => !i.distributorId)) return prev;
+          return prev.map(i => {
+            if (i.distributorId) return i;
+            // Only backfill when exactly one distributor sells this line. If
+            // several do, guessing would pin the wrong one — leave it unset and
+            // let the server fall back rather than silently choose.
+            const matches = inventory.filter((s: any) =>
+              s.product_id === i.productId && (s.variation_id ?? null) === (i.variationId ?? null));
+            return matches.length === 1
+              ? { ...i, distributorId: matches[0].distributor_id, distributorName: matches[0].distributor_name }
+              : i;
+          });
+        });
+
         const distributorNames = [...new Set((response.data.inventory || []).map((i: any) => i.distributor_name).filter(Boolean))];
         setDistributorName(distributorNames.length === 1 ? String(distributorNames[0]) : '');
         setProductImages(response.data.productImages || {});
@@ -226,6 +252,9 @@ export const B2BCartProvider: React.FC<{ children: React.ReactNode }> = ({ child
         quantity: item.quantity,
         needsCustomization: item.needsCustomization || false,
         customizationRemarks: item.customizationRemarks || '',
+        // Pin the distributor the item was browsed from so the server doesn't
+        // re-derive it and land on a different one.
+        distributorId: item.distributorId,
       }));
 
       const response = await api.post('/orders', {
