@@ -66,6 +66,33 @@ import { AdminWarrantyList } from "@/components/admin/AdminWarrantyList";
 import { QuickReviewPanel } from "@/components/admin/QuickReviewPanel";
 import { SelectiveExportDialog } from "@/components/warranty/SelectiveExportDialog";
 import { exportWarrantiesToCSV } from "@/lib/adminExports";
+import { Skeleton } from "@/components/ui/skeleton";
+
+const WarrantyListSkeleton = () => (
+    <Card className="border-orange-100 shadow-sm overflow-hidden rounded-3xl">
+        <CardContent className="p-3 md:p-4 space-y-4">
+            {Array.from({ length: 5 }, (_, index) => (
+                <div key={index} className="rounded-2xl border border-slate-100 p-4 space-y-4">
+                    <div className="flex items-start justify-between gap-4">
+                        <div className="flex items-center gap-3">
+                            <Skeleton className="h-12 w-12 rounded-full" />
+                            <div className="space-y-2">
+                                <Skeleton className="h-4 w-36" />
+                                <Skeleton className="h-3 w-24" />
+                            </div>
+                        </div>
+                        <Skeleton className="h-6 w-24 rounded-full" />
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <Skeleton className="h-10 w-full" />
+                        <Skeleton className="h-10 w-full" />
+                        <Skeleton className="h-10 w-full" />
+                    </div>
+                </div>
+            ))}
+        </CardContent>
+    </Card>
+);
 
 export const AdminWarranties = () => {
     const { toast } = useToast();
@@ -85,6 +112,28 @@ export const AdminWarranties = () => {
     const [selectedModel, setSelectedModel] = useState<string>('all');
     const [dateRange, setDateRange] = useState<DateRange | undefined>();
     const [search, setSearch] = useState("");
+    const [debouncedSearch, setDebouncedSearch] = useState("");
+
+    // Server-provided list metadata. The UI remains unchanged; only its data source
+    // is paginated so the browser never has to load the complete warranty table.
+    const [statusCounts, setStatusCounts] = useState({
+        validated: 0,
+        pending: 0,
+        pending_vendor: 0,
+        rejected: 0
+    });
+    const [filterOptions, setFilterOptions] = useState<{ makes: string[]; models: string[] }>({
+        makes: [],
+        models: []
+    });
+    const [serverPagination, setServerPagination] = useState({
+        currentPage: 1,
+        totalPages: 0,
+        totalCount: 0,
+        limit: 10,
+        hasNextPage: false,
+        hasPrevPage: false
+    });
 
     // Pagination State
     const [currentPage, setCurrentPage] = useState(1);
@@ -110,21 +159,10 @@ export const AdminWarranties = () => {
         return str.replace(/[_-]/g, ' ').toLowerCase().replace(/\b\w/g, (char) => char.toUpperCase());
     };
 
-    // Derived Data for Filters
-    const uniqueMakes = useMemo(() => {
-        const makes = Array.from(new Set(warranties.map(w => w.car_make).filter(Boolean)));
-        return makes.sort();
-    }, [warranties]);
-
-    const uniqueModels = useMemo(() => {
-        const models = Array.from(new Set(
-            warranties
-                .filter(w => selectedMake === 'all' || w.car_make === selectedMake)
-                .map(w => w.car_model)
-                .filter(Boolean)
-        ));
-        return models.sort();
-    }, [warranties, selectedMake]);
+    // The dropdown contents come from the server so they are not limited to the
+    // ten records on the current page.
+    const uniqueMakes = filterOptions.makes;
+    const uniqueModels = filterOptions.models;
 
     const clearFilters = () => {
         setProductTypeFilter('all');
@@ -140,20 +178,50 @@ export const AdminWarranties = () => {
         setCurrentPage(1);
     }, [statusFilter, productTypeFilter, selectedMake, selectedModel, dateRange, search]);
 
-    const handleSelectiveExport = (selectedFields: string[]) => {
+    useEffect(() => {
+        const timer = window.setTimeout(() => setDebouncedSearch(search.trim()), 350);
+        return () => window.clearTimeout(timer);
+    }, [search]);
+
+    const buildWarrantyQuery = (limit = itemsPerPage, exportAll = false) => {
+        const params = new URLSearchParams({
+            page: exportAll ? '1' : String(currentPage),
+            limit: String(limit),
+            status: statusFilter,
+            product_type: productTypeFilter,
+            make: selectedMake,
+            model: selectedModel,
+            sort_by: sortConfig.field,
+            sort_order: sortConfig.order
+        });
+
+        if (debouncedSearch) params.set('search', debouncedSearch);
+        if (dateRange?.from) {
+            params.set('date_from', format(dateRange.from, 'yyyy-MM-dd'));
+            params.set('date_to', format(dateRange.to || dateRange.from, 'yyyy-MM-dd'));
+        }
+        if (exportAll) params.set('export', 'true');
+        return params.toString();
+    };
+
+    const handleSelectiveExport = async (selectedFields: string[]) => {
         try {
-            if (filteredWarranties.length === 0) {
+            // Full data is requested only when an admin explicitly exports.
+            const response = await api.get(`/admin/warranties?${buildWarrantyQuery(10000, true)}`);
+            const exportRecords = response.data.warranties || [];
+
+            if (exportRecords.length === 0) {
                 toast({ description: "No records found to export", variant: "destructive" });
                 return;
             }
 
             exportWarrantiesToCSV(
-                filteredWarranties,
+                exportRecords,
                 `warranties_export_${new Date().toISOString().split('T')[0]}.csv`,
                 selectedFields
             );
 
-            toast({ title: "Export Successful", description: `Exported ${filteredWarranties.length} records with ${selectedFields.length} fields` });
+            toast({ title: "Export Successful", description: `Exported ${exportRecords.length} records with ${selectedFields.length} fields` });
             setExportDialogOpen(false);
         } catch (error) {
             console.error("Export failed:", error);
@@ -163,7 +231,9 @@ export const AdminWarranties = () => {
 
     useEffect(() => {
         fetchWarranties();
-    }, []);
+        // The individual values intentionally drive a new server request.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [currentPage, statusFilter, productTypeFilter, selectedMake, selectedModel, dateRange, debouncedSearch, sortConfig.field, sortConfig.order]);
 
     const fetchWarranties = async (isRefresh = false) => {
         setLoading(true);
@@ -172,13 +242,17 @@ export const AdminWarranties = () => {
         }
 
         try {
-            const [mainRes, resubRes] = await Promise.all([
-                api.get(`/admin/warranties?limit=10000&t=${Date.now()}`),
-                api.get(`/admin/warranties/resubmissions?limit=10000&t=${Date.now()}`)
-            ]);
-            
-            if (mainRes.data.success) setWarranties(mainRes.data.warranties);
-            if (resubRes.data.success) setResubmissions(resubRes.data.resubmissions);
+            const mainRes = await api.get(`/admin/warranties?${buildWarrantyQuery()}&t=${Date.now()}`);
+
+            if (mainRes.data.success) {
+                setWarranties(mainRes.data.warranties || []);
+                setServerPagination(mainRes.data.pagination);
+                setStatusCounts(current => ({ ...current, ...(mainRes.data.statusCounts || {}) }));
+                setFilterOptions({
+                    makes: mainRes.data.filterOptions?.makes || [],
+                    models: mainRes.data.filterOptions?.models || []
+                });
+            }
             
             if (isRefresh) {
                 toast({ description: "Data refreshed" });
@@ -189,6 +263,15 @@ export const AdminWarranties = () => {
         } finally {
             setLoading(false);
         }
+    };
+
+    const handleStatusFilterChange = (status: string) => {
+        if (status === statusFilter) return;
+
+        // Start the consistent loading state immediately, before the effect
+        // issues the request for the selected tab.
+        setLoading(true);
+        setStatusFilter(status);
     };
 
     const handleUpdateStatus = async (id: string, status: 'validated' | 'rejected' | 'pending', reason?: string) => {
@@ -222,6 +305,7 @@ export const AdminWarranties = () => {
                     toast({ title: toastTitle, className: toastClass });
                     // Optimistic update
                     setWarranties(prev => prev.map(w => String(w.id) === String(id) || w.uid === id ? { ...w, status, rejection_reason: reason } : w));
+                    await fetchWarranties(false);
                 }
             }
         } catch (error) {
@@ -231,94 +315,14 @@ export const AdminWarranties = () => {
         }
     };
 
-    // Filter & Sort Logic
-    const filteredWarranties = useMemo(() => {
-        const sourceData = statusFilter === 'resubmitted' ? resubmissions : warranties;
-        let items = sourceData.filter(w => {
-            if (statusFilter !== 'all' && statusFilter !== 'resubmitted') {
-                if (statusFilter === 'quick_review') {
-                    if (w.status !== 'pending' && w.status !== 'pending_vendor') return false;
-                } else if (w.status !== statusFilter) {
-                    return false;
-                }
-            }
-
-            // Product Type Filter
-            if (productTypeFilter !== 'all') {
-                const pType = (w.product_type || "").toLowerCase();
-                if (productTypeFilter === 'ppf') {
-                    if (!(pType.includes('ppf') || pType.includes('ev'))) return false;
-                } else if (productTypeFilter === 'seat-cover') {
-                    if (!(pType.includes('seat') || pType.includes('cover'))) return false;
-                }
-            }
-
-            // Make Filter
-            if (selectedMake !== 'all') {
-                if (w.car_make !== selectedMake) return false;
-            }
-
-            // Model Filter
-            if (selectedModel !== 'all') {
-                if (w.car_model !== selectedModel) return false;
-            }
-
-            // Date Range Filter
-            if (dateRange?.from) {
-                const wDate = new Date(w.created_at);
-                const rangeEnd = dateRange.to || dateRange.from;
-                if (!isWithinInterval(wDate, {
-                    start: startOfDay(dateRange.from),
-                    end: endOfDay(rangeEnd)
-                })) return false;
-            }
-
-            // Search
-            if (search) {
-                const s = search.toLowerCase();
-                let productName = w.product_type;
-                try {
-                    if (w.product_details) {
-                        const details = typeof w.product_details === 'string' ? JSON.parse(w.product_details) : w.product_details;
-                        productName = details.productName || w.product_type;
-                    }
-                } catch (e) { /* ignore parse error */ }
-                const product = productName;
-                return (
-                    w.customer_name?.toLowerCase().includes(s) ||
-                    w.customer_email?.toLowerCase().includes(s) ||
-                    w.uid?.toLowerCase().includes(s) ||
-                    product?.toLowerCase().includes(s) ||
-                    (w.car_make && w.car_make.toLowerCase().includes(s)) ||
-                    (w.car_model && w.car_model.toLowerCase().includes(s)) ||
-                    (w.vendor_store_name && w.vendor_store_name.toLowerCase().includes(s)) ||
-                    (w.installer_name && w.installer_name.toLowerCase().includes(s)) ||
-                    (w.vendor_city && w.vendor_city.toLowerCase().includes(s))
-                );
-            }
-            return true;
-        });
-
-        // Sorting
-        return items.sort((a, b) => {
-            let valA: any = a[sortConfig.field as keyof typeof a];
-            let valB: any = b[sortConfig.field as keyof typeof b];
-
-            if (sortConfig.field === 'created_at') {
-                valA = new Date(valA || 0).getTime();
-                valB = new Date(valB || 0).getTime();
-            }
-
-            if (valA < valB) return sortConfig.order === 'asc' ? -1 : 1;
-            if (valA > valB) return sortConfig.order === 'asc' ? 1 : -1;
-            return 0;
-        });
-    }, [warranties, resubmissions, statusFilter, productTypeFilter, selectedMake, selectedModel, dateRange, search, sortConfig]);
+    // Filtering, sorting, and pagination now happen on the API. Keeping these names
+    // means the original rendered UI below stays byte-for-byte structurally intact.
+    const filteredWarranties = warranties;
 
     // Pagination Calculation
-    const totalPages = Math.ceil(filteredWarranties.length / itemsPerPage);
+    const totalPages = serverPagination.totalPages;
     const startIndex = (currentPage - 1) * itemsPerPage;
-    const paginatedWarranties = filteredWarranties.slice(startIndex, startIndex + itemsPerPage);
+    const paginatedWarranties = warranties;
 
     // Auto-select next available warranty when list, page, or filters change (only in Quick Review workstation mode)
     useEffect(() => {
@@ -406,7 +410,7 @@ export const AdminWarranties = () => {
 
             {/* Mobile Status Filter */}
             <div className="md:hidden w-full">
-                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <Select value={statusFilter} onValueChange={handleStatusFilterChange}>
                     <SelectTrigger className="w-full h-11 bg-white border-orange-100 rounded-2xl font-bold shadow-sm">
                         <SelectValue placeholder="Filter by Status" />
                     </SelectTrigger>
@@ -423,42 +427,42 @@ export const AdminWarranties = () => {
             </div>
 
             {/* Desktop Status Tabs */}
-            <Tabs value={statusFilter} onValueChange={setStatusFilter} className="hidden md:block w-full xl:w-auto">
+            <Tabs value={statusFilter} onValueChange={handleStatusFilterChange} className="hidden md:block w-full xl:w-auto">
                 <TabsList className="grid w-full grid-cols-3 md:grid-cols-6 xl:inline-flex h-auto bg-white border border-orange-100 p-1">
                     <TabsTrigger value="all" className="data-[state=active]:bg-orange-50 data-[state=active]:text-orange-700 gap-2">
                         All
                         <Badge variant="secondary" className="bg-slate-100 text-slate-600 border-none px-1.5 py-0 h-4 text-[10px] font-bold">
-                            {warranties.length}
+                            {Object.values(statusCounts).reduce((total, count) => total + count, 0)}
                         </Badge>
                     </TabsTrigger>
                     <TabsTrigger value="validated" className="data-[state=active]:bg-green-50 data-[state=active]:text-green-700 gap-2">
                         Approved
                         <Badge variant="secondary" className="bg-green-100/50 text-green-700 border-none px-1.5 py-0 h-4 text-[10px] font-bold">
-                            {warranties.filter(w => w.status === 'validated').length}
+                            {statusCounts.validated}
                         </Badge>
                     </TabsTrigger>
                     <TabsTrigger value="pending" className="data-[state=active]:bg-amber-50 data-[state=active]:text-amber-700 gap-2">
                         Pending
                         <Badge variant="secondary" className="bg-amber-100/50 text-amber-700 border-none px-1.5 py-0 h-4 text-[10px] font-bold">
-                            {warranties.filter(w => w.status === 'pending').length}
+                            {statusCounts.pending}
                         </Badge>
                     </TabsTrigger>
                     <TabsTrigger value="pending_vendor" className="data-[state=active]:bg-orange-50 data-[state=active]:text-orange-700 gap-2">
                         Vendor
                         <Badge variant="secondary" className="bg-orange-100/50 text-orange-700 border-none px-1.5 py-0 h-4 text-[10px] font-bold">
-                            {warranties.filter(w => w.status === 'pending_vendor').length}
+                            {statusCounts.pending_vendor}
                         </Badge>
                     </TabsTrigger>
                     <TabsTrigger value="rejected" className="data-[state=active]:bg-red-50 data-[state=active]:text-red-700 gap-2">
                         Action Required
                         <Badge variant="secondary" className="bg-red-100/50 text-red-700 border-none px-1.5 py-0 h-4 text-[10px] font-bold">
-                            {warranties.filter(w => w.status === 'rejected').length}
+                            {statusCounts.rejected}
                         </Badge>
                     </TabsTrigger>
                     <TabsTrigger value="quick_review" className="data-[state=active]:bg-amber-50 data-[state=active]:text-amber-700 gap-2 font-bold text-orange-600 border border-orange-200/50">
                         ⚡ Quick Review
                         <Badge variant="secondary" className="bg-amber-100 text-amber-700 border-none px-1.5 py-0 h-4 text-[10px] font-bold">
-                            {warranties.filter(w => w.status === 'pending' || w.status === 'pending_vendor').length}
+                            {statusCounts.pending + statusCounts.pending_vendor}
                         </Badge>
                     </TabsTrigger>
 
@@ -605,11 +609,9 @@ export const AdminWarranties = () => {
             )}
 
             {loading ? (
-                <div className="p-8 text-center text-slate-500 bg-white border border-orange-100 shadow-sm rounded-3xl flex flex-col items-center justify-center min-h-[200px]">
-                    <Loader2 className="h-8 w-8 animate-spin text-orange-500 mb-2" />
-                    <span className="font-bold text-slate-600">Loading warranties...</span>
-                </div>
-            ) : statusFilter === 'quick_review' ? (
+                <WarrantyListSkeleton />
+            ) : (
+            statusFilter === 'quick_review' ? (
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
                     {/* Left Panel: Scrollable List (40% width on lg screens) */}
                     <div className="lg:col-span-5 space-y-4">
@@ -653,7 +655,7 @@ export const AdminWarranties = () => {
                         <div key={refreshKey}>
                             <AdminWarrantyList
                                 items={paginatedWarranties}
-                                showActions={true}
+                                showActions={false}
                                 onApprove={(id) => handleUpdateStatus(id, 'validated')}
                                 onReject={(id) => {
                                     setRejectingWarrantyId(id);
@@ -671,9 +673,10 @@ export const AdminWarranties = () => {
                         </div>
                     </CardContent>
                 </Card>
+            )
             )}
 
-            {totalPages > 1 && (
+            {!loading && totalPages > 1 && (
                 <Pagination className="mt-4">
                     <PaginationContent>
                         <PaginationItem>

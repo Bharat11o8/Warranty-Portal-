@@ -16,7 +16,7 @@ import { Download, CheckSquare, Square } from "lucide-react";
 interface SelectiveExportDialogProps {
     isOpen: boolean;
     onClose: () => void;
-    onExport: (selectedFields: string[]) => void;
+    onExport: (selectedFields: string[]) => void | Promise<void>;
     title?: string;
     description?: string;
 }
@@ -46,8 +46,8 @@ export const SelectiveExportDialog: React.FC<SelectiveExportDialogProps> = ({
         setSelectedFields([]);
     };
 
-    const handleExport = () => {
-        onExport(selectedFields);
+    const handleExport = async () => {
+        await onExport(selectedFields);
         onClose();
     };
 

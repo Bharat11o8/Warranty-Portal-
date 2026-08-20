@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { OrderController } from '../controllers/order.controller.js';
-import { authenticateToken, requireRole } from '../middleware/auth.js';
+import { authenticateToken, requirePermission, requireRole } from '../middleware/auth.js';
 
 const router = Router();
 
@@ -31,18 +31,18 @@ router.post('/distributor/incoming/:id/cancel', authenticateToken, requireRole('
 router.post('/:id/received', authenticateToken, requireRole('vendor'), OrderController.markOrderReceived);
 
 // Decline outgoing orders (admin only)
-router.post('/:id/cancel', authenticateToken, requireRole('admin'), OrderController.cancelOrder);
+router.post('/:id/cancel', authenticateToken, requireRole('admin'), requirePermission('order_management', 'write'), OrderController.cancelOrder);
 
 // Chat / Messages routes
-router.get('/:id/messages', authenticateToken, OrderController.getOrderMessages);
-router.post('/:id/messages', authenticateToken, OrderController.createOrderMessage);
+router.get('/:id/messages', authenticateToken, requirePermission('order_management', 'read'), OrderController.getOrderMessages);
+router.post('/:id/messages', authenticateToken, requirePermission('order_management', 'write'), OrderController.createOrderMessage);
 
 // Order by ID (Authenticated: Vendor can view their own, Admin can view any)
-router.get('/:id', authenticateToken, OrderController.getOrderById);
-router.get('/:id/pdf', authenticateToken, OrderController.downloadOrderPDF);
+router.get('/:id', authenticateToken, requirePermission('order_management', 'read'), OrderController.getOrderById);
+router.get('/:id/pdf', authenticateToken, requirePermission('order_management', 'read'), OrderController.downloadOrderPDF);
 
 // Admin routes
-router.get('/', authenticateToken, requireRole('admin'), OrderController.getAllOrders);
-router.put('/:id/status', authenticateToken, requireRole('admin'), OrderController.updateOrderStatus);
+router.get('/', authenticateToken, requireRole('admin'), requirePermission('order_management', 'read'), OrderController.getAllOrders);
+router.put('/:id/status', authenticateToken, requireRole('admin'), requirePermission('order_management', 'write'), OrderController.updateOrderStatus);
 
 export default router;

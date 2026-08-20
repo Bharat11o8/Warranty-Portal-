@@ -1,35 +1,44 @@
-import { useState } from "react";
-import { AdminSidebar, SidebarContent, AdminModule } from "./AdminSidebar";
+import { lazy, Suspense, useState } from "react";
+import { AdminSidebar, SidebarContent } from "./AdminSidebar";
+import type { AdminModule } from "./AdminSidebar";
 import { AdminModuleLayout } from "./AdminModuleLayout";
 import { useAuth } from "@/contexts/AuthContext";
 import { Navigate } from "react-router-dom";
 import { Loader2 } from "lucide-react";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 
-import Profile from "@/pages/Profile";
-
-// Modules
-import { AdminHome } from "../modules/AdminHome";
-import { AdminWarranties } from "../modules/AdminWarranties";
-import { AdminVendors } from "../modules/AdminVendors";
-import { AdminDistributors } from "../modules/AdminDistributors";
-import { AdminCustomers } from "../modules/AdminCustomers";
-import { AdminAdmins } from "../modules/AdminAdmins";
-import { AdminActivityLogs } from "../modules/AdminActivityLogs";
-import { AdminGrievances } from "../modules/AdminGrievances";
-import { AdminProducts } from "../modules/AdminProducts";
-import { AdminTerms } from "../modules/AdminTerms";
-import { AdminContentManager } from "../modules/AdminContentManager";
-import { AdminWarrantyForm } from "../modules/AdminWarrantyForm";
-import { AdminAnnouncements } from "../modules/AdminAnnouncements";
-import { AdminOldWarranties } from "../modules/AdminOldWarranties";
-import { AdminWarrantyProducts } from "../modules/AdminWarrantyProducts";
-import { AdminPOSM } from "../modules/AdminPOSM";
-import { AdminECatalogue } from "../modules/AdminECatalogue";
 import { AdminCommandPalette } from "../AdminCommandPalette";
-import { AdminUIDManagement } from "../modules/AdminUIDManagement";
-import { AdminAnalytics } from "../modules/AdminAnalytics";
-import { AdminOrderManagement } from "../modules/AdminOrderManagement";
+
+// Modules load only when selected. This keeps the overview from downloading every
+// management screen (and their dependencies) before it can render.
+const Profile = lazy(() => import("@/pages/Profile"));
+const AdminHome = lazy(() => import("../modules/AdminHome").then(({ AdminHome }) => ({ default: AdminHome })));
+const AdminWarranties = lazy(() => import("../modules/AdminWarranties").then(({ AdminWarranties }) => ({ default: AdminWarranties })));
+const AdminVendors = lazy(() => import("../modules/AdminVendors").then(({ AdminVendors }) => ({ default: AdminVendors })));
+const AdminDistributors = lazy(() => import("../modules/AdminDistributors").then(({ AdminDistributors }) => ({ default: AdminDistributors })));
+const AdminCustomers = lazy(() => import("../modules/AdminCustomers").then(({ AdminCustomers }) => ({ default: AdminCustomers })));
+const AdminAdmins = lazy(() => import("../modules/AdminAdmins").then(({ AdminAdmins }) => ({ default: AdminAdmins })));
+const AdminActivityLogs = lazy(() => import("../modules/AdminActivityLogs").then(({ AdminActivityLogs }) => ({ default: AdminActivityLogs })));
+const AdminGrievances = lazy(() => import("../modules/AdminGrievances").then(({ AdminGrievances }) => ({ default: AdminGrievances })));
+const AdminProducts = lazy(() => import("../modules/AdminProducts").then(({ AdminProducts }) => ({ default: AdminProducts })));
+const AdminTerms = lazy(() => import("../modules/AdminTerms").then(({ AdminTerms }) => ({ default: AdminTerms })));
+const AdminContentManager = lazy(() => import("../modules/AdminContentManager").then(({ AdminContentManager }) => ({ default: AdminContentManager })));
+const AdminWarrantyForm = lazy(() => import("../modules/AdminWarrantyForm").then(({ AdminWarrantyForm }) => ({ default: AdminWarrantyForm })));
+const AdminAnnouncements = lazy(() => import("../modules/AdminAnnouncements").then(({ AdminAnnouncements }) => ({ default: AdminAnnouncements })));
+const AdminOldWarranties = lazy(() => import("../modules/AdminOldWarranties").then(({ AdminOldWarranties }) => ({ default: AdminOldWarranties })));
+const AdminWarrantyProducts = lazy(() => import("../modules/AdminWarrantyProducts").then(({ AdminWarrantyProducts }) => ({ default: AdminWarrantyProducts })));
+const AdminPOSM = lazy(() => import("../modules/AdminPOSM").then(({ AdminPOSM }) => ({ default: AdminPOSM })));
+const AdminECatalogue = lazy(() => import("../modules/AdminECatalogue").then(({ AdminECatalogue }) => ({ default: AdminECatalogue })));
+const AdminUIDManagement = lazy(() => import("../modules/AdminUIDManagement"));
+const AdminAnalytics = lazy(() => import("../modules/AdminAnalytics").then(({ AdminAnalytics }) => ({ default: AdminAnalytics })));
+const AdminOrderManagement = lazy(() => import("../modules/AdminOrderManagement").then(({ AdminOrderManagement }) => ({ default: AdminOrderManagement })));
+
+const ModuleLoadingFallback = () => (
+    <div className="flex h-[400px] flex-col items-center justify-center gap-4">
+        <Loader2 className="h-8 w-8 animate-spin text-orange-500" />
+        <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Loading module…</p>
+    </div>
+);
 
 export const AdminLayout = () => {
     const { user, loading } = useAuth();
@@ -154,7 +163,9 @@ export const AdminLayout = () => {
                     onProfileClick={() => setActiveModule('profile')}
                     stickyHeader={activeModule !== 'warranties'}
                 >
-                    {renderModule()}
+                    <Suspense fallback={<ModuleLoadingFallback />}>
+                        {renderModule()}
+                    </Suspense>
                 </AdminModuleLayout>
             </div>
         </div>

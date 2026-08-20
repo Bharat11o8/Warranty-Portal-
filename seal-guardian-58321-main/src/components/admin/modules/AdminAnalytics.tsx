@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import api from '@/lib/api';
 import {
     ShieldCheck, MessageSquare, Package, Box, RefreshCw
@@ -76,6 +76,10 @@ export const AdminAnalytics = ({ onNavigate }: { onNavigate: (module: AdminModul
 
     const [trendLoading, setTrendLoading] = useState(false);
     const [prodLoading, setProdLoading] = useState(false);
+    const lastTrendRequest = useRef('');
+    const lastFraudRequest = useRef('');
+    const lastProductRequest = useRef('');
+    const lastGeoRequest = useRef('');
 
     const fetchFranchiseDrilldown = async (name: string) => {
         setSelectedFranchise(name);
@@ -199,17 +203,33 @@ export const AdminAnalytics = ({ onNavigate }: { onNavigate: (module: AdminModul
         }
     };
 
-    useEffect(() => { fetchTrendData(); }, [trendPeriod, trendYear, trendMonth, trendStart, trendEnd]);
-    useEffect(() => { fetchFraudData(); }, [trendPeriod, trendYear, trendMonth, trendStart, trendEnd, fraudFlag]);
-    useEffect(() => { fetchProdData(); }, [prodPeriod, prodYear, prodMonth, prodStart, prodEnd]);
-    useEffect(() => { fetchGeoData(); }, [geoPeriod, geoYear, geoMonth, geoStart, geoEnd, selectedState]);
+    useEffect(() => {
+        const requestKey = [trendPeriod, trendYear, trendMonth, trendStart, trendEnd].join('|');
+        if (lastTrendRequest.current === requestKey) return;
+        lastTrendRequest.current = requestKey;
+        fetchTrendData();
+    }, [trendPeriod, trendYear, trendMonth, trendStart, trendEnd]);
 
     useEffect(() => {
-        const init = async () => {
-            await Promise.all([fetchTrendData(), fetchProdData(), fetchGeoData(), fetchFraudData()]);
-        };
-        init();
-    }, []);
+        const requestKey = [trendPeriod, trendYear, trendMonth, trendStart, trendEnd, fraudFlag].join('|');
+        if (lastFraudRequest.current === requestKey) return;
+        lastFraudRequest.current = requestKey;
+        fetchFraudData();
+    }, [trendPeriod, trendYear, trendMonth, trendStart, trendEnd, fraudFlag]);
+
+    useEffect(() => {
+        const requestKey = [prodPeriod, prodYear, prodMonth, prodStart, prodEnd].join('|');
+        if (lastProductRequest.current === requestKey) return;
+        lastProductRequest.current = requestKey;
+        fetchProdData();
+    }, [prodPeriod, prodYear, prodMonth, prodStart, prodEnd]);
+
+    useEffect(() => {
+        const requestKey = [geoPeriod, geoYear, geoMonth, geoStart, geoEnd, selectedState || ''].join('|');
+        if (lastGeoRequest.current === requestKey) return;
+        lastGeoRequest.current = requestKey;
+        fetchGeoData();
+    }, [geoPeriod, geoYear, geoMonth, geoStart, geoEnd, selectedState]);
 
     const getViewDetails = () => {
         switch (selectedView) {

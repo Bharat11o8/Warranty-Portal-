@@ -3,7 +3,7 @@ import { AdminController } from '../controllers/admin.controller.js';
 import { DiagnosticController } from '../controllers/diagnostic.controller.js';
 import { ProductController } from '../controllers/product.controller.js';
 import { ImageRepairController } from '../controllers/imageRepair.controller.js';
-import { authenticateToken, requireRole, requirePermission } from '../middleware/auth.js';
+import { authenticateToken, requireRole, requirePermission, requireAnyPermission } from '../middleware/auth.js';
 
 const router = Router();
 
@@ -25,20 +25,20 @@ router.put('/vendors/:id/distributor-status', ...adminAuth, requirePermission('v
 router.delete('/vendors/:id',             ...adminAuth, requirePermission('vendors', 'write'), AdminController.deleteVendor);
 
 // ── Distributors ─────────────────────────────────────────────────────────────
-router.get('/distributors',                                     ...adminAuth, requirePermission('vendors', 'read'),  AdminController.getAllDistributors);
-router.post('/distributors',                                    ...adminAuth, requirePermission('vendors', 'write'), AdminController.createDistributor);
-router.get('/distributors/:id/franchises',                      ...adminAuth, requirePermission('vendors', 'read'),  AdminController.getDistributorFranchises);
-router.post('/distributors/:id/franchise-assignments',          ...adminAuth, requirePermission('vendors', 'write'), AdminController.mapFranchiseToDistributor);
-router.delete('/distributors/:id/franchise-assignments/:vendorId', ...adminAuth, requirePermission('vendors', 'write'), AdminController.unmapFranchiseFromDistributor);
-router.get('/distributors/:id/categories',                      ...adminAuth, requirePermission('vendors', 'read'),  AdminController.getDistributorAllowedCategories);
-router.put('/distributors/:id/categories',                      ...adminAuth, requirePermission('vendors', 'write'), AdminController.setDistributorAllowedCategories);
+router.get('/distributors',                                     ...adminAuth, requireAnyPermission(['distributors', 'order_management'], 'read'),  AdminController.getAllDistributors);
+router.post('/distributors',                                    ...adminAuth, requirePermission('distributors', 'write'), AdminController.createDistributor);
+router.get('/distributors/:id/franchises',                      ...adminAuth, requireAnyPermission(['distributors', 'order_management'], 'read'),  AdminController.getDistributorFranchises);
+router.post('/distributors/:id/franchise-assignments',          ...adminAuth, requireAnyPermission(['distributors', 'order_management'], 'write'), AdminController.mapFranchiseToDistributor);
+router.delete('/distributors/:id/franchise-assignments/:vendorId', ...adminAuth, requireAnyPermission(['distributors', 'order_management'], 'write'), AdminController.unmapFranchiseFromDistributor);
+router.get('/distributors/:id/categories',                      ...adminAuth, requireAnyPermission(['distributors', 'order_management'], 'read'),  AdminController.getDistributorAllowedCategories);
+router.put('/distributors/:id/categories',                      ...adminAuth, requireAnyPermission(['distributors', 'order_management'], 'write'), AdminController.setDistributorAllowedCategories);
 
 // ── Franchises ───────────────────────────────────────────────────────────────
-router.get('/franchises/eligible',                     ...adminAuth, requirePermission('vendors', 'read'),  AdminController.getEligibleFranchises);
-router.get('/franchises/:vendorId/orders',             ...adminAuth, requirePermission('vendors', 'read'),  AdminController.getFranchiseOrders);
-router.get('/franchises/:vendorId/distributors',       ...adminAuth, requirePermission('vendors', 'read'),  AdminController.getFranchiseDistributors);
-router.post('/distributors/:id/franchises',             ...adminAuth, requirePermission('vendors', 'write'), AdminController.assignDistributorToFranchise);
-router.delete('/distributors/:id/franchises/:vendorId', ...adminAuth, requirePermission('vendors', 'write'), AdminController.unassignDistributorFromFranchise);
+router.get('/franchises/eligible',                     ...adminAuth, requireAnyPermission(['distributors', 'order_management'], 'read'),  AdminController.getEligibleFranchises);
+router.get('/franchises/:vendorId/orders',             ...adminAuth, requireAnyPermission(['vendors', 'order_management'], 'read'),  AdminController.getFranchiseOrders);
+router.get('/franchises/:vendorId/distributors',       ...adminAuth, requirePermission('distributors', 'read'),  AdminController.getFranchiseDistributors);
+router.post('/distributors/:id/franchises',             ...adminAuth, requireAnyPermission(['distributors', 'order_management'], 'write'), AdminController.assignDistributorToFranchise);
+router.delete('/distributors/:id/franchises/:vendorId', ...adminAuth, requireAnyPermission(['distributors', 'order_management'], 'write'), AdminController.unassignDistributorFromFranchise);
 
 // ── Warranties ───────────────────────────────────────────────────────────────
 router.get('/warranties',                 ...adminAuth, requirePermission('warranties', 'read'),  AdminController.getAllWarranties);
@@ -76,4 +76,4 @@ router.get('/diagnostic/vendors',         ...adminAuth, AdminController.getDashb
 // ── TEMP: HEIC-as-.jpg image repair (see imageRepair.controller.ts) ─────────
 router.post('/repair-image',              ...adminAuth, requirePermission('warranties', 'write'), ImageRepairController.repairOne);
 
-export default router;
+export default router;

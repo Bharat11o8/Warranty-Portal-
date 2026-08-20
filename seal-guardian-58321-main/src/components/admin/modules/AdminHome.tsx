@@ -1,14 +1,11 @@
-import { useState, useEffect } from "react";
+import { lazy, Suspense, useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Download, Users, Store, FileCheck, AlertCircle, TrendingUp } from "lucide-react";
-import {
-    PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip, Legend,
-    BarChart, Bar, XAxis, YAxis, CartesianGrid
-} from 'recharts';
+import { Skeleton } from "@/components/ui/skeleton";
+import { Users, Store, FileCheck, AlertCircle } from "lucide-react";
 import api from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2 } from "lucide-react";
+
+const AdminDashboardCharts = lazy(() => import("./AdminDashboardCharts"));
 
 // Vibrant "Flat UI" palette - brighter and cleaner
 const COLORS = {
@@ -22,12 +19,54 @@ const COLORS = {
     default: '#95a5a6' // Concrete - Neutral
 };
 
+const DashboardChartsSkeleton = () => (
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+        {[0, 1].map((index) => (
+            <Card key={index} className="border-orange-100 shadow-sm h-[350px]">
+                <CardHeader className="space-y-3">
+                    <Skeleton className="h-5 w-40" />
+                    <Skeleton className="h-3 w-28" />
+                </CardHeader>
+                <CardContent className="h-[255px] flex items-end gap-3 px-8">
+                    {[42, 68, 53, 82, 61, 75, 48].map((height, barIndex) => (
+                        <Skeleton key={barIndex} className="flex-1 rounded-t-md" style={{ height: `${height}%` }} />
+                    ))}
+                </CardContent>
+            </Card>
+        ))}
+    </div>
+);
+
+const DashboardOverviewSkeleton = () => (
+    <div className="space-y-8">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
+            {Array.from({ length: 4 }, (_, index) => (
+                <Card key={index} className="border-orange-100 shadow-sm">
+                    <CardHeader className="space-y-0 pb-2">
+                        <Skeleton className="h-4 w-24" />
+                    </CardHeader>
+                    <CardContent className="space-y-2">
+                        <Skeleton className="h-8 w-16" />
+                        <Skeleton className="h-3 w-28" />
+                    </CardContent>
+                </Card>
+            ))}
+        </div>
+        <DashboardChartsSkeleton />
+    </div>
+);
+
 export const AdminHome = () => {
     const { toast } = useToast();
     const [loading, setLoading] = useState(true);
     const [stats, setStats] = useState<any>(null);
+    const hasRequestedStats = useRef(false);
 
     useEffect(() => {
+        // React Strict Mode intentionally runs effects twice in development.
+        // The overview should still make only one expensive stats request.
+        if (hasRequestedStats.current) return;
+        hasRequestedStats.current = true;
         fetchStats();
     }, []);
 
@@ -50,12 +89,7 @@ export const AdminHome = () => {
     };
 
     if (loading) {
-        return (
-            <div className="flex flex-col items-center justify-center h-[400px] gap-4">
-                <Loader2 className="h-8 w-8 text-primary animate-spin" />
-                <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Loading Analytics...</p>
-            </div>
-        );
+        return <DashboardOverviewSkeleton />;
     }
 
     if (!stats) return null;
@@ -106,8 +140,8 @@ export const AdminHome = () => {
                         <Store className="h-4 w-4 text-purple-500" />
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold">{stats.totalVendors}</div>
-                        <p className="text-xs text-muted-foreground mt-1">Across all regions</p>
+                        <div className="text-2xl font-bold">{stats.activeFranchises}</div>
+                        <p className="text-xs text-muted-foreground mt-1">With warranty, POSM, or grievance activity</p>
                     </CardContent>
                 </Card>
                 <Card className="border-orange-100 shadow-sm hover:shadow-md transition-all">
@@ -122,68 +156,9 @@ export const AdminHome = () => {
                 </Card>
             </div>
 
-            {/* Charts Row */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                {/* Warranty Trends */}
-                <Card className="border-orange-100 shadow-sm">
-                    <CardHeader>
-                        <CardTitle className="text-lg font-bold flex items-center gap-2">
-                            <TrendingUp className="h-5 w-5 text-orange-500" />
-                            Warranty Trends
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent className="h-[350px]">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <BarChart data={monthlyData}>
-                                <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.3} />
-                                <XAxis dataKey="month" fontSize={12} tickLine={false} axisLine={false} />
-                                <YAxis fontSize={12} tickLine={false} axisLine={false} />
-                                <RechartsTooltip
-                                    cursor={{ fill: 'rgba(0,0,0,0.05)' }}
-                                    contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
-                                />
-                                <Legend />
-                                <Bar dataKey="approved" name="Approved" fill={COLORS.validated} radius={[4, 4, 0, 0]} stackId="a" />
-                                <Bar dataKey="rejected" name="Action Required" fill={COLORS.rejected} radius={[4, 4, 0, 0]} stackId="a" />
-                                <Bar dataKey="pending" name="Pending" fill={COLORS.pending} radius={[4, 4, 0, 0]} stackId="a" />
-                            </BarChart>
-                        </ResponsiveContainer>
-                    </CardContent>
-                </Card>
-
-                {/* Distribution */}
-                <Card className="border-orange-100 shadow-sm">
-                    <CardHeader>
-                        <CardTitle className="text-lg font-bold flex items-center gap-2">
-                            <FileCheck className="h-5 w-5 text-green-500" />
-                            Status Distribution
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent className="h-[350px]">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <PieChart>
-                                <Pie
-                                    data={pieData}
-                                    cx="50%"
-                                    cy="50%"
-                                    innerRadius={80}
-                                    outerRadius={110}
-                                    paddingAngle={5}
-                                    dataKey="value"
-                                >
-                                    {pieData.map((entry, index) => (
-                                        <Cell key={`cell-${index}`} fill={entry.color} strokeWidth={0} />
-                                    ))}
-                                </Pie>
-                                <RechartsTooltip
-                                    contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
-                                />
-                                <Legend verticalAlign="bottom" height={36} />
-                            </PieChart>
-                        </ResponsiveContainer>
-                    </CardContent>
-                </Card>
-            </div>
+            <Suspense fallback={<DashboardChartsSkeleton />}>
+                <AdminDashboardCharts pieData={pieData} monthlyData={monthlyData} />
+            </Suspense>
         </div>
     );
 };

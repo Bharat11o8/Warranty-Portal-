@@ -11,11 +11,14 @@ dotenv.config({ path: path.join(__dirname, '../../.env') });
 
 const fullPermissions = {
     overview:          { read: true, write: true },
+    analytics:         { read: true, write: true },
     warranties:        { read: true, write: true },
     warranty_products: { read: true, write: true },
     uid_management:    { read: true, write: true },
     warranty_form:     { read: true, write: true },
     vendors:           { read: true, write: true },
+    distributors:      { read: true, write: true },
+    order_management:  { read: true, write: true },
     customers:         { read: true, write: true },
     products:          { read: true, write: true },
     announcements:     { read: true, write: true },
@@ -23,6 +26,7 @@ const fullPermissions = {
     posm:              { read: true, write: true },
     ecatalogue:        { read: true, write: true },
     terms:             { read: true, write: true },
+    content_manager:   { read: true, write: true },
     old_warranties:    { read: true, write: true },
     activity_logs:     { read: true, write: false },
 };

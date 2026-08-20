@@ -41,68 +41,131 @@ async function runWithRetry<T>(
 export class AdminController {
     static async getDashboardStats(_req: Request, res: Response) {
         try {
-            // 1. Total Warranties
-            const [warranties]: any = await db.execute('SELECT COUNT(*) as count FROM warranty_registrations');
-            const totalWarranties = warranties[0].count;
+            // The overview is the first admin screen. Keep its independent aggregates
+            // concurrent and combine warranty status counts in one table scan.
+            const [summaryResult, activeFranchisesResult, customersResult, monthlyStatsResult]: any = await Promise.all([
+                db.execute(`
+                    SELECT
+                        COUNT(*) AS total_warranties,
+                        COALESCE(SUM(status = 'pending'), 0) AS pending_approvals,
+                        COALESCE(SUM(status = 'pending_vendor'), 0) AS pending_vendor_approvals,
+                        COALESCE(SUM(status = 'validated'), 0) AS validated_warranties,
+                        COALESCE(SUM(status = 'rejected'), 0) AS rejected_warranties
+                    FROM warranty_registrations
+                `),
+                db.execute(`
+                    SELECT COUNT(DISTINCT vd.id) AS count
+                    FROM vendor_details vd
+                    JOIN user_roles ur ON ur.user_id = vd.user_id AND ur.role = 'vendor'
+                    JOIN (
+                        -- Warranty activity through a franchise's staff.
+                        SELECT m.vendor_id AS franchise_id
+                        FROM manpower m
+                        JOIN warranty_registrations wr ON wr.manpower_id = m.id
 
-            // 2. Total Vendors
-            const [vendors]: any = await db.execute("SELECT COUNT(*) as count FROM user_roles WHERE role = 'vendor'");
-            const totalVendors = vendors[0].count;
+                        UNION
 
-            // 3. Total Customers (Registered + Guests, excluding Vendors)
-            const [customers]: any = await db.execute(`
-                SELECT COUNT(*) as count FROM (
-                    -- 1. Registered Customers (from profiles)
-                    SELECT p.name as customer_name, p.email, p.phone_number
-                    FROM profiles p
-                    JOIN user_roles ur ON p.id = ur.user_id
-                    WHERE ur.role = 'customer'
-                    AND p.email NOT IN (SELECT email FROM profiles p2 JOIN user_roles ur2 ON p2.id = ur2.user_id WHERE ur2.role = 'vendor')
+                        -- Warranties submitted directly by the franchise account.
+                        SELECT vd_direct.id AS franchise_id
+                        FROM warranty_registrations wr
+                        JOIN vendor_details vd_direct ON vd_direct.user_id = wr.user_id
 
-                    UNION
+                        UNION
 
-                    -- 2. Guest Customers (from warranty_registrations)
-                    SELECT sub.customer_name, sub.customer_email, sub.customer_phone
+                        -- Legacy owner warranties and installer-attributed warranties.
+                        SELECT vd_owner.id AS franchise_id
+                        FROM warranty_registrations wr
+                        JOIN vendor_details vd_owner ON wr.manpower_id = CONCAT('owner-', vd_owner.id)
+
+                        UNION
+
+                        SELECT vd_installer.id AS franchise_id
+                        FROM warranty_registrations wr
+                        JOIN vendor_details vd_installer
+                          ON wr.installer_name = vd_installer.store_name
+                         AND wr.installer_contact = vd_installer.store_email
+
+                        UNION
+
+                        SELECT franchise_id
+                        FROM posm_requests
+                        WHERE franchise_id IS NOT NULL
+
+                        UNION
+
+                        -- A grievance can be assigned to a franchise or submitted by it.
+                        SELECT franchise_id
+                        FROM grievances
+                        WHERE franchise_id IS NOT NULL
+
+                        UNION
+
+                        SELECT vd_grievance.id AS franchise_id
+                        FROM grievances g
+                        JOIN vendor_details vd_grievance
+                          ON g.source_type = 'franchise'
+                         AND g.customer_id = vd_grievance.user_id
+                    ) activity ON activity.franchise_id = vd.id
+                    WHERE COALESCE(vd.is_franchise, TRUE) = TRUE
+                `),
+                // Registered customers plus unique guest warranty registrations.
+                // Keep email and phone lookups separate: the previous OR join made
+                // MySQL scan the entire customer set for every guest registration.
+                db.execute(`
+                    SELECT COUNT(*) AS count
                     FROM (
-                        SELECT customer_name, customer_email, customer_phone 
-                        FROM warranty_registrations 
-                        GROUP BY customer_name, customer_email, customer_phone
-                    ) sub
-                    LEFT JOIN (
-                        SELECT p.email, p.phone_number, p.id FROM profiles p 
-                        JOIN user_roles ur ON p.id = ur.user_id WHERE ur.role = 'customer'
-                    ) reg_cust ON (sub.customer_email = reg_cust.email OR sub.customer_phone = reg_cust.phone_number)
-                    LEFT JOIN (
-                        SELECT p.email, p.name FROM profiles p 
-                        JOIN user_roles ur ON p.id = ur.user_id WHERE ur.role = 'vendor'
-                    ) vendor_match ON sub.customer_email = vendor_match.email AND sub.customer_name = vendor_match.name
-                    WHERE reg_cust.id IS NULL AND vendor_match.name IS NULL
-                    AND (
-                        (sub.customer_email IS NOT NULL AND sub.customer_email != '' AND sub.customer_email != 'N/A')
-                        OR 
-                        (sub.customer_phone IS NOT NULL AND sub.customer_phone != '' AND sub.customer_phone != 'N/A')
-                    )
-                ) combined`);
-            const totalCustomers = customers[0].count;
+                        SELECT p.name AS customer_name, p.email, p.phone_number
+                        FROM profiles p
+                        JOIN user_roles ur ON ur.user_id = p.id AND ur.role = 'customer'
+                        WHERE p.email NOT IN (
+                            SELECT vendor_profile.email
+                            FROM profiles vendor_profile
+                            JOIN user_roles vendor_role
+                              ON vendor_role.user_id = vendor_profile.id
+                             AND vendor_role.role = 'vendor'
+                        )
 
-            // 4. Pending Approvals (Pending Warranties - Second Stage)
-            const [pending]: any = await db.execute("SELECT COUNT(*) as count FROM warranty_registrations WHERE status = 'pending'");
-            const pendingApprovals = pending[0].count;
+                        UNION
 
-            // 5. Pending Vendor Approvals (Pending Vendor - First Stage)
-            const [pendingVendor]: any = await db.execute("SELECT COUNT(*) as count FROM warranty_registrations WHERE status = 'pending_vendor'");
-            const pendingVendorApprovals = pendingVendor[0].count;
-
-            // 6. Validated Warranties
-            const [validated]: any = await db.execute("SELECT COUNT(*) as count FROM warranty_registrations WHERE status = 'validated'");
-            const validatedWarranties = validated[0].count;
-
-            // 7. Rejected Warranties
-            const [rejected]: any = await db.execute("SELECT COUNT(*) as count FROM warranty_registrations WHERE status = 'rejected'");
-            const rejectedWarranties = rejected[0].count;
-
-            // 8. Monthly Statistics (Last 12 months - expanded from 6)
-            const [monthlyStats]: any = await db.execute(`
+                        SELECT guest.customer_name, guest.customer_email AS email, guest.customer_phone AS phone_number
+                        FROM (
+                            SELECT customer_name, customer_email, customer_phone
+                            FROM warranty_registrations
+                            GROUP BY customer_name, customer_email, customer_phone
+                        ) guest
+                        WHERE NOT EXISTS (
+                            SELECT 1
+                            FROM profiles customer_email_profile
+                            JOIN user_roles customer_email_role
+                              ON customer_email_role.user_id = customer_email_profile.id
+                             AND customer_email_role.role = 'customer'
+                            WHERE customer_email_profile.email = guest.customer_email
+                        )
+                        AND NOT EXISTS (
+                            SELECT 1
+                            FROM profiles customer_phone_profile
+                            JOIN user_roles customer_phone_role
+                              ON customer_phone_role.user_id = customer_phone_profile.id
+                             AND customer_phone_role.role = 'customer'
+                            WHERE customer_phone_profile.phone_number = guest.customer_phone
+                        )
+                        AND NOT EXISTS (
+                            SELECT 1
+                            FROM profiles vendor_profile
+                            JOIN user_roles vendor_role
+                              ON vendor_role.user_id = vendor_profile.id
+                             AND vendor_role.role = 'vendor'
+                            WHERE vendor_profile.email = guest.customer_email
+                              AND vendor_profile.name = guest.customer_name
+                        )
+                        AND (
+                            (guest.customer_email IS NOT NULL AND guest.customer_email != '' AND guest.customer_email != 'N/A')
+                            OR
+                            (guest.customer_phone IS NOT NULL AND guest.customer_phone != '' AND guest.customer_phone != 'N/A')
+                        )
+                    ) combined
+                `),
+                db.execute(`
                 SELECT 
                     DATE_FORMAT(created_at, '%Y-%m') as month,
                     COUNT(*) as total,
@@ -114,49 +177,25 @@ export class AdminController {
                 WHERE created_at >= DATE_SUB(NOW(), INTERVAL 12 MONTH)
                 GROUP BY DATE_FORMAT(created_at, '%Y-%m')
                 ORDER BY month ASC
-            `);
+                `)
+            ]);
 
-            // 9. Monthly Customer Stats (Last 12 months - expanded from 6)
-            // Determine New vs Returning based on when the customer FIRST registered a warranty
-            const [monthlyCustomerStats]: any = await db.execute(`
-                WITH FirstSeen AS (
-                    SELECT customer_email, MIN(created_at) as first_date
-                    FROM warranty_registrations 
-                    GROUP BY customer_email
-                )
-                SELECT 
-                    DATE_FORMAT(wr.created_at, '%Y-%m') as month,
-                    COUNT(DISTINCT wr.customer_email) as active_customers,
-                    COUNT(DISTINCT CASE 
-                        WHEN DATE_FORMAT(fs.first_date, '%Y-%m') = DATE_FORMAT(wr.created_at, '%Y-%m') 
-                        THEN wr.customer_email 
-                    END) as new_customers
-                FROM warranty_registrations wr
-                JOIN FirstSeen fs ON wr.customer_email = fs.customer_email
-                WHERE wr.created_at >= DATE_SUB(NOW(), INTERVAL 12 MONTH)
-                GROUP BY DATE_FORMAT(wr.created_at, '%Y-%m')
-                ORDER BY month ASC
-            `);
-
-            const formattedCustomerStats = monthlyCustomerStats.map((stat: any) => ({
-                month: stat.month,
-                active_customers: Number(stat.active_customers),
-                new_customers: Number(stat.new_customers),
-                returning_customers: Number(stat.active_customers) - Number(stat.new_customers)
-            }));
+            const summary = summaryResult[0][0];
+            const activeFranchises = Number(activeFranchisesResult[0][0]?.count || 0);
+            const totalCustomers = Number(customersResult[0][0]?.count || 0);
+            const monthlyStats = monthlyStatsResult[0];
 
             res.json({
                 success: true,
                 stats: {
-                    totalWarranties,
-                    totalVendors,
+                    totalWarranties: Number(summary.total_warranties || 0),
+                    activeFranchises,
                     totalCustomers,
-                    pendingApprovals,
-                    pendingVendorApprovals,
-                    validatedWarranties,
-                    rejectedWarranties,
-                    monthlyStats,
-                    monthlyCustomerStats: formattedCustomerStats
+                    pendingApprovals: Number(summary.pending_approvals || 0),
+                    pendingVendorApprovals: Number(summary.pending_vendor_approvals || 0),
+                    validatedWarranties: Number(summary.validated_warranties || 0),
+                    rejectedWarranties: Number(summary.rejected_warranties || 0),
+                    monthlyStats
                 }
             });
         } catch (error: any) {
@@ -1560,26 +1599,39 @@ export class AdminController {
 
     static async getAllWarranties(req: Request, res: Response) {
         try {
-            // Pagination parameters
-            const page = parseInt(req.query.page as string) || 1;
-            const limit = parseInt(req.query.limit as string) || 30;
+            // Keep the admin list page-sized.  A larger response is permitted only
+            // for an explicit export request, never for the interactive screen.
+            const page = Math.max(parseInt(req.query.page as string) || 1, 1);
+            const requestedLimit = parseInt(req.query.limit as string) || 30;
+            const isExport = req.query.export === 'true';
+            const limit = Math.min(Math.max(requestedLimit, 1), isExport ? 10000 : 100);
             const offset = (page - 1) * limit;
 
             // Extract Filters
-            const { status, search, product_type, make, date_from, date_to } = req.query;
+            const { status, search, product_type, make, date_from, date_to, model } = req.query;
 
             let conditions: string[] = [];
             let params: any[] = [];
+            // Summary counts should respect the active search/advanced filters, but
+            // deliberately ignore the selected status tab so its badge remains useful.
+            let summaryConditions: string[] = [];
+            let summaryParams: any[] = [];
+
+            const addCondition = (condition: string, values: any[] = []) => {
+                conditions.push(condition);
+                params.push(...values);
+                summaryConditions.push(condition);
+                summaryParams.push(...values);
+            };
 
             // 1. Dynamic Filters
 
-            // Status Filtering
-            // Admin logic: matches exactly what the filter says usually
+            // Status Filtering. The API now uses the same status names as the UI.
             if (status && status !== 'all') {
-                if (status === 'pending') {
-                    conditions.push("wr.status = 'pending_vendor'");
-                } else if (status === 'pending_ho') {
+                if (status === 'pending_ho') {
                     conditions.push("wr.status = 'pending'");
+                } else if (status === 'quick_review') {
+                    conditions.push("wr.status IN ('pending', 'pending_vendor')");
                 } else {
                     conditions.push('wr.status = ?');
                     params.push(status);
@@ -1588,31 +1640,35 @@ export class AdminController {
 
             // Product Type
             if (product_type && product_type !== 'all') {
-                conditions.push('wr.product_type = ?');
-                params.push(product_type);
+                if (product_type === 'ppf') {
+                    addCondition("(wr.product_type LIKE '%ppf%' OR wr.product_type LIKE '%ev%')");
+                } else if (product_type === 'seat-cover') {
+                    addCondition("(wr.product_type LIKE '%seat%' OR wr.product_type LIKE '%cover%')");
+                } else {
+                    addCondition('wr.product_type = ?', [product_type]);
+                }
             }
 
             // Make
             if (make && make !== 'all') {
-                conditions.push('wr.car_make = ?');
-                params.push(make);
+                addCondition('wr.car_make = ?', [make]);
             }
 
             // Model
-            const { model } = req.query;
             if (model && model !== 'all') {
-                conditions.push('wr.car_model = ?');
-                params.push(model);
+                addCondition('wr.car_model = ?', [model]);
             }
 
             // Search
             if (search) {
-                const searchTerm = `%${search}%`;
-                conditions.push(`(
+                const searchTerm = `%${String(search).trim().slice(0, 100)}%`;
+                const searchCondition = `(
                     wr.customer_name LIKE ? OR 
+                    wr.customer_email LIKE ? OR
                     wr.customer_phone LIKE ? OR 
                     wr.uid LIKE ? OR 
                     wr.registration_number LIKE ? OR 
+                    wr.product_details LIKE ? OR
                     wr.car_make LIKE ? OR 
                     wr.car_model LIKE ? OR
                     wr.installer_name LIKE ? OR
@@ -1622,35 +1678,82 @@ export class AdminController {
                     vd_m.city LIKE ? OR
                     vd_i.city LIKE ? OR
                     vd_owner.city LIKE ?
-                )`);
-                params.push(searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm);
+                )`;
+                const searchParams = Array(15).fill(searchTerm);
+                addCondition(searchCondition, searchParams);
             }
 
             // Date Range
             if (date_from && date_to) {
-                conditions.push('wr.created_at BETWEEN ? AND ?');
-                params.push(new Date(date_from as string), new Date(date_to as string));
+                addCondition('wr.created_at BETWEEN ? AND ?', [
+                    `${String(date_from)} 00:00:00`,
+                    `${String(date_to)} 23:59:59`
+                ]);
             }
 
             // 2. Build Query
             const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
-
-            // Count Query (must include the same JOINs used in search conditions)
-            const countQuery = `
-                SELECT COUNT(*) as total
-                FROM warranty_registrations wr
+            const summaryWhereClause = summaryConditions.length > 0 ? `WHERE ${summaryConditions.join(' AND ')}` : '';
+            const joins = `
                 LEFT JOIN manpower m ON wr.manpower_id = m.id
                 LEFT JOIN vendor_details vd_m ON (wr.manpower_id IS NOT NULL AND wr.manpower_id NOT LIKE 'owner-%' AND m.vendor_id = vd_m.id)
                 LEFT JOIN vendor_details vd_i ON (wr.installer_name = vd_i.store_name AND wr.installer_contact = vd_i.store_email)
                 LEFT JOIN vendor_details vd_owner ON (
                     wr.manpower_id LIKE 'owner-%' AND
                     vd_owner.id = REPLACE(wr.manpower_id, 'owner-', '')
-                )
+                )`;
+
+            // Count Query (must include the same JOINs used in search conditions)
+            const countQuery = `
+                SELECT COUNT(*) as total
+                FROM warranty_registrations wr
+                ${joins}
                 ${whereClause}
             `;
-            const [countResult]: any = await db.execute(countQuery, params);
+            const statusSummaryQuery = `
+                SELECT wr.status, COUNT(*) as count
+                FROM warranty_registrations wr
+                ${joins}
+                ${summaryWhereClause}
+                GROUP BY wr.status
+            `;
+
+            const [[countResult], [statusSummaryResult], [makeResult], [modelResult]]: any = await Promise.all([
+                db.execute(countQuery, params),
+                db.execute(statusSummaryQuery, summaryParams),
+                db.execute(`
+                    SELECT DISTINCT car_make
+                    FROM warranty_registrations
+                    WHERE car_make IS NOT NULL AND car_make != ''
+                    ORDER BY car_make ASC
+                    LIMIT 250
+                `),
+                make && make !== 'all'
+                    ? db.execute(`
+                        SELECT DISTINCT car_model
+                        FROM warranty_registrations
+                        WHERE car_make = ? AND car_model IS NOT NULL AND car_model != ''
+                        ORDER BY car_model ASC
+                        LIMIT 250
+                    `, [make])
+                    : Promise.resolve([[]])
+            ]);
             const totalCount = countResult[0].total;
             const totalPages = Math.ceil(totalCount / limit);
+            const statusCounts = { validated: 0, pending: 0, pending_vendor: 0, rejected: 0 };
+            statusSummaryResult.forEach((row: any) => {
+                if (row.status in statusCounts) {
+                    statusCounts[row.status as keyof typeof statusCounts] = Number(row.count);
+                }
+            });
+
+            const allowedSortFields: Record<string, string> = {
+                created_at: 'wr.created_at',
+                purchase_date: 'wr.purchase_date',
+                customer_name: 'wr.customer_name'
+            };
+            const sortBy = allowedSortFields[String(req.query.sort_by)] || allowedSortFields.created_at;
+            const sortOrder = String(req.query.sort_order).toLowerCase() === 'asc' ? 'ASC' : 'DESC';
 
             // Get all warranties with user details including role (with pagination)
             const mainQuery = `
@@ -1681,7 +1784,7 @@ export class AdminController {
                     vd_owner.id = REPLACE(wr.manpower_id, 'owner-', '')
                 )
                 ${whereClause}
-                ORDER BY wr.created_at DESC
+                ORDER BY ${sortBy} ${sortOrder}, wr.id DESC
                 LIMIT ? OFFSET ?
             `;
 
@@ -1689,14 +1792,27 @@ export class AdminController {
             const [warrantyList]: any = await db.query(mainQuery, mainParams);
 
             // Parse JSON product_details
-            const formattedWarranties = warrantyList.map((warranty: any) => ({
-                ...warranty,
-                product_details: JSON.parse(warranty.product_details)
-            }));
+            const formattedWarranties = warrantyList.map((warranty: any) => {
+                let productDetails = {};
+                try {
+                    productDetails = typeof warranty.product_details === 'string'
+                        ? JSON.parse(warranty.product_details)
+                        : warranty.product_details || {};
+                } catch {
+                    // A malformed legacy record must not prevent the whole page loading.
+                    productDetails = {};
+                }
+                return { ...warranty, product_details: productDetails };
+            });
 
             res.json({
                 success: true,
                 warranties: formattedWarranties,
+                statusCounts,
+                filterOptions: {
+                    makes: makeResult.map((row: any) => row.car_make),
+                    models: modelResult.map((row: any) => row.car_model)
+                },
                 pagination: {
                     currentPage: page,
                     totalPages,
@@ -2276,11 +2392,14 @@ export class AdminController {
             // Normalize permissions â€” default all to false if not provided
             const defaultPermissions = {
                 overview: { read: false, write: false },
+                analytics: { read: false, write: false },
                 warranties: { read: false, write: false },
                 warranty_products: { read: false, write: false },
                 uid_management: { read: false, write: false },
                 warranty_form: { read: false, write: false },
                 vendors: { read: false, write: false },
+                distributors: { read: false, write: false },
+                order_management: { read: false, write: false },
                 customers: { read: false, write: false },
                 products: { read: false, write: false },
                 announcements: { read: false, write: false },
@@ -2288,6 +2407,7 @@ export class AdminController {
                 posm: { read: false, write: false },
                 ecatalogue: { read: false, write: false },
                 terms: { read: false, write: false },
+                content_manager: { read: false, write: false },
                 old_warranties: { read: false, write: false },
                 activity_logs: { read: false, write: false },
             };

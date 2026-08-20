@@ -42,7 +42,6 @@ export type AdminModule =
     | 'admins'
     | 'activity-logs'
     | 'grievances'
-    | 'products'
     | 'terms'
     | 'content-manager'
     | 'warranty-form'
@@ -135,7 +134,6 @@ const moduleToPermKey: Record<string, string> = {
     'uid-management': 'uid_management',
     'warranty-form': 'warranty_form',
     'vendors': 'vendors',
-    'distributors': 'vendors',
     'customers': 'customers',
     'products': 'products',
     'announcements': 'announcements',
@@ -143,12 +141,13 @@ const moduleToPermKey: Record<string, string> = {
     'posm': 'posm',
     'ecatalogue': 'ecatalogue',
     'terms': 'terms',
-    'content-manager': 'terms',
     'old-warranties': 'old_warranties',
     'activity-logs': 'activity_logs',
     'admins': 'admins',   // Super Admin only
-    'analytics': 'overview',
-    'order-management': 'vendors',
+    'analytics': 'analytics',
+    'distributors': 'distributors',
+    'content-manager': 'content_manager',
+    'order-management': 'order_management',
     'profile': 'profile',  // Always visible
 };
 
@@ -179,14 +178,14 @@ export const SidebarContent = ({
     // Define menu items inside the component or outside if static
     const allMenuGroups = [
         {
-            label: "Dashboard",
+            label: "Insights",
             items: [
                 { id: 'overview' as const, label: "Overview", icon: LayoutDashboard },
                 { id: 'analytics' as const, label: "Deep Analytics", icon: MessageSquare },
             ]
         },
         {
-            label: "Warranty Management",
+            label: "Warranty Operations",
             items: [
                 {
                     id: 'warranties' as const,
@@ -198,20 +197,20 @@ export const SidebarContent = ({
                 { id: 'warranty-products' as const, label: "Warranty Products", icon: Store },
                 { id: 'uid-management' as const, label: "UID Management", icon: Package },
                 { id: 'warranty-form' as const, label: "New Registration", icon: PenTool },
+                { id: 'old-warranties' as const, label: "Old Warranties", icon: Archive },
             ]
         },
         {
-            label: "Store & Partners",
+            label: "Network & Orders",
             items: [
                 { id: 'vendors' as const, label: "Franchises", icon: Store },
                 { id: 'distributors' as const, label: "Distributors", icon: Building2 },
                 { id: 'customers' as const, label: "Customers", icon: Users },
-                { id: 'products' as const, label: "Product Catalogue", icon: Package },
                 { id: 'order-management' as const, label: "Order Management", icon: Network },
             ]
         },
         {
-            label: "Communication",
+            label: "Engagement",
             items: [
                 { id: 'announcements' as const, label: "Announcements", icon: Megaphone },
                 {
@@ -221,14 +220,19 @@ export const SidebarContent = ({
                     badge: unreadGrievances > 0 ? unreadGrievances.toString() : undefined
                 },
                 { id: 'posm' as const, label: "POSM Requirements", icon: Package },
+            ]
+        },
+        {
+            label: "Catalogue & Content",
+            items: [
+                { id: 'products' as const, label: "Product Catalogue", icon: Package },
                 { id: 'ecatalogue' as const, label: "E-Catalogue CMS", icon: BookOpen },
                 { id: 'content-manager' as const, label: "Form Content", icon: FileText },
             ]
         },
         {
-            label: "System",
+            label: "Administration",
             items: [
-                { id: 'old-warranties' as const, label: "Old Warranties", icon: Archive },
                 { id: 'activity-logs' as const, label: "Activity Logs", icon: FileText },
                 { id: 'admins' as const, label: "Admin Access", icon: UserCog },
             ]

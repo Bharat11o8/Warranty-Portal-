@@ -354,66 +354,88 @@ export class AnalyticsController {
             const startDate = req.query.startDate as string;
             const endDate = req.query.endDate as string;
 
-            let whereClause = '1=1';
+            let warrantyDateClause = '1=1';
             const params: any[] = [];
 
             if (period === 'all') {
                 // No date filter
             } else if (period === 'year') {
-                whereClause = 'YEAR(w.created_at) = ?';
-                params.push(year || new Date().getFullYear().toString());
+                const yearStart = `${year || new Date().getFullYear()}-01-01`;
+                warrantyDateClause = 'wr.created_at >= ? AND wr.created_at < DATE_ADD(?, INTERVAL 1 YEAR)';
+                params.push(yearStart, yearStart);
             } else if (period === 'month') {
-                whereClause = 'YEAR(w.created_at) = ? AND MONTH(w.created_at) = ?';
-                params.push(year || new Date().getFullYear().toString(), month || (new Date().getMonth() + 1).toString());
+                const monthStart = `${year || new Date().getFullYear()}-${String(month || new Date().getMonth() + 1).padStart(2, '0')}-01`;
+                warrantyDateClause = 'wr.created_at >= ? AND wr.created_at < DATE_ADD(?, INTERVAL 1 MONTH)';
+                params.push(monthStart, monthStart);
             } else if (period === 'week') {
-                whereClause = 'DATE(w.created_at) >= DATE_SUB(CURDATE(), INTERVAL 6 DAY)';
+                warrantyDateClause = 'wr.created_at >= CURDATE() - INTERVAL 6 DAY';
             } else if (period === 'custom' && startDate && endDate) {
-                whereClause = 'DATE(w.created_at) >= ? AND DATE(w.created_at) <= ?';
+                warrantyDateClause = 'wr.created_at >= ? AND wr.created_at < DATE_ADD(?, INTERVAL 1 DAY)';
                 params.push(startDate, endDate);
             }
 
-            // Also need to filter by action date for approvals
-            const actionWhereClause = whereClause.replace(/w.created_at/g, 'w.validated_at');
-
-            // Optimized query using LEFT JOIN and GROUP BY instead of O(N) subqueries
+            // Attribute warranties through indexed paths first, then aggregate once
+            // per franchise. This avoids the previous multi-column OR join.
             const [franchises]: any = await db.execute(`
-                SELECT 
+                SELECT
                     vd.id,
                     vd.store_name,
                     vd.store_email,
                     vd.city,
                     vd.state,
                     p.id as profile_id,
-                    COUNT(DISTINCT wr.uid) as total_registrations,
-                    COUNT(DISTINCT CASE WHEN wr.status = 'validated' THEN wr.uid END) as warranty_count,
-                    (
-                        SELECT COUNT(*) 
-                        FROM grievances g 
-                        WHERE g.customer_id = p.id 
-                        AND g.source_type = 'franchise'
-                    ) as grievance_count,
-                    (
-                        SELECT COUNT(*) 
-                        FROM posm_requests pr 
-                        WHERE pr.franchise_id = vd.id
-                    ) as posm_count,
+                    COALESCE(warranty_stats.total_registrations, 0) as total_registrations,
+                    COALESCE(warranty_stats.warranty_count, 0) as warranty_count,
+                    COALESCE(grievance_stats.grievance_count, 0) as grievance_count,
+                    COALESCE(posm_stats.posm_count, 0) as posm_count,
                     COALESCE(vv.is_verified, false) as is_verified,
                     vv.verified_at
                 FROM profiles p
                 JOIN user_roles ur ON p.id = ur.user_id
                 LEFT JOIN vendor_details vd ON p.id = vd.user_id
                 LEFT JOIN vendor_verification vv ON p.id = vv.user_id
-                LEFT JOIN manpower m ON vd.id = m.vendor_id
-                LEFT JOIN warranty_registrations wr ON (
-                    wr.manpower_id = m.id
-                    OR (wr.installer_name = vd.store_name AND wr.installer_contact = vd.store_email)
-                    OR wr.user_id = p.id
-                )
+                LEFT JOIN (
+                    SELECT profile_id,
+                           COUNT(DISTINCT uid) as total_registrations,
+                           COUNT(DISTINCT CASE WHEN status = 'validated' THEN uid END) as warranty_count
+                    FROM (
+                        SELECT vd_staff.user_id AS profile_id, wr.uid, wr.status
+                        FROM warranty_registrations wr
+                        JOIN manpower m ON m.id = wr.manpower_id
+                        JOIN vendor_details vd_staff ON vd_staff.id = m.vendor_id
+                        WHERE ${warrantyDateClause}
+
+                        UNION
+
+                        SELECT wr.user_id AS profile_id, wr.uid, wr.status
+                        FROM warranty_registrations wr
+                        WHERE ${warrantyDateClause}
+
+                        UNION
+
+                        SELECT vd_installer.user_id AS profile_id, wr.uid, wr.status
+                        FROM warranty_registrations wr
+                        JOIN vendor_details vd_installer
+                          ON wr.installer_name = vd_installer.store_name
+                         AND wr.installer_contact = vd_installer.store_email
+                        WHERE ${warrantyDateClause}
+                    ) attributed_warranties
+                    GROUP BY profile_id
+                ) warranty_stats ON warranty_stats.profile_id = p.id
+                LEFT JOIN (
+                    SELECT customer_id, COUNT(*) AS grievance_count
+                    FROM grievances
+                    WHERE source_type = 'franchise'
+                    GROUP BY customer_id
+                ) grievance_stats ON grievance_stats.customer_id = p.id
+                LEFT JOIN (
+                    SELECT franchise_id, COUNT(*) AS posm_count
+                    FROM posm_requests
+                    GROUP BY franchise_id
+                ) posm_stats ON posm_stats.franchise_id = vd.id
                 WHERE ur.role = 'vendor'
-                AND (wr.uid IS NULL OR ${whereClause.replace(/w\.created_at/g, 'wr.created_at')})
-                GROUP BY p.id, vd.id, vv.is_verified, vv.verified_at
                 ORDER BY total_registrations DESC
-            `, [...params]);
+            `, [...params, ...params, ...params]);
 
             return res.json({
                 success: true,
@@ -443,15 +465,17 @@ export class AnalyticsController {
             if (period === 'all') {
                 // No date filter
             } else if (period === 'year') {
-                whereClause = 'YEAR(created_at) = ?';
-                params.push(year || new Date().getFullYear().toString());
+                const yearStart = `${year || new Date().getFullYear()}-01-01`;
+                whereClause = 'created_at >= ? AND created_at < DATE_ADD(?, INTERVAL 1 YEAR)';
+                params.push(yearStart, yearStart);
             } else if (period === 'month') {
-                whereClause = 'YEAR(created_at) = ? AND MONTH(created_at) = ?';
-                params.push(year || new Date().getFullYear().toString(), month || (new Date().getMonth() + 1).toString());
+                const monthStart = `${year || new Date().getFullYear()}-${String(month || new Date().getMonth() + 1).padStart(2, '0')}-01`;
+                whereClause = 'created_at >= ? AND created_at < DATE_ADD(?, INTERVAL 1 MONTH)';
+                params.push(monthStart, monthStart);
             } else if (period === 'week') {
-                whereClause = 'DATE(created_at) >= DATE_SUB(CURDATE(), INTERVAL 6 DAY)';
+                whereClause = 'created_at >= CURDATE() - INTERVAL 6 DAY';
             } else if (period === 'custom' && startDate && endDate) {
-                whereClause = 'DATE(created_at) >= ? AND DATE(created_at) <= ?';
+                whereClause = 'created_at >= ? AND created_at < DATE_ADD(?, INTERVAL 1 DAY)';
                 params.push(startDate, endDate);
             }
 
@@ -469,89 +493,69 @@ export class AnalyticsController {
                 }
             }
 
-            // 1. Trust Score Distribution (filtered by flag if provided)
-            const [distribution]: any = await db.execute(`
-                SELECT 
-                    SUM(CASE WHEN fraud_score >= 80 THEN 1 ELSE 0 END) as high_trust,
-                    SUM(CASE WHEN fraud_score >= 40 AND fraud_score < 80 THEN 1 ELSE 0 END) as medium_trust,
-                    SUM(CASE WHEN fraud_score < 40 THEN 1 ELSE 0 END) as low_trust,
-                    COUNT(*) as total,
-                    ROUND(AVG(fraud_score), 1) as network_avg
-                FROM warranty_registrations
-                WHERE fraud_score IS NOT NULL AND ${whereClause} AND ${flagCondition}
-            `, params);
+            // Two scans run in parallel. The prior implementation scanned this
+            // table three times, then read every risky franchise's JSON a fourth time.
+            const [[distribution], [franchiseRows]]: any = await Promise.all([
+                db.execute(`
+                    SELECT
+                        SUM(CASE WHEN fraud_score >= 80 THEN 1 ELSE 0 END) as high_trust,
+                        SUM(CASE WHEN fraud_score >= 40 AND fraud_score < 80 THEN 1 ELSE 0 END) as medium_trust,
+                        SUM(CASE WHEN fraud_score < 40 THEN 1 ELSE 0 END) as low_trust,
+                        COUNT(*) as total,
+                        ROUND(AVG(fraud_score), 1) as network_avg
+                    FROM warranty_registrations
+                    WHERE fraud_score IS NOT NULL AND ${whereClause} AND ${flagCondition}
+                `, params),
+                db.execute(`
+                    SELECT
+                        installer_name,
+                        COUNT(*) as total_submissions,
+                        ROUND(AVG(fraud_score), 1) as avg_score,
+                        SUM(CASE WHEN fraud_score < 40 THEN 1 ELSE 0 END) as flagged_count,
+                        SUM(CASE WHEN fraud_score >= 80 THEN 1 ELSE 0 END) as clean_count,
+                        SUM(COALESCE(CAST(JSON_UNQUOTE(JSON_EXTRACT(fraud_flags, '$.ip_penalty')) AS DECIMAL(10,2)), 0)) as ip_penalty,
+                        SUM(COALESCE(CAST(JSON_UNQUOTE(JSON_EXTRACT(fraud_flags, '$.distance_penalty')) AS DECIMAL(10,2)), 0)) as distance_penalty,
+                        SUM(COALESCE(CAST(JSON_UNQUOTE(JSON_EXTRACT(fraud_flags, '$.time_penalty')) AS DECIMAL(10,2)), 0)) as time_penalty,
+                        SUM(COALESCE(CAST(JSON_UNQUOTE(JSON_EXTRACT(fraud_flags, '$.consistency_penalty')) AS DECIMAL(10,2)), 0)) as consistency_penalty
+                    FROM warranty_registrations
+                    WHERE fraud_score IS NOT NULL
+                      AND installer_name IS NOT NULL
+                      AND installer_name != ''
+                      AND ${whereClause}
+                      AND ${flagCondition}
+                    GROUP BY installer_name
+                    HAVING total_submissions >= 5
+                `, params)
+            ]);
 
-            // 2. Riskiest Franchises (avg score ASC, min 5 submissions, filtered by flag)
-            const [riskyFranchises]: any = await db.execute(`
-                SELECT 
-                    installer_name,
-                    COUNT(*) as total_submissions,
-                    ROUND(AVG(fraud_score), 1) as avg_score,
-                    SUM(CASE WHEN fraud_score < 40 THEN 1 ELSE 0 END) as flagged_count,
-                    ROUND(SUM(CASE WHEN fraud_score < 40 THEN 1 ELSE 0 END) * 100.0 / COUNT(*), 0) as flagged_pct
-                FROM warranty_registrations
-                WHERE fraud_score IS NOT NULL 
-                AND installer_name IS NOT NULL 
-                AND installer_name != ''
-                AND ${whereClause}
-                AND ${flagCondition}
-                GROUP BY installer_name
-                HAVING total_submissions >= 5
-                ORDER BY avg_score ASC, flagged_count DESC
-            `, params);
+            const franchiseScores = franchiseRows.map((row: any) => {
+                const totalSubmissions = Number(row.total_submissions || 0);
+                const penalties = {
+                    ip: Number(row.ip_penalty || 0),
+                    distance: Number(row.distance_penalty || 0),
+                    time: Number(row.time_penalty || 0),
+                    consistency: Number(row.consistency_penalty || 0)
+                };
+                const primaryEntry = Object.entries(penalties).sort((a, b) => b[1] - a[1])[0];
 
-            // 3. Cleanest Franchises (avg score DESC, min 5 submissions, filtered by flag)
-            const [cleanFranchises]: any = await db.execute(`
-                SELECT 
-                    installer_name,
-                    COUNT(*) as total_submissions,
-                    ROUND(AVG(fraud_score), 1) as avg_score,
-                    SUM(CASE WHEN fraud_score >= 80 THEN 1 ELSE 0 END) as clean_count,
-                    ROUND(SUM(CASE WHEN fraud_score >= 80 THEN 1 ELSE 0 END) * 100.0 / COUNT(*), 0) as clean_pct
-                FROM warranty_registrations
-                WHERE fraud_score IS NOT NULL 
-                AND installer_name IS NOT NULL 
-                AND installer_name != ''
-                AND ${whereClause}
-                AND ${flagCondition}
-                GROUP BY installer_name
-                HAVING total_submissions >= 5
-                ORDER BY avg_score DESC, clean_count DESC
-            `, params);
+                return {
+                    ...row,
+                    total_submissions: totalSubmissions,
+                    avg_score: Number(row.avg_score || 0),
+                    flagged_count: Number(row.flagged_count || 0),
+                    clean_count: Number(row.clean_count || 0),
+                    flagged_pct: Math.round((Number(row.flagged_count || 0) * 100) / totalSubmissions),
+                    clean_pct: Math.round((Number(row.clean_count || 0) * 100) / totalSubmissions),
+                    primary_flag: primaryEntry?.[0] || 'unknown'
+                };
+            });
 
-            // 4. Primary fraud signal per risky franchise
-            let enrichedRisky = riskyFranchises;
-            if (riskyFranchises.length > 0) {
-                const riskyNames = riskyFranchises.map((f: any) => f.installer_name);
-                const placeholders = riskyNames.map(() => '?').join(',');
-                const [flagRows]: any = await db.execute(`
-                    SELECT installer_name, fraud_flags FROM warranty_registrations 
-                    WHERE fraud_flags IS NOT NULL AND fraud_flags != '' AND fraud_flags != '{}'
-                    AND installer_name IN (${placeholders})
-                    AND ${whereClause}
-                `, [...riskyNames, ...params]);
-
-                const franchisePenalties: Record<string, Record<string, number>> = {};
-                flagRows.forEach((row: any) => {
-                    try {
-                        const flags = typeof row.fraud_flags === 'string' ? JSON.parse(row.fraud_flags) : row.fraud_flags;
-                        if (!franchisePenalties[row.installer_name]) {
-                            franchisePenalties[row.installer_name] = { ip: 0, distance: 0, time: 0, consistency: 0 };
-                        }
-                        franchisePenalties[row.installer_name].ip += (flags.ip_penalty || 0);
-                        franchisePenalties[row.installer_name].distance += (flags.distance_penalty || 0);
-                        franchisePenalties[row.installer_name].time += (flags.time_penalty || 0);
-                        franchisePenalties[row.installer_name].consistency += (flags.consistency_penalty || 0);
-                    } catch (e) {}
-                });
-
-                enrichedRisky = riskyFranchises.map((f: any) => {
-                    const penalties = franchisePenalties[f.installer_name] || {};
-                    const primaryEntry = Object.entries(penalties).sort((a, b) => (b[1] as number) - (a[1] as number))[0];
-                    const primaryFlag = primaryEntry ? primaryEntry[0] : 'unknown';
-                    return { ...f, primary_flag: primaryFlag };
-                });
-            }
+            const enrichedRisky = [...franchiseScores].sort((a, b) =>
+                a.avg_score - b.avg_score || b.flagged_count - a.flagged_count
+            );
+            const cleanFranchises = [...franchiseScores].sort((a, b) =>
+                b.avg_score - a.avg_score || b.clean_count - a.clean_count
+            );
 
             return res.json({
                 success: true,

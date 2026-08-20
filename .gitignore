@@ -17,8 +17,12 @@ build/
 **/build/
 .vercel/
 **/.vercel/
+coverage/
+**/coverage/
 
 # Logs
+logs/
+**/logs/
 *.log
 npm-debug.log*
 yarn-debug.log*
@@ -39,12 +43,20 @@ scratch/
 **/.idea/
 .DS_Store
 **/.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
 
 # Temporary / Report Files
 *.xlsx
 *.csv
 *.sql
 *.docx
+*.local
+*.backup
+*.bak
 QR_Report.js
 Technical_Gap_Report.js
 generate-daily-report.js
@@ -58,6 +70,7 @@ security_best_practices_report.md
 safari_login_incident_report.md
 Fixing Date Type Mismatch Warranty.md
 rejection_wording_audit.md
+seal-guardian-58321-main/SeatCoverForm-threat-model.md
 
 # Utility / Audit Scripts (One-off fixes)
 server/src/audit_duplicates.ts
@@ -75,3 +88,4 @@ server/src/scripts/verify_kota.ts
 cols.txt
 package-lock.json
 package.json
+CLAUDE.md

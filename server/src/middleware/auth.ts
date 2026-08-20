@@ -92,3 +92,29 @@ export const requirePermission = (module: string, action: 'read' | 'write') => {
     next();
   };
 };
+
+/**
+ * Permit an admin who has access to any one of the listed modules. This keeps
+ * shared supporting APIs usable without granting an unrelated parent module.
+ */
+export const requireAnyPermission = (modules: string[], action: 'read' | 'write') => {
+  return (req: AuthRequest, res: Response, next: NextFunction) => {
+    const user = req.user;
+
+    if (!user) {
+      return res.status(401).json({ error: 'Not authenticated' });
+    }
+
+    if (user.role !== 'admin' || user.isSuperAdmin) {
+      return next();
+    }
+
+    if (modules.some(module => user.permissions?.[module]?.[action])) {
+      return next();
+    }
+
+    return res.status(403).json({
+      error: `You do not have ${action === 'write' ? 'edit' : action} access to this module`
+    });
+  };
+};

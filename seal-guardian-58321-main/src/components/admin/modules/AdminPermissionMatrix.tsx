@@ -12,13 +12,14 @@ interface PermissionModule {
 
 const PERMISSION_GROUPS: { label: string; modules: PermissionModule[] }[] = [
     {
-        label: "Dashboard",
+        label: "Insights",
         modules: [
             { key: "overview", label: "Overview", description: "Dashboard stats & charts" },
+            { key: "analytics", label: "Deep Analytics", description: "Performance, geographic & fraud intelligence" },
         ]
     },
     {
-        label: "Warranty Management",
+        label: "Warranty Operations",
         modules: [
             { key: "warranties", label: "Warranties", description: "View & approve warranty registrations" },
             { key: "warranty_products", label: "Warranty Products", description: "Manage warranty product list" },
@@ -27,25 +28,28 @@ const PERMISSION_GROUPS: { label: string; modules: PermissionModule[] }[] = [
         ]
     },
     {
-        label: "Store & Partners",
+        label: "Network & Orders",
         modules: [
             { key: "vendors", label: "Franchises", description: "Franchise profiles & verification" },
+            { key: "distributors", label: "Distributors", description: "Distributor network & franchise mapping" },
+            { key: "order_management", label: "Order Management", description: "Order activity, allocation & fulfilment" },
             { key: "customers", label: "Customers", description: "Customer data & warranty history" },
             { key: "products", label: "Product Catalogue", description: "Product inventory management" },
         ]
     },
     {
-        label: "Communication",
+        label: "Engagement & Content",
         modules: [
             { key: "announcements", label: "Announcements", description: "Broadcast messages to franchises" },
             { key: "grievances", label: "Grievances", description: "Support tickets & complaints" },
             { key: "posm", label: "POSM Requirements", description: "Marketing material requests" },
             { key: "ecatalogue", label: "E-Catalogue CMS", description: "Digital catalogue content" },
             { key: "terms", label: "Terms & Conditions", description: "Portal T&C management" },
+            { key: "content_manager", label: "Form Content", description: "Warranty terms & disclaimer content" },
         ]
     },
     {
-        label: "System",
+        label: "Administration",
         modules: [
             { key: "old_warranties", label: "Old Warranties", description: "Archived warranty records" },
             { key: "activity_logs", label: "Activity Logs", description: "System audit trail (read only)" },

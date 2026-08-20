@@ -16,14 +16,14 @@ router.get('/products/:id', CatalogController.getProductById);
 
 
 // Admin routes - Categories
-router.post('/categories', authenticateToken, requireRole('admin'), requirePermission('ecatalogue', 'write'), CatalogController.addCategory);
-router.put('/categories/:id', authenticateToken, requireRole('admin'), requirePermission('ecatalogue', 'write'), CatalogController.updateCategory);
-router.delete('/categories/:id', authenticateToken, requireRole('admin'), requirePermission('ecatalogue', 'write'), CatalogController.deleteCategory);
+router.post('/categories', authenticateToken, requireRole('admin'), requirePermission('products', 'write'), CatalogController.addCategory);
+router.put('/categories/:id', authenticateToken, requireRole('admin'), requirePermission('products', 'write'), CatalogController.updateCategory);
+router.delete('/categories/:id', authenticateToken, requireRole('admin'), requirePermission('products', 'write'), CatalogController.deleteCategory);
 
 // Admin routes - Products
-router.post('/products', authenticateToken, requireRole('admin'), requirePermission('ecatalogue', 'write'), CatalogController.addProduct);
-router.put('/products/:id', authenticateToken, requireRole('admin'), requirePermission('ecatalogue', 'write'), CatalogController.updateProduct);
-router.delete('/products/:id', authenticateToken, requireRole('admin'), requirePermission('ecatalogue', 'write'), CatalogController.deleteProduct);
+router.post('/products', authenticateToken, requireRole('admin'), requirePermission('products', 'write'), CatalogController.addProduct);
+router.put('/products/:id', authenticateToken, requireRole('admin'), requirePermission('products', 'write'), CatalogController.updateProduct);
+router.delete('/products/:id', authenticateToken, requireRole('admin'), requirePermission('products', 'write'), CatalogController.deleteProduct);
 
 export default router;
 
