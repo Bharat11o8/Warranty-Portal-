@@ -49,6 +49,17 @@ export class WebhookController {
                 return;
             }
 
+            // ── TEMP: capture the shape of an incoming Flow response ──────────
+            // Interakt does not document where responseJson sits inside their
+            // message_received payload, so log one in full rather than guess at
+            // the path. Remove once the audit parser is built.
+            if (eventType === 'message_received') {
+                const raw = JSON.stringify(payload);
+                const looksLikeForm = /nfm_reply|responseJson|response_json|flow_token/i.test(raw);
+                console.log(`[Webhook][probe] message_received${looksLikeForm ? ' — FORM RESPONSE' : ''}: ${raw.slice(0, 4000)}`);
+                return;
+            }
+
             // Only handle button click events
             if (eventType !== 'message_api_clicked') {
                 console.log(`[Webhook] Ignoring event type: "${eventType}"`);
