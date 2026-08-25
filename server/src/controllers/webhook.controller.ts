@@ -50,13 +50,12 @@ export class WebhookController {
             }
 
             // ── TEMP: capture the shape of an incoming Flow response ──────────
-            // Interakt does not document where responseJson sits inside their
-            // message_received payload, so log one in full rather than guess at
-            // the path. Remove once the audit parser is built.
-            if (eventType === 'message_received') {
-                const raw = JSON.stringify(payload);
-                const looksLikeForm = /nfm_reply|responseJson|response_json|flow_token/i.test(raw);
-                console.log(`[Webhook][probe] message_received${looksLikeForm ? ' — FORM RESPONSE' : ''}: ${raw.slice(0, 4000)}`);
+            // Interakt sends audit submissions as message_campaign_flow_response
+            // (seen in the logs) and does not document the payload, so log one in
+            // full rather than guess at where responseJson sits.
+            // Remove once the audit parser is built.
+            if (eventType === 'message_campaign_flow_response' || eventType === 'message_received') {
+                console.log(`[Webhook][probe] ${eventType}: ${JSON.stringify(payload)}`);
                 return;
             }
 
