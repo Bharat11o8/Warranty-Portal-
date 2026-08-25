@@ -3834,6 +3834,11 @@ export class AdminController {
                 where.push('sa.review_status = ?');
                 params.push(status);
             }
+            const { channel } = req.query as Record<string, string>;
+            if (channel && ['whatsapp', 'call'].includes(channel)) {
+                where.push('sa.channel = ?');
+                params.push(channel);
+            }
             if (search) {
                 where.push('(vd.store_name LIKE ? OR vd.store_code LIKE ? OR vd.city LIKE ? OR sa.submitted_phone LIKE ?)');
                 const like = `%${search}%`;
@@ -3859,7 +3864,9 @@ export class AdminController {
                         SUM(review_status = 'new')       AS new_count,
                         SUM(review_status = 'reviewed')  AS reviewed_count,
                         SUM(review_status = 'follow_up') AS follow_up_count,
-                        SUM(vendor_details_id IS NULL)   AS unmatched_count
+                        SUM(vendor_details_id IS NULL)   AS unmatched_count,
+                        SUM(channel = 'whatsapp')        AS whatsapp_count,
+                        SUM(channel = 'call')            AS call_count
                  FROM store_audits`
             );
 
@@ -3867,6 +3874,69 @@ export class AdminController {
         } catch (error: any) {
             console.error('Get store audits error:', error);
             res.status(500).json({ error: 'Failed to load audits' });
+        }
+    }
+
+    /**
+     * Record an audit taken over the phone.
+     *
+     * The same 13 questions as the WhatsApp Flow, filled in by whoever is on the
+     * call. channel is 'call' and the auditor is taken from the session rather
+     * than the request body, so it cannot be attributed to someone else.
+     */
+    static async createCallAudit(req: Request, res: Response) {
+        try {
+            const b = req.body || {};
+            if (!b.vendorDetailsId) {
+                return res.status(400).json({ error: 'Select the store this audit is for' });
+            }
+
+            const [vendor]: any = await db.execute(
+                'SELECT id, user_id FROM vendor_details WHERE id = ?', [b.vendorDetailsId]
+            );
+            if (vendor.length === 0) {
+                return res.status(404).json({ error: 'Store not found' });
+            }
+
+            // The store's own number, so a call audit sits alongside WhatsApp ones
+            // with the same identifying detail.
+            const [profile]: any = await db.execute(
+                'SELECT phone_number FROM profiles WHERE id = ?', [vendor[0].user_id]
+            );
+
+            const admin = (req as any).user;
+            const id = uuidv4();
+
+            await db.execute(
+                `INSERT INTO store_audits
+                 (id, vendor_details_id, submitted_phone, channel, audited_by, audited_by_name,
+                  q1_signage, q2_digital_presence, q3_footfall, q4_has_complaint,
+                  q5_seat_cover_qty, q6_sound_security, q7_light_utility, q8_care_fragrance,
+                  q9_order_frequency, q10_last_month_business, q11_staff, q12_training, q13_feedback)
+                 VALUES (?, ?, ?, 'call', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                [
+                    id, b.vendorDetailsId, profile[0]?.phone_number || '',
+                    admin?.id || null, admin?.name || admin?.email || null,
+                    b.q1_signage || null,
+                    Array.isArray(b.q2_digital_presence) ? b.q2_digital_presence.join(', ') : (b.q2_digital_presence || null),
+                    b.q3_footfall || null,
+                    b.q4_has_complaint || null,
+                    b.q5_seat_cover_qty || null,
+                    Array.isArray(b.q6_sound_security) ? b.q6_sound_security.join(', ') : (b.q6_sound_security || null),
+                    Array.isArray(b.q7_light_utility) ? b.q7_light_utility.join(', ') : (b.q7_light_utility || null),
+                    Array.isArray(b.q8_care_fragrance) ? b.q8_care_fragrance.join(', ') : (b.q8_care_fragrance || null),
+                    b.q9_order_frequency || null,
+                    b.q10_last_month_business || null,
+                    b.q11_staff || null,
+                    b.q12_training || null,
+                    b.q13_feedback || null,
+                ]
+            );
+
+            res.status(201).json({ success: true, id, message: 'Call audit recorded' });
+        } catch (error: any) {
+            console.error('Create call audit error:', error);
+            res.status(500).json({ error: 'Failed to save the audit' });
         }
     }
 

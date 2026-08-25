@@ -53,6 +53,7 @@ router.delete('/distributors/:id/franchises/:vendorId', ...adminAuth, requireAny
 
 // Store audits (WhatsApp Flow responses)
 router.get('/audits', ...adminAuth, requirePermission('vendors', 'read'), AdminController.getStoreAudits);
+router.post('/audits/call', ...adminAuth, requirePermission('vendors', 'write'), AdminController.createCallAudit);
 router.put('/audits/:id/review', ...adminAuth, requirePermission('vendors', 'write'), AdminController.updateStoreAuditReview);
 router.put('/audits/:id/assign', ...adminAuth, requirePermission('vendors', 'write'), AdminController.assignStoreAudit);
 
