@@ -3812,6 +3812,123 @@ export class AdminController {
      * what a franchise may buy from a given distributor is that distributor's
      * category list.
      */
+    // ═══════════════════════════════════════════════════════════
+    //  STORE AUDITS (WhatsApp Flow responses)
+    // ═══════════════════════════════════════════════════════════
+    /**
+     * Audit submissions, newest first.
+     *
+     * Responses arrive from the WhatsApp Flow and are matched to a store by the
+     * submitting phone number. A response that matches no store is kept rather
+     * than dropped — silently discarding a real submission is worse than leaving
+     * a small queue to reconcile by hand — so vendor_details_id may be null.
+     */
+    static async getStoreAudits(req: Request, res: Response) {
+        try {
+            const { status, search, from, to } = req.query as Record<string, string>;
+
+            const where: string[] = [];
+            const params: any[] = [];
+
+            if (status && ['new', 'reviewed', 'follow_up'].includes(status)) {
+                where.push('sa.review_status = ?');
+                params.push(status);
+            }
+            if (search) {
+                where.push('(vd.store_name LIKE ? OR vd.store_code LIKE ? OR vd.city LIKE ? OR sa.submitted_phone LIKE ?)');
+                const like = `%${search}%`;
+                params.push(like, like, like, like);
+            }
+            if (from) { where.push('sa.submitted_at >= ?'); params.push(from); }
+            if (to)   { where.push('sa.submitted_at <= ?'); params.push(`${to} 23:59:59`); }
+
+            const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
+
+            const [audits]: any = await db.execute(
+                `SELECT sa.*, vd.store_name, vd.store_code, vd.city, vd.state
+                 FROM store_audits sa
+                 LEFT JOIN vendor_details vd ON vd.id = sa.vendor_details_id
+                 ${whereSql}
+                 ORDER BY sa.submitted_at DESC
+                 LIMIT 500`,
+                params
+            );
+
+            const [[counts]]: any = await db.execute(
+                `SELECT COUNT(*) AS total,
+                        SUM(review_status = 'new')       AS new_count,
+                        SUM(review_status = 'reviewed')  AS reviewed_count,
+                        SUM(review_status = 'follow_up') AS follow_up_count,
+                        SUM(vendor_details_id IS NULL)   AS unmatched_count
+                 FROM store_audits`
+            );
+
+            res.json({ success: true, audits, counts });
+        } catch (error: any) {
+            console.error('Get store audits error:', error);
+            res.status(500).json({ error: 'Failed to load audits' });
+        }
+    }
+
+    /** Mark an audit reviewed or flagged for follow-up, with an optional note. */
+    static async updateStoreAuditReview(req: Request, res: Response) {
+        try {
+            const { id } = req.params;
+            const { status, note } = req.body || {};
+
+            if (!['new', 'reviewed', 'follow_up'].includes(status)) {
+                return res.status(400).json({ error: 'status must be new, reviewed or follow_up' });
+            }
+
+            const admin = (req as any).user;
+            const [result]: any = await db.execute(
+                `UPDATE store_audits
+                 SET review_status = ?, review_note = ?, reviewed_by = ?, reviewed_at = NOW()
+                 WHERE id = ?`,
+                [status, note ? String(note).slice(0, 500) : null, admin?.id || null, id]
+            );
+
+            if (result.affectedRows === 0) {
+                return res.status(404).json({ error: 'Audit not found' });
+            }
+            res.json({ success: true, message: 'Audit updated' });
+        } catch (error: any) {
+            console.error('Update audit review error:', error);
+            res.status(500).json({ error: 'Failed to update audit' });
+        }
+    }
+
+    /** Attach an unmatched response to a store, when the phone did not resolve. */
+    static async assignStoreAudit(req: Request, res: Response) {
+        try {
+            const { id } = req.params;
+            const { vendorDetailsId } = req.body || {};
+
+            if (!vendorDetailsId) {
+                return res.status(400).json({ error: 'vendorDetailsId is required' });
+            }
+
+            const [vendor]: any = await db.execute(
+                'SELECT id FROM vendor_details WHERE id = ?', [vendorDetailsId]
+            );
+            if (vendor.length === 0) {
+                return res.status(404).json({ error: 'Store not found' });
+            }
+
+            const [result]: any = await db.execute(
+                'UPDATE store_audits SET vendor_details_id = ? WHERE id = ?',
+                [vendorDetailsId, id]
+            );
+            if (result.affectedRows === 0) {
+                return res.status(404).json({ error: 'Audit not found' });
+            }
+            res.json({ success: true, message: 'Audit linked to store' });
+        } catch (error: any) {
+            console.error('Assign audit error:', error);
+            res.status(500).json({ error: 'Failed to link audit' });
+        }
+    }
+
     static async getFranchiseDistributorMap(req: Request, res: Response) {
         try {
             const search = (req.query.search as string || '').trim();

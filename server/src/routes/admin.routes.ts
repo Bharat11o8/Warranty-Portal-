@@ -51,6 +51,11 @@ router.put('/franchises/:vendorId/distributors/:distributorId/categories', ...ad
 router.post('/distributors/:id/franchises', ...adminAuth, requireAnyPermission(['distributors', 'order_management'], 'write'), AdminController.assignDistributorToFranchise);
 router.delete('/distributors/:id/franchises/:vendorId', ...adminAuth, requireAnyPermission(['distributors', 'order_management'], 'write'), AdminController.unassignDistributorFromFranchise);
 
+// Store audits (WhatsApp Flow responses)
+router.get('/audits', ...adminAuth, requirePermission('vendors', 'read'), AdminController.getStoreAudits);
+router.put('/audits/:id/review', ...adminAuth, requirePermission('vendors', 'write'), AdminController.updateStoreAuditReview);
+router.put('/audits/:id/assign', ...adminAuth, requirePermission('vendors', 'write'), AdminController.assignStoreAudit);
+
 // Warranties
 router.get('/warranties', ...adminAuth, requirePermission('warranties', 'read'), AdminController.getAllWarranties);
 router.get('/warranties/resubmissions', ...adminAuth, requirePermission('warranties', 'read'), AdminController.getResubmissions);

@@ -28,6 +28,7 @@ const AdminWarrantyForm = lazy(() => import("../modules/AdminWarrantyForm").then
 const AdminAnnouncements = lazy(() => import("../modules/AdminAnnouncements").then(({ AdminAnnouncements }) => ({ default: AdminAnnouncements })));
 const AdminNotificationSettings = lazy(() => import("../modules/AdminNotificationSettings").then(({ AdminNotificationSettings }) => ({ default: AdminNotificationSettings })));
 const AdminFranchiseDistributorMap = lazy(() => import("../modules/AdminFranchiseDistributorMap").then(({ AdminFranchiseDistributorMap }) => ({ default: AdminFranchiseDistributorMap })));
+const AdminAudits = lazy(() => import("../modules/AdminAudits").then(({ AdminAudits }) => ({ default: AdminAudits })));
 const AdminOldWarranties = lazy(() => import("../modules/AdminOldWarranties").then(({ AdminOldWarranties }) => ({ default: AdminOldWarranties })));
 const AdminWarrantyProducts = lazy(() => import("../modules/AdminWarrantyProducts").then(({ AdminWarrantyProducts }) => ({ default: AdminWarrantyProducts })));
 const AdminPOSM = lazy(() => import("../modules/AdminPOSM").then(({ AdminPOSM }) => ({ default: AdminPOSM })));
@@ -95,6 +96,8 @@ export const AdminLayout = () => {
                 return <AdminNotificationSettings />;
             case 'franchise-distributor-map':
                 return <AdminFranchiseDistributorMap />;
+            case 'audits':
+                return <AdminAudits />;
             case 'posm':
                 return <AdminPOSM />;
             case 'uid-management':
@@ -133,6 +136,7 @@ export const AdminLayout = () => {
             'ecatalogue': 'E-Catalogue CMS',
             'order-management': 'B2B Order Hierarchy',
             'franchise-distributor-map': 'Franchise Sourcing Map',
+            'audits': 'Audit & Compliance',
             'profile': 'My Profile'
         };
         return titles[activeModule];

@@ -20,7 +20,8 @@ import {
     Network,
     Building2,
     BellRing,
-    Layers
+    Layers,
+    ClipboardCheck
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNotifications } from "@/contexts/NotificationContext";
@@ -56,6 +57,7 @@ export type AdminModule =
     | 'analytics'
     | 'order-management'
     | 'franchise-distributor-map'
+    | 'audits'
     | 'profile';
 
 interface SidebarItemProps {
@@ -156,6 +158,7 @@ const moduleToPermKey: Record<string, string> = {
     'content-manager': 'content_manager',
     'order-management': 'order_management',
     'franchise-distributor-map': 'distributors',
+    'audits': 'vendors',
     'profile': 'profile',  // Always visible
 };
 
@@ -217,6 +220,7 @@ export const SidebarContent = ({
                 { id: 'customers' as const, label: "Customers", icon: Users },
                 { id: 'order-management' as const, label: "Order Management", icon: Network },
                 { id: 'franchise-distributor-map' as const, label: "Sourcing Map", icon: Layers },
+                { id: 'audits' as const, label: "Audit & Compliance", icon: ClipboardCheck },
             ]
         },
         {
