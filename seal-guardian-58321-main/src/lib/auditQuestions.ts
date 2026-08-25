@@ -1,147 +1,219 @@
 /**
- * The 13 store audit questions.
+ * Store audit questions, mirroring the published WhatsApp Flow.
  *
- * Single source of truth for both channels: the WhatsApp Flow renders these on
- * the store's phone, and the call form renders the same set for an auditor
- * filling them in during a call. Keeping one definition means the two can never
- * drift apart and produce answers that cannot be compared.
+ * Source of truth: Flow `af_store_audit_2` (id 2152498745701937, JSON v7.1).
+ * Field names and option ids are copied from that Flow verbatim — they are the
+ * keys inside response_json, so renaming one here silently breaks the webhook
+ * mapping.
  *
- * Option strings are the approved spreadsheet wording verbatim — including the
- * "Yes-Regullar" spelling and the space in "Self -Handled" — so responses stay
- * comparable with historical audit data. Do not tidy them.
+ * Answers arrive as option IDS, not titles ("installed_working", not
+ * "Installed & Working"). We store the id and map to a title only for display,
+ * so re-wording a label in the Flow never orphans historical rows.
+ *
+ * The same definition drives the call form, so a phoned-in audit and a WhatsApp
+ * audit produce comparable answers.
  */
+export const AUDIT_FLOW = {
+    id: "2152498745701937",
+    name: "af_store_audit_2",
+    version: "7.1",
+} as const;
+
 export type AuditFieldKey =
-    | "q1_signage"
-    | "q2_digital_presence"
-    | "q3_footfall"
-    | "q4_has_complaint"
-    | "q5_seat_cover_qty"
-    | "q6_sound_security"
-    | "q7_light_utility"
-    | "q8_care_fragrance"
-    | "q9_order_frequency"
-    | "q10_last_month_business"
-    | "q11_staff"
-    | "q12_training"
-    | "q13_feedback";
+    | "signage_status"
+    | "online_presence"
+    | "online_presence_other"
+    | "footfall"
+    | "seat_covers_stock"
+    | "products_stocked"
+    | "last_month_business"
+    | "staff_training"
+    | "warranty_registration"
+    | "support_needed"
+    | "support_details";
+
+export type AuditSection =
+    | "Store Overview"
+    | "Operations"
+    | "Business"
+    | "Staff"
+    | "Warranty"
+    | "Feedback & Support";
+
+export interface AuditOption {
+    /** Stored value — the Flow's option id. */
+    id: string;
+    /** Shown to a human. */
+    title: string;
+}
 
 export interface AuditQuestion {
     key: AuditFieldKey;
-    /** Shown in the table and detail view — short enough to scan. */
+    /** Short label for table columns and the detail view. */
     label: string;
-    /** Asked verbatim on a call, matching the Flow wording. */
+    /** Asked verbatim, matching the Flow. */
     question: string;
-    section: "Brand Standards" | "Customer Service" | "Operations" | "Business" | "Staff" | "Feedback";
+    section: AuditSection;
     type: "single" | "multi" | "text" | "longtext";
-    options?: string[];
+    options?: AuditOption[];
     placeholder?: string;
+    /** Shown only when another answer has a given value. */
+    showWhen?: { key: AuditFieldKey; equals: string };
 }
 
 export const AUDIT_QUESTIONS: AuditQuestion[] = [
     {
-        key: "q1_signage",
+        key: "signage_status",
         label: "Signage",
-        question: "Is your glow sign board / signage installed and working?",
-        section: "Brand Standards",
+        question: "Signage installed & working?",
+        section: "Store Overview",
         type: "single",
-        options: ["Installed and working", "Not installed", "Installed but not working"],
+        options: [
+            { id: "installed_working", title: "Installed & Working" },
+            { id: "installed_not_working", title: "Installed but Not Working" },
+            { id: "not_installed", title: "Not Installed" },
+        ],
     },
     {
-        key: "q2_digital_presence",
+        key: "online_presence",
         label: "Online presence",
-        question: "Where is your store present online?",
-        section: "Brand Standards",
+        question: "Your online presence?",
+        section: "Store Overview",
         type: "multi",
-        options: ["Facebook", "Instagram", "Google", "YouTube", "WhatsApp Group", "Offline agent", "Offline", "Any other", "None"],
+        options: [
+            { id: "facebook", title: "Facebook" },
+            { id: "instagram", title: "Instagram" },
+            { id: "google", title: "Google" },
+            { id: "youtube", title: "YouTube" },
+            { id: "whatsapp_group", title: "WhatsApp Group" },
+            { id: "other_platform", title: "Other Online Platform" },
+            { id: "offline_only", title: "Offline Only" },
+        ],
     },
     {
-        key: "q3_footfall",
-        label: "Monthly footfall",
-        question: "What is your average monthly footfall?",
-        section: "Customer Service",
+        key: "online_presence_other",
+        label: "Other platform",
+        question: "Please specify the other online platform",
+        section: "Store Overview",
         type: "text",
-        placeholder: "e.g. 150+",
+        placeholder: "Only if 'Other Online Platform' was selected",
+        showWhen: { key: "online_presence", equals: "other_platform" },
     },
     {
-        key: "q4_has_complaint",
-        label: "Customer complaint",
-        question: "Do you have any customer complaint?",
-        section: "Customer Service",
-        type: "single",
-        options: ["Yes", "No"],
+        key: "footfall",
+        label: "Monthly footfall",
+        question: "Average monthly footfall?",
+        section: "Store Overview",
+        type: "text",
+        placeholder: "e.g. 150-200 customers/month",
     },
     {
-        key: "q5_seat_cover_qty",
+        key: "seat_covers_stock",
         label: "Seat covers in stock",
-        question: "How many seat covers do you have in stock?",
+        question: "Seat covers in stock?",
         section: "Operations",
         type: "text",
         placeholder: "e.g. 200-250",
     },
     {
-        key: "q6_sound_security",
-        label: "Sound & security",
-        question: "Which sound and security products do you stock?",
+        key: "products_stocked",
+        label: "Products stocked",
+        question: "Which products do you stock?",
         section: "Operations",
         type: "multi",
-        options: ["Amplifier", "Android (Head Unit)", "Damping (Sound Deadening)", "DVR (Dashcam)", "Fog Lamp", "Horn", "Speakers", "Subwoofer", "Any other", "None"],
+        options: [
+            { id: "sound_security", title: "Sound & Security" },
+            { id: "light_utility", title: "Light & Utility" },
+            { id: "care_fragrance", title: "Care & Fragrance" },
+            { id: "seat_covers", title: "Seat Covers" },
+            { id: "mats", title: "Mats" },
+            { id: "accessories", title: "Accessories" },
+        ],
     },
     {
-        key: "q7_light_utility",
-        label: "Light & utility",
-        question: "Which light and utility products do you stock?",
-        section: "Operations",
-        type: "multi",
-        options: ["Cable", "Charger", "LED", "Tyre Inflator", "Fog Light", "Ventilated seat", "Any other", "None"],
-    },
-    {
-        key: "q8_care_fragrance",
-        label: "Care & fragrance",
-        question: "Which care and fragrance products do you stock?",
-        section: "Operations",
-        type: "multi",
-        options: ["Microfiber", "PPF", "Vacuum Cleaner", "Car Perfume", "Any other", "None"],
-    },
-    {
-        key: "q9_order_frequency",
-        label: "Order frequency",
-        question: "How often do you order from your distributor?",
-        section: "Operations",
-        type: "single",
-        options: ["No-Sometime", "Yes-Regullar", "As per customer REQ.", "Distributor only"],
-    },
-    {
-        key: "q10_last_month_business",
+        key: "last_month_business",
         label: "Last month business",
-        question: "What was your business with Autoform last month?",
+        question: "Last month's AFAC business?",
         section: "Business",
         type: "text",
-        placeholder: "e.g. 2.5 lac",
+        placeholder: "e.g. 2.5 Lakh",
     },
     {
-        key: "q11_staff",
-        label: "Staff",
-        question: "Is your staff Old & experienced (3-5 years)?",
+        key: "staff_training",
+        label: "Staff training",
+        question: "Do staff need training?",
         section: "Staff",
         type: "single",
-        options: ["New Staff", "Old Staff", "Self -Handled", "Relatives"],
+        options: [
+            { id: "already_trained", title: "Already Trained" },
+            { id: "training_required", title: "Training Required" },
+            { id: "not_required", title: "Not Required" },
+        ],
     },
     {
-        key: "q12_training",
-        label: "Training",
-        question: "Do your staff need training?",
-        section: "Staff",
+        key: "warranty_registration",
+        label: "Warranty registration",
+        question: "Online Warranty Registration?",
+        section: "Warranty",
         type: "single",
-        options: ["Already trained", "Training needed"],
+        options: [
+            { id: "yes", title: "Yes" },
+            { id: "no", title: "No" },
+        ],
     },
     {
-        key: "q13_feedback",
-        label: "Feedback",
-        question: "Anything you would like to share with us?",
-        section: "Feedback",
+        key: "support_needed",
+        label: "Support needed",
+        question: "Any issue or support needed?",
+        section: "Feedback & Support",
+        type: "single",
+        options: [
+            { id: "no", title: "No" },
+            { id: "yes", title: "Yes" },
+        ],
+    },
+    {
+        key: "support_details",
+        label: "Issue details",
+        question: "Please describe the issue",
+        section: "Feedback & Support",
         type: "longtext",
-        placeholder: "Optional - suggestions, problems, or anything we can help with",
+        placeholder: "Product, fitting, warranty, quality, delayed service, etc.",
+        showWhen: { key: "support_needed", equals: "yes" },
     },
 ];
 
-export const AUDIT_SECTIONS = Array.from(new Set(AUDIT_QUESTIONS.map(q => q.section)));
+export const AUDIT_SECTIONS: AuditSection[] =
+    Array.from(new Set(AUDIT_QUESTIONS.map(q => q.section)));
+
+/**
+ * Fields the Flow carries in but never asks — passed through from the store's
+ * record when the audit is sent. zone, asm, brands and category have no home in
+ * vendor_details, so the audit is the only place the portal holds them.
+ */
+export const AUDIT_CONTEXT_FIELDS = [
+    { key: "audit_date", label: "Audit date" },
+    { key: "franchise_name", label: "Franchise" },
+    { key: "store_contact_no", label: "Store contact" },
+    { key: "contact_person", label: "Contact person" },
+    { key: "city", label: "City" },
+    { key: "state", label: "State" },
+    { key: "zone", label: "Zone" },
+    { key: "asm", label: "ASM" },
+    { key: "brands", label: "Brands" },
+    { key: "category", label: "Category" },
+] as const;
+
+/** Option id → human title, for display. Falls back to the raw id. */
+export function auditLabel(key: AuditFieldKey, value: string | null | undefined): string {
+    if (!value) return "";
+    const q = AUDIT_QUESTIONS.find(x => x.key === key);
+    if (!q?.options) return value;
+    // Multi-selects arrive comma-joined; map each part.
+    return value
+        .split(",")
+        .map(v => v.trim())
+        .filter(Boolean)
+        .map(v => q.options!.find(o => o.id === v)?.title || v)
+        .join(", ");
+}

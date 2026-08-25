@@ -3880,9 +3880,11 @@ export class AdminController {
     /**
      * Record an audit taken over the phone.
      *
-     * The same 13 questions as the WhatsApp Flow, filled in by whoever is on the
-     * call. channel is 'call' and the auditor is taken from the session rather
-     * than the request body, so it cannot be attributed to someone else.
+     * Asks the same fields as Flow af_store_audit_2 so a phoned-in audit and a
+     * WhatsApp one are directly comparable. Multi-selects are stored comma-joined
+     * as option ids, matching what the Flow sends. The auditor comes from the
+     * session, never the request body, so an audit cannot be filed under someone
+     * else's name.
      */
     static async createCallAudit(req: Request, res: Response) {
         try {
@@ -3891,18 +3893,25 @@ export class AdminController {
                 return res.status(400).json({ error: 'Select the store this audit is for' });
             }
 
+            // The admin vendors list returns profiles.id, not vendor_details.id, so
+            // accept either rather than forcing every caller to know which is which.
             const [vendor]: any = await db.execute(
-                'SELECT id, user_id FROM vendor_details WHERE id = ?', [b.vendorDetailsId]
+                `SELECT vd.id, vd.user_id, vd.store_name, vd.city, vd.state,
+                        p.phone_number, p.name AS contact_person
+                 FROM vendor_details vd
+                 LEFT JOIN profiles p ON p.id = vd.user_id
+                 WHERE vd.id = ? OR vd.user_id = ?
+                 LIMIT 1`,
+                [b.vendorDetailsId, b.vendorDetailsId]
             );
             if (vendor.length === 0) {
                 return res.status(404).json({ error: 'Store not found' });
             }
+            const v = vendor[0];
 
-            // The store's own number, so a call audit sits alongside WhatsApp ones
-            // with the same identifying detail.
-            const [profile]: any = await db.execute(
-                'SELECT phone_number FROM profiles WHERE id = ?', [vendor[0].user_id]
-            );
+            // Multi-selects arrive as arrays from the form; the Flow sends them
+            // comma-joined. Normalise so both channels store the same shape.
+            const join = (x: any) => Array.isArray(x) ? x.join(', ') : (x || null);
 
             const admin = (req as any).user;
             const id = uuidv4();
@@ -3910,26 +3919,38 @@ export class AdminController {
             await db.execute(
                 `INSERT INTO store_audits
                  (id, vendor_details_id, submitted_phone, channel, audited_by, audited_by_name,
-                  q1_signage, q2_digital_presence, q3_footfall, q4_has_complaint,
-                  q5_seat_cover_qty, q6_sound_security, q7_light_utility, q8_care_fragrance,
-                  q9_order_frequency, q10_last_month_business, q11_staff, q12_training, q13_feedback)
-                 VALUES (?, ?, ?, 'call', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                  flow_id, flow_name, flow_version,
+                  audit_date, franchise_name, store_contact_no, contact_person, city, state,
+                  zone, asm, brands, category,
+                  signage_status, online_presence, online_presence_other, footfall,
+                  seat_covers_stock, products_stocked, last_month_business, staff_training,
+                  warranty_registration, support_needed, support_details)
+                 VALUES (?, ?, ?, 'call', ?, ?, NULL, 'call', NULL,
+                         ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                         ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                 [
-                    id, b.vendorDetailsId, profile[0]?.phone_number || '',
+                    id, v.id, v.phone_number || '',
                     admin?.id || null, admin?.name || admin?.email || null,
-                    b.q1_signage || null,
-                    Array.isArray(b.q2_digital_presence) ? b.q2_digital_presence.join(', ') : (b.q2_digital_presence || null),
-                    b.q3_footfall || null,
-                    b.q4_has_complaint || null,
-                    b.q5_seat_cover_qty || null,
-                    Array.isArray(b.q6_sound_security) ? b.q6_sound_security.join(', ') : (b.q6_sound_security || null),
-                    Array.isArray(b.q7_light_utility) ? b.q7_light_utility.join(', ') : (b.q7_light_utility || null),
-                    Array.isArray(b.q8_care_fragrance) ? b.q8_care_fragrance.join(', ') : (b.q8_care_fragrance || null),
-                    b.q9_order_frequency || null,
-                    b.q10_last_month_business || null,
-                    b.q11_staff || null,
-                    b.q12_training || null,
-                    b.q13_feedback || null,
+                    new Date().toISOString().slice(0, 10),
+                    v.store_name || null,
+                    v.phone_number || null,
+                    v.contact_person || null,
+                    v.city || null,
+                    v.state || null,
+                    // zone / asm / brands / category have no column in vendor_details —
+                    // the auditor supplies them on the call if known.
+                    b.zone || null, b.asm || null, b.brands || null, b.category || null,
+                    b.signage_status || null,
+                    join(b.online_presence),
+                    b.online_presence_other || null,
+                    b.footfall || null,
+                    b.seat_covers_stock || null,
+                    join(b.products_stocked),
+                    b.last_month_business || null,
+                    b.staff_training || null,
+                    b.warranty_registration || null,
+                    b.support_needed || null,
+                    b.support_details || null,
                 ]
             );
 
@@ -3978,8 +3999,10 @@ export class AdminController {
                 return res.status(400).json({ error: 'vendorDetailsId is required' });
             }
 
+            // Same as the call form: callers may pass profiles.id or vendor_details.id.
             const [vendor]: any = await db.execute(
-                'SELECT id FROM vendor_details WHERE id = ?', [vendorDetailsId]
+                'SELECT id FROM vendor_details WHERE id = ? OR user_id = ? LIMIT 1',
+                [vendorDetailsId, vendorDetailsId]
             );
             if (vendor.length === 0) {
                 return res.status(404).json({ error: 'Store not found' });
@@ -3987,7 +4010,7 @@ export class AdminController {
 
             const [result]: any = await db.execute(
                 'UPDATE store_audits SET vendor_details_id = ? WHERE id = ?',
-                [vendorDetailsId, id]
+                [vendor[0].id, id]
             );
             if (result.affectedRows === 0) {
                 return res.status(404).json({ error: 'Audit not found' });

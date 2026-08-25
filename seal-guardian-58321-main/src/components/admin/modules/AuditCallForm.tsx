@@ -10,14 +10,14 @@ import {
 } from "@/components/ui/dialog";
 import { Loader2, Search, Phone, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { AUDIT_QUESTIONS, AUDIT_SECTIONS, type AuditFieldKey } from "@/lib/auditQuestions";
+import { AUDIT_QUESTIONS, AUDIT_SECTIONS, AUDIT_FLOW, type AuditFieldKey } from "@/lib/auditQuestions";
 
 /**
  * Record an audit taken over the phone.
  *
- * Asks the same 13 questions as the WhatsApp Flow, from one shared definition, so
- * a call audit and a WhatsApp audit produce comparable answers. The auditor is
- * taken from the logged-in session on the server, never from this form.
+ * Asks exactly what the WhatsApp Flow asks, from the shared definition, so both
+ * channels produce comparable answers. The auditor is taken from the session on
+ * the server — this form never sends it.
  */
 interface AuditCallFormProps {
     open: boolean;
@@ -77,14 +77,24 @@ export const AuditCallForm = ({ open, onClose, onSaved }: AuditCallFormProps) =>
     const setAnswer = (key: AuditFieldKey, value: string | string[]) =>
         setAnswers(prev => ({ ...prev, [key]: value }));
 
-    const toggleMulti = (key: AuditFieldKey, option: string) => {
+    const toggleMulti = (key: AuditFieldKey, optionId: string) => {
         const current = (answers[key] as string[]) || [];
-        setAnswer(key, current.includes(option)
-            ? current.filter(o => o !== option)
-            : [...current, option]);
+        setAnswer(key, current.includes(optionId)
+            ? current.filter(o => o !== optionId)
+            : [...current, optionId]);
     };
 
-    const answeredCount = AUDIT_QUESTIONS.filter(q => {
+    /** Conditional fields appear only once their trigger answer is given. */
+    const isVisible = (q: typeof AUDIT_QUESTIONS[number]) => {
+        if (!q.showWhen) return true;
+        const trigger = answers[q.showWhen.key];
+        return Array.isArray(trigger)
+            ? trigger.includes(q.showWhen.equals)
+            : trigger === q.showWhen.equals;
+    };
+
+    const visibleQuestions = AUDIT_QUESTIONS.filter(isVisible);
+    const answeredCount = visibleQuestions.filter(q => {
         const v = answers[q.key];
         return Array.isArray(v) ? v.length > 0 : Boolean(v && String(v).trim());
     }).length;
@@ -96,7 +106,7 @@ export const AuditCallForm = ({ open, onClose, onSaved }: AuditCallFormProps) =>
             await api.post("/admin/audits/call", { vendorDetailsId: vendorId, ...answers });
             toast({
                 title: "Call audit saved",
-                description: `${selectedStore?.store_name} — ${answeredCount} of ${AUDIT_QUESTIONS.length} answered.`,
+                description: `${selectedStore?.store_name} — ${answeredCount} of ${visibleQuestions.length} answered.`,
             });
             onSaved();
             onClose();
@@ -119,8 +129,8 @@ export const AuditCallForm = ({ open, onClose, onSaved }: AuditCallFormProps) =>
                         <Phone className="h-4 w-4 text-orange-500" /> Record a call audit
                     </DialogTitle>
                     <DialogDescription className="text-xs">
-                        The same questions the store answers on WhatsApp. Saved against your
-                        account as the auditor.
+                        The same questions as <span className="font-mono">{AUDIT_FLOW.name}</span>,
+                        saved against your account as the auditor.
                     </DialogDescription>
                 </DialogHeader>
 
@@ -173,91 +183,119 @@ export const AuditCallForm = ({ open, onClose, onSaved }: AuditCallFormProps) =>
                         )}
                     </div>
 
-                    {/* Questions — only once a store is chosen, so the audit always has an owner */}
-                    {selectedStore && AUDIT_SECTIONS.map(section => (
-                        <div key={section}>
-                            <p className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-3">{section}</p>
-                            <div className="space-y-5">
-                                {AUDIT_QUESTIONS.filter(q => q.section === section).map(q => (
-                                    <div key={q.key}>
-                                        <p className="text-sm font-semibold text-slate-800 mb-2">{q.question}</p>
-
-                                        {q.type === "single" && (
-                                            <div className="flex flex-wrap gap-2">
-                                                {q.options!.map(o => {
-                                                    const active = answers[q.key] === o;
-                                                    return (
-                                                        <button
-                                                            key={o}
-                                                            onClick={() => setAnswer(q.key, active ? "" : o)}
-                                                            className={cn(
-                                                                "px-3 py-1.5 rounded-lg border text-xs font-semibold transition-colors",
-                                                                active
-                                                                    ? "border-orange-300 bg-orange-50 text-orange-700"
-                                                                    : "border-slate-200 text-slate-600 hover:border-slate-300"
-                                                            )}
-                                                        >
-                                                            {o}
-                                                        </button>
-                                                    );
-                                                })}
-                                            </div>
-                                        )}
-
-                                        {q.type === "multi" && (
-                                            <div className="grid grid-cols-2 gap-1.5">
-                                                {q.options!.map(o => {
-                                                    const active = ((answers[q.key] as string[]) || []).includes(o);
-                                                    return (
-                                                        <label
-                                                            key={o}
-                                                            className={cn(
-                                                                "flex items-center gap-2 p-2 rounded-lg border cursor-pointer transition-colors text-xs",
-                                                                active
-                                                                    ? "border-orange-200 bg-orange-50/60 text-slate-800"
-                                                                    : "border-slate-100 text-slate-600 hover:bg-slate-50"
-                                                            )}
-                                                        >
-                                                            <Checkbox
-                                                                checked={active}
-                                                                onCheckedChange={() => toggleMulti(q.key, o)}
-                                                            />
-                                                            <span className="font-medium leading-tight">{o}</span>
-                                                        </label>
-                                                    );
-                                                })}
-                                            </div>
-                                        )}
-
-                                        {q.type === "text" && (
-                                            <Input
-                                                value={(answers[q.key] as string) || ""}
-                                                onChange={e => setAnswer(q.key, e.target.value)}
-                                                placeholder={q.placeholder}
-                                                className="h-9 text-sm"
-                                            />
-                                        )}
-
-                                        {q.type === "longtext" && (
-                                            <Textarea
-                                                value={(answers[q.key] as string) || ""}
-                                                onChange={e => setAnswer(q.key, e.target.value)}
-                                                placeholder={q.placeholder}
-                                                rows={3}
-                                                className="text-sm resize-none"
-                                            />
-                                        )}
-                                    </div>
-                                ))}
+                    {/* Zone and ASM are carried by the Flow but held nowhere in the
+                        portal, so a call audit collects them if the auditor knows. */}
+                    {selectedStore && (
+                        <div>
+                            <p className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-2">
+                                Territory <span className="font-medium normal-case tracking-normal">(optional)</span>
+                            </p>
+                            <div className="grid grid-cols-2 gap-2">
+                                <Input
+                                    value={(answers["zone" as AuditFieldKey] as string) || ""}
+                                    onChange={e => setAnswer("zone" as AuditFieldKey, e.target.value)}
+                                    placeholder="Zone"
+                                    className="h-9 text-sm"
+                                />
+                                <Input
+                                    value={(answers["asm" as AuditFieldKey] as string) || ""}
+                                    onChange={e => setAnswer("asm" as AuditFieldKey, e.target.value)}
+                                    placeholder="ASM"
+                                    className="h-9 text-sm"
+                                />
                             </div>
                         </div>
-                    ))}
+                    )}
+
+                    {/* Questions — only after a store is chosen, so an audit always has an owner */}
+                    {selectedStore && AUDIT_SECTIONS.map(section => {
+                        const qs = AUDIT_QUESTIONS.filter(q => q.section === section && isVisible(q));
+                        if (qs.length === 0) return null;
+                        return (
+                            <div key={section}>
+                                <p className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-3">{section}</p>
+                                <div className="space-y-5">
+                                    {qs.map(q => (
+                                        <div key={q.key}>
+                                            <p className="text-sm font-semibold text-slate-800 mb-2">{q.question}</p>
+
+                                            {q.type === "single" && (
+                                                <div className="flex flex-wrap gap-2">
+                                                    {q.options!.map(o => {
+                                                        const active = answers[q.key] === o.id;
+                                                        return (
+                                                            <button
+                                                                key={o.id}
+                                                                onClick={() => setAnswer(q.key, active ? "" : o.id)}
+                                                                className={cn(
+                                                                    "px-3 py-1.5 rounded-lg border text-xs font-semibold transition-colors",
+                                                                    active
+                                                                        ? "border-orange-300 bg-orange-50 text-orange-700"
+                                                                        : "border-slate-200 text-slate-600 hover:border-slate-300"
+                                                                )}
+                                                            >
+                                                                {o.title}
+                                                            </button>
+                                                        );
+                                                    })}
+                                                </div>
+                                            )}
+
+                                            {q.type === "multi" && (
+                                                <div className="grid grid-cols-2 gap-1.5">
+                                                    {q.options!.map(o => {
+                                                        const active = ((answers[q.key] as string[]) || []).includes(o.id);
+                                                        return (
+                                                            <label
+                                                                key={o.id}
+                                                                className={cn(
+                                                                    "flex items-center gap-2 p-2 rounded-lg border cursor-pointer transition-colors text-xs",
+                                                                    active
+                                                                        ? "border-orange-200 bg-orange-50/60 text-slate-800"
+                                                                        : "border-slate-100 text-slate-600 hover:bg-slate-50"
+                                                                )}
+                                                            >
+                                                                <Checkbox
+                                                                    checked={active}
+                                                                    onCheckedChange={() => toggleMulti(q.key, o.id)}
+                                                                />
+                                                                <span className="font-medium leading-tight">{o.title}</span>
+                                                            </label>
+                                                        );
+                                                    })}
+                                                </div>
+                                            )}
+
+                                            {q.type === "text" && (
+                                                <Input
+                                                    value={(answers[q.key] as string) || ""}
+                                                    onChange={e => setAnswer(q.key, e.target.value)}
+                                                    placeholder={q.placeholder}
+                                                    className="h-9 text-sm"
+                                                />
+                                            )}
+
+                                            {q.type === "longtext" && (
+                                                <Textarea
+                                                    value={(answers[q.key] as string) || ""}
+                                                    onChange={e => setAnswer(q.key, e.target.value)}
+                                                    placeholder={q.placeholder}
+                                                    rows={3}
+                                                    className="text-sm resize-none"
+                                                />
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        );
+                    })}
                 </div>
 
                 <DialogFooter className="px-6 py-4 border-t border-slate-100 shrink-0 sm:justify-between">
                     <p className="text-[11px] text-slate-400 self-center">
                         {selectedStore
-                            ? `${answeredCount} of ${AUDIT_QUESTIONS.length} answered`
+                            ? `${answeredCount} of ${visibleQuestions.length} answered`
                             : "Choose a store to begin"}
                     </p>
                     <div className="flex gap-2">
