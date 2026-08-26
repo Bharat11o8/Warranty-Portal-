@@ -3,6 +3,7 @@ import crypto from 'crypto';
 import db from '../config/database.js';
 import { WhatsAppService } from '../services/whatsapp.service.js';
 import { NotificationService } from '../services/notification.service.js';
+import { ingestFlowAuditResponse } from '../services/auditResponse.service.js';
 
 export class WebhookController {
 
@@ -49,13 +50,13 @@ export class WebhookController {
                 return;
             }
 
-            // ── TEMP: capture the shape of an incoming Flow response ──────────
-            // Interakt sends audit submissions as message_campaign_flow_response
-            // (seen in the logs) and does not document the payload, so log one in
-            // full rather than guess at where responseJson sits.
-            // Remove once the audit parser is built.
-            if (eventType === 'message_campaign_flow_response' || eventType === 'message_received') {
-                console.log(`[Webhook][probe] ${eventType}: ${JSON.stringify(payload)}`);
+            // Store audit submissions arrive as message_campaign_flow_response.
+            // The payload is logged in full as well as stored: Interakt does not
+            // document its shape, so a real one is worth keeping to check the
+            // parser against.
+            if (eventType === 'message_campaign_flow_response') {
+                console.log(`[Webhook][audit] ${eventType}: ${JSON.stringify(payload)}`);
+                await ingestFlowAuditResponse(payload);
                 return;
             }
 
