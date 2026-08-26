@@ -58,7 +58,7 @@ router.put('/audits/:id/review', ...adminAuth, requirePermission('vendors', 'wri
 router.put('/audits/:id/assign', ...adminAuth, requirePermission('vendors', 'write'), AdminController.assignStoreAudit);
 // Audit rounds — audits repeat, so submissions are grouped and non-responders tracked.
 router.get('/audit-rounds', ...adminAuth, requirePermission('vendors', 'read'), AdminController.getAuditRounds);
-router.post('/audit-rounds', ...adminAuth, requirePermission('vendors', 'write'), AdminController.createAuditRound);
+router.post('/audit-rounds/:id/seed', ...adminAuth, requirePermission('vendors', 'write'), AdminController.seedAuditRoundTargets);
 router.put('/audit-rounds/:id/close', ...adminAuth, requirePermission('vendors', 'write'), AdminController.closeAuditRound);
 router.get('/audit-rounds/:id/targets', ...adminAuth, requirePermission('vendors', 'read'), AdminController.getAuditRoundTargets);
 

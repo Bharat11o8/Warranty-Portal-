@@ -4005,9 +4005,10 @@ export class AdminController {
                 `SELECT r.*,
                         (SELECT COUNT(*) FROM audit_round_targets t WHERE t.round_id = r.id) AS target_count,
                         (SELECT COUNT(*) FROM audit_round_targets t WHERE t.round_id = r.id AND t.responded_at IS NOT NULL) AS responded_count,
+                        (SELECT COUNT(*) FROM audit_round_targets t WHERE t.round_id = r.id AND t.responded_at IS NULL) AS outstanding_count,
                         (SELECT COUNT(*) FROM store_audits sa WHERE sa.round_id = r.id) AS audit_count
                  FROM audit_rounds r
-                 ORDER BY r.created_at DESC`
+                 ORDER BY COALESCE(r.first_sent_at, r.created_at) DESC`
             );
             res.json({ success: true, rounds });
         } catch (error: any) {
@@ -4017,47 +4018,39 @@ export class AdminController {
     }
 
     /**
-     * Open a round, optionally seeding its target list.
+     * Seed a round's target list by hand.
      *
-     * Only one round is open at a time — a submission has to belong somewhere
-     * unambiguously — so opening a new one closes whatever was open before.
+     * Rounds normally build themselves: a campaign send creates the round and
+     * records one target per recipient. This is the fallback for when those
+     * events do not arrive — without a target list there is no way to tell who
+     * has not responded, so it is better to seed from the franchise list than
+     * to have no chase list at all.
+     *
+     * Existing targets are left alone, so seeding twice is safe and never
+     * clears a store that has already responded.
      */
-    static async createAuditRound(req: Request, res: Response) {
-        const conn = await db.getConnection();
+    static async seedAuditRoundTargets(req: Request, res: Response) {
         try {
+            const roundId = req.params.id;
             const b = req.body || {};
-            const name = String(b.name || '').trim();
-            if (!name) {
-                return res.status(400).json({ error: 'Give the round a name, e.g. "August 2026"' });
+
+            const [round]: any = await db.execute(
+                `SELECT id, name FROM audit_rounds WHERE id = ? LIMIT 1`, [roundId]
+            );
+            if (round.length === 0) {
+                return res.status(404).json({ error: 'Round not found' });
             }
 
-            const admin = (req as any).user;
-            const id = uuidv4();
-
-            await conn.beginTransaction();
-
-            await conn.execute(
-                `UPDATE audit_rounds SET status = 'closed', closed_at = CURRENT_TIMESTAMP WHERE status = 'open'`
-            );
-
-            await conn.execute(
-                `INSERT INTO audit_rounds (id, name, period_start, period_end, notes, created_by, created_by_name)
-                 VALUES (?, ?, ?, ?, ?, ?, ?)`,
-                [id, name, b.periodStart || null, b.periodEnd || null, b.notes || null,
-                 admin?.id || null, admin?.name || admin?.email || null]
-            );
-
-            // Seed the targets. "all" means every verified franchise, which is
-            // who an audit normally goes to; an explicit list overrides that.
             let targetIds: string[] = [];
             if (Array.isArray(b.vendorIds) && b.vendorIds.length > 0) {
-                const [rows]: any = await conn.query(
+                const [rows]: any = await db.query(
                     `SELECT id FROM vendor_details WHERE id IN (?) OR user_id IN (?)`,
                     [b.vendorIds, b.vendorIds]
                 );
                 targetIds = rows.map((r: any) => r.id);
-            } else if (b.targetAll) {
-                const [rows]: any = await conn.execute(
+            } else {
+                // Every verified franchise — who an audit normally goes to.
+                const [rows]: any = await db.execute(
                     `SELECT vd.id
                      FROM vendor_details vd
                      JOIN vendor_verification vv ON vv.user_id = vd.user_id
@@ -4066,39 +4059,37 @@ export class AdminController {
                 targetIds = rows.map((r: any) => r.id);
             }
 
+            let added = 0;
             for (const vid of targetIds) {
-                await conn.execute(
+                const [r]: any = await db.execute(
                     `INSERT IGNORE INTO audit_round_targets (id, round_id, vendor_details_id)
                      VALUES (?, ?, ?)`,
-                    [uuidv4(), id, vid]
+                    [uuidv4(), roundId, vid]
                 );
+                if (r.affectedRows > 0) added++;
             }
 
-            await conn.commit();
-
+            const admin = (req as any).user;
             await ActivityLogService.log({
                 adminId: admin?.id,
                 adminName: admin?.name,
                 adminEmail: admin?.email,
-                actionType: 'CREATE_AUDIT_ROUND',
+                actionType: 'SEED_AUDIT_ROUND_TARGETS',
                 targetType: 'AUDIT_ROUND',
-                targetId: id,
-                targetName: name,
-                details: { targets: targetIds.length },
+                targetId: roundId,
+                targetName: round[0].name,
+                details: { added, considered: targetIds.length },
                 ipAddress: req.ip || req.socket?.remoteAddress
             });
 
-            res.status(201).json({
+            res.json({
                 success: true,
-                message: `Round "${name}" opened with ${targetIds.length} stores`,
-                data: { id, targets: targetIds.length }
+                message: `${added} store${added === 1 ? '' : 's'} added to the chase list`,
+                data: { added, considered: targetIds.length }
             });
         } catch (error: any) {
-            await conn.rollback();
-            console.error('Create audit round error:', error);
-            res.status(500).json({ error: 'Failed to open the round' });
-        } finally {
-            conn.release();
+            console.error('Seed audit round targets error:', error);
+            res.status(500).json({ error: 'Failed to seed the round' });
         }
     }
 
@@ -4137,10 +4128,11 @@ export class AdminController {
 
             const [targets]: any = await db.execute(
                 `SELECT t.id, t.vendor_details_id, t.store_audit_id, t.responded_at,
+                        t.sent_at, t.sent_phone,
                         vd.store_name, vd.store_code, vd.city, vd.state,
                         p.phone_number, p.name AS contact_person
                  FROM audit_round_targets t
-                 JOIN vendor_details vd ON vd.id = t.vendor_details_id
+                 LEFT JOIN vendor_details vd ON vd.id = t.vendor_details_id
                  LEFT JOIN profiles p ON p.id = vd.user_id
                  WHERE ${where.join(' AND ')}
                  ORDER BY (t.responded_at IS NULL) DESC, vd.store_name ASC`,

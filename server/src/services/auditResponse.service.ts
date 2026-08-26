@@ -181,19 +181,102 @@ async function resolveVendor(phone: string, franchiseName: string | null) {
     return null;
 }
 
+/** The audit template, so campaign traffic for other templates is ignored. */
+const AUDIT_TEMPLATE = 'af_audit_template';
+
+/** Pull the campaign identity out of a payload, whichever event it is. */
+function campaignOf(payload: any) {
+    const d = payload?.data ?? {};
+    const m = d.message ?? {};
+    const src = d.source_template_message ?? {};
+    return {
+        id: String(m.campaign_id ?? src.campaign_id ?? d.campaign_id ?? '').trim(),
+        name: String(m.campaign_name ?? d.campaign_name ?? '').trim(),
+        template: String(src.template_name ?? d.template_name ?? m.template_name ?? '').trim(),
+    };
+}
+
+/** A readable round name from the campaign, falling back to the month. */
+function roundNameFor(campaignName: string, when: Date) {
+    if (campaignName) return campaignName;
+    return when.toLocaleString('en-GB', { month: 'long', year: 'numeric' });
+}
+
 /**
- * The round an incoming submission belongs to.
+ * The round for a campaign, created on first sight.
  *
- * Audits run in rounds (monthly, or whenever the business asks), and a store
- * answers the round that is open when it replies. Returns null when no round is
- * open — the audit is still stored, just ungrouped, since refusing a real
- * submission because nobody opened a round would lose data.
+ * The campaign IS the round: a reply carries the campaign_id of the message it
+ * answers, so a store replying in September to an August campaign is still
+ * counted for August. That makes attribution exact without grace periods, and
+ * lets two campaigns overlap without ambiguity.
+ *
+ * Rounds are created lazily — a month with no campaign creates nothing, rather
+ * than showing an empty round as 0% compliance.
  */
-async function currentRoundId(): Promise<string | null> {
-    const [rows]: any = await db.execute(
-        `SELECT id FROM audit_rounds WHERE status = 'open' ORDER BY created_at DESC LIMIT 1`
+async function ensureRound(payload: any): Promise<string | null> {
+    const c = campaignOf(payload);
+    if (!c.id) return null;
+
+    const [existing]: any = await db.execute(
+        `SELECT id FROM audit_rounds WHERE campaign_id = ? LIMIT 1`,
+        [c.id]
     );
-    return rows.length > 0 ? (rows[0].id as string) : null;
+    if (existing.length > 0) return existing[0].id as string;
+
+    const id = uuidv4();
+    const now = new Date();
+    try {
+        await db.execute(
+            `INSERT INTO audit_rounds (id, name, campaign_id, campaign_name, template_name, first_sent_at, status)
+             VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, 'open')`,
+            [id, roundNameFor(c.name, now), c.id, c.name || null, c.template || null]
+        );
+        console.log(`[Audit] Opened round "${roundNameFor(c.name, now)}" for campaign ${c.id}`);
+        return id;
+    } catch (err: any) {
+        // Two events for the same campaign can race; the unique key settles it.
+        if (err?.code === 'ER_DUP_ENTRY') {
+            const [again]: any = await db.execute(
+                `SELECT id FROM audit_rounds WHERE campaign_id = ? LIMIT 1`, [c.id]
+            );
+            return again.length > 0 ? (again[0].id as string) : null;
+        }
+        throw err;
+    }
+}
+
+/**
+ * Record that the audit was sent to one store.
+ *
+ * This is what makes non-responders exist as data: without a row per recipient,
+ * a store that never replies is simply absent rather than outstanding.
+ */
+export async function recordAuditSent(payload: any): Promise<void> {
+    try {
+        const c = campaignOf(payload);
+        // Only audit campaigns; other campaign traffic is none of our business.
+        if (!c.id) return;
+        if (c.template && c.template !== AUDIT_TEMPLATE) return;
+
+        const roundId = await ensureRound(payload);
+        if (!roundId) return;
+
+        const phone = findPhone(payload);
+        if (!phone) return;
+
+        const vendorId = await resolveVendor(phone, null);
+
+        await db.execute(
+            `INSERT INTO audit_round_targets (id, round_id, vendor_details_id, sent_at, sent_phone)
+             VALUES (?, ?, ?, CURRENT_TIMESTAMP, ?)
+             ON DUPLICATE KEY UPDATE sent_at = COALESCE(sent_at, CURRENT_TIMESTAMP)`,
+            [uuidv4(), roundId, vendorId, phone]
+        );
+    } catch (error: any) {
+        // A failure here must not break the webhook, or Interakt retries and we
+        // lose later events too.
+        console.error('[Audit] Failed to record campaign send:', error?.message || error);
+    }
 }
 
 /**
@@ -203,12 +286,25 @@ async function currentRoundId(): Promise<string | null> {
  * keeps the first response time and both audits are still stored.
  */
 async function markResponded(roundId: string, vendorId: string, auditId: string) {
-    await db.execute(
+    const [r]: any = await db.execute(
         `UPDATE audit_round_targets
          SET store_audit_id = ?, responded_at = CURRENT_TIMESTAMP
          WHERE round_id = ? AND vendor_details_id = ? AND responded_at IS NULL`,
         [auditId, roundId, vendorId]
     );
+
+    // A reply with no target row means the send event never reached us. Record
+    // it anyway: a store that answered must never show as outstanding.
+    if (r.affectedRows === 0) {
+        await db.execute(
+            `INSERT INTO audit_round_targets (id, round_id, vendor_details_id, store_audit_id, responded_at)
+             VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+             ON DUPLICATE KEY UPDATE
+                store_audit_id = COALESCE(store_audit_id, VALUES(store_audit_id)),
+                responded_at   = COALESCE(responded_at, VALUES(responded_at))`,
+            [uuidv4(), roundId, vendorId, auditId]
+        );
+    }
 }
 
 export interface AuditIngestResult {
@@ -234,7 +330,7 @@ export async function ingestFlowAuditResponse(payload: any): Promise<AuditIngest
             // Keep the body regardless — an unparsed audit is recoverable, a
             // discarded one is not. This is exactly what cost us the first three.
             const id = uuidv4();
-            const roundId = await currentRoundId();
+            const roundId = await ensureRound(payload);
             await db.execute(
                 `INSERT INTO store_audits
                    (id, round_id, vendor_details_id, submitted_phone, channel, flow_name, raw_response, review_status)
@@ -248,7 +344,7 @@ export async function ingestFlowAuditResponse(payload: any): Promise<AuditIngest
         const franchiseName = val(answers, 'franchise_name');
         const vendorId = await resolveVendor(phone, franchiseName);
         const id = uuidv4();
-        const roundId = await currentRoundId();
+        const roundId = await ensureRound(payload);
 
         await db.execute(
             `INSERT INTO store_audits

@@ -3,7 +3,7 @@ import crypto from 'crypto';
 import db from '../config/database.js';
 import { WhatsAppService } from '../services/whatsapp.service.js';
 import { NotificationService } from '../services/notification.service.js';
-import { ingestFlowAuditResponse } from '../services/auditResponse.service.js';
+import { ingestFlowAuditResponse, recordAuditSent } from '../services/auditResponse.service.js';
 
 export class WebhookController {
 
@@ -54,6 +54,14 @@ export class WebhookController {
             // The payload is logged in full as well as stored: Interakt does not
             // document its shape, so a real one is worth keeping to check the
             // parser against.
+            // A campaign send tells us the audit reached this store. Recording
+            // each one is what makes "has not responded" answerable at all —
+            // without it, a store that never replies is absent, not outstanding.
+            if (eventType === 'message_campaign_sent') {
+                await recordAuditSent(payload);
+                return;
+            }
+
             if (eventType === 'message_campaign_flow_response') {
                 console.log(`[Webhook][audit] ${eventType}: ${JSON.stringify(payload)}`);
                 await ingestFlowAuditResponse(payload);
