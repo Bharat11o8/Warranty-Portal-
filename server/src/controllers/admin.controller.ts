@@ -3943,20 +3943,34 @@ export class AdminController {
             const admin = (req as any).user;
             const id = uuidv4();
 
+            // A call is how a non-responder gets closed out, so it has to count
+            // toward the same round the WhatsApp campaign opened. A call carries
+            // no campaign id of its own, so it joins whichever round is still
+            // open — the one being chased. Explicit roundId wins, for recording
+            // a call against an earlier round after a newer one has opened.
+            let roundId: string | null = b.roundId || null;
+            if (!roundId) {
+                const [openRound]: any = await db.execute(
+                    `SELECT id FROM audit_rounds WHERE status = 'open'
+                     ORDER BY COALESCE(first_sent_at, created_at) DESC LIMIT 1`
+                );
+                roundId = openRound.length > 0 ? openRound[0].id : null;
+            }
+
             await db.execute(
                 `INSERT INTO store_audits
-                 (id, vendor_details_id, submitted_phone, channel, audited_by, audited_by_name,
+                 (id, round_id, vendor_details_id, submitted_phone, channel, audited_by, audited_by_name,
                   flow_id, flow_name, flow_version,
                   audit_date, franchise_name, store_contact_no, contact_person, city, state,
                   zone, asm, brands, category,
                   signage_status, online_presence, online_presence_other, footfall,
                   seat_covers_stock, products_stocked, last_month_business, staff_training,
                   warranty_registration, support_needed, support_details)
-                 VALUES (?, ?, ?, 'call', ?, ?, NULL, 'call', NULL,
+                 VALUES (?, ?, ?, ?, 'call', ?, ?, NULL, 'call', NULL,
                          ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
                          ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                 [
-                    id, v.id, v.phone_number || '',
+                    id, roundId, v.id, v.phone_number || '',
                     admin?.id || null, admin?.name || admin?.email || null,
                     new Date().toISOString().slice(0, 10),
                     v.store_name || null,
@@ -3980,6 +3994,31 @@ export class AdminController {
                     b.support_details || null,
                 ]
             );
+
+            // Tick the store off the round's chase list. Without this the call
+            // records the answers but the store stays outstanding, so the admin
+            // would keep ringing someone who has already been audited — which
+            // is the whole reason the call option exists.
+            if (roundId) {
+                const [upd]: any = await db.execute(
+                    `UPDATE audit_round_targets
+                     SET store_audit_id = ?, responded_at = CURRENT_TIMESTAMP
+                     WHERE round_id = ? AND vendor_details_id = ? AND responded_at IS NULL`,
+                    [id, roundId, v.id]
+                );
+                // A store that was never on the list (the send events missed it)
+                // still counts as done once audited by phone.
+                if (upd.affectedRows === 0) {
+                    await db.execute(
+                        `INSERT INTO audit_round_targets (id, round_id, vendor_details_id, store_audit_id, responded_at)
+                         VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+                         ON DUPLICATE KEY UPDATE
+                            store_audit_id = COALESCE(store_audit_id, VALUES(store_audit_id)),
+                            responded_at   = COALESCE(responded_at, VALUES(responded_at))`,
+                        [uuidv4(), roundId, v.id, id]
+                    );
+                }
+            }
 
             res.status(201).json({ success: true, id, message: 'Call audit recorded' });
         } catch (error: any) {
