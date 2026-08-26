@@ -46,10 +46,18 @@ const CONTEXT_FIELDS = [
 
 const ALL_FIELDS: string[] = [...ANSWER_FIELDS, ...CONTEXT_FIELDS];
 
-/** Keys Interakt might nest the answers under; checked before the deep search. */
+/**
+ * Keys whose string values are worth trying to parse as JSON.
+ *
+ * The real payload (captured 2026-08-26) nests the answers TWICE over:
+ * data.message.message is a JSON string holding nfm_reply.response_json, which
+ * is itself a JSON string holding the answers. So `message` belongs here, and
+ * the walk below has to keep unwrapping rather than parse a single layer.
+ */
 const LIKELY_CONTAINERS = [
     'response_json',
     'responseJson',
+    'message',
     'flow_response',
     'flowResponse',
     'response',
@@ -89,10 +97,16 @@ export function findAnswers(payload: any): Record<string, any> | null {
                 queue.push(value);
                 continue;
             }
-            // A container key holding a JSON string: parse and search it too.
-            if (typeof value === 'string' && LIKELY_CONTAINERS.includes(key)) {
+            // A string holding JSON: parse and search it too. Whatever comes out
+            // goes back on the queue, so a value encoded more than once — as the
+            // real Interakt payload is — gets unwrapped layer by layer.
+            if (typeof value === 'string') {
                 const trimmed = value.trim();
-                if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+                const looksJson = trimmed.startsWith('{') || trimmed.startsWith('[');
+                // Parse anything under a known container key, and anything that
+                // looks like JSON regardless of key, since Interakt puts the
+                // outer layer under a plain "message".
+                if (looksJson && (LIKELY_CONTAINERS.includes(key) || trimmed.length < 100000)) {
                     try {
                         queue.push(JSON.parse(trimmed));
                     } catch {
