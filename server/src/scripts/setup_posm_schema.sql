@@ -9,6 +9,13 @@ CREATE TABLE IF NOT EXISTS posm_requests (
     
     -- Request details
     requirement TEXT NOT NULL,
+
+    -- Who raised it. Admins can file a request on a store's behalf when the
+    -- requirement arrives by phone or email, so the origin is recorded rather
+    -- than inferred from the first message.
+    created_by_role ENUM('franchise', 'admin') NOT NULL DEFAULT 'franchise',
+    created_by VARCHAR(36) NULL,
+
     status ENUM('open', 'under_review', 'approved', 'in_production', 'dispatched', 'delivered', 'closed', 'rejected') DEFAULT 'open',
     
     -- Timestamps

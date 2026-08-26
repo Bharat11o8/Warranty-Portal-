@@ -27,7 +27,10 @@ router.put('/:id/rating', authenticateToken, requireRole('customer'), GrievanceC
 router.get('/vendor', authenticateToken, requireRole('vendor'), GrievanceController.getVendorGrievances);
 
 // Franchise grievance routes (for vendors to submit their own grievances)
-router.post('/franchise', authenticateToken, requireRole('vendor'), handleUpload, GrievanceController.submitFranchiseGrievance);
+// Admins may file here on a store's behalf by passing franchiseId; the
+// controller rejects that field for a vendor session, so a vendor can still
+// only ever file for itself.
+router.post('/franchise', authenticateToken, requireRole(['vendor', 'admin']), handleUpload, GrievanceController.submitFranchiseGrievance);
 router.get('/franchise/submitted', authenticateToken, requireRole('vendor'), GrievanceController.getFranchiseSubmittedGrievances);
 
 // Admin routes

@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { VendorEngagementTabs } from "./VendorEngagementTabs";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { MapPin, User, Mail, Phone, Download, Search, Loader2, QrCode } from "lucide-react";
@@ -33,7 +34,9 @@ interface AdminVendorDetailsProps {
 export const AdminVendorDetails = ({ vendor: initialVendor, onBack, isDistributorsView }: AdminVendorDetailsProps) => {
     const { toast } = useToast();
     const [vendor, setVendor] = useState(initialVendor);
-    const [activeTab, setActiveTab] = useState<'warranties' | 'manpower' | 'franchises'>('warranties');
+    const [activeTab, setActiveTab] = useState<
+        'warranties' | 'manpower' | 'franchises' | 'orders' | 'posm' | 'grievances' | 'audits'
+    >('warranties');
     const [isLoadingDetails, setIsLoadingDetails] = useState(true);
     const [franchises, setFranchises] = useState<any[]>([]);
     const [franchisesLoading, setFranchisesLoading] = useState(false);
@@ -562,19 +565,40 @@ export const AdminVendorDetails = ({ vendor: initialVendor, onBack, isDistributo
                             )}
                         </div>
                         <div className="flex flex-col gap-3 items-end">
+                            {/* A rejected store previously read as "Pending", which is
+                                how a decision already taken looked like one still to
+                                make. verified_at set with is_verified false means it
+                                was reviewed and turned down. */}
                             <Badge
                                 className={cn(
                                     "text-sm px-4 py-1.5 h-auto w-fit",
                                     vendor.is_verified
                                         ? "bg-emerald-500 hover:bg-emerald-600 border-0"
-                                        : "bg-amber-500 hover:bg-amber-600 text-black border-0"
+                                        : vendor.verified_at
+                                            ? "bg-red-500 hover:bg-red-600 border-0"
+                                            : "bg-amber-500 hover:bg-amber-600 text-black border-0"
                                 )}
                             >
                                 {vendor.is_verified
                                     ? (isDistributorsView ? 'Verified Distributor' : 'Verified Franchise')
-                                    : (isDistributorsView ? 'Pending Distributor Verification' : 'Pending Verification')
+                                    : vendor.verified_at
+                                        ? (isDistributorsView ? 'Distributor Rejected' : 'Registration Rejected')
+                                        : (isDistributorsView ? 'Pending Distributor Verification' : 'Pending Verification')
                                 }
                             </Badge>
+
+                            {/* The reason the admin gave when rejecting — without it,
+                                nobody can tell why, or what the store must fix. */}
+                            {!vendor.is_verified && vendor.rejection_reason && (
+                                <div className="max-w-xs rounded-xl bg-red-50 border border-red-200 px-3 py-2 text-right">
+                                    <p className="text-[10px] font-black uppercase tracking-wider text-red-500">
+                                        Rejection reason
+                                    </p>
+                                    <p className="text-xs text-red-700 mt-0.5 leading-relaxed">
+                                        {vendor.rejection_reason}
+                                    </p>
+                                </div>
+                            )}
 
                             {/* Brand selector */}
                             <div className="flex items-center gap-2">
@@ -943,13 +967,75 @@ export const AdminVendorDetails = ({ vendor: initialVendor, onBack, isDistributo
             </Card>
 
             <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="space-y-6">
-                <TabsList className={`grid w-full h-auto p-1 bg-slate-100 rounded-lg ${isDistributorsView ? 'grid-cols-3' : 'grid-cols-2'}`}>
+                <TabsList className={`grid w-full h-auto p-1 bg-slate-100 rounded-lg ${isDistributorsView ? 'grid-cols-3' : 'grid-cols-6'}`}>
                     <TabsTrigger value="warranties" className="py-2.5">Warranties ({vendor.warranties?.length || 0})</TabsTrigger>
                     <TabsTrigger value="manpower" className="py-2.5">Manpower ({vendor.manpower?.length || 0})</TabsTrigger>
                     {isDistributorsView && (
                         <TabsTrigger value="franchises" className="py-2.5">Franchises ({franchises.length})</TabsTrigger>
                     )}
+                    {/* A distributor raises none of these itself — they belong to
+                        franchises — so these tabs are for the franchise view only. */}
+                    {!isDistributorsView && (
+                        <>
+                            <TabsTrigger value="orders" className="py-2.5">Orders</TabsTrigger>
+                            <TabsTrigger value="posm" className="py-2.5">POSM</TabsTrigger>
+                            <TabsTrigger value="grievances" className="py-2.5">Grievances</TabsTrigger>
+                            <TabsTrigger value="audits" className="py-2.5">Audits</TabsTrigger>
+                        </>
+                    )}
                 </TabsList>
+
+                {!isDistributorsView && (
+                    <>
+                        <TabsContent value="orders">
+                            <Card className="border-orange-100 shadow-sm">
+                                <CardContent className="pt-6">
+                                    <VendorEngagementTabs
+                                        kind="orders"
+                                        vendorDetailsId={vendor.vendor_details_id || null}
+                                        userId={vendor.user_id || vendor.id || null}
+                                    />
+                                </CardContent>
+                            </Card>
+                        </TabsContent>
+
+                        <TabsContent value="posm">
+                            <Card className="border-orange-100 shadow-sm">
+                                <CardContent className="pt-6">
+                                    <VendorEngagementTabs
+                                        kind="posm"
+                                        vendorDetailsId={vendor.vendor_details_id || null}
+                                        userId={vendor.user_id || vendor.id || null}
+                                    />
+                                </CardContent>
+                            </Card>
+                        </TabsContent>
+
+                        <TabsContent value="grievances">
+                            <Card className="border-orange-100 shadow-sm">
+                                <CardContent className="pt-6">
+                                    <VendorEngagementTabs
+                                        kind="grievances"
+                                        vendorDetailsId={vendor.vendor_details_id || null}
+                                        userId={vendor.user_id || vendor.id || null}
+                                    />
+                                </CardContent>
+                            </Card>
+                        </TabsContent>
+
+                        <TabsContent value="audits">
+                            <Card className="border-orange-100 shadow-sm">
+                                <CardContent className="pt-6">
+                                    <VendorEngagementTabs
+                                        kind="audits"
+                                        vendorDetailsId={vendor.vendor_details_id || null}
+                                        userId={vendor.user_id || vendor.id || null}
+                                    />
+                                </CardContent>
+                            </Card>
+                        </TabsContent>
+                    </>
+                )}
 
                 <TabsContent value="warranties">
                     <Card className="border-orange-100 shadow-sm">

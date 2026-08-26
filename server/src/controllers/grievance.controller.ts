@@ -203,8 +203,8 @@ class GrievanceController {
 
             const [result] = await db.execute(
                 `INSERT INTO grievances 
-         (ticket_id, customer_id, franchise_id, warranty_uid, category, sub_category, subject, description, attachments, source_type)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'customer')`,
+         (ticket_id, customer_id, franchise_id, warranty_uid, category, sub_category, subject, description, attachments, source_type, created_by_role, created_by)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'customer', 'customer', ?)`,
                 [
                     ticketId,
                     userId,
@@ -214,7 +214,8 @@ class GrievanceController {
                     subCategory || null,
                     subject,
                     description,
-                    JSON.stringify(attachmentUrls)
+                    JSON.stringify(attachmentUrls),
+                    userId
                 ]
             );
 
@@ -337,8 +338,13 @@ class GrievanceController {
     }
 
     /**
-     * Submit a new grievance (Franchise/Vendor)
+     * Submit a new grievance (Franchise/Vendor, or an admin on their behalf)
      * POST /api/grievance/franchise
+     *
+     * An admin may pass franchiseId to file on a store's behalf, for grievances
+     * that arrive by phone or email. Everything downstream — auto-assignment,
+     * emails, the assignment record — is deliberately shared with the
+     * self-raised path so both kinds of ticket behave identically.
      */
     submitFranchiseGrievance = async (req: AuthRequest, res: Response) => {
         try {
@@ -347,7 +353,17 @@ class GrievanceController {
                 return res.status(401).json({ success: false, error: 'Unauthorized' });
             }
 
-            const { department, departmentDetails, category, subject, description } = req.body;
+            const { department, departmentDetails, category, subject, description, franchiseId } = req.body;
+
+            // Only an admin may name a different store; a vendor session is
+            // always scoped to its own, so it can never target another one.
+            const actingAsAdmin = req.user?.role === 'admin';
+            if (franchiseId && !actingAsAdmin) {
+                return res.status(403).json({ success: false, error: 'Access denied.' });
+            }
+            if (actingAsAdmin && !franchiseId) {
+                return res.status(400).json({ success: false, error: 'Choose the franchise this grievance is for' });
+            }
 
             // Get uploaded files from multer (Cloudinary)
             const uploadedFiles = req.files as Express.Multer.File[];
@@ -369,11 +385,18 @@ class GrievanceController {
 
             // No longer forcing details
 
-            // Get franchise details
-            const [vendorRows]: any = await db.execute(
-                'SELECT id, store_name, store_email as email FROM vendor_details WHERE user_id = ?',
-                [userId]
-            );
+            // Get franchise details. For an admin the store is named explicitly,
+            // and either id space is accepted since the admin vendor list returns
+            // profiles.id while vendor_details has its own id.
+            const [vendorRows]: any = actingAsAdmin
+                ? await db.execute(
+                    'SELECT id, store_name, store_email as email, user_id FROM vendor_details WHERE id = ? OR user_id = ? LIMIT 1',
+                    [franchiseId, franchiseId]
+                )
+                : await db.execute(
+                    'SELECT id, store_name, store_email as email, user_id FROM vendor_details WHERE user_id = ?',
+                    [userId]
+                );
 
             if (vendorRows.length === 0) {
                 return res.status(403).json({
@@ -398,10 +421,12 @@ class GrievanceController {
             // Insert grievance
             const [insertResult]: any = await db.execute(
                 `INSERT INTO grievances 
-                (ticket_id, customer_id, source_type, department, department_details, category, subject, description, attachments, status, created_at, status_updated_at, assigned_to)
-                VALUES (?, ?, 'franchise', ?, ?, ?, ?, ?, ?, 'submitted', ?, ?, ?)`,
+                (ticket_id, customer_id, source_type, created_by_role, created_by, department, department_details, category, subject, description, attachments, status, created_at, status_updated_at, assigned_to)
+                VALUES (?, ?, 'franchise', ?, ?, ?, ?, ?, ?, ?, ?, 'submitted', ?, ?, ?)`,
                 [
                     ticketId,
+                    actingAsAdmin ? (vendor.user_id || userId) : userId,
+                    actingAsAdmin ? 'admin' : 'franchise',
                     userId,
                     department ? department.toLowerCase() : null,
                     departmentDetails || null,
@@ -698,9 +723,11 @@ class GrievanceController {
                 END as franchise_name,
                 
                 COALESCE(vd_customer.address, vd_franchise.address) as franchise_address,
-                COALESCE(vd_customer.city, vd_franchise.city) as franchise_city
+                COALESCE(vd_customer.city, vd_franchise.city) as franchise_city,
+                creator.name as created_by_name
          FROM grievances g
          LEFT JOIN profiles p ON g.customer_id = p.id
+         LEFT JOIN profiles creator ON creator.id = g.created_by
          LEFT JOIN vendor_details vd_customer ON g.franchise_id = vd_customer.id
          LEFT JOIN vendor_details vd_franchise ON g.source_type = 'franchise' AND g.customer_id = vd_franchise.user_id
          ORDER BY 

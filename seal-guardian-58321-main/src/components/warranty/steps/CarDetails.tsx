@@ -8,6 +8,7 @@ import { CAR_MAKES } from "@/lib/carMakes";
 import { formatVehicleRegLive, getVehicleRegError } from "@/lib/validation";
 import { EVFormData } from "../EVProductsForm";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface CarDetailsProps {
   formData: EVFormData;
@@ -18,6 +19,14 @@ interface CarDetailsProps {
 
 const CarDetails = ({ formData, updateFormData, onNext, onPrev }: CarDetailsProps) => {
   const { toast } = useToast();
+  const { user } = useAuth();
+
+  /**
+   * How far back a purchase date may be set. Stores and customers register close
+   * to the sale, so 7 days; an admin is correcting or back-filling a record and
+   * keeps the original 30.
+   */
+  const purchaseDateWindowDays = user?.role === 'admin' ? 30 : 7;
 
   const [isBrandNew, setIsBrandNew] = useState(formData.carReg === 'APPLIED-FOR');
 
@@ -177,7 +186,7 @@ const CarDetails = ({ formData, updateFormData, onNext, onPrev }: CarDetailsProp
           <DatePicker
             value={formData.installationDate || undefined}
             onChange={(value) => updateFormData({ installationDate: value })}
-            minDate={new Date(new Date().setDate(new Date().getDate() - 30))}
+            minDate={new Date(new Date().setDate(new Date().getDate() - purchaseDateWindowDays))}
             maxDate={new Date()}
             placeholder="Select installation date"
           />

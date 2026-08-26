@@ -24,6 +24,8 @@ interface InstallerDetailsProps {
 }
 
 const InstallerDetails = ({ formData, updateFormData, onNext, isPublic, isEditing, installers, storeDetails }: InstallerDetailsProps) => {
+  /** The QR flow already determined the store; only the installer is asked. */
+  const storeKnown = Boolean(isPublic && storeDetails);
   const { user } = useAuth();
   const { toast } = useToast();
   const [stores, setStores] = useState<any[]>([]);
@@ -157,12 +159,20 @@ const InstallerDetails = ({ formData, updateFormData, onNext, isPublic, isEditin
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
+      {/* On the QR flow the customer scanned this store's code, so the store
+          fields are prefilled and unanswerable — only the installer is theirs
+          to choose. Showing them invites confusion and a wrong edit. */}
       <div>
-        <h3 className="text-2xl font-semibold mb-2">📋 Installer Information</h3>
-        <p className="text-muted-foreground mb-6">Please provide the store/installer details</p>
+        <h3 className="text-2xl font-semibold mb-2">
+          {storeKnown ? "Installer" : "Installer Information"}
+        </h3>
+        <p className="text-muted-foreground mb-6">
+          {storeKnown ? "Who fitted the product" : "Please provide the store/installer details"}
+        </p>
       </div>
 
       <div className="grid md:grid-cols-2 gap-4">
+        {!storeKnown && (
         <div className="space-y-2 md:col-span-2">
           <Label htmlFor="storeName">
             Store Name <span className="text-destructive">*</span>
@@ -194,6 +204,7 @@ const InstallerDetails = ({ formData, updateFormData, onNext, isPublic, isEditin
             />
           )}
         </div>
+        )}
 
         <div className="space-y-2">
           <Label htmlFor="installerName">
@@ -228,6 +239,9 @@ const InstallerDetails = ({ formData, updateFormData, onNext, isPublic, isEditin
           )}
         </div>
 
+        {/* Store email, phone and address all come from the scanned
+            store, so they are prefilled and not the customer's to edit. */}
+        {!storeKnown && (<>
         <div className="space-y-2">
           <Label htmlFor="storeEmail">
             Store Email <span className="text-destructive">*</span>
@@ -336,6 +350,7 @@ const InstallerDetails = ({ formData, updateFormData, onNext, isPublic, isEditin
             className="bg-muted"
           />
         </div>
+        </>)}
       </div>
 
       <div className="flex justify-end">

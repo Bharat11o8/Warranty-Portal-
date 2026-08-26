@@ -10,8 +10,8 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, RefreshCw, MessageSquare, Search, Paperclip, Store, Users, Mail, Send, Clock, Eye, Filter, ShieldCheck, Download, Package, Box, Wrench, Monitor, HelpCircle } from "lucide-react";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Loader2, RefreshCw, MessageSquare, Search, Paperclip, Store, Users, Mail, Send, Clock, Eye, Filter, ShieldCheck, Download, Package, Box, Wrench, Monitor, HelpCircle, Plus, X, Upload, CheckCircle } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { WarrantySpecSheet } from "@/components/warranty/WarrantySpecSheet";
 import {
     Pagination,
@@ -48,6 +48,8 @@ interface Grievance {
     franchise_address?: string;
     franchise_city?: string;
     source_type?: 'customer' | 'franchise';
+    created_by_role?: 'customer' | 'franchise' | 'admin';
+    created_by_name?: string | null;
     department?: string;
     department_details?: string;
     warranty_id?: string | number;
@@ -167,6 +169,15 @@ export const AdminGrievances = () => {
         fetchGrievances();
     }, []);
 
+    // Who filed it: the store itself, or an admin on their behalf.
+    // Declared above the filtering effect below, which reads it.
+    const [originFilter, setOriginFilter] = useState("all");
+
+    // How many filters are narrowing the list. The filter panel is collapsed, so
+    // without this an active filter would be invisible.
+    const activeFilterCount = [statusFilter, categoryFilter, originFilter]
+        .filter(v => v !== "all").length;
+
     useEffect(() => {
         let result = grievances.filter(g => g.source_type === 'franchise');
 
@@ -178,6 +189,7 @@ export const AdminGrievances = () => {
                 g.customer_name?.toLowerCase().includes(query) ||
                 g.franchise_name?.toLowerCase().includes(query) ||
                 g.subject.toLowerCase().includes(query) ||
+                (g.created_by_name || "").toLowerCase().includes(query) ||
                 (CATEGORIES[g.category] || g.category).toLowerCase().includes(query)
             );
         }
@@ -192,9 +204,18 @@ export const AdminGrievances = () => {
             result = result.filter(g => g.category === categoryFilter);
         }
 
+        // Who filed it
+        if (originFilter !== "all") {
+            result = result.filter(g =>
+                originFilter === "admin"
+                    ? g.created_by_role === "admin"
+                    : g.created_by_role !== "admin"
+            );
+        }
+
         setFilteredGrievances(result);
         setCurrentPage(1);
-    }, [searchQuery, statusFilter, categoryFilter, grievances]);
+    }, [searchQuery, statusFilter, categoryFilter, originFilter, grievances]);
 
     // Pagination Calculation
     const totalPages = Math.ceil(filteredGrievances.length / itemsPerPage);
@@ -295,6 +316,95 @@ export const AdminGrievances = () => {
 
     const stats = getStats();
 
+    // Filing a grievance on a franchise's behalf, for ones that arrive by
+    // phone or email rather than through the portal.
+    const [onBehalfOpen, setOnBehalfOpen] = useState(false);
+    const [franchises, setFranchises] = useState<{ id: string; store_name: string; store_code?: string | null; city?: string | null }[]>([]);
+    const [franchiseSearch, setFranchiseSearch] = useState("");
+    const [obFranchiseId, setObFranchiseId] = useState<string | null>(null);
+    const [obCategory, setObCategory] = useState("");
+    const [obSubject, setObSubject] = useState("");
+    const [obDescription, setObDescription] = useState("");
+    const [obFiles, setObFiles] = useState<File[]>([]);
+    const [creating, setCreating] = useState(false);
+
+    const openOnBehalf = async () => {
+        setOnBehalfOpen(true);
+        setObFranchiseId(null);
+        setObCategory("");
+        setObSubject("");
+        setObDescription("");
+        setObFiles([]);
+        setFranchiseSearch("");
+        if (franchises.length > 0) return;
+        try {
+            const res = await api.get("/admin/vendors");
+            const list = res.data.vendors || res.data.data || [];
+            setFranchises(
+                list
+                    .map((v: any) => ({
+                        id: v.vendor_details_id ?? v.id,
+                        store_name: v.store_name,
+                        store_code: v.store_code,
+                        city: v.city,
+                    }))
+                    .filter((v: any) => v.id && v.store_name)
+            );
+        } catch (error: any) {
+            toast({
+                title: "Could not load franchises",
+                description: getErrorMessage(error, "Try reopening the form."),
+                variant: "destructive",
+            });
+        }
+    };
+
+    const handleCreateOnBehalf = async () => {
+        if (!obFranchiseId || !obCategory || !obSubject.trim() || !obDescription.trim()) return;
+        setCreating(true);
+        try {
+            const formData = new FormData();
+            formData.append("franchiseId", obFranchiseId);
+            formData.append("category", obCategory);
+            formData.append("subject", obSubject);
+            formData.append("description", obDescription);
+            obFiles.forEach(file => formData.append("attachments", file));
+
+            const response = await api.post("/grievance/franchise", formData, {
+                headers: { "Content-Type": "multipart/form-data" },
+            });
+
+            toast({
+                title: "Grievance filed",
+                description: response.data?.message || "It is now in the queue and assigned.",
+            });
+            setOnBehalfOpen(false);
+            fetchGrievances();
+        } catch (error: any) {
+            toast({
+                title: "Could not file the grievance",
+                description: getErrorMessage(error, "Failed to submit"),
+                variant: "destructive",
+            });
+        } finally {
+            setCreating(false);
+        }
+    };
+
+    const filteredFranchises = (() => {
+        const q = franchiseSearch.trim().toLowerCase();
+        if (!q) return franchises.slice(0, 40);
+        return franchises
+            .filter(f =>
+                f.store_name.toLowerCase().includes(q) ||
+                (f.store_code || "").toLowerCase().includes(q) ||
+                (f.city || "").toLowerCase().includes(q)
+            )
+            .slice(0, 40);
+    })();
+
+    const selectedFranchise = franchises.find(f => f.id === obFranchiseId) || null;
+
     // Export to CSV function
     const exportToCSV = () => {
         const dataToExport = filteredGrievances;
@@ -304,7 +414,7 @@ export const AdminGrievances = () => {
         }
 
         const headers = [
-            "Date", "Ticket ID", "Raised By", "Department", "Category", "Subject", "Status", "Assigned To", "Last Update"
+            "Date", "Ticket ID", "Raised By", "Department", "Category", "Subject", "Status", "Filed By", "Filed By Name", "Assigned To", "Last Update"
         ];
 
         const csvContent = [
@@ -317,6 +427,8 @@ export const AdminGrievances = () => {
                 `"${CATEGORIES[g.category] || g.category}"`,
                 `"${g.subject.replace(/"/g, '""')}"`,
                 `"${g.status.replace("_", " ")}"`,
+                `"${g.created_by_role === 'admin' ? 'Admin (on behalf)' : 'Franchise'}"`,
+                `"${(g.created_by_name || "").replace(/"/g, '""')}"`,
                 `"${g.assigned_to || 'Unassigned'}"`,
                 `"${g.updated_at ? formatToIST(g.updated_at) : (g.status_updated_at ? formatToIST(g.status_updated_at) : formatToIST(g.created_at))}"`
             ].join(","))
@@ -364,72 +476,139 @@ export const AdminGrievances = () => {
                 </Card>
             </div>
 
-            <div className="flex flex-col xl:flex-row gap-4 justify-between items-start xl:items-center">
+            {/* Toolbar: search on the left, filters and actions on the right, in a
+                card like the rest of the admin screens. The primary action sits at
+                the end rather than between two filters. */}
+            <div className="bg-white p-4 rounded-3xl border border-orange-50 shadow-sm">
+                <div className="flex flex-col lg:flex-row gap-3 lg:items-center lg:justify-between">
 
-                <div className="flex w-full md:w-auto gap-2 items-center">
-                    <div className="relative flex-1 md:w-[300px]">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                    {/* Search */}
+                    <div className="relative w-full lg:max-w-sm">
+                        <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
                         <Input
-                            placeholder="Search..."
+                            placeholder="Search ticket, store, subject..."
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
-                            className="pl-9 h-10 border-orange-100 focus:border-orange-200 rounded-lg text-sm"
+                            className="pl-10 h-11 border-orange-100 focus:border-orange-200 rounded-2xl text-sm bg-slate-50/50"
                         />
                     </div>
 
-                    {/* Mobile: Filter Icon Dropdown */}
-                    <div className="md:hidden">
-                        <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                                <Button variant="outline" size="icon" className={cn("h-10 w-10 border-orange-100 bg-white", statusFilter !== 'all' && "text-orange-600 border-orange-200 bg-orange-50")}>
+                    <div className="flex flex-wrap items-center gap-2">
+                        {/* One filter button holding every filter, so the row stays
+                            search + filter + actions at any width. The badge shows how
+                            many are active, since a collapsed panel hides that. */}
+                        <Popover>
+                            <PopoverTrigger asChild>
+                                <Button
+                                    variant="outline"
+                                    className={cn(
+                                        "h-11 rounded-2xl border-orange-100 hover:bg-orange-50 shrink-0 gap-2",
+                                        activeFilterCount > 0
+                                            ? "text-orange-600 border-orange-200 bg-orange-50"
+                                            : "text-slate-600"
+                                    )}
+                                >
                                     <Filter className="h-4 w-4" />
+                                    <span>Filter</span>
+                                    {activeFilterCount > 0 && (
+                                        <span className="ml-0.5 h-5 min-w-5 px-1.5 rounded-full bg-orange-600 text-white text-[10px] font-black flex items-center justify-center">
+                                            {activeFilterCount}
+                                        </span>
+                                    )}
                                 </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                                <DropdownMenuItem onClick={() => setStatusFilter("all")}>All Status</DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => setStatusFilter("submitted")}>Submitted</DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => setStatusFilter("under_review")}>Under Review</DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => setStatusFilter("in_progress")}>In Progress</DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => setStatusFilter("resolved")}>Resolved</DropdownMenuItem>
-                            </DropdownMenuContent>
-                        </DropdownMenu>
+                            </PopoverTrigger>
+                            <PopoverContent align="end" className="w-72 rounded-2xl p-4 space-y-4">
+                                <div className="flex items-center justify-between">
+                                    <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Filters</p>
+                                    {activeFilterCount > 0 && (
+                                        <button
+                                            onClick={() => {
+                                                setStatusFilter("all");
+                                                setCategoryFilter("all");
+                                                setOriginFilter("all");
+                                            }}
+                                            className="text-[11px] font-bold text-orange-600 hover:text-orange-700"
+                                        >
+                                            Clear all
+                                        </button>
+                                    )}
+                                </div>
+
+                                <div className="space-y-1.5">
+                                    <label className="text-[11px] font-bold text-slate-500">Status</label>
+                                    <Select value={statusFilter} onValueChange={setStatusFilter}>
+                                        <SelectTrigger className="h-10 rounded-xl border-slate-200 text-sm">
+                                            <SelectValue placeholder="Status" />
+                                        </SelectTrigger>
+                                        <SelectContent className="rounded-2xl">
+                                            <SelectItem value="all">All Status</SelectItem>
+                                            <SelectItem value="submitted">Submitted</SelectItem>
+                                            <SelectItem value="under_review">Under Review</SelectItem>
+                                            <SelectItem value="in_progress">In Progress</SelectItem>
+                                            <SelectItem value="resolved">Resolved</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+
+                                <div className="space-y-1.5">
+                                    <label className="text-[11px] font-bold text-slate-500">Category</label>
+                                    <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+                                        <SelectTrigger className="h-10 rounded-xl border-slate-200 text-sm">
+                                            <SelectValue placeholder="Category" />
+                                        </SelectTrigger>
+                                        <SelectContent className="rounded-2xl">
+                                            <SelectItem value="all">All Categories</SelectItem>
+                                            {Object.entries(CATEGORIES).map(([key, label]) => (
+                                                <SelectItem key={key} value={key}>{label}</SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+
+                                <div className="space-y-1.5">
+                                    <label className="text-[11px] font-bold text-slate-500">Filed by</label>
+                                    <Select value={originFilter} onValueChange={setOriginFilter}>
+                                        <SelectTrigger className="h-10 rounded-xl border-slate-200 text-sm">
+                                            <SelectValue placeholder="Filed By" />
+                                        </SelectTrigger>
+                                        <SelectContent className="rounded-2xl">
+                                            <SelectItem value="all">Anyone</SelectItem>
+                                            <SelectItem value="franchise">By franchise</SelectItem>
+                                            <SelectItem value="admin">By admin</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                            </PopoverContent>
+                        </Popover>
+
+                        {/* Divider keeps the actions visually apart from the filters */}
+                        <div className="hidden md:block h-7 w-px bg-slate-200 mx-1" />
+
+                        <Button
+                            variant="outline"
+                            size="icon"
+                            onClick={fetchGrievances}
+                            title="Refresh"
+                            className="h-11 w-11 rounded-2xl border-orange-100 hover:bg-orange-50 shrink-0"
+                        >
+                            <RefreshCw className="h-4 w-4" />
+                        </Button>
+                        <Button
+                            variant="outline"
+                            onClick={exportToCSV}
+                            className="hidden md:flex h-11 rounded-2xl border-orange-100 hover:bg-orange-50 shrink-0 gap-2 text-slate-600"
+                        >
+                            <Download className="h-4 w-4" />
+                            <span>Export</span>
+                        </Button>
+                        <Button
+                            onClick={openOnBehalf}
+                            className="h-11 rounded-2xl shrink-0 gap-2 bg-orange-600 hover:bg-orange-700 shadow-sm"
+                        >
+                            <Plus className="h-4 w-4" />
+                            <span className="hidden sm:inline">Raise for a franchise</span>
+                        </Button>
                     </div>
-
-                    {/* Desktop: Select Dropdown */}
-                    <div className="hidden md:flex gap-2">
-                        <Select value={statusFilter} onValueChange={setStatusFilter}>
-                            <SelectTrigger className="w-[150px] border-orange-100 h-10">
-                                <SelectValue placeholder="Status" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="all">All Status</SelectItem>
-                                <SelectItem value="submitted">Submitted</SelectItem>
-                                <SelectItem value="under_review">Under Review</SelectItem>
-                                <SelectItem value="in_progress">In Progress</SelectItem>
-                                <SelectItem value="resolved">Resolved</SelectItem>
-                            </SelectContent>
-                        </Select>
-
-                        <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-                            <SelectTrigger className="w-[180px] border-orange-100 h-10">
-                                <SelectValue placeholder="Category" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="all">All Categories</SelectItem>
-                                {Object.entries(CATEGORIES).map(([key, label]) => (
-                                    <SelectItem key={key} value={key}>{label}</SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                    </div>
-
-                    <Button variant="outline" onClick={exportToCSV} className="hidden md:flex h-10 border-orange-100 hover:bg-orange-50 shrink-0 gap-2 text-slate-600">
-                        <Download className="h-4 w-4" />
-                        <span>Export</span>
-                    </Button>
-                    <Button variant="outline" size="icon" onClick={fetchGrievances} className="h-10 w-10 border-orange-100 hover:bg-orange-50 shrink-0">
-                        <RefreshCw className="h-4 w-4" />
-                    </Button>
                 </div>
             </div>
 
@@ -453,6 +632,11 @@ export const AdminGrievances = () => {
                                             <div className="flex flex-col">
                                                 <span className="font-mono font-bold text-slate-800">{g.ticket_id}</span>
                                                 <span className="text-xs text-slate-500">{formatToIST(g.created_at)}</span>
+                                                {g.created_by_role === 'admin' && (
+                                                    <span className="mt-1 w-max text-[9px] font-black uppercase tracking-wider text-purple-600 bg-purple-50 border border-purple-100 px-1.5 py-0.5 rounded">
+                                                        By admin
+                                                    </span>
+                                                )}
                                             </div>
                                             <div className="flex items-center gap-1">
                                                 <Badge className={cn("text-[10px] px-2 py-0.5 border shadow-sm", calculateSLA(g.created_at, g.resolved_at, g.status).color)}>
@@ -530,7 +714,23 @@ export const AdminGrievances = () => {
                                                 <td className="p-4 text-slate-600">
                                                     {formatToIST(g.created_at)}
                                                 </td>
-                                                <td className="p-4 font-mono font-bold text-black-600">{g.ticket_id}</td>
+                                                <td className="p-4 font-mono font-bold text-black-600">
+                                                    <div className="flex flex-col gap-1 items-start">
+                                                        <span>{g.ticket_id}</span>
+                                                        {g.created_by_role === 'admin' ? (
+                                                            <span
+                                                                title={g.created_by_name ? `Filed by ${g.created_by_name}` : undefined}
+                                                                className="text-[9px] font-black uppercase tracking-wider text-purple-600 bg-purple-50 border border-purple-100 px-1.5 py-0.5 rounded"
+                                                            >
+                                                                By admin
+                                                            </span>
+                                                        ) : (
+                                                            <span className="text-[9px] font-black uppercase tracking-wider text-slate-500 bg-slate-50 border border-slate-200 px-1.5 py-0.5 rounded">
+                                                                By franchise
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </td>
                                                 <td className="p-4 font-medium text-slate-900">{g.customer_name}</td>
                                                 <td className="p-4">
                                                     {CATEGORY_CONFIG[g.category] ? (
@@ -646,6 +846,18 @@ export const AdminGrievances = () => {
                                             {selectedGrievance.status === 'rejected' ? 'Action Required' : selectedGrievance.status.replace("_", " ")}
                                         </Badge>
                                     </DialogTitle>
+                                    <p className="text-[11px] font-semibold text-slate-500">
+                                        Filed by{" "}
+                                        {selectedGrievance.created_by_role === 'admin' ? (
+                                            <span className="text-purple-600">
+                                                {selectedGrievance.created_by_name || "an admin"} (admin, on the store's behalf)
+                                            </span>
+                                        ) : (
+                                            <span className="text-slate-700">
+                                                {selectedGrievance.created_by_name || selectedGrievance.customer_name} (franchise)
+                                            </span>
+                                        )}
+                                    </p>
                                 </div>
                             </DialogHeader>
 
@@ -1077,6 +1289,213 @@ export const AdminGrievances = () => {
                 onClose={() => setShowWarrantySheet(false)}
                 warranty={viewingWarranty}
             />
+
+            {/* File a grievance on a franchise's behalf */}
+            <Dialog open={onBehalfOpen} onOpenChange={(v) => { if (!v && !creating) setOnBehalfOpen(false); }}>
+                <DialogContent className="max-w-xl max-h-[90vh] flex flex-col p-0 gap-0">
+                    <DialogHeader className="px-6 pt-6 pb-4 border-b border-slate-100 shrink-0">
+                        <DialogTitle className="text-base flex items-center gap-2">
+                            <Store className="h-4 w-4 text-orange-500" /> Raise a grievance for a franchise
+                        </DialogTitle>
+                        <DialogDescription className="text-xs">
+                            For grievances received by phone or email. It is filed against the
+                            store and auto-assigned exactly like a self-raised one.
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <div className="flex-1 min-h-0 overflow-y-auto px-6 py-5 space-y-5">
+                        {/* Which franchise */}
+                        <div>
+                            <p className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-2">Franchise</p>
+                            {selectedFranchise ? (
+                                <div className="flex items-center justify-between p-3 rounded-xl border border-orange-200 bg-orange-50">
+                                    <div className="min-w-0">
+                                        <p className="text-sm font-bold text-slate-800 truncate">{selectedFranchise.store_name}</p>
+                                        <p className="text-[11px] text-slate-500">
+                                            {[selectedFranchise.store_code, selectedFranchise.city].filter(Boolean).join(" · ")}
+                                        </p>
+                                    </div>
+                                    <Button variant="ghost" size="sm" onClick={() => setObFranchiseId(null)} className="text-xs shrink-0">
+                                        Change
+                                    </Button>
+                                </div>
+                            ) : (
+                                <>
+                                    <div className="relative">
+                                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
+                                        <Input
+                                            autoFocus
+                                            placeholder="Search by name, code or city..."
+                                            className="pl-9 h-9 text-sm"
+                                            value={franchiseSearch}
+                                            onChange={(e) => setFranchiseSearch(e.target.value)}
+                                        />
+                                    </div>
+                                    <div className="mt-2 max-h-44 overflow-y-auto space-y-1">
+                                        {filteredFranchises.map(f => (
+                                            <button
+                                                key={f.id}
+                                                onClick={() => setObFranchiseId(f.id)}
+                                                className="w-full text-left p-2.5 rounded-lg border border-slate-100 hover:border-orange-200 hover:bg-orange-50/50 transition-colors"
+                                            >
+                                                <p className="text-sm font-semibold text-slate-700 truncate">{f.store_name}</p>
+                                                <p className="text-[11px] text-slate-400">
+                                                    {[f.store_code, f.city].filter(Boolean).join(" · ")}
+                                                </p>
+                                            </button>
+                                        ))}
+                                        {filteredFranchises.length === 0 && (
+                                            <p className="text-xs text-slate-400 text-center py-6">No franchise matches that search.</p>
+                                        )}
+                                    </div>
+                                </>
+                            )}
+                        </div>
+
+                        {selectedFranchise && (
+                            <>
+                                {/* Category — the same tile grid the franchise sees,
+                                    not a dropdown, so both forms ask identically. */}
+                                <div>
+                                    <label className="text-xs font-black text-slate-500 uppercase tracking-widest mb-3 block">
+                                        Category <span className="text-red-500">*</span>
+                                    </label>
+                                    <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                                        {Object.entries(CATEGORIES).map(([value, label]) => (
+                                            <div
+                                                key={value}
+                                                onClick={() => setObCategory(value)}
+                                                className={cn(
+                                                    "cursor-pointer rounded-xl border-2 px-3 py-3 text-xs md:text-sm text-center font-bold transition-all hover:shadow-sm",
+                                                    obCategory === value
+                                                        ? "border-orange-500 bg-orange-50 text-orange-600 ring-1 ring-orange-500/20"
+                                                        : "text-slate-600 border-slate-100 bg-white hover:border-slate-200 hover:bg-slate-50"
+                                                )}
+                                            >
+                                                {label}
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {/* Subject */}
+                                <div>
+                                    <label className="text-xs font-black text-slate-500 uppercase tracking-widest mb-2 block">
+                                        Subject <span className="text-red-500">*</span>
+                                    </label>
+                                    <input
+                                        type="text"
+                                        className="flex h-12 w-full rounded-2xl border-2 border-slate-100 bg-slate-50/50 px-4 py-2 text-sm font-medium placeholder:text-slate-400 focus:outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/10 transition-all"
+                                        placeholder="Brief title of the issue"
+                                        value={obSubject}
+                                        onChange={(e) => setObSubject(e.target.value)}
+                                    />
+                                </div>
+
+                                {/* Description */}
+                                <div>
+                                    <label className="text-xs font-black text-slate-500 uppercase tracking-widest mb-2 block">
+                                        Description <span className="text-red-500">*</span>
+                                    </label>
+                                    <Textarea
+                                        value={obDescription}
+                                        onChange={(e: any) => setObDescription(e.target.value)}
+                                        placeholder="Detailed description of the issue..."
+                                        rows={4}
+                                        className="rounded-2xl border-2 border-slate-100 bg-slate-50/50 px-4 py-3 text-sm font-medium placeholder:text-slate-400 focus:outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/10 transition-all resize-none"
+                                    />
+                                </div>
+
+                                {/* Attachments — three slots, as on the franchise form */}
+                                <div>
+                                    <label className="text-xs font-black text-slate-500 uppercase tracking-widest mb-3 block flex items-center gap-2">
+                                        <Paperclip className="h-4 w-4" />
+                                        Attachments (Optional - Max 3)
+                                    </label>
+                                    <div className="grid grid-cols-3 gap-3">
+                                        {[0, 1, 2].map((idx) => {
+                                            const file = obFiles[idx];
+                                            return (
+                                                <div key={idx} className="relative">
+                                                    <input
+                                                        type="file"
+                                                        id={`ob-attachment-${idx}`}
+                                                        className="hidden"
+                                                        accept="image/*"
+                                                        onChange={(e) => {
+                                                            const picked = e.target.files?.[0];
+                                                            if (!picked) return;
+                                                            setObFiles(prev => {
+                                                                const next = [...prev];
+                                                                next[idx] = picked;
+                                                                return next;
+                                                            });
+                                                        }}
+                                                    />
+                                                    <label
+                                                        htmlFor={`ob-attachment-${idx}`}
+                                                        className={cn(
+                                                            "flex flex-col items-center justify-center border-2 border-dashed rounded-2xl p-4 h-28 cursor-pointer transition-all",
+                                                            file
+                                                                ? "border-orange-400 bg-orange-50"
+                                                                : "border-slate-200 hover:border-orange-300 hover:bg-orange-50/30"
+                                                        )}
+                                                    >
+                                                        {file ? (
+                                                            <>
+                                                                <CheckCircle className="h-7 w-7 text-orange-500 mb-1" />
+                                                                <span className="text-[10px] text-orange-600 font-bold truncate max-w-full px-1 text-center">
+                                                                    {file.name.length > 12 ? file.name.substring(0, 12) + '...' : file.name}
+                                                                </span>
+                                                            </>
+                                                        ) : (
+                                                            <>
+                                                                <Upload className="h-6 w-6 text-slate-400 mb-1" />
+                                                                <span className="text-[10px] text-slate-400 font-medium">Upload</span>
+                                                            </>
+                                                        )}
+                                                    </label>
+                                                    {file && (
+                                                        <button
+                                                            onClick={(e) => {
+                                                                e.preventDefault();
+                                                                setObFiles(prev => {
+                                                                    const next = [...prev];
+                                                                    next.splice(idx, 1);
+                                                                    return next;
+                                                                });
+                                                            }}
+                                                            className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 shadow-lg hover:bg-red-600 transition-colors"
+                                                        >
+                                                            <X className="h-3 w-3" />
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            </>
+                        )}
+                    </div>
+
+                    <div className="px-6 py-4 border-t border-slate-100 shrink-0 flex justify-end gap-2">
+                        <Button variant="outline" onClick={() => setOnBehalfOpen(false)} disabled={creating} className="border-slate-200">
+                            Cancel
+                        </Button>
+                        <Button
+                            onClick={handleCreateOnBehalf}
+                            disabled={!obFranchiseId || !obCategory || !obSubject.trim() || !obDescription.trim() || creating}
+                            className="bg-orange-600 hover:bg-orange-700"
+                        >
+                            {creating
+                                ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />
+                                : <Send className="h-3.5 w-3.5 mr-1.5" />}
+                            File grievance
+                        </Button>
+                    </div>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 };

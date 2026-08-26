@@ -1,4 +1,7 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
+import { AuditRoundBar, type AuditRound } from "./AuditRoundBar";
+import { AuditChaseList } from "./AuditChaseList";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import api, { getErrorMessage } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
@@ -11,9 +14,10 @@ import {
 import { downloadCSV } from "@/lib/utils";
 import {
     Search, Loader2, RefreshCw, Download, X, ClipboardCheck,
-    AlertTriangle, CheckCircle2, Flag, Phone, MessageCircle, Plus
+    AlertTriangle, CheckCircle2, Flag, Phone, MessageCircle, Plus, SlidersHorizontal
 } from "lucide-react";
-import { AUDIT_QUESTIONS, AUDIT_SECTIONS, AUDIT_FLOW, auditLabel } from "@/lib/auditQuestions";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { AUDIT_QUESTIONS, AUDIT_SECTIONS, AUDIT_FLOW, auditLabel, type AuditFieldKey } from "@/lib/auditQuestions";
 import { AuditCallForm } from "./AuditCallForm";
 
 /**
@@ -89,6 +93,68 @@ export const AdminAudits = () => {
     const [saving, setSaving] = useState(false);
     const [callFormOpen, setCallFormOpen] = useState(false);
 
+    // Audits repeat, so submissions belong to a round — the campaign that sent
+    // them. The round carries who it went to, which is the only way to tell who
+    // has NOT responded: the submissions table can only ever show who did.
+    const [rounds, setRounds] = useState<AuditRound[]>([]);
+    const [roundsLoading, setRoundsLoading] = useState(true);
+    const [roundId, setRoundId] = useState<string | null>(null);
+    const [view, setView] = useState<"done" | "not_done">("done");
+    const [chaseKey, setChaseKey] = useState(0);
+
+    /**
+     * Filters built from the data rather than a fixed list.
+     *
+     * Territory (city/zone/asm) and the answers themselves are what an admin
+     * actually slices by; the options come from the audits on hand, so a value
+     * only ever appears when something matches it.
+     */
+    const [facets, setFacets] = useState<Record<string, string>>({});
+
+    /** Answer fields worth filtering on: the ones with a fixed set of options. */
+    const ANSWER_FACETS = useMemo(
+        () => AUDIT_QUESTIONS.filter(q => q.type === "single" || q.type === "multi"),
+        []
+    );
+
+    /** Multi-selects are stored comma-joined, so they match on contains. */
+    const isMulti = (key: string) =>
+        AUDIT_QUESTIONS.find(q => q.key === (key as AuditFieldKey))?.type === "multi";
+
+    const facetOptions = useMemo(() => {
+        const scoped = roundId ? audits.filter(a => (a as any).round_id === roundId) : audits;
+        const uniq = (vals: (string | null | undefined)[]) =>
+            Array.from(new Set(vals.filter(Boolean).map(v => String(v).trim()))).sort();
+
+        return {
+            city: uniq(scoped.map(a => a.city)),
+            state: uniq(scoped.map(a => a.state)),
+            zone: uniq(scoped.map(a => a.zone)),
+            asm: uniq(scoped.map(a => a.asm)),
+        } as Record<string, string[]>;
+    }, [audits, roundId]);
+
+    const setFacet = (key: string, value: string) =>
+        setFacets(prev => {
+            const next = { ...prev };
+            if (!value || value === "all") delete next[key];
+            else next[key] = value;
+            return next;
+        });
+
+    const activeFacetCount = Object.keys(facets).length;
+
+    const fetchRounds = useCallback(async () => {
+        try {
+            const res = await api.get("/admin/audit-rounds");
+            setRounds(res.data.rounds || []);
+        } catch {
+            setRounds([]);
+        } finally {
+            setRoundsLoading(false);
+        }
+    }, []);
+
     const fetchAudits = async (showToast = false) => {
         setRefreshing(true);
         try {
@@ -108,13 +174,28 @@ export const AdminAudits = () => {
         }
     };
 
-    useEffect(() => { fetchAudits(); }, []);
+    useEffect(() => { fetchAudits(); fetchRounds(); }, [fetchRounds]);
 
     const visible = useMemo(() => {
         let list = audits;
+        // Scope to the selected round; older audits predate rounds and carry no
+        // round_id, so they only appear when no round is selected.
+        if (roundId) list = list.filter(a => (a as any).round_id === roundId);
         if (filter === "unmatched") list = list.filter(a => !a.vendor_details_id);
         else if (filter === "whatsapp" || filter === "call") list = list.filter(a => a.channel === filter);
         else if (filter !== "all") list = list.filter(a => a.review_status === filter);
+
+        // Territory and answer facets. A multi-select is stored comma-joined,
+        // so it matches on contains rather than equality.
+        for (const [key, value] of Object.entries(facets)) {
+            list = list.filter(a => {
+                const cell = (a as any)[key];
+                if (!cell) return false;
+                return isMulti(key)
+                    ? String(cell).split(",").map(x => x.trim()).includes(value)
+                    : String(cell).trim() === value;
+            });
+        }
 
         const q = search.trim().toLowerCase();
         if (q) {
@@ -128,7 +209,7 @@ export const AdminAudits = () => {
             );
         }
         return list;
-    }, [audits, filter, search]);
+    }, [audits, filter, search, roundId, facets]);
 
     const tabs: { k: Filter; label: string; n: number; tone: string; bar: string }[] = [
         { k: "all",       label: "All",       n: Number(counts.total || 0),           tone: "text-slate-700",   bar: "bg-slate-700" },
@@ -195,8 +276,163 @@ export const AdminAudits = () => {
 
     const META_COLS = ["Submitted", "Contact", "Phone", "City", "Zone", "ASM", "Channel", "Done by"];
 
+    const activeRound = rounds.find(r => r.id === roundId) || null;
+
     return (
         <div className="space-y-4">
+            <AuditRoundBar
+                rounds={rounds}
+                loading={roundsLoading}
+                selectedId={roundId}
+                onSelect={setRoundId}
+                onSeeded={() => { fetchRounds(); setChaseKey(k => k + 1); }}
+            />
+
+            {/* Done vs not done. The submissions table can only show replies, so
+                "not done" is a different list entirely, built from who the audit
+                was sent to. */}
+            {roundId && (
+                <div className="flex gap-2">
+                    <button
+                        onClick={() => setView("done")}
+                        className={
+                            "h-10 px-4 rounded-2xl text-sm font-bold transition-colors border " +
+                            (view === "done"
+                                ? "bg-emerald-50 border-emerald-200 text-emerald-700"
+                                : "bg-white border-slate-200 text-slate-500 hover:bg-slate-50")
+                        }
+                    >
+                        Done{activeRound ? ` · ${activeRound.responded_count}` : ""}
+                    </button>
+                    <button
+                        onClick={() => setView("not_done")}
+                        className={
+                            "h-10 px-4 rounded-2xl text-sm font-bold transition-colors border " +
+                            (view === "not_done"
+                                ? "bg-amber-50 border-amber-200 text-amber-700"
+                                : "bg-white border-slate-200 text-slate-500 hover:bg-slate-50")
+                        }
+                    >
+                        Not done{activeRound ? ` · ${activeRound.outstanding_count}` : ""}
+                    </button>
+                </div>
+            )}
+
+            {/* Filters drawn from the data on hand. Not gated on a round: they
+                filter whatever audits are listed, round or no round. */}
+            {view === "done" && (
+                <div className="flex flex-wrap items-center gap-2">
+                    <Popover>
+                        <PopoverTrigger asChild>
+                            <Button
+                                variant="outline"
+                                className={
+                                    "h-10 rounded-2xl border-orange-100 hover:bg-orange-50 gap-2 " +
+                                    (activeFacetCount > 0
+                                        ? "text-orange-600 border-orange-200 bg-orange-50"
+                                        : "text-slate-600")
+                                }
+                            >
+                                <SlidersHorizontal className="h-4 w-4" />
+                                Filter
+                                {activeFacetCount > 0 && (
+                                    <span className="ml-0.5 h-5 min-w-5 px-1.5 rounded-full bg-orange-600 text-white text-[10px] font-black flex items-center justify-center">
+                                        {activeFacetCount}
+                                    </span>
+                                )}
+                            </Button>
+                        </PopoverTrigger>
+                        <PopoverContent align="start" className="w-80 rounded-2xl p-4 max-h-[70vh] overflow-y-auto space-y-4">
+                            <div className="flex items-center justify-between">
+                                <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Filters</p>
+                                {activeFacetCount > 0 && (
+                                    <button
+                                        onClick={() => setFacets({})}
+                                        className="text-[11px] font-bold text-orange-600 hover:text-orange-700"
+                                    >
+                                        Clear all
+                                    </button>
+                                )}
+                            </div>
+
+                            {/* Territory — only shown where the audits carry values */}
+                            {(["city", "state", "zone", "asm"] as const).map(key =>
+                                facetOptions[key]?.length > 0 ? (
+                                    <div key={key} className="space-y-1.5">
+                                        <label className="text-[11px] font-bold text-slate-500 capitalize">
+                                            {key === "asm" ? "ASM" : key}
+                                        </label>
+                                        <Select value={facets[key] || "all"} onValueChange={v => setFacet(key, v)}>
+                                            <SelectTrigger className="h-10 rounded-xl border-slate-200 text-sm">
+                                                <SelectValue />
+                                            </SelectTrigger>
+                                            <SelectContent className="rounded-2xl max-h-64">
+                                                <SelectItem value="all">Any</SelectItem>
+                                                {facetOptions[key].map(v => (
+                                                    <SelectItem key={v} value={v}>{v}</SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                ) : null
+                            )}
+
+                            {/* The answers themselves */}
+                            <div className="pt-1 border-t border-slate-100">
+                                <p className="text-[10px] font-black uppercase tracking-wider text-slate-400 pt-3 pb-2">
+                                    Answers
+                                </p>
+                                <div className="space-y-3">
+                                    {ANSWER_FACETS.map(q => (
+                                        <div key={q.key} className="space-y-1.5">
+                                            <label className="text-[11px] font-bold text-slate-500">{q.label}</label>
+                                            <Select
+                                                value={facets[q.key] || "all"}
+                                                onValueChange={v => setFacet(q.key, v)}
+                                            >
+                                                <SelectTrigger className="h-10 rounded-xl border-slate-200 text-sm">
+                                                    <SelectValue />
+                                                </SelectTrigger>
+                                                <SelectContent className="rounded-2xl max-h-64">
+                                                    <SelectItem value="all">Any</SelectItem>
+                                                    {q.options!.map(o => (
+                                                        <SelectItem key={o.id} value={o.id}>{o.title}</SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        </PopoverContent>
+                    </Popover>
+
+                    {/* Active filters as removable chips, so what is applied is visible
+                        without reopening the panel. */}
+                    {Object.entries(facets).map(([key, value]) => (
+                        <button
+                            key={key}
+                            onClick={() => setFacet(key, "all")}
+                            className="h-10 px-3 rounded-2xl border border-orange-200 bg-orange-50 text-orange-700 text-xs font-bold inline-flex items-center gap-1.5 hover:bg-orange-100 transition-colors"
+                        >
+                            <span className="text-orange-400 uppercase text-[9px] tracking-wider">
+                                {key === "asm" ? "ASM" : (AUDIT_QUESTIONS.find(q => q.key === (key as AuditFieldKey))?.label || key)}
+                            </span>
+                            {AUDIT_QUESTIONS.some(q => q.key === (key as AuditFieldKey))
+                                ? auditLabel(key as AuditFieldKey, value)
+                                : value}
+                            <X className="h-3 w-3" />
+                        </button>
+                    ))}
+                </div>
+            )}
+
+            {view === "not_done" && roundId ? (
+                <div className="bg-white rounded-3xl border border-orange-50 shadow-sm p-5">
+                    <AuditChaseList roundId={roundId} responded="no" refreshKey={chaseKey} />
+                </div>
+            ) : (
+            <>
             {/* Toolbar */}
             <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
                 <div className="flex items-center gap-3 min-w-0">
@@ -381,6 +617,8 @@ export const AdminAudits = () => {
                         </p>
                     </div>
                 </div>
+            )}
+            </>
             )}
 
             <AuditCallForm

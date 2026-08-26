@@ -711,6 +711,7 @@ export const AdminWarrantyList = ({
                     onRefresh={onRefresh}
                     onApprove={onApprove}
                     onReject={onReject}
+                    onMoveToPending={onMoveToPending}
                     processingWarranty={processingWarranty}
                 />
             )}

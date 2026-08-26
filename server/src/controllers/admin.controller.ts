@@ -246,6 +246,7 @@ export class AdminController {
                     COALESCE(vd.is_distributor, false) as is_distributor,
                     COALESCE(vd.is_franchise, true) as is_franchise,
                     vv.verified_at,
+                    vv.rejection_reason,
                     COALESCE(mp.manpower_count, 0) as manpower_count,
                     mp.manpower_names,
                     COALESCE(wagg.total_warranties, 0) as total_warranties,
@@ -365,6 +366,7 @@ export class AdminController {
                     vv.is_verified,
                     COALESCE(vv.is_active, true) as is_active,
                     vv.verified_at,
+                    vv.rejection_reason,
                     COALESCE(dist.allowed_brands, 'AF') as distributor_allowed_brands,
                     COALESCE(vd.allowed_brands, 'AF') as franchise_allowed_brands
                 FROM profiles p
@@ -490,10 +492,18 @@ export class AdminController {
 
             const vendorData = vendor[0];
 
-            // Update verification status
+            // Update verification status.
+            // The reason was previously only emailed and written to the activity
+            // log, so the admin screens had nothing to show. Store it, and clear
+            // it on approval so an old reason cannot linger on a verified store.
             await db.execute(
-                'UPDATE vendor_verification SET is_verified = ?, verified_at = ? WHERE user_id = ?',
-                [is_verified, getISTTimestamp(), id]
+                'UPDATE vendor_verification SET is_verified = ?, verified_at = ?, rejection_reason = ? WHERE user_id = ?',
+                [
+                    is_verified,
+                    getISTTimestamp(),
+                    is_verified ? null : (rejection_reason ? String(rejection_reason).trim() : null),
+                    id
+                ]
             );
 
             // Send email notification
@@ -1435,6 +1445,19 @@ export class AdminController {
                 return res.status(400).json({ error: `Cannot move to pending from ${warrantyData.status} status. Only rejected warranties can be overridden.` });
             }
 
+            // Reversing an approval is a correction, not a routine rejection: the
+            // customer has already been told their warranty is active. Require a
+            // reason so the record says why it was undone.
+            const isReversal = status === 'rejected' && warrantyData.status === 'validated';
+            if (isReversal && !String(rejectionReason || '').trim()) {
+                return res.status(400).json({
+                    error: 'This warranty is already approved. Give a reason for reversing it.'
+                });
+            }
+            if (isReversal) {
+                console.log(`[SHIELD] REVERSING an approved warranty ${uid} — admin ${(req as any).user?.email || 'unknown'}`);
+            }
+
             console.log(`[SHIELD] Updating warranty: uid=${uid}, current_status=${warrantyData.status}, new_status=${status}`);
 
             const connection = await db.getConnection();
@@ -1913,8 +1936,11 @@ export class AdminController {
 
             const existing = existingRows[0];
 
+            // Approved warranties were previously locked. Admins need to correct
+            // genuine mistakes after approval, and this route is already
+            // admin-only, so the edit is allowed and logged instead of refused.
             if (existing.status === 'validated') {
-                return res.status(403).json({ error: 'Approved warranties cannot be edited.' });
+                console.log(`[Admin] Editing an APPROVED warranty ${uid} — admin ${(req as any).user?.email || 'unknown'}`);
             }
 
             // Determine the target UID. Admins may correct the UID (seat covers)
@@ -3475,6 +3501,7 @@ export class AdminController {
                        COALESCE(vv.is_verified, false) as is_verified,
                        COALESCE(vv.is_active, true) as is_active,
                        vv.verified_at,
+                       vv.rejection_reason,
                        COALESCE(oa.order_pending_count, 0) as order_pending_count,
                        COALESCE(oa.order_confirmed_count, 0) as order_confirmed_count,
                        COALESCE(oa.order_declined_count, 0) as order_declined_count,

@@ -701,9 +701,33 @@ export const QuickReviewPanel = ({
                             )}
                         </Button>
                     </>
+                ) : warranty.status === 'validated' ? (
+                    /* An approved claim can still be reversed — approvals are
+                       sometimes given in error, and the record has to be
+                       correctable. The reject dialog collects the reason. */
+                    <div className="w-full space-y-2">
+                        <div className="text-center py-2 bg-emerald-50 rounded-xl text-xs font-bold text-emerald-600 uppercase tracking-widest">
+                            This claim is approved
+                        </div>
+                        <Button
+                            variant="outline"
+                            className="w-full h-11 rounded-xl text-sm font-bold text-red-600 border-red-200 hover:bg-red-50 gap-2"
+                            onClick={() => handleAction('reject')}
+                            disabled={isProcessing}
+                        >
+                            {actionLoading === 'reject' ? (
+                                <><Loader2 className="h-4 w-4 animate-spin" /> REVERSING...</>
+                            ) : (
+                                <><AlertTriangle className="h-4 w-4" /> REVERSE APPROVAL</>
+                            )}
+                        </Button>
+                        <p className="text-center text-[10px] text-slate-400">
+                            The customer has already been told this warranty is active.
+                        </p>
+                    </div>
                 ) : (
                     <div className="w-full text-center py-2 bg-slate-50 rounded-xl text-xs font-bold text-slate-400 uppercase tracking-widest">
-                        This claim has already been marked as {warranty.status === 'validated' ? 'Approved' : 'Action Required'}.
+                        This claim has already been marked as Action Required.
                     </div>
                 )}
             </div>

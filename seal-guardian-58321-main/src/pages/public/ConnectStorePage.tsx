@@ -17,6 +17,7 @@ interface StoreDetails {
     address_line1?: string;
     city?: string;
     state?: string;
+    pincode?: string;
     store_code?: string;
     owner_name?: string;
     vendor_details_id?: number;
@@ -59,6 +60,7 @@ const ConnectStorePage = () => {
                         address_line1: store.address_line1,
                         city: store.city,
                         state: store.state,
+                        pincode: store.pincode,
                         store_code: store.store_code,
                         owner_name: store.owner_name,
                         vendor_details_id: store.vendor_details_id

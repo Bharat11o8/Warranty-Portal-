@@ -162,6 +162,20 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
     allExifData: {} as Record<string, any>,
   });
 
+  /**
+   * True when the store is already determined — the QR flow carries it in
+   * storeDetails. Then the store fields are noise the customer cannot
+   * usefully answer, and a wrong pick would misattribute the warranty.
+   */
+  const storeKnown = Boolean(isPublic && storeDetails);
+
+  /**
+   * How far back a purchase date may be set. Stores and customers register
+   * close to the sale, so 7 days; an admin is correcting or back-filling a
+   * record and keeps the original 30.
+   */
+  const purchaseDateWindowDays = user?.role === 'admin' ? 30 : 7;
+
   // Auto-fill customer details for logged-in customers
   useEffect(() => {
     if (user?.role === 'customer') {
@@ -328,6 +342,10 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
         ...prev,
         storeName: storeDetails.store_name || "",
         storeEmail: storeDetails.store_email || "",
+        // The registration field is hidden on this flow, and the column is
+        // NOT NULL, so carry the same marker 1,601 existing seat cover
+        // warranties already use rather than leaving it blank.
+        carReg: prev.carReg || "APPLIED-FOR",
       }));
       if (installers) {
         setManpowerList(installers.filter((mp: any) => ['seat_cover', 'ppf_spf'].includes(mp.applicator_type)));
@@ -1253,8 +1271,10 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
 
   return (
     <div className="max-w-5xl mx-auto space-y-6 sm:space-y-8 px-3 py-2 sm:p-4">
-      {/* Header Section */}
-      <div className="text-center space-y-2 mb-6 sm:mb-8">
+      {/* Header Section — hidden on the QR flow, where the page above already
+          names the store and states what the form is for. Repeating it pushes
+          the actual fields below the fold on a phone. */}
+      <div className={`text-center space-y-2 mb-6 sm:mb-8 ${storeKnown ? "hidden" : ""}`}>
         <div className="inline-flex items-center justify-center p-2.5 sm:p-3 bg-orange-100 rounded-full mb-3 sm:mb-4 ring-4 sm:ring-8 ring-orange-50">
           <Car className="h-6 w-6 sm:h-8 sm:w-8 text-orange-600" />
         </div>
@@ -1421,12 +1441,19 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
               <Building2 className="h-5 w-5 text-orange-600" />
             </div>
             <div>
-              <h3 className="font-semibold text-gray-900">Store Details</h3>
-              <p className="text-xs text-muted-foreground">Store and manpower information</p>
+              <h3 className="font-semibold text-gray-900">{storeKnown ? "Installer" : "Store Details"}</h3>
+              <p className="text-xs text-muted-foreground">
+                {storeKnown ? "Who fitted the seat cover" : "Store and manpower information"}
+              </p>
             </div>
           </div>
           <CardContent className="p-4 sm:p-6 md:p-8">
             <div className="grid md:grid-cols-2 gap-4 sm:gap-6 md:gap-8">
+              {/* On the QR flow the store is already known — the customer
+                  scanned that store's code. Asking them to pick it again
+                  invites the wrong store and breaks warranty attribution,
+                  so only ask when it is genuinely unknown. */}
+              {!storeKnown && (<>
               {/* Store Selection */}
               <div className="space-y-3">
                 <Label htmlFor="storeName" className="text-sm font-medium text-slate-700">
@@ -1483,6 +1510,7 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
                   />
                 </div>
               </div>
+              </>)}
 
               {/* Manpower Selection */}
               <div className="space-y-3">
@@ -1496,7 +1524,7 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
                   }))}
                   value={formData.manpowerId}
                   onValueChange={(value) => handleChange("manpowerId", value)}
-                  placeholder={!formData.storeName ? "Select Store First" : manpowerList.length === 0 ? "No Manpower Found" : "Select Installer"}
+                  placeholder={!formData.storeName && !storeKnown ? "Select Store First" : manpowerList.length === 0 ? "No Manpower Found" : "Select Installer"}
                   title="Select Installer"
                   disabled={(!formData.storeName || manpowerList.length === 0) || loading}
                 />
@@ -1509,7 +1537,7 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
                 <DatePicker
                   value={formData.purchaseDate}
                   onChange={(value) => handleChange("purchaseDate", value)}
-                  minDate={new Date(new Date().setDate(new Date().getDate() - 30))}
+                  minDate={new Date(new Date().setDate(new Date().getDate() - purchaseDateWindowDays))}
                   maxDate={new Date()}
                   placeholder="Select purchase date"
                   disabled={loading}
@@ -1600,6 +1628,11 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
           </CardContent>
         </Card>
 
+        {/* Hidden on the QR flow: a customer scanning in-store does not have
+            the registration to hand, and the card holds nothing else. The
+            value is set to APPLIED-FOR below — the column is NOT NULL and
+            1,601 existing seat cover warranties already use that. */}
+        {!storeKnown && (<>
         {/* Section 3: Vehicle Details */}
         <Card className="border-0 shadow-lg bg-white/80 backdrop-blur-sm ring-1 ring-slate-100">
           <div className="bg-gradient-to-r from-emerald-50 to-teal-50/30 px-4 sm:px-6 py-3 sm:py-4 border-b border-emerald-100 flex items-center gap-3 rounded-t-xl">
@@ -1668,6 +1701,7 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
             </div>
           </CardContent>
         </Card>
+        </>)}
 
         {/* Section 4: Product & Warranty */}
         <Card className="border-0 shadow-lg bg-white/80 backdrop-blur-sm ring-1 ring-slate-100">

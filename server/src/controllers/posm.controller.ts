@@ -91,6 +91,8 @@ class POSMController {
                 ticket_id: ticketId,
                 franchise_id: vendor.id,
                 requirement: requirement,
+                created_by_role: 'franchise',
+                created_by: userId,
                 status: 'open'
             });
 
@@ -119,6 +121,98 @@ class POSMController {
 
         } catch (error: any) {
             console.error('Submit POSM request error:', error);
+            return res.status(500).json({ success: false, error: 'Failed to submit POSM request' });
+        }
+    }
+
+    /**
+     * Raise a POSM request on a franchise's behalf (Admin only)
+     * POST /api/posm/admin/on-behalf
+     *
+     * Requirements often arrive by phone or email rather than through the
+     * portal. This records one against the named store so it enters the same
+     * queue as a self-raised ticket. The franchise is named explicitly here
+     * instead of taken from the session, so the caller is checked as admin at
+     * the route and the target store is verified below.
+     */
+    submitRequestOnBehalf = async (req: AuthRequest, res: Response) => {
+        try {
+            const adminId = req.user?.id;
+            if (!adminId) {
+                return res.status(401).json({ success: false, error: 'Unauthorized' });
+            }
+
+            const { requirement, franchiseId } = req.body;
+
+            if (!franchiseId) {
+                return res.status(400).json({ success: false, error: 'Choose the franchise this request is for' });
+            }
+            if (!requirement || requirement.trim().length === 0) {
+                return res.status(400).json({ success: false, error: 'Requirement description is mandatory' });
+            }
+
+            // The admin vendor list and vendor_details use different id spaces,
+            // so accept either and store the resolved vendor_details.id — the
+            // column posm_requests.franchise_id has a FK onto it.
+            const [vendorRows]: any = await db.execute(
+                `SELECT vd.id, vd.store_name
+                 FROM vendor_details vd
+                 WHERE vd.id = ? OR vd.user_id = ?
+                 LIMIT 1`,
+                [franchiseId, franchiseId]
+            );
+
+            if (!vendorRows.length) {
+                return res.status(404).json({ success: false, error: 'Franchise not found' });
+            }
+
+            const franchise = vendorRows[0];
+
+            const uploadedFiles = req.files as Express.Multer.File[];
+            const attachmentUrls = uploadedFiles?.map((file: any) => file.path || file.secure_url || file.url) || [];
+
+            const ticketId = await this.generateTicketId();
+
+            const requestId = await posmRepository.createPOSMRequest({
+                ticket_id: ticketId,
+                franchise_id: franchise.id,
+                requirement: requirement,
+                created_by_role: 'admin',
+                created_by: adminId,
+                status: 'open'
+            });
+
+            // Logged as a franchise message so the ticket reads as the store's
+            // requirement, which is whose it is. The admin who entered it is
+            // recorded in the activity log below.
+            await posmRepository.createMessage({
+                request_id: requestId,
+                sender_id: adminId,
+                sender_role: 'franchise',
+                message: requirement,
+                attachments: attachmentUrls.length > 0 ? attachmentUrls : null
+            });
+
+            await ActivityLogService.log({
+                adminId,
+                adminName: (req.user as any)?.name,
+                adminEmail: (req.user as any)?.email,
+                actionType: 'CREATE_POSM_REQUEST_ON_BEHALF',
+                targetType: 'POSM_REQUEST',
+                targetId: String(requestId),
+                targetName: franchise.store_name,
+                details: { ticketId, requestId, franchiseId: franchise.id },
+                ipAddress: req.ip || req.socket?.remoteAddress
+            });
+
+            return res.status(201).json({
+                success: true,
+                message: `POSM request raised for ${franchise.store_name}`,
+                data: { ticketId, requestId }
+            });
+
+        } catch (error: any) {
+            console.error('Submit POSM request on behalf error:', error);
             return res.status(500).json({ success: false, error: 'Failed to submit POSM request' });
         }
     }

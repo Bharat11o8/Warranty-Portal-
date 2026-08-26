@@ -72,6 +72,7 @@ interface EVProductsFormProps {
     address_line1?: string;
     city?: string;
     state?: string;
+    pincode?: string;
     store_code?: string;
     owner_name?: string;
     vendor_details_id?: number;
@@ -244,6 +245,8 @@ const EVProductsForm = ({ initialData, warrantyId, onSuccess, isUniversal, isEdi
         dealerAddr1: storeDetails.address_line1 || "",
         dealerCity: storeDetails.city || "",
         dealerState: storeDetails.state || "",
+        // The store's own postcode — never the customer's to type.
+        dealerPostalCode: storeDetails.pincode || "",
       }));
     }
   }, [isPublic, storeDetails]);
@@ -538,8 +541,10 @@ const EVProductsForm = ({ initialData, warrantyId, onSuccess, isUniversal, isEdi
 
   return (
     <div className="max-w-5xl mx-auto space-y-8">
-      {/* Header Section */}
-      <div className="text-center space-y-2 mb-8">
+      {/* Header Section — hidden on the QR flow, where the page above already
+          names the store and states what the form is for. Repeating it pushes
+          the actual fields below the fold on a phone. */}
+      <div className={`text-center space-y-2 mb-8 ${isPublic && storeDetails ? "hidden" : ""}`}>
         <div className="inline-flex items-center justify-center p-3 bg-blue-100 rounded-full mb-4 ring-8 ring-blue-50">
           <ShieldCheck className="h-8 w-8 text-blue-600" />
         </div>

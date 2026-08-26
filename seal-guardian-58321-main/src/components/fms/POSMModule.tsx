@@ -33,6 +33,8 @@ interface POSMRequest {
     id: number;
     ticket_id: string;
     requirement: string;
+    created_by_role?: 'franchise' | 'admin';
+    created_by_name?: string | null;
     status: string;
     created_at: string;
     updated_at: string;
@@ -219,9 +221,18 @@ const POSMModule: React.FC = () => {
                                     <p className="text-sm font-medium text-gray-800 line-clamp-1 mb-2">
                                         {req.requirement}
                                     </p>
-                                    <div className="flex items-center text-[11px] text-gray-400">
-                                        <Clock className="h-3 w-3 mr-1" />
-                                        {formatToIST(req.created_at)}
+                                    <div className="flex items-center gap-2 text-[11px] text-gray-400">
+                                        <span className="flex items-center">
+                                            <Clock className="h-3 w-3 mr-1" />
+                                            {formatToIST(req.created_at)}
+                                        </span>
+                                        {/* The store did not raise this one, so say so plainly
+                                            rather than leaving them to wonder where it came from. */}
+                                        {req.created_by_role === 'admin' && (
+                                            <span className="text-[9px] font-bold uppercase tracking-wide text-purple-600 bg-purple-50 border border-purple-100 px-1.5 py-0.5 rounded">
+                                                Added by Autoform
+                                            </span>
+                                        )}
                                     </div>
                                 </div>
                             ))
@@ -265,6 +276,11 @@ const POSMModule: React.FC = () => {
                                         <p className="text-xs text-gray-500 truncate max-w-[200px] md:max-w-md">
                                             {selectedRequest.requirement}
                                         </p>
+                                        {selectedRequest.created_by_role === 'admin' && (
+                                            <p className="text-[11px] font-medium text-purple-600 mt-0.5">
+                                                Raised on your behalf by {selectedRequest.created_by_name || "the Autoform team"}
+                                            </p>
+                                        )}
                                     </div>
                                 </div>
                             </div>

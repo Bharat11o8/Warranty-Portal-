@@ -279,6 +279,7 @@ export const AdminVendors = () => {
                 "Pincode": v.pincode,
                 "Status": v.is_verified ? "Active" : v.verified_at ? "Rejected" : "Pending",
                 "Verified At": v.verified_at ? new Date(v.verified_at).toLocaleDateString() : "N/A",
+                "Rejection Reason": v.is_verified ? "" : (v.rejection_reason || ""),
                 "Manpower Count": v.manpower_count || 0,
                 "Team Members": v.manpower_names || "",
                 "Total Warranties": v.total_warranties || 0,

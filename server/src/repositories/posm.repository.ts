@@ -6,6 +6,8 @@ export interface POSMRequest {
     ticket_id: string;
     franchise_id: string;
     requirement: string;
+    created_by_role?: 'franchise' | 'admin';
+    created_by?: string | null;
     status: 'open' | 'under_review' | 'approved' | 'in_production' | 'dispatched' | 'delivered' | 'closed' | 'rejected';
     internal_notes?: string | null;
     created_at?: Date;
@@ -32,9 +34,11 @@ export class POSMRepository extends BaseRepository<POSMRequest> {
      */
     async createPOSMRequest(request: Omit<POSMRequest, 'id'>, connection?: PoolConnection): Promise<number> {
         const result = await this.execute(
-            `INSERT INTO posm_requests (ticket_id, franchise_id, requirement, status) 
-             VALUES (?, ?, ?, ?)`,
-            [request.ticket_id, request.franchise_id, request.requirement, request.status || 'open'],
+            `INSERT INTO posm_requests (ticket_id, franchise_id, requirement, created_by_role, created_by, status) 
+             VALUES (?, ?, ?, ?, ?, ?)`,
+            [request.ticket_id, request.franchise_id, request.requirement,
+             request.created_by_role || 'franchise', request.created_by ?? null,
+             request.status || 'open'],
             connection
         );
         return result.insertId;
@@ -45,7 +49,10 @@ export class POSMRepository extends BaseRepository<POSMRequest> {
      */
     async getFranchiseRequests(franchiseId: string, connection?: PoolConnection): Promise<POSMRequest[]> {
         const rows = await this.query<RowDataPacket[]>(
-            `SELECT * FROM posm_requests WHERE franchise_id = ? ORDER BY created_at DESC`,
+            `SELECT r.*, creator.name AS created_by_name
+             FROM posm_requests r
+             LEFT JOIN profiles creator ON creator.id = r.created_by
+             WHERE r.franchise_id = ? ORDER BY r.created_at DESC`,
             [franchiseId],
             connection
         );
@@ -115,10 +122,12 @@ export class POSMRepository extends BaseRepository<POSMRequest> {
                 r.*,
                 vd.store_name,
                 p.name as contact_name,
-                p.email as contact_email
+                p.email as contact_email,
+                creator.name as created_by_name
              FROM posm_requests r
              JOIN vendor_details vd ON r.franchise_id = vd.id
              JOIN profiles p ON vd.user_id = p.id
+             LEFT JOIN profiles creator ON creator.id = r.created_by
              ORDER BY r.created_at DESC`,
             [],
             connection

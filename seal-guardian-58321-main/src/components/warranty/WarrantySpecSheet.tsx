@@ -7,7 +7,7 @@ import {
 } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Download, FileText, ExternalLink, XCircle, Loader2, Pencil, Save, X, CheckCircle2, AlertTriangle, ZoomIn } from "lucide-react";
+import { Download, FileText, ExternalLink, XCircle, Loader2, Pencil, Save, X, CheckCircle2, AlertTriangle, ZoomIn, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn, getWarrantyExpiration, formatToIST } from "@/lib/utils";
 import { useState, useEffect, createContext, useContext } from "react";
@@ -25,6 +25,8 @@ interface WarrantySpecSheetProps {
     onRefresh?: () => void;
     onApprove?: (uid: string) => Promise<void> | void;
     onReject?: (uid: string) => Promise<void> | void;
+    /** Send a rejected warranty back for correction and resubmission. */
+    onMoveToPending?: (uid: string) => Promise<void> | void;
     processingWarranty?: string | null;
 }
 
@@ -64,7 +66,7 @@ const SpecRow = ({ label, value, mono = false, editField }: { label: string, val
     );
 };
 
-export const WarrantySpecSheet = ({ isOpen, onClose, warranty, isAdmin, onRefresh, onApprove, onReject, processingWarranty }: WarrantySpecSheetProps) => {
+export const WarrantySpecSheet = ({ isOpen, onClose, warranty, isAdmin, onRefresh, onApprove, onReject, onMoveToPending, processingWarranty }: WarrantySpecSheetProps) => {
     const { toast } = useToast();
     const [isEditing, setIsEditing] = useState(false);
     const [saving, setSaving] = useState(false);
@@ -176,11 +178,14 @@ export const WarrantySpecSheet = ({ isOpen, onClose, warranty, isAdmin, onRefres
                                                         {saving ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Save className="h-3 w-3 mr-1" />} Save
                                                     </Button>
                                                 </div>
-                                            ) : warranty.status !== 'validated' ? (
+                                            ) : (
+                                                /* Approved warranties are editable too — an
+                                                   admin has to be able to correct a mistake
+                                                   after approval, not only before it. */
                                                 <Button size="sm" variant="outline" className="h-6 px-2 text-[10px] uppercase font-bold ml-2 text-orange-600 border-orange-200 hover:bg-orange-50" onClick={() => setIsEditing(true)}>
                                                     <Pencil className="h-3 w-3 mr-1" /> Edit
                                                 </Button>
-                                            ) : null}
+                                            )}
                                         </>
                                     )}
                                 </div>
@@ -486,6 +491,50 @@ export const WarrantySpecSheet = ({ isOpen, onClose, warranty, isAdmin, onRefres
                                     {actionLoading === 'reject' ? 'Rejecting...' : 'Reject'}
                                 </Button>
                             </>
+                        )}
+                        {/* A rejected warranty is not final — the store fixes what was
+                            wrong and resubmits, so an admin can send it back to
+                            pending. This was only reachable from the list, which the
+                            warranties screen renders with actions turned off. */}
+                        {isAdmin && onMoveToPending && warranty?.status === 'rejected' && (
+                            <Button
+                                className="flex-1 h-11 font-semibold text-orange-600 border-orange-200 hover:bg-orange-50 rounded-xl gap-2"
+                                variant="outline"
+                                onClick={async () => {
+                                    setActionLoading('pending');
+                                    await onMoveToPending(warranty.uid);
+                                    setActionLoading(null);
+                                    onClose();
+                                }}
+                                disabled={actionLoading !== null}
+                            >
+                                {actionLoading === 'pending'
+                                    ? <Loader2 className="h-4 w-4 animate-spin" />
+                                    : <RefreshCw className="h-4 w-4" />}
+                                {actionLoading === 'pending' ? 'Moving...' : 'Move to pending'}
+                            </Button>
+                        )}
+
+                        {/* An approval given in error has to be correctable, so a
+                            validated warranty can still be reversed. The reject flow
+                            collects the reason, which the server now requires. */}
+                        {isAdmin && onReject && warranty?.status === 'validated' && (
+                            <Button
+                                className="flex-1 h-11 font-semibold bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 rounded-xl gap-2"
+                                variant="outline"
+                                onClick={async () => {
+                                    setActionLoading('reject');
+                                    await onReject(warranty.uid);
+                                    setActionLoading(null);
+                                    onClose();
+                                }}
+                                disabled={actionLoading !== null}
+                            >
+                                {actionLoading === 'reject'
+                                    ? <Loader2 className="h-4 w-4 animate-spin" />
+                                    : <AlertTriangle className="h-4 w-4" />}
+                                {actionLoading === 'reject' ? 'Reversing...' : 'Reverse approval'}
+                            </Button>
                         )}
                         <Button className="flex-1 h-11 text-base font-semibold border-2 border-orange-200 text-orange-600 bg-white hover:bg-orange-50 hover:border-orange-300 transition-all rounded-xl" onClick={onClose} variant="outline" disabled={actionLoading !== null}>Done</Button>
                     </div>

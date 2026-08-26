@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
-import { Loader2, RefreshCw, MessageSquare, Search, Paperclip, Store, User, Mail, Send, Clock, Eye, Filter, CheckCircle2, X, FileImage, FileVideo, FileText, Download } from "lucide-react";
+import { Loader2, RefreshCw, MessageSquare, Search, Paperclip, Store, User, Mail, Send, Clock, Eye, Filter, CheckCircle2, X, FileImage, FileVideo, FileText, Download, Plus } from "lucide-react";
 import {
     Pagination,
     PaginationContent,
@@ -28,6 +28,8 @@ interface POSMRequest {
     contact_name: string;
     contact_email: string;
     requirement: string;
+    created_by_role?: 'franchise' | 'admin';
+    created_by_name?: string | null;
     status: string;
     internal_notes: string | null;
     created_at: string;
@@ -87,11 +89,22 @@ export const AdminPOSM = () => {
     // Filters
     const [searchQuery, setSearchQuery] = useState("");
     const [statusFilter, setStatusFilter] = useState("all");
+    const [originFilter, setOriginFilter] = useState("all");
     const [activeTab, setActiveTab] = useState<'details' | 'chat'>('details');
 
     // Pagination State
     const [currentPage, setCurrentPage] = useState(1);
     const itemsPerPage = 15;
+
+    // Raising a request on a franchise's behalf, for requirements that come in
+    // by phone or email rather than through the portal.
+    const [onBehalfOpen, setOnBehalfOpen] = useState(false);
+    const [franchises, setFranchises] = useState<{ id: string; store_name: string; store_code?: string | null; city?: string | null }[]>([]);
+    const [franchiseSearch, setFranchiseSearch] = useState("");
+    const [onBehalfFranchiseId, setOnBehalfFranchiseId] = useState<string | null>(null);
+    const [onBehalfRequirement, setOnBehalfRequirement] = useState("");
+    const [onBehalfFiles, setOnBehalfFiles] = useState<File[]>([]);
+    const [creating, setCreating] = useState(false);
 
     const fetchRequests = async () => {
         setLoading(true);
@@ -139,6 +152,7 @@ export const AdminPOSM = () => {
                 r.ticket_id.toLowerCase().includes(query) ||
                 r.store_name.toLowerCase().includes(query) ||
                 r.contact_name.toLowerCase().includes(query) ||
+                (r.created_by_name || "").toLowerCase().includes(query) ||
                 r.requirement.toLowerCase().includes(query)
             );
         }
@@ -148,9 +162,18 @@ export const AdminPOSM = () => {
             result = result.filter(r => r.status === statusFilter);
         }
 
+        // Who raised it
+        if (originFilter !== "all") {
+            result = result.filter(r =>
+                originFilter === "admin"
+                    ? r.created_by_role === "admin"
+                    : r.created_by_role !== "admin"
+            );
+        }
+
         setFilteredRequests(result);
         setCurrentPage(1); // Reset to first page when filters change
-    }, [searchQuery, statusFilter, requests]);
+    }, [searchQuery, statusFilter, originFilter, requests]);
 
     // Pagination Calculation
     const totalPages = Math.ceil(filteredRequests.length / itemsPerPage);
@@ -239,7 +262,7 @@ export const AdminPOSM = () => {
             return;
         }
 
-        const headers = ["Date", "Ticket ID", "Franchise", "Contact Name", "Contact Email", "Requirement", "Status", "Last Update"];
+        const headers = ["Date", "Ticket ID", "Franchise", "Contact Name", "Contact Email", "Requirement", "Status", "Raised By", "Raised By Name", "Last Update"];
 
         const csvContent = [
             headers.join(","),
@@ -251,6 +274,8 @@ export const AdminPOSM = () => {
                 `"${r.contact_email}"`,
                 `"${r.requirement.replace(/"/g, '""').replace(/\n/g, ' ')}"`,
                 `"${r.status.replace("_", " ")}"`,
+                `"${r.created_by_role === 'admin' ? 'Admin (on behalf)' : 'Franchise'}"`,
+                `"${(r.created_by_name || "").replace(/"/g, '""')}"`,
                 `"${formatToIST(r.updated_at)}"`
             ].join(","))
         ].join("\n");
@@ -264,6 +289,79 @@ export const AdminPOSM = () => {
 
         toast({ title: "Exported", description: `${dataToExport.length} POSM requests exported to CSV.` });
     };
+
+    const openOnBehalf = async () => {
+        setOnBehalfOpen(true);
+        setOnBehalfFranchiseId(null);
+        setOnBehalfRequirement("");
+        setOnBehalfFiles([]);
+        setFranchiseSearch("");
+        if (franchises.length > 0) return;
+        try {
+            const res = await api.get("/admin/vendors");
+            const list = res.data.vendors || res.data.data || [];
+            setFranchises(
+                list
+                    .map((v: any) => ({
+                        id: v.vendor_details_id ?? v.id,
+                        store_name: v.store_name,
+                        store_code: v.store_code,
+                        city: v.city,
+                    }))
+                    .filter((v: any) => v.id && v.store_name)
+            );
+        } catch (error: any) {
+            toast({
+                title: "Could not load franchises",
+                description: getErrorMessage(error, "Try reopening the form."),
+                variant: "destructive",
+            });
+        }
+    };
+
+    const handleCreateOnBehalf = async () => {
+        if (!onBehalfFranchiseId || !onBehalfRequirement.trim()) return;
+        setCreating(true);
+        try {
+            const formData = new FormData();
+            formData.append("franchiseId", onBehalfFranchiseId);
+            formData.append("requirement", onBehalfRequirement);
+            onBehalfFiles.forEach(file => formData.append("attachments", file));
+
+            const response = await api.post("/posm/admin/on-behalf", formData, {
+                headers: { "Content-Type": "multipart/form-data" },
+            });
+
+            toast({
+                title: `Request raised — ${response.data?.data?.ticketId ?? ""}`.trim(),
+                description: response.data?.message || "The request is now in the queue.",
+            });
+            setOnBehalfOpen(false);
+            fetchRequests();
+        } catch (error: any) {
+            toast({
+                title: "Could not raise the request",
+                description: getErrorMessage(error, "Failed to submit POSM request"),
+                variant: "destructive",
+            });
+        } finally {
+            setCreating(false);
+        }
+    };
+
+    const filteredFranchises = (() => {
+        const q = franchiseSearch.trim().toLowerCase();
+        if (!q) return franchises.slice(0, 40);
+        return franchises
+            .filter(f =>
+                f.store_name.toLowerCase().includes(q) ||
+                (f.store_code || "").toLowerCase().includes(q) ||
+                (f.city || "").toLowerCase().includes(q)
+            )
+            .slice(0, 40);
+    })();
+
+    const selectedFranchise = franchises.find(f => f.id === onBehalfFranchiseId) || null;
 
     const stats = {
         total: requests.length,
@@ -336,6 +434,25 @@ export const AdminPOSM = () => {
                         </SelectContent>
                     </Select>
 
+                    <Select value={originFilter} onValueChange={setOriginFilter}>
+                        <SelectTrigger className="w-[170px] border-orange-100 h-12 rounded-2xl bg-slate-50/50">
+                            <User className="h-4 w-4 mr-2 text-slate-400" />
+                            <SelectValue placeholder="Raised By" />
+                        </SelectTrigger>
+                        <SelectContent className="rounded-2xl">
+                            <SelectItem value="all">Anyone</SelectItem>
+                            <SelectItem value="franchise">By franchise</SelectItem>
+                            <SelectItem value="admin">By admin</SelectItem>
+                        </SelectContent>
+                    </Select>
+
+                    <Button
+                        onClick={openOnBehalf}
+                        className="h-12 rounded-2xl shrink-0 gap-2 bg-orange-600 hover:bg-orange-700"
+                    >
+                        <Plus className="h-4 w-4" />
+                        <span>Raise for a franchise</span>
+                    </Button>
                     <Button
                         variant="outline"
                         onClick={exportToCSV}
@@ -376,9 +493,26 @@ export const AdminPOSM = () => {
                                         {formatToIST(r.created_at)}
                                     </td>
                                     <td className="p-6">
-                                        <span className="font-mono font-bold text-slate-700 bg-slate-100 px-2 py-1 rounded-lg">
-                                            {r.ticket_id}
-                                        </span>
+                                        <div className="flex flex-col gap-1 items-start">
+                                            <span className="font-mono font-bold text-slate-700 bg-slate-100 px-2 py-1 rounded-lg">
+                                                {r.ticket_id}
+                                            </span>
+                                            {r.created_by_role === 'admin' ? (
+                                                <span
+                                                    title={r.created_by_name ? `Raised by ${r.created_by_name}` : undefined}
+                                                    className="text-[9px] font-black uppercase tracking-wider text-purple-600 bg-purple-50 border border-purple-100 px-1.5 py-0.5 rounded"
+                                                >
+                                                    By admin
+                                                </span>
+                                            ) : (
+                                                <span
+                                                    title={r.created_by_name ? `Raised by ${r.created_by_name}` : undefined}
+                                                    className="text-[9px] font-black uppercase tracking-wider text-slate-500 bg-slate-50 border border-slate-200 px-1.5 py-0.5 rounded"
+                                                >
+                                                    By franchise
+                                                </span>
+                                            )}
+                                        </div>
                                     </td>
                                     <td className="p-6">
                                         <div className="flex flex-col">
@@ -430,6 +564,15 @@ export const AdminPOSM = () => {
                                 <span className="text-[10px] font-bold text-slate-400 font-mono tracking-tighter bg-slate-50 px-2 py-1 rounded-lg">
                                     {r.ticket_id}
                                 </span>
+                                {r.created_by_role === 'admin' ? (
+                                    <span className="text-[9px] font-black uppercase tracking-wider text-purple-600 bg-purple-50 border border-purple-100 px-1.5 py-0.5 rounded">
+                                        By admin
+                                    </span>
+                                ) : (
+                                    <span className="text-[9px] font-black uppercase tracking-wider text-slate-500 bg-slate-50 border border-slate-200 px-1.5 py-0.5 rounded">
+                                        By franchise
+                                    </span>
+                                )}
                             </div>
                             <h3 className="font-black text-slate-800 mb-1 leading-tight">{r.store_name}</h3>
                             <p className="text-xs text-slate-500 line-clamp-2 mb-4 font-medium">{r.requirement}</p>
@@ -557,6 +700,18 @@ export const AdminPOSM = () => {
                                         </Badge>
                                         <h2 className="text-2xl font-black text-slate-800 mb-1">#{selectedRequest.ticket_id}</h2>
                                         <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">{formatToIST(selectedRequest.created_at)}</p>
+                                        <p className="text-[11px] font-semibold text-slate-500 mt-2">
+                                            Raised by{" "}
+                                            {selectedRequest.created_by_role === 'admin' ? (
+                                                <span className="text-purple-600">
+                                                    {selectedRequest.created_by_name || "an admin"} (admin, on the store's behalf)
+                                                </span>
+                                            ) : (
+                                                <span className="text-slate-700">
+                                                    {selectedRequest.created_by_name || selectedRequest.contact_name} (franchise)
+                                                </span>
+                                            )}
+                                        </p>
                                     </div>
 
                                     <div className="p-8 flex-1 overflow-y-auto min-h-0 space-y-8 custom-scrollbar">
@@ -755,6 +910,142 @@ export const AdminPOSM = () => {
                             </div>
                         </div>
                     )}
+                </DialogContent>
+            </Dialog>
+
+            {/* Raise a request on a franchise's behalf */}
+            <Dialog open={onBehalfOpen} onOpenChange={(v) => { if (!v && !creating) setOnBehalfOpen(false); }}>
+                <DialogContent className="max-w-xl max-h-[90vh] flex flex-col p-0 gap-0">
+                    <DialogHeader className="px-6 pt-6 pb-4 border-b border-slate-100 shrink-0">
+                        <DialogTitle className="text-base flex items-center gap-2">
+                            <Store className="h-4 w-4 text-orange-500" /> Raise a POSM request for a franchise
+                        </DialogTitle>
+                        <DialogDescription className="text-xs">
+                            For requirements received by phone or email. The ticket is filed
+                            against the store and joins the same queue as a self-raised one.
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <div className="flex-1 min-h-0 overflow-y-auto px-6 py-5 space-y-5">
+                        {/* Which franchise */}
+                        <div>
+                            <p className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-2">Franchise</p>
+                            {selectedFranchise ? (
+                                <div className="flex items-center justify-between p-3 rounded-xl border border-orange-200 bg-orange-50">
+                                    <div className="min-w-0">
+                                        <p className="text-sm font-bold text-slate-800 truncate">{selectedFranchise.store_name}</p>
+                                        <p className="text-[11px] text-slate-500">
+                                            {[selectedFranchise.store_code, selectedFranchise.city].filter(Boolean).join(" · ")}
+                                        </p>
+                                    </div>
+                                    <Button variant="ghost" size="sm" onClick={() => setOnBehalfFranchiseId(null)} className="text-xs shrink-0">
+                                        Change
+                                    </Button>
+                                </div>
+                            ) : (
+                                <>
+                                    <div className="relative">
+                                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
+                                        <Input
+                                            autoFocus
+                                            placeholder="Search by name, code or city..."
+                                            className="pl-9 h-9 text-sm"
+                                            value={franchiseSearch}
+                                            onChange={(e) => setFranchiseSearch(e.target.value)}
+                                        />
+                                    </div>
+                                    <div className="mt-2 max-h-48 overflow-y-auto space-y-1">
+                                        {filteredFranchises.map(f => (
+                                            <button
+                                                key={f.id}
+                                                onClick={() => setOnBehalfFranchiseId(f.id)}
+                                                className="w-full text-left p-2.5 rounded-lg border border-slate-100 hover:border-orange-200 hover:bg-orange-50/50 transition-colors"
+                                            >
+                                                <p className="text-sm font-semibold text-slate-700 truncate">{f.store_name}</p>
+                                                <p className="text-[11px] text-slate-400">
+                                                    {[f.store_code, f.city].filter(Boolean).join(" · ")}
+                                                </p>
+                                            </button>
+                                        ))}
+                                        {filteredFranchises.length === 0 && (
+                                            <p className="text-xs text-slate-400 text-center py-6">No franchise matches that search.</p>
+                                        )}
+                                    </div>
+                                </>
+                            )}
+                        </div>
+
+                        {/* The requirement itself */}
+                        {selectedFranchise && (
+                            <>
+                                <div>
+                                    <p className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-2">Requirement</p>
+                                    <Textarea
+                                        value={onBehalfRequirement}
+                                        onChange={(e) => setOnBehalfRequirement(e.target.value)}
+                                        placeholder="What the franchise has asked for - material, size, quantity, where it will be placed..."
+                                        rows={5}
+                                        className="text-sm resize-none"
+                                    />
+                                </div>
+
+                                <div>
+                                    <p className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-2">
+                                        Attachments <span className="font-medium normal-case tracking-normal">(optional, up to 5)</span>
+                                    </p>
+                                    <input
+                                        type="file"
+                                        id="posm-on-behalf-file"
+                                        multiple
+                                        className="hidden"
+                                        onChange={(e) => {
+                                            if (e.target.files) {
+                                                setOnBehalfFiles(prev => [...prev, ...Array.from(e.target.files!)].slice(0, 5));
+                                            }
+                                        }}
+                                    />
+                                    <label
+                                        htmlFor="posm-on-behalf-file"
+                                        className="border-2 border-dashed border-slate-100 rounded-xl p-5 flex flex-col items-center justify-center cursor-pointer hover:bg-slate-50 hover:border-orange-200 transition-all text-slate-400 hover:text-orange-500"
+                                    >
+                                        <Paperclip className="h-6 w-6 mb-1.5" />
+                                        <span className="text-xs font-medium">Click to attach files</span>
+                                    </label>
+                                    {onBehalfFiles.length > 0 && (
+                                        <div className="mt-2 space-y-1">
+                                            {onBehalfFiles.map((file, i) => (
+                                                <div key={i} className="flex items-center justify-between text-xs bg-slate-50 rounded-lg px-3 py-2">
+                                                    <span className="truncate text-slate-600">{file.name}</span>
+                                                    <button
+                                                        onClick={() => setOnBehalfFiles(prev => prev.filter((_, idx) => idx !== i))}
+                                                        className="text-slate-400 hover:text-red-500 shrink-0 ml-2"
+                                                    >
+                                                        <X className="h-3.5 w-3.5" />
+                                                    </button>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            </>
+                        )}
+                    </div>
+
+                    <DialogFooter className="px-6 py-4 border-t border-slate-100 shrink-0">
+                        <Button variant="outline" onClick={() => setOnBehalfOpen(false)} disabled={creating} className="border-slate-200">
+                            Cancel
+                        </Button>
+                        <Button
+                            onClick={handleCreateOnBehalf}
+                            disabled={!onBehalfFranchiseId || !onBehalfRequirement.trim() || creating}
+                            className="bg-orange-600 hover:bg-orange-700"
+                        >
+                            {creating
+                                ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />
+                                : <Send className="h-3.5 w-3.5 mr-1.5" />}
+                            Raise request
+                        </Button>
+                    </DialogFooter>
                 </DialogContent>
             </Dialog>
         </div>

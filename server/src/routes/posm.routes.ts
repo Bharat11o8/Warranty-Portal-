@@ -21,6 +21,10 @@ const handleUpload = (req: Request, res: Response, next: NextFunction) => {
 // Admin Routes
 router.get('/admin/all', authenticateToken, requireRole('admin'), requirePermission('posm', 'read'), POSMController.getAllRequests);
 router.put('/:id/status', authenticateToken, requireRole('admin'), requirePermission('posm', 'write'), POSMController.updateRequest);
+// Raise a request on a franchise's behalf — for requirements phoned or emailed
+// in. Kept separate from the franchise route below so that one stays session-
+// scoped and cannot be pointed at another store.
+router.post('/admin/on-behalf', authenticateToken, requireRole('admin'), requirePermission('posm', 'write'), handleUpload, POSMController.submitRequestOnBehalf);
 
 // Shared/General Routes
 router.post('/', authenticateToken, requireRole('vendor'), handleUpload, POSMController.submitRequest);
