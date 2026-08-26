@@ -181,6 +181,36 @@ async function resolveVendor(phone: string, franchiseName: string | null) {
     return null;
 }
 
+/**
+ * The round an incoming submission belongs to.
+ *
+ * Audits run in rounds (monthly, or whenever the business asks), and a store
+ * answers the round that is open when it replies. Returns null when no round is
+ * open — the audit is still stored, just ungrouped, since refusing a real
+ * submission because nobody opened a round would lose data.
+ */
+async function currentRoundId(): Promise<string | null> {
+    const [rows]: any = await db.execute(
+        `SELECT id FROM audit_rounds WHERE status = 'open' ORDER BY created_at DESC LIMIT 1`
+    );
+    return rows.length > 0 ? (rows[0].id as string) : null;
+}
+
+/**
+ * Mark this store as having responded to the round.
+ *
+ * Only fills a target that is still outstanding, so a store that submits twice
+ * keeps the first response time and both audits are still stored.
+ */
+async function markResponded(roundId: string, vendorId: string, auditId: string) {
+    await db.execute(
+        `UPDATE audit_round_targets
+         SET store_audit_id = ?, responded_at = CURRENT_TIMESTAMP
+         WHERE round_id = ? AND vendor_details_id = ? AND responded_at IS NULL`,
+        [auditId, roundId, vendorId]
+    );
+}
+
 export interface AuditIngestResult {
     stored: boolean;
     id?: string;
@@ -204,11 +234,12 @@ export async function ingestFlowAuditResponse(payload: any): Promise<AuditIngest
             // Keep the body regardless — an unparsed audit is recoverable, a
             // discarded one is not. This is exactly what cost us the first three.
             const id = uuidv4();
+            const roundId = await currentRoundId();
             await db.execute(
                 `INSERT INTO store_audits
-                   (id, vendor_details_id, submitted_phone, channel, flow_name, raw_response, review_status)
-                 VALUES (?, NULL, ?, 'whatsapp', 'af_store_audit_2', ?, 'follow_up')`,
-                [id, phone || '', JSON.stringify(payload)]
+                   (id, round_id, vendor_details_id, submitted_phone, channel, flow_name, raw_response, review_status)
+                 VALUES (?, ?, NULL, ?, 'whatsapp', 'af_store_audit_2', ?, 'follow_up')`,
+                [id, roundId, phone || '', JSON.stringify(payload)]
             );
             console.warn('[Audit] Flow response stored but no answers recognised — id', id);
             return { stored: true, id, vendorMatched: false, fieldsFound: 0, reason: 'no answer fields recognised' };
@@ -217,10 +248,11 @@ export async function ingestFlowAuditResponse(payload: any): Promise<AuditIngest
         const franchiseName = val(answers, 'franchise_name');
         const vendorId = await resolveVendor(phone, franchiseName);
         const id = uuidv4();
+        const roundId = await currentRoundId();
 
         await db.execute(
             `INSERT INTO store_audits
-               (id, vendor_details_id, submitted_phone, channel, audited_by, audited_by_name,
+               (id, round_id, vendor_details_id, submitted_phone, channel, audited_by, audited_by_name,
                 flow_id, flow_name, flow_version,
                 audit_date, franchise_name, store_contact_no, contact_person, city, state,
                 zone, asm, brands, category,
@@ -228,13 +260,14 @@ export async function ingestFlowAuditResponse(payload: any): Promise<AuditIngest
                 seat_covers_stock, products_stocked, last_month_business, staff_training,
                 warranty_registration, support_needed, support_details,
                 raw_response, review_status)
-             VALUES (?, ?, ?, 'whatsapp', NULL, NULL,
+             VALUES (?, ?, ?, ?, 'whatsapp', NULL, NULL,
                      ?, 'af_store_audit_2', ?,
                      ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
                      ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
                      ?, ?)`,
             [
                 id,
+                roundId,
                 vendorId,
                 phone || '',
                 String(payload?.data?.flow_id ?? payload?.flow_id ?? '2152498745701937'),
@@ -266,6 +299,12 @@ export async function ingestFlowAuditResponse(payload: any): Promise<AuditIngest
                 vendorId ? 'new' : 'follow_up',
             ]
         );
+
+        // Tick this store off the round's target list, so what remains is the
+        // set of stores that have not answered.
+        if (roundId && vendorId) {
+            await markResponded(roundId, vendorId, id);
+        }
 
         const fieldsFound = ALL_FIELDS.filter(f => f in answers).length;
         console.log(

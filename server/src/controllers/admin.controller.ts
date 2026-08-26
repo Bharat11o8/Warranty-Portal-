@@ -3990,6 +3990,178 @@ export class AdminController {
     }
 
     /** Attach an unmatched response to a store, when the phone did not resolve. */
+    /**
+     * Audit rounds.
+     *
+     * Audits repeat — monthly, or whenever the business asks — so submissions
+     * are grouped into a named round. A round also carries the list of stores it
+     * was sent to, which is what makes non-responders visible: without a target
+     * list, a store that never audits is simply absent from the data rather than
+     * outstanding.
+     */
+    static async getAuditRounds(req: Request, res: Response) {
+        try {
+            const [rounds]: any = await db.execute(
+                `SELECT r.*,
+                        (SELECT COUNT(*) FROM audit_round_targets t WHERE t.round_id = r.id) AS target_count,
+                        (SELECT COUNT(*) FROM audit_round_targets t WHERE t.round_id = r.id AND t.responded_at IS NOT NULL) AS responded_count,
+                        (SELECT COUNT(*) FROM store_audits sa WHERE sa.round_id = r.id) AS audit_count
+                 FROM audit_rounds r
+                 ORDER BY r.created_at DESC`
+            );
+            res.json({ success: true, rounds });
+        } catch (error: any) {
+            console.error('Get audit rounds error:', error);
+            res.status(500).json({ error: 'Failed to load audit rounds' });
+        }
+    }
+
+    /**
+     * Open a round, optionally seeding its target list.
+     *
+     * Only one round is open at a time — a submission has to belong somewhere
+     * unambiguously — so opening a new one closes whatever was open before.
+     */
+    static async createAuditRound(req: Request, res: Response) {
+        const conn = await db.getConnection();
+        try {
+            const b = req.body || {};
+            const name = String(b.name || '').trim();
+            if (!name) {
+                return res.status(400).json({ error: 'Give the round a name, e.g. "August 2026"' });
+            }
+
+            const admin = (req as any).user;
+            const id = uuidv4();
+
+            await conn.beginTransaction();
+
+            await conn.execute(
+                `UPDATE audit_rounds SET status = 'closed', closed_at = CURRENT_TIMESTAMP WHERE status = 'open'`
+            );
+
+            await conn.execute(
+                `INSERT INTO audit_rounds (id, name, period_start, period_end, notes, created_by, created_by_name)
+                 VALUES (?, ?, ?, ?, ?, ?, ?)`,
+                [id, name, b.periodStart || null, b.periodEnd || null, b.notes || null,
+                 admin?.id || null, admin?.name || admin?.email || null]
+            );
+
+            // Seed the targets. "all" means every verified franchise, which is
+            // who an audit normally goes to; an explicit list overrides that.
+            let targetIds: string[] = [];
+            if (Array.isArray(b.vendorIds) && b.vendorIds.length > 0) {
+                const [rows]: any = await conn.query(
+                    `SELECT id FROM vendor_details WHERE id IN (?) OR user_id IN (?)`,
+                    [b.vendorIds, b.vendorIds]
+                );
+                targetIds = rows.map((r: any) => r.id);
+            } else if (b.targetAll) {
+                const [rows]: any = await conn.execute(
+                    `SELECT vd.id
+                     FROM vendor_details vd
+                     JOIN vendor_verification vv ON vv.user_id = vd.user_id
+                     WHERE vv.is_verified = 1`
+                );
+                targetIds = rows.map((r: any) => r.id);
+            }
+
+            for (const vid of targetIds) {
+                await conn.execute(
+                    `INSERT IGNORE INTO audit_round_targets (id, round_id, vendor_details_id)
+                     VALUES (?, ?, ?)`,
+                    [uuidv4(), id, vid]
+                );
+            }
+
+            await conn.commit();
+
+            await ActivityLogService.log({
+                adminId: admin?.id,
+                adminName: admin?.name,
+                adminEmail: admin?.email,
+                actionType: 'CREATE_AUDIT_ROUND',
+                targetType: 'AUDIT_ROUND',
+                targetId: id,
+                targetName: name,
+                details: { targets: targetIds.length },
+                ipAddress: req.ip || req.socket?.remoteAddress
+            });
+
+            res.status(201).json({
+                success: true,
+                message: `Round "${name}" opened with ${targetIds.length} stores`,
+                data: { id, targets: targetIds.length }
+            });
+        } catch (error: any) {
+            await conn.rollback();
+            console.error('Create audit round error:', error);
+            res.status(500).json({ error: 'Failed to open the round' });
+        } finally {
+            conn.release();
+        }
+    }
+
+    /** Close a round, so late submissions no longer attach to it. */
+    static async closeAuditRound(req: Request, res: Response) {
+        try {
+            const [r]: any = await db.execute(
+                `UPDATE audit_rounds SET status = 'closed', closed_at = CURRENT_TIMESTAMP
+                 WHERE id = ? AND status = 'open'`,
+                [req.params.id]
+            );
+            if (r.affectedRows === 0) {
+                return res.status(404).json({ error: 'Round not found, or already closed' });
+            }
+            res.json({ success: true, message: 'Round closed' });
+        } catch (error: any) {
+            console.error('Close audit round error:', error);
+            res.status(500).json({ error: 'Failed to close the round' });
+        }
+    }
+
+    /**
+     * Which stores have and have not answered a round.
+     *
+     * The point of the whole round structure: outstanding stores are the ones
+     * worth chasing, and they only exist as data because the target list does.
+     */
+    static async getAuditRoundTargets(req: Request, res: Response) {
+        try {
+            const { responded } = req.query as Record<string, string>;
+            const where: string[] = ['t.round_id = ?'];
+            const params: any[] = [req.params.id];
+
+            if (responded === 'yes') where.push('t.responded_at IS NOT NULL');
+            if (responded === 'no') where.push('t.responded_at IS NULL');
+
+            const [targets]: any = await db.execute(
+                `SELECT t.id, t.vendor_details_id, t.store_audit_id, t.responded_at,
+                        vd.store_name, vd.store_code, vd.city, vd.state,
+                        p.phone_number, p.name AS contact_person
+                 FROM audit_round_targets t
+                 JOIN vendor_details vd ON vd.id = t.vendor_details_id
+                 LEFT JOIN profiles p ON p.id = vd.user_id
+                 WHERE ${where.join(' AND ')}
+                 ORDER BY (t.responded_at IS NULL) DESC, vd.store_name ASC`,
+                params
+            );
+
+            const [[counts]]: any = await db.execute(
+                `SELECT COUNT(*) AS total,
+                        SUM(responded_at IS NOT NULL) AS responded,
+                        SUM(responded_at IS NULL)     AS outstanding
+                 FROM audit_round_targets WHERE round_id = ?`,
+                [req.params.id]
+            );
+
+            res.json({ success: true, targets, counts });
+        } catch (error: any) {
+            console.error('Get audit round targets error:', error);
+            res.status(500).json({ error: 'Failed to load round targets' });
+        }
+    }
+
     static async assignStoreAudit(req: Request, res: Response) {
         try {
             const { id } = req.params;
