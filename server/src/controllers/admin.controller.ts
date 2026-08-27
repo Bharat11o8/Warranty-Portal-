@@ -2433,85 +2433,97 @@ export class AdminController {
                         WHERE ur.user_id = p.id AND ur.role = 'vendor'
                     )
                 ),
-                registered_customers AS (
+                -- One customer = one phone number.
+                --
+                -- The portal already treats the phone as the customer's identity:
+                -- customer_mobile_limits caps registrations per number. Grouping
+                -- the list the same way keeps the two consistent, and stops one
+                -- person appearing twice because a store typed a different email
+                -- or spelled their name differently.
+                --
+                -- Warranties are the source of truth here rather than profiles,
+                -- since a warranty always carries a phone (all 9,394 do) while a
+                -- profile may not, and a warranty can be filed under an unrelated
+                -- profile when a store used its own email.
+                warranty_by_phone AS (
                     SELECT
-                        p.name AS customer_name,
-                        p.email AS customer_email,
-                        p.phone_number AS customer_phone,
-                        NULL AS customer_address,
-                        COUNT(wr.uid) AS total_warranties,
-                        COALESCE(SUM(CASE WHEN wr.status = 'validated' THEN 1 ELSE 0 END), 0) AS validated_warranties,
-                        COALESCE(SUM(CASE WHEN wr.status IN ('pending', 'pending_vendor') THEN 1 ELSE 0 END), 0) AS pending_warranties,
-                        COALESCE(SUM(CASE WHEN wr.status = 'rejected' THEN 1 ELSE 0 END), 0) AS rejected_warranties,
-                        MIN(wr.created_at) AS first_warranty_date,
-                        MAX(wr.created_at) AS last_warranty_date,
-                        p.created_at AS registered_at
-                    FROM customer_profiles p
-                    LEFT JOIN warranty_registrations wr ON wr.user_id = p.id
-                    WHERE NOT EXISTS (
-                        SELECT 1
-                        FROM vendor_profiles vp
-                        WHERE vp.id = p.id
-                    )
-                    GROUP BY p.id, p.name, p.email, p.phone_number, p.created_at
-                ),
-                guest_aggregates AS (
-                    SELECT
-                        customer_name,
-                        customer_email,
-                        customer_phone,
+                        RIGHT(REGEXP_REPLACE(customer_phone, '[^0-9]', ''), 10) AS phone_key,
                         COUNT(uid) AS total_warranties,
                         SUM(CASE WHEN status = 'validated' THEN 1 ELSE 0 END) AS validated_warranties,
                         SUM(CASE WHEN status IN ('pending', 'pending_vendor') THEN 1 ELSE 0 END) AS pending_warranties,
                         SUM(CASE WHEN status = 'rejected' THEN 1 ELSE 0 END) AS rejected_warranties,
                         MIN(created_at) AS first_warranty_date,
-                        MAX(created_at) AS last_warranty_date
+                        MAX(created_at) AS last_warranty_date,
+                        -- The most recent spelling wins when a number carries
+                        -- several; the rest stay visible on the warranties.
+                        SUBSTRING_INDEX(GROUP_CONCAT(customer_name ORDER BY created_at DESC SEPARATOR '\u0001'), '\u0001', 1) AS latest_name,
+                        SUBSTRING_INDEX(GROUP_CONCAT(NULLIF(customer_email, '') ORDER BY created_at DESC SEPARATOR '\u0001'), '\u0001', 1) AS latest_email,
+                        SUBSTRING_INDEX(GROUP_CONCAT(customer_phone ORDER BY created_at DESC SEPARATOR '\u0001'), '\u0001', 1) AS display_phone,
+                        COUNT(DISTINCT customer_name) AS name_variants
                     FROM warranty_registrations
-                    WHERE (customer_email IS NOT NULL AND customer_email != '' AND customer_email != 'N/A')
-                       OR (customer_phone IS NOT NULL AND customer_phone != '' AND customer_phone != 'N/A')
-                    GROUP BY customer_name, customer_email, customer_phone
+                    WHERE customer_phone IS NOT NULL
+                      AND customer_phone != ''
+                      AND customer_phone != 'N/A'
+                    GROUP BY phone_key
                 ),
-                guest_customers AS (
+                -- Customers who registered but have no warranty yet would vanish
+                -- from a warranty-only list, so they are carried in separately.
+                profile_only AS (
                     SELECT
-                        guest.customer_name,
-                        guest.customer_email,
-                        guest.customer_phone,
-                        NULL AS customer_address,
-                        guest.total_warranties,
-                        guest.validated_warranties,
-                        guest.pending_warranties,
-                        guest.rejected_warranties,
-                        guest.first_warranty_date,
-                        guest.last_warranty_date,
-                        guest.first_warranty_date AS registered_at
-                    FROM guest_aggregates guest
-                    WHERE NOT EXISTS (
-                        SELECT 1
-                        FROM customer_profiles customer
-                        WHERE guest.customer_email IS NOT NULL
-                          AND guest.customer_email != ''
-                          AND guest.customer_email != 'N/A'
-                          AND customer.email = guest.customer_email
-                    )
-                    AND NOT EXISTS (
-                        SELECT 1
-                        FROM customer_profiles customer
-                        WHERE guest.customer_phone IS NOT NULL
-                          AND guest.customer_phone != ''
-                          AND guest.customer_phone != 'N/A'
-                          AND customer.phone_number = guest.customer_phone
-                    )
-                    AND NOT EXISTS (
-                        SELECT 1
-                        FROM vendor_profiles vendor
-                        WHERE vendor.email = guest.customer_email
-                          AND vendor.name = guest.customer_name
-                    )
+                        RIGHT(REGEXP_REPLACE(p.phone_number, '[^0-9]', ''), 10) AS phone_key,
+                        p.name AS latest_name,
+                        p.email AS latest_email,
+                        p.phone_number AS display_phone,
+                        p.created_at AS registered_at
+                    FROM customer_profiles p
+                    WHERE p.phone_number IS NOT NULL
+                      AND p.phone_number != ''
+                      AND NOT EXISTS (
+                          SELECT 1 FROM vendor_profiles vp WHERE vp.id = p.id
+                      )
+                      AND NOT EXISTS (
+                          SELECT 1 FROM warranty_by_phone w
+                          WHERE w.phone_key = RIGHT(REGEXP_REPLACE(p.phone_number, '[^0-9]', ''), 10)
+                      )
                 ),
                 combined AS (
-                    SELECT * FROM registered_customers
+                    SELECT
+                        -- Prefer the name on the profile, since a customer who
+                        -- registered themselves typed it; fall back to the
+                        -- warranty's most recent spelling.
+                        COALESCE(prof.name, w.latest_name) AS customer_name,
+                        COALESCE(prof.email, w.latest_email) AS customer_email,
+                        w.display_phone AS customer_phone,
+                        NULL AS customer_address,
+                        w.total_warranties,
+                        w.validated_warranties,
+                        w.pending_warranties,
+                        w.rejected_warranties,
+                        w.first_warranty_date,
+                        w.last_warranty_date,
+                        COALESCE(prof.created_at, w.first_warranty_date) AS registered_at
+                    FROM warranty_by_phone w
+                    LEFT JOIN customer_profiles prof
+                           ON RIGHT(REGEXP_REPLACE(prof.phone_number, '[^0-9]', ''), 10) = w.phone_key
+                          AND NOT EXISTS (
+                              SELECT 1 FROM vendor_profiles vp WHERE vp.id = prof.id
+                          )
+
                     UNION ALL
-                    SELECT * FROM guest_customers
+
+                    SELECT
+                        po.latest_name AS customer_name,
+                        po.latest_email AS customer_email,
+                        po.display_phone AS customer_phone,
+                        NULL AS customer_address,
+                        0 AS total_warranties,
+                        0 AS validated_warranties,
+                        0 AS pending_warranties,
+                        0 AS rejected_warranties,
+                        NULL AS first_warranty_date,
+                        NULL AS last_warranty_date,
+                        po.registered_at
+                    FROM profile_only po
                 )
                 SELECT combined.*, COUNT(*) OVER() AS total_count
                 FROM combined
