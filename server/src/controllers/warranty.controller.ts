@@ -393,13 +393,8 @@ export class WarrantyController {
             [customerPhone]
           );
 
-          // 2. Fallback: Try to find by Email if phone didn't match and email is provided
-          if (existingUsers.length === 0 && customerEmail) {
-            [existingUsers] = await db.execute(
-              'SELECT id, email FROM profiles WHERE email = ?',
-              [customerEmail]
-            );
-          }
+          // Deliberately NO email fallback — see public.controller.ts. A shared
+          // store email would otherwise link this warranty to a different person.
 
           if (existingUsers.length > 0) {
             finalUserId = existingUsers[0].id;
@@ -414,7 +409,7 @@ export class WarrantyController {
             
             // If the user is an admin or vendor, prevent using this account as a customer
             if (userRoles.includes('admin') || userRoles.includes('vendor')) {
-              const matchedBy = existingUsers[0].email === customerEmail ? 'email address' : 'phone number';
+              const matchedBy = 'phone number';
               return res.status(400).json({ 
                 error: `This ${matchedBy} is registered as a franchise or admin account and cannot be used as a customer profile.` 
               });
@@ -434,10 +429,25 @@ export class WarrantyController {
             }
           } else {
             // Create new customer profile based on Phone (and Email if provided)
+            // profiles.email is UNIQUE and store emails are shared across many
+            // customers, so claim the address only if it is free. See
+            // public.controller.ts for the reasoning.
+            let profileEmail: string | null = customerEmail || null;
+            if (profileEmail) {
+              const [emailTaken]: any = await db.execute(
+                'SELECT id FROM profiles WHERE email = ? LIMIT 1',
+                [profileEmail]
+              );
+              if (emailTaken.length > 0) {
+                console.log(`[Customer] "${profileEmail}" already belongs to another profile — creating ${customerPhone} without an email.`);
+                profileEmail = null;
+              }
+            }
+
             const newCustomerId = uuidv4();
             await db.execute(
               'INSERT INTO profiles (id, name, email, phone_number) VALUES (?, ?, ?, ?)',
-              [newCustomerId, warrantyData.customerName, customerEmail, customerPhone]
+              [newCustomerId, warrantyData.customerName, profileEmail, customerPhone]
             );
             await db.execute(
               'INSERT INTO user_roles (id, user_id, role) VALUES (?, ?, "customer")',

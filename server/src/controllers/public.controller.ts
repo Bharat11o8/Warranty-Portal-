@@ -605,13 +605,11 @@ export class PublicController {
                 [cleanedPhone]
             );
 
-            // 2. Fallback: Try to find by Email if phone didn't match and email is provided
-            if (existingUsers.length === 0 && customerEmail) {
-                [existingUsers] = await db.execute(
-                    'SELECT id, email FROM profiles WHERE email = ?',
-                    [customerEmail]
-                );
-            }
+            // Deliberately NO email fallback. Stores commonly enter their own
+            // address for a walk-in customer, so matching on email attached the
+            // warranty to whoever owned that inbox — 284 customers ended up with
+            // no profile of their own that way. The phone is the customer; the
+            // email is optional and often is not theirs.
 
             if (existingUsers.length > 0) {
                 // Existing user found
@@ -627,7 +625,7 @@ export class PublicController {
 
                 // If the user is an admin or vendor, prevent using this account as a customer
                 if (userRoles.includes('admin') || userRoles.includes('vendor')) {
-                    const matchedBy = existingUsers[0].email === customerEmail ? 'email address' : 'phone number';
+                    const matchedBy = 'phone number';
                     return res.status(400).json({ 
                         error: `This ${matchedBy} is registered as a franchise or admin account and cannot be used as a customer profile.` 
                     });
@@ -653,10 +651,26 @@ export class PublicController {
                 const tempPassword = uuidv4().substring(0, 12);
                 const hashedPassword = await bcrypt.hash(tempPassword, 10);
 
+                // profiles.email is UNIQUE, and stores often reuse one address
+                // across many customers. Claim it only if free; otherwise leave
+                // it null so the registration still succeeds. The address stays
+                // on the warranty record either way.
+                let profileEmail: string | null = customerEmail || null;
+                if (profileEmail) {
+                    const [emailTaken]: any = await db.execute(
+                        'SELECT id FROM profiles WHERE email = ? LIMIT 1',
+                        [profileEmail]
+                    );
+                    if (emailTaken.length > 0) {
+                        console.log(`[Customer] "${profileEmail}" already belongs to another profile — creating ${cleanedPhone} without an email.`);
+                        profileEmail = null;
+                    }
+                }
+
                 const newUserId = uuidv4();
                 await db.execute(
                     `INSERT INTO profiles (id, name, email, phone_number, password) VALUES (?, ?, ?, ?, ?)`,
-                    [newUserId, customerName, customerEmail, cleanedPhone, hashedPassword]
+                    [newUserId, customerName, profileEmail, cleanedPhone, hashedPassword]
                 );
                 
                 await db.execute(
