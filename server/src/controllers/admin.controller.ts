@@ -2536,12 +2536,18 @@ export class AdminController {
             const [customerResult, phoneUsageResult, limitResult] = await Promise.all([
                 timedQuery('main query', () => db.execute(customersSql, customerParams)),
                 timedQuery('phone usage query', () => db.execute(`
-                    SELECT customer_phone, COUNT(*) AS used_count
+                    SELECT customer_phone,
+                           SUM(CASE WHEN status != 'rejected' THEN 1 ELSE 0 END) AS used_count,
+                           COUNT(*) AS total_warranties,
+                           SUM(CASE WHEN status = 'validated' THEN 1 ELSE 0 END) AS validated_warranties,
+                           SUM(CASE WHEN status IN ('pending', 'pending_vendor') THEN 1 ELSE 0 END) AS pending_warranties,
+                           SUM(CASE WHEN status = 'rejected' THEN 1 ELSE 0 END) AS rejected_warranties,
+                           MIN(created_at) AS first_warranty_date,
+                           MAX(created_at) AS last_warranty_date
                     FROM warranty_registrations
                     WHERE customer_phone IS NOT NULL
                       AND customer_phone != ''
                       AND customer_phone != 'N/A'
-                      AND status != 'rejected'
                     GROUP BY customer_phone
                 `)),
                 timedQuery('mobile limits query', () => db.execute(
@@ -2555,10 +2561,28 @@ export class AdminController {
             const total = Number(customerRows[0]?.total_count || 0);
 
             const mobileUsageMap = new Map<string, number>();
+            // Warranty totals per phone, so the counts match the mobile limit
+            // beside them. Counting through the profile link instead showed a
+            // customer "0 warranties" next to "1 of 2 used" whenever a store had
+            // filed their warranty under its own account.
+            const phoneStatsMap = new Map<string, any>();
             phoneUsageRows.forEach((row: any) => {
                 const mobileNumber = normalizeCustomerMobile(row.customer_phone);
                 if (!mobileNumber) return;
                 mobileUsageMap.set(mobileNumber, (mobileUsageMap.get(mobileNumber) || 0) + Number(row.used_count || 0));
+
+                const prev = phoneStatsMap.get(mobileNumber);
+                const merged = {
+                    total_warranties: Number(row.total_warranties || 0) + Number(prev?.total_warranties || 0),
+                    validated_warranties: Number(row.validated_warranties || 0) + Number(prev?.validated_warranties || 0),
+                    pending_warranties: Number(row.pending_warranties || 0) + Number(prev?.pending_warranties || 0),
+                    rejected_warranties: Number(row.rejected_warranties || 0) + Number(prev?.rejected_warranties || 0),
+                    first_warranty_date: prev?.first_warranty_date && prev.first_warranty_date < row.first_warranty_date
+                        ? prev.first_warranty_date : row.first_warranty_date,
+                    last_warranty_date: prev?.last_warranty_date && prev.last_warranty_date > row.last_warranty_date
+                        ? prev.last_warranty_date : row.last_warranty_date,
+                };
+                phoneStatsMap.set(mobileNumber, merged);
             });
 
             const mobileLimitMap = new Map<string, number>();
@@ -2575,8 +2599,20 @@ export class AdminController {
                 const hasOverride = mobileNumber ? mobileLimitMap.has(mobileNumber) : false;
                 const allowedCount = hasOverride ? (mobileLimitMap.get(mobileNumber) || 1) : 1;
 
+                // The phone is the customer, so its warranties are theirs even
+                // when the registration was filed under another account.
+                const phoneStats = mobileNumber ? phoneStatsMap.get(mobileNumber) : null;
+
                 return {
                     ...customer,
+                    ...(phoneStats ? {
+                        total_warranties: phoneStats.total_warranties,
+                        validated_warranties: phoneStats.validated_warranties,
+                        pending_warranties: phoneStats.pending_warranties,
+                        rejected_warranties: phoneStats.rejected_warranties,
+                        first_warranty_date: phoneStats.first_warranty_date,
+                        last_warranty_date: phoneStats.last_warranty_date,
+                    } : {}),
                     mobile_allowed_registrations: allowedCount,
                     mobile_used_registrations: usedCount,
                     mobile_remaining_registrations: Math.max(allowedCount - usedCount, 0),
