@@ -13,6 +13,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Loader2, RefreshCw, MessageSquare, Search, Paperclip, Store, Users, Mail, Send, Clock, Eye, Filter, ShieldCheck, Download, Package, Box, Wrench, Monitor, HelpCircle, Plus, X, Upload, CheckCircle, Zap, Video, Image as ImageIcon, Settings2 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { GrievanceCategoryManager } from "./GrievanceCategoryManager";
+import { compressVideo, isCompressibleVideo } from "@/lib/videoCompression";
 import { WarrantySpecSheet } from "@/components/warranty/WarrantySpecSheet";
 import {
     Pagination,
@@ -1456,7 +1457,7 @@ export const AdminGrievances = () => {
                                 <div>
                                     <label className="text-xs font-black text-slate-500 uppercase tracking-widest mb-3 block flex items-center gap-2">
                                         <Paperclip className="h-4 w-4" />
-                                        Attachments (Optional - Max 3)
+                                        Attachments (Optional - Max 3, images or video)
                                     </label>
                                     <div className="grid grid-cols-3 gap-3">
                                         {[0, 1, 2].map((idx) => {
@@ -1467,13 +1468,28 @@ export const AdminGrievances = () => {
                                                         type="file"
                                                         id={`ob-attachment-${idx}`}
                                                         className="hidden"
-                                                        accept="image/*"
-                                                        onChange={(e) => {
+                                                        accept="image/*,video/*"
+                                                        onChange={async (e) => {
                                                             const picked = e.target.files?.[0];
                                                             if (!picked) return;
+                                                            let file = picked;
+                                                            // A phone clip is far past the 20MB limit, so
+                                                            // shrink it here rather than let the upload fail.
+                                                            if (isCompressibleVideo(picked)) {
+                                                                file = await compressVideo(picked);
+                                                                if (file.size > 20 * 1024 * 1024) {
+                                                                    toast({
+                                                                        title: "Video too large",
+                                                                        description: "Still over 20MB after compressing — please trim the clip.",
+                                                                        variant: "destructive",
+                                                                    });
+                                                                    e.target.value = "";
+                                                                    return;
+                                                                }
+                                                            }
                                                             setObFiles(prev => {
                                                                 const next = [...prev];
-                                                                next[idx] = picked;
+                                                                next[idx] = file;
                                                                 return next;
                                                             });
                                                         }}
