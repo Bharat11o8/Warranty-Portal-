@@ -2,6 +2,7 @@
 import db, { getISTTimestamp } from '../config/database.js';
 import { EmailService } from '../services/email.service.js';
 import { ActivityLogService } from '../services/activity-log.service.js';
+import { parseContacts, matchContacts, saveContacts, syncRoundTargets } from '../services/auditContacts.service.js';
 import { NotificationService } from '../services/notification.service.js';
 import { WhatsAppService } from '../services/whatsapp.service.js';
 import { v4 as uuidv4 } from 'uuid';
@@ -4101,6 +4102,167 @@ export class AdminController {
      * list, a store that never audits is simply absent from the data rather than
      * outstanding.
      */
+    /**
+     * The admin's uploaded store list.
+     *
+     * A WhatsApp audit arrives with little more than the phone that sent it, so
+     * a store the portal does not hold shows as "Unmatched". Uploading the list
+     * the audit was sent to gives those responses a name, an area and a
+     * territory, and links them to a franchise where one exists.
+     */
+    static async getAuditContacts(req: Request, res: Response) {
+        try {
+            const { search, matched } = req.query as Record<string, string>;
+            const where: string[] = [];
+            const params: any[] = [];
+
+            if (search) {
+                where.push('(ac.store_name LIKE ? OR ac.contact_person LIKE ? OR ac.city LIKE ? OR ac.phone_key LIKE ?)');
+                const like = `%${search}%`;
+                params.push(like, like, like, like);
+            }
+            if (matched === 'yes') where.push('ac.vendor_details_id IS NOT NULL');
+            if (matched === 'no') where.push('ac.vendor_details_id IS NULL');
+
+            const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
+
+            const [contacts]: any = await db.execute(
+                `SELECT ac.*, vd.store_name AS portal_store_name, vd.store_code
+                 FROM audit_contacts ac
+                 LEFT JOIN vendor_details vd ON vd.id = ac.vendor_details_id
+                 ${whereSql}
+                 ORDER BY ac.store_name ASC
+                 LIMIT 1000`,
+                params
+            );
+
+            const [[counts]]: any = await db.execute(
+                `SELECT COUNT(*) AS total,
+                        SUM(vendor_details_id IS NOT NULL) AS linked,
+                        SUM(vendor_details_id IS NULL)     AS unlinked,
+                        SUM(match_method = 'phone')        AS by_phone,
+                        SUM(match_method = 'store_name')   AS by_name
+                 FROM audit_contacts`
+            );
+
+            res.json({ success: true, contacts, counts });
+        } catch (error: any) {
+            console.error('Get audit contacts error:', error);
+            res.status(500).json({ error: 'Failed to load the store list' });
+        }
+    }
+
+    /**
+     * Parse an uploaded CSV and report what it would do, without saving.
+     *
+     * The admin sees how many rows parsed, how many link to a franchise and how
+     * many are new before anything is written — a list this size is not worth
+     * committing blind.
+     */
+    static async previewAuditContacts(req: Request, res: Response) {
+        try {
+            const csvText = String(req.body?.csv || '');
+            if (!csvText.trim()) {
+                return res.status(400).json({ error: 'No CSV content received' });
+            }
+
+            const parsed = parseContacts(csvText);
+            if (parsed.contacts.length === 0) {
+                return res.status(400).json({
+                    error: parsed.totalRows === 0
+                        ? 'That file has no rows'
+                        : `No usable phone numbers found in ${parsed.totalRows} rows. Check the phone column has not been saved as 9.19E+11 by Excel.`
+                });
+            }
+
+            const matched = await matchContacts(parsed.contacts);
+            const existingKeys = new Set<string>();
+            const [rows]: any = await db.query(
+                `SELECT phone_key FROM audit_contacts WHERE phone_key IN (?)`,
+                [matched.map(m => m.phone_key)]
+            );
+            rows.forEach((r: any) => existingKeys.add(r.phone_key));
+
+            res.json({
+                success: true,
+                summary: {
+                    totalRows: parsed.totalRows,
+                    usable: matched.length,
+                    skippedNoPhone: parsed.skippedNoPhone,
+                    duplicatePhones: parsed.duplicatePhones,
+                    matchedByPhone: matched.filter(m => m.match_method === 'phone').length,
+                    matchedByName: matched.filter(m => m.match_method === 'store_name').length,
+                    unmatched: matched.filter(m => m.match_method === 'none').length,
+                    willUpdate: matched.filter(m => existingKeys.has(m.phone_key)).length,
+                    willInsert: matched.filter(m => !existingKeys.has(m.phone_key)).length,
+                },
+                sample: matched.slice(0, 15),
+            });
+        } catch (error: any) {
+            console.error('Preview audit contacts error:', error);
+            res.status(500).json({ error: 'Could not read that file' });
+        }
+    }
+
+    /** Save the uploaded list, replacing any row held for the same number. */
+    static async uploadAuditContacts(req: Request, res: Response) {
+        try {
+            const csvText = String(req.body?.csv || '');
+            if (!csvText.trim()) {
+                return res.status(400).json({ error: 'No CSV content received' });
+            }
+
+            const parsed = parseContacts(csvText);
+            if (parsed.contacts.length === 0) {
+                return res.status(400).json({ error: 'No usable phone numbers in that file' });
+            }
+
+            const matched = await matchContacts(parsed.contacts);
+            const admin = (req as any).user;
+            const result = await saveContacts(matched, {
+                sourceFile: String(req.body?.fileName || '').slice(0, 255) || undefined,
+                adminId: admin?.id,
+                adminName: admin?.name || admin?.email,
+            });
+
+            await ActivityLogService.log({
+                adminId: admin?.id,
+                adminName: admin?.name,
+                adminEmail: admin?.email,
+                actionType: 'UPLOAD_AUDIT_CONTACTS',
+                targetType: 'AUDIT_CONTACTS',
+                details: { ...result, rows: parsed.totalRows, file: req.body?.fileName },
+                ipAddress: req.ip || req.socket?.remoteAddress
+            });
+
+            // Bring the open round's chase list in line with what was just
+            // uploaded, so the two do not describe different sets of stores.
+            let synced = { added: 0, existing: 0 };
+            const [openRound]: any = await db.execute(
+                `SELECT id FROM audit_rounds WHERE status = 'open'
+                 ORDER BY COALESCE(first_sent_at, created_at) DESC LIMIT 1`
+            );
+            if (openRound.length > 0) {
+                synced = await syncRoundTargets(openRound[0].id);
+            }
+
+            res.json({
+                success: true,
+                message: `${result.inserted} added, ${result.updated} updated`
+                    + (synced.added ? ` — ${synced.added} added to the chase list` : ''),
+                data: {
+                    ...result,
+                    matchedByPhone: matched.filter(m => m.match_method === 'phone').length,
+                    matchedByName: matched.filter(m => m.match_method === 'store_name').length,
+                    unmatched: matched.filter(m => m.match_method === 'none').length,
+                },
+            });
+        } catch (error: any) {
+            console.error('Upload audit contacts error:', error);
+            res.status(500).json({ error: 'Failed to save the store list' });
+        }
+    }
+
     static async getAuditRounds(req: Request, res: Response) {
         try {
             const [rounds]: any = await db.execute(
@@ -4231,11 +4393,19 @@ export class AdminController {
             const [targets]: any = await db.execute(
                 `SELECT t.id, t.vendor_details_id, t.store_audit_id, t.responded_at,
                         t.sent_at, t.sent_phone,
-                        vd.store_name, vd.store_code, vd.city, vd.state,
-                        p.phone_number, p.name AS contact_person
+                        -- A target may be a store known only from the uploaded
+                        -- list, so fall back to its details when the portal
+                        -- holds no franchise for it.
+                        COALESCE(vd.store_name, t.store_name, ac.store_name) AS store_name,
+                        vd.store_code,
+                        COALESCE(vd.city, ac.city) AS city,
+                        COALESCE(vd.state, ac.state) AS state,
+                        COALESCE(p.phone_number, t.phone_key, ac.raw_phone) AS phone_number,
+                        COALESCE(p.name, ac.contact_person) AS contact_person
                  FROM audit_round_targets t
                  LEFT JOIN vendor_details vd ON vd.id = t.vendor_details_id
                  LEFT JOIN profiles p ON p.id = vd.user_id
+                 LEFT JOIN audit_contacts ac ON ac.phone_key = t.phone_key
                  WHERE ${where.join(' AND ')}
                  ORDER BY (t.responded_at IS NULL) DESC, vd.store_name ASC`,
                 params

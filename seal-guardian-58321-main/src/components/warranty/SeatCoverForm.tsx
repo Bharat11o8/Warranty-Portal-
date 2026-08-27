@@ -32,6 +32,7 @@ import { compressImage, isCompressibleImage } from "@/lib/imageCompression";
 import exifr from 'exifr';
 import fpPromise from '@fingerprintjs/fingerprintjs';
 import jsQR from "jsqr";
+import { usePurchaseDateWindow } from "@/hooks/usePurchaseDateWindow";
 
 const UID_REFERENCE_STEPS = [
   {
@@ -174,7 +175,8 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
    * close to the sale, so 7 days; an admin is correcting or back-filling a
    * record and keeps the original 30.
    */
-  const purchaseDateWindowDays = user?.role === 'admin' ? 30 : 7;
+  // Admin-controlled for the public/QR flow; admins keep a fixed 30 days.
+  const purchaseDateWindowDays = usePurchaseDateWindow(user?.role === 'admin');
 
   // Auto-fill customer details for logged-in customers
   useEffect(() => {

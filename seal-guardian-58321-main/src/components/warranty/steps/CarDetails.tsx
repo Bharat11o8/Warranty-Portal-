@@ -9,6 +9,7 @@ import { formatVehicleRegLive, getVehicleRegError } from "@/lib/validation";
 import { EVFormData } from "../EVProductsForm";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
+import { usePurchaseDateWindow } from "@/hooks/usePurchaseDateWindow";
 
 interface CarDetailsProps {
   formData: EVFormData;
@@ -26,7 +27,8 @@ const CarDetails = ({ formData, updateFormData, onNext, onPrev }: CarDetailsProp
    * to the sale, so 7 days; an admin is correcting or back-filling a record and
    * keeps the original 30.
    */
-  const purchaseDateWindowDays = user?.role === 'admin' ? 30 : 7;
+  // Admin-controlled for the public/QR flow; admins keep a fixed 30 days.
+  const purchaseDateWindowDays = usePurchaseDateWindow(user?.role === 'admin');
 
   const [isBrandNew, setIsBrandNew] = useState(formData.carReg === 'APPLIED-FOR');
 

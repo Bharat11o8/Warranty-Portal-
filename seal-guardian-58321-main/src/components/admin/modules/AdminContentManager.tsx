@@ -4,8 +4,10 @@ import { Card, CardContent, CardHeader, CardDescription } from "@/components/ui/
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
-import { Save, Eye, Code, Lock, FileText, ShieldCheck, Armchair, AlertTriangle, ClipboardList } from "lucide-react";
-import api from "@/lib/api";
+import { Save, Eye, Code, Lock, FileText, ShieldCheck, Armchair, AlertTriangle, ClipboardList, CalendarClock } from "lucide-react";
+import api, { getErrorMessage } from "@/lib/api";
+import { Input } from "@/components/ui/input";
+import { clearPurchaseDateWindowCache } from "@/hooks/usePurchaseDateWindow";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 
@@ -204,13 +206,59 @@ const FormTypeEditor = ({ config, canWrite }: { config: FormTypeConfig; canWrite
     }
   };
 
+  // How far back a customer may date a purchase on the QR flow. Admins keep a
+  // fixed 30 days, so this only governs the public form.
+  const [windowDays, setWindowDays] = useState<string>("7");
+  const [savingWindow, setSavingWindow] = useState(false);
+  const [loadedWindow, setLoadedWindow] = useState<string>("7");
+
+  useEffect(() => {
+    api.get('/settings/public/purchase_date_window_days')
+      .then(res => {
+        const v = String(res.data?.value ?? '7');
+        setWindowDays(v);
+        setLoadedWindow(v);
+      })
+      .catch(() => { /* keep the default */ });
+  }, []);
+
+  const saveWindow = async () => {
+    const n = Number(windowDays);
+    if (!Number.isFinite(n) || n < 1 || n > 3650) {
+      toast({
+        title: "Enter a number of days",
+        description: "Between 1 and 3650.",
+        variant: "destructive",
+      });
+      return;
+    }
+    setSavingWindow(true);
+    try {
+      await api.put('/settings/admin/purchase_date_window_days', { value: String(Math.floor(n)) });
+      setLoadedWindow(String(Math.floor(n)));
+      clearPurchaseDateWindowCache();
+      toast({
+        title: "Saved",
+        description: `Customers can now date a purchase up to ${Math.floor(n)} day${n === 1 ? '' : 's'} back.`,
+      });
+    } catch (error: any) {
+      toast({
+        title: "Could not save",
+        description: getErrorMessage(error, "Failed to update the window"),
+        variant: "destructive",
+      });
+    } finally {
+      setSavingWindow(false);
+    }
+  };
+
   if (fetching) {
     return <div className="py-16 text-center text-slate-400 text-sm animate-pulse">Loading content...</div>;
   }
 
   return (
     <Tabs defaultValue="terms" className="w-full">
-      <TabsList className="grid w-full grid-cols-3 max-w-lg mb-6">
+      <TabsList className="grid w-full grid-cols-4 max-w-2xl mb-6">
         <TabsTrigger value="terms" className="gap-2 text-xs font-bold">
           <FileText className="h-3.5 w-3.5" /> Terms &amp; Conditions
         </TabsTrigger>
@@ -220,7 +268,54 @@ const FormTypeEditor = ({ config, canWrite }: { config: FormTypeConfig; canWrite
         <TabsTrigger value="claim" className="gap-2 text-xs font-bold">
           <ClipboardList className="h-3.5 w-3.5" /> Claim Process
         </TabsTrigger>
+        <TabsTrigger value="rules" className="gap-2 text-xs font-bold">
+          <CalendarClock className="h-3.5 w-3.5" /> Form Rules
+        </TabsTrigger>
       </TabsList>
+
+      {/* ── Form rules ── */}
+      <TabsContent value="rules" className="mt-0 space-y-4">
+        <div className="rounded-2xl border border-orange-100 bg-white p-6 max-w-2xl">
+          <h3 className="text-sm font-bold text-slate-800">Purchase date window</h3>
+          <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+            How many days back a customer may date their purchase when registering
+            through the QR flow. Anything older is greyed out on the calendar.
+          </p>
+
+          <div className="flex items-end gap-3 mt-5">
+            <div>
+              <label className="text-[11px] font-bold text-slate-500">Days</label>
+              <Input
+                type="number"
+                min={1}
+                max={3650}
+                value={windowDays}
+                onChange={(e) => setWindowDays(e.target.value)}
+                disabled={!canWrite}
+                className="h-10 w-28 text-sm mt-1"
+              />
+            </div>
+            {canWrite && (
+              <Button
+                onClick={saveWindow}
+                disabled={savingWindow || windowDays === loadedWindow}
+                className="h-10 bg-orange-600 hover:bg-orange-700"
+              >
+                {savingWindow
+                  ? <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-t-transparent mr-1.5" />
+                  : <Save className="h-3.5 w-3.5 mr-1.5" />}
+                Save
+              </Button>
+            )}
+          </div>
+
+          <p className="text-[11px] text-slate-400 mt-4 leading-relaxed">
+            Currently <span className="font-bold text-slate-600">{loadedWindow} day{loadedWindow === '1' ? '' : 's'}</span>.
+            Admins filing on a store's behalf have no limit, so tightening this
+            does not stop you registering or correcting an older sale.
+          </p>
+        </div>
+      </TabsContent>
 
       {/* ── T&C ── */}
       <TabsContent value="terms" className="mt-0 space-y-4">

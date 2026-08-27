@@ -47,10 +47,20 @@ export const AuditRoundBar = ({ rounds, loading, selectedId, onSelect, onSeeded 
 
     const round = rounds.find(r => r.id === selectedId) || null;
 
-    // Default to the most recent round once they load.
+    // Default to the most recent round once they load, but only once — a
+    // deliberate switch to "All rounds" must not be overridden on the next render.
+    const [touched, setTouched] = useState(false);
     useEffect(() => {
-        if (!selectedId && rounds.length > 0) onSelect(rounds[0].id);
-    }, [rounds, selectedId, onSelect]);
+        if (!touched && !selectedId && rounds.length > 0) {
+            setTouched(true);
+            onSelect(rounds[0].id);
+        }
+    }, [rounds, selectedId, onSelect, touched]);
+
+    const handleSelect = (v: string) => {
+        setTouched(true);
+        onSelect(v === "__all__" ? null : v);
+    };
 
     /**
      * Fallback for when campaign send events never arrived: without a target
@@ -114,11 +124,14 @@ export const AuditRoundBar = ({ rounds, loading, selectedId, onSelect, onSeeded 
             <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
                 <div className="flex items-center gap-3 min-w-0">
                     <CalendarRange className="h-4 w-4 text-orange-500 shrink-0" />
-                    <Select value={selectedId || ""} onValueChange={onSelect}>
+                    <Select value={selectedId || "__all__"} onValueChange={handleSelect}>
                         <SelectTrigger className="h-11 rounded-2xl border-orange-100 bg-slate-50/50 w-full lg:w-[320px]">
                             <SelectValue placeholder="Choose a round" />
                         </SelectTrigger>
                         <SelectContent className="rounded-2xl">
+                            {/* Audits recorded before rounds existed carry no
+                                round_id, so they are only reachable here. */}
+                            <SelectItem value="__all__">All rounds</SelectItem>
                             {rounds.map(r => (
                                 <SelectItem key={r.id} value={r.id}>
                                     {r.name}

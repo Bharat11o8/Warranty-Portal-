@@ -57,6 +57,11 @@ router.post('/audits/call', ...adminAuth, requirePermission('vendors', 'write'),
 router.put('/audits/:id/review', ...adminAuth, requirePermission('vendors', 'write'), AdminController.updateStoreAuditReview);
 router.put('/audits/:id/assign', ...adminAuth, requirePermission('vendors', 'write'), AdminController.assignStoreAudit);
 // Audit rounds — audits repeat, so submissions are grouped and non-responders tracked.
+// The admin's own store list, so an audit from a number the portal does not
+// hold is still named rather than showing as unmatched.
+router.get('/audit-contacts', ...adminAuth, requirePermission('vendors', 'read'), AdminController.getAuditContacts);
+router.post('/audit-contacts/preview', ...adminAuth, requirePermission('vendors', 'write'), AdminController.previewAuditContacts);
+router.post('/audit-contacts', ...adminAuth, requirePermission('vendors', 'write'), AdminController.uploadAuditContacts);
 router.get('/audit-rounds', ...adminAuth, requirePermission('vendors', 'read'), AdminController.getAuditRounds);
 router.post('/audit-rounds/:id/seed', ...adminAuth, requirePermission('vendors', 'write'), AdminController.seedAuditRoundTargets);
 router.put('/audit-rounds/:id/close', ...adminAuth, requirePermission('vendors', 'write'), AdminController.closeAuditRound);

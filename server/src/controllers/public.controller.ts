@@ -8,6 +8,7 @@ import { geolocateIP, getClientIP } from '../utils/ipGeolocation.js';
 import { calculateFraudScore } from '../utils/fraudScoring.js';
 import { WhatsAppService } from '../services/whatsapp.service.js';
 import { getMobileRegistrationUsage, normalizeCustomerMobile, matchFallbackUidSequence, resolveFallbackUid, FALLBACK_UID_YEAR } from '../utils/customerMobileLimits.js';
+import { checkPurchaseDate } from '../services/purchaseDateWindow.service.js';
 
 export class PublicController {
     static async getStores(req: Request, res: Response) {
@@ -539,6 +540,14 @@ export class PublicController {
                     error: `Missing required fields: ${missingFields.join(', ')}`,
                     missingFields 
                 });
+            }
+
+            // The form greys out older dates, but that is presentation only —
+            // enforce the window here too. This route is public, so there is no
+            // admin exemption to consider.
+            const dateCheck = await checkPurchaseDate(warrantyData.purchaseDate, false);
+            if (!dateCheck.ok) {
+                return res.status(400).json({ error: dateCheck.error });
             }
 
             // UID required for seat-cover

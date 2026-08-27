@@ -10,6 +10,7 @@ import { WhatsAppService } from '../services/whatsapp.service.js';
 import { geolocateIP, getClientIP } from '../utils/ipGeolocation.js';
 import { calculateFraudScore } from '../utils/fraudScoring.js';
 import { matchFallbackUidSequence, resolveFallbackUid, FALLBACK_UID_YEAR } from '../utils/customerMobileLimits.js';
+import { checkPurchaseDate } from '../services/purchaseDateWindow.service.js';
 
 
 // Extending WarrantyData interface locally if not updated in types file yet
@@ -125,6 +126,17 @@ export class WarrantyController {
           error: `Missing required fields: ${missingFields.join(', ')}`,
           missingFields 
         });
+      }
+
+      // Enforce the purchase-date window server-side; the form only greys out
+      // older dates. Admins get the wider window, since they file on a store's
+      // behalf long after the sale.
+      const dateCheck = await checkPurchaseDate(
+        warrantyData.purchaseDate,
+        req.user?.role === 'admin'
+      );
+      if (!dateCheck.ok) {
+        return res.status(400).json({ error: dateCheck.error });
       }
 
       // Customer email is required for customers, optional for vendors

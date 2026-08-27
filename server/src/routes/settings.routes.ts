@@ -21,6 +21,12 @@ const requireSettingPermission = (req: express.Request, res: express.Response, n
         return requirePermission('content_manager', 'write')(req, res, next);
     }
 
+    // How far back a customer may date a purchase on the QR flow. It governs
+    // what the warranty form accepts, so it sits with the form content.
+    if (key === 'purchase_date_window_days') {
+        return requireAnyPermission(['content_manager', 'warranties'], 'write')(req, res, next);
+    }
+
     return requireAnyPermission(['terms', 'content_manager'], 'write')(req, res, next);
 };
 

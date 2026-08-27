@@ -1,5 +1,6 @@
 import db from '../config/database.js';
 import { v4 as uuidv4 } from 'uuid';
+import { findContactByPhone } from './auditContacts.service.js';
 
 /**
  * Store the answers from a WhatsApp Flow audit submission.
@@ -342,7 +343,14 @@ export async function ingestFlowAuditResponse(payload: any): Promise<AuditIngest
         }
 
         const franchiseName = val(answers, 'franchise_name');
-        const vendorId = await resolveVendor(phone, franchiseName);
+        let vendorId = await resolveVendor(phone, franchiseName);
+
+        // Not a registered franchise, so try the admin's uploaded store list.
+        // The Flow is supposed to prefill the store's details but sends them
+        // empty, leaving only the phone; this list is where the name, area and
+        // territory come from for a store the portal does not hold.
+        const contact = vendorId ? null : await findContactByPhone(phone);
+        if (contact?.vendor_details_id) vendorId = contact.vendor_details_id;
         const id = uuidv4();
         const roundId = await ensureRound(payload);
 
@@ -369,15 +377,15 @@ export async function ingestFlowAuditResponse(payload: any): Promise<AuditIngest
                 String(payload?.data?.flow_id ?? payload?.flow_id ?? '2152498745701937'),
                 String(payload?.data?.flow_version ?? payload?.flow_version ?? '7.1'),
                 val(answers, 'audit_date') || new Date().toISOString().slice(0, 10),
-                franchiseName,
-                val(answers, 'store_contact_no'),
-                val(answers, 'contact_person'),
-                val(answers, 'city'),
-                val(answers, 'state'),
-                val(answers, 'zone'),
-                val(answers, 'asm'),
-                val(answers, 'brands'),
-                val(answers, 'category'),
+                franchiseName || contact?.store_name || null,
+                val(answers, 'store_contact_no') || contact?.raw_phone || null,
+                val(answers, 'contact_person') || contact?.contact_person || null,
+                val(answers, 'city') || contact?.city || null,
+                val(answers, 'state') || contact?.state || null,
+                val(answers, 'zone') || contact?.zone || null,
+                val(answers, 'asm') || contact?.asm || null,
+                val(answers, 'brands') || contact?.brands || null,
+                val(answers, 'category') || contact?.category || null,
                 val(answers, 'signage_status'),
                 join(answers['online_presence']),
                 val(answers, 'online_presence_other'),
@@ -392,7 +400,7 @@ export async function ingestFlowAuditResponse(payload: any): Promise<AuditIngest
                 JSON.stringify(payload),
                 // An unmatched store needs a human to attach it before the audit
                 // counts, which is what follow_up means here.
-                vendorId ? 'new' : 'follow_up',
+                (vendorId || contact) ? 'new' : 'follow_up',
             ]
         );
 

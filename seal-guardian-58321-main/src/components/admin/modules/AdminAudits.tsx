@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { AuditRoundBar, type AuditRound } from "./AuditRoundBar";
 import { AuditChaseList } from "./AuditChaseList";
+import { AuditContactsUpload } from "./AuditContactsUpload";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import api, { getErrorMessage } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
@@ -14,7 +15,7 @@ import {
 import { downloadCSV } from "@/lib/utils";
 import {
     Search, Loader2, RefreshCw, Download, X, ClipboardCheck,
-    AlertTriangle, CheckCircle2, Flag, Phone, MessageCircle, Plus, SlidersHorizontal
+    AlertTriangle, CheckCircle2, Flag, Phone, MessageCircle, Plus, SlidersHorizontal, FileSpreadsheet
 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AUDIT_QUESTIONS, AUDIT_SECTIONS, AUDIT_FLOW, auditLabel, type AuditFieldKey } from "@/lib/auditQuestions";
@@ -92,6 +93,7 @@ export const AdminAudits = () => {
     const [note, setNote] = useState("");
     const [saving, setSaving] = useState(false);
     const [callFormOpen, setCallFormOpen] = useState(false);
+    const [contactsOpen, setContactsOpen] = useState(false);
 
     // Audits repeat, so submissions belong to a round — the campaign that sent
     // them. The round carries who it went to, which is the only way to tell who
@@ -176,6 +178,23 @@ export const AdminAudits = () => {
 
     useEffect(() => { fetchAudits(); fetchRounds(); }, [fetchRounds]);
 
+    // Counted from the rows this round actually contains, so a tab never claims
+    // more than the table can show.
+    const scopedCounts = useMemo(() => {
+        const rows = roundId
+            ? audits.filter(a => (a as any).round_id === roundId)
+            : audits;
+        return {
+            total: rows.length,
+            whatsapp: rows.filter(a => a.channel === "whatsapp").length,
+            call: rows.filter(a => a.channel === "call").length,
+            new: rows.filter(a => a.review_status === "new").length,
+            follow_up: rows.filter(a => a.review_status === "follow_up").length,
+            reviewed: rows.filter(a => a.review_status === "reviewed").length,
+            unmatched: rows.filter(a => !a.vendor_details_id).length,
+        };
+    }, [audits, roundId]);
+
     const visible = useMemo(() => {
         let list = audits;
         // Scope to the selected round; older audits predate rounds and carry no
@@ -212,13 +231,13 @@ export const AdminAudits = () => {
     }, [audits, filter, search, roundId, facets]);
 
     const tabs: { k: Filter; label: string; n: number; tone: string; bar: string }[] = [
-        { k: "all",       label: "All",       n: Number(counts.total || 0),           tone: "text-slate-700",   bar: "bg-slate-700" },
-        { k: "whatsapp",  label: "WhatsApp",  n: Number(counts.whatsapp_count || 0),  tone: "text-emerald-600", bar: "bg-emerald-500" },
-        { k: "call",      label: "Call",      n: Number(counts.call_count || 0),      tone: "text-violet-600",  bar: "bg-violet-500" },
-        { k: "new",       label: "New",       n: Number(counts.new_count || 0),       tone: "text-blue-600",    bar: "bg-blue-500" },
-        { k: "follow_up", label: "Follow up", n: Number(counts.follow_up_count || 0), tone: "text-amber-600",   bar: "bg-amber-500" },
-        { k: "reviewed",  label: "Reviewed",  n: Number(counts.reviewed_count || 0),  tone: "text-emerald-600", bar: "bg-emerald-500" },
-        { k: "unmatched", label: "Unmatched", n: Number(counts.unmatched_count || 0), tone: "text-rose-600",    bar: "bg-rose-500" },
+        { k: "all",       label: "All",       n: scopedCounts.total,      tone: "text-slate-700",   bar: "bg-slate-700" },
+        { k: "whatsapp",  label: "WhatsApp",  n: scopedCounts.whatsapp,   tone: "text-emerald-600", bar: "bg-emerald-500" },
+        { k: "call",      label: "Call",      n: scopedCounts.call,       tone: "text-violet-600",  bar: "bg-violet-500" },
+        { k: "new",       label: "New",       n: scopedCounts.new,        tone: "text-blue-600",    bar: "bg-blue-500" },
+        { k: "follow_up", label: "Follow up", n: scopedCounts.follow_up,  tone: "text-amber-600",   bar: "bg-amber-500" },
+        { k: "reviewed",  label: "Reviewed",  n: scopedCounts.reviewed,   tone: "text-emerald-600", bar: "bg-emerald-500" },
+        { k: "unmatched", label: "Unmatched", n: scopedCounts.unmatched,  tone: "text-rose-600",    bar: "bg-rose-500" },
     ];
 
     const setReview = async (audit: AuditRow, status: AuditRow["review_status"]) => {
@@ -277,6 +296,7 @@ export const AdminAudits = () => {
     const META_COLS = ["Submitted", "Contact", "Phone", "City", "Zone", "ASM", "Channel", "Done by"];
 
     const activeRound = rounds.find(r => r.id === roundId) || null;
+
 
     return (
         <div className="space-y-4">
@@ -478,6 +498,12 @@ export const AdminAudits = () => {
                         title="Export CSV" aria-label="Export CSV" className="h-9 w-9 shrink-0 border-slate-200">
                         <Download className="h-3.5 w-3.5" />
                     </Button>
+                    <Button variant="outline" onClick={() => setContactsOpen(true)}
+                        title="Upload your store list"
+                        className="h-9 shrink-0 border-slate-200 gap-1.5 text-slate-600">
+                        <FileSpreadsheet className="h-3.5 w-3.5" />
+                        <span className="hidden lg:inline">Store list</span>
+                    </Button>
                     <Button onClick={() => setCallFormOpen(true)} className="h-9 bg-orange-600 hover:bg-orange-700 shrink-0">
                         <Plus className="h-3.5 w-3.5 mr-1.5" /> Call audit
                     </Button>
@@ -620,6 +646,19 @@ export const AdminAudits = () => {
             )}
             </>
             )}
+
+            <AuditContactsUpload
+                open={contactsOpen}
+                onClose={() => setContactsOpen(false)}
+                onUploaded={() => {
+                    // The upload also rebuilds the round's chase list, so the
+                    // round bar and the not-done list have to refetch too —
+                    // otherwise they keep showing the pre-upload totals.
+                    fetchAudits(true);
+                    fetchRounds();
+                    setChaseKey(k => k + 1);
+                }}
+            />
 
             <AuditCallForm
                 open={callFormOpen}

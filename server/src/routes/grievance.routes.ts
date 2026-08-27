@@ -1,5 +1,6 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import GrievanceController from '../controllers/grievance.controller.js';
+import { GrievanceCategoryController } from '../controllers/grievanceCategory.controller.js';
 import { authenticateToken, requirePermission, requireRole } from '../middleware/auth.js';
 import { grievanceUpload, attachPublicUrls } from '../config/localUpload.js';
 
@@ -32,6 +33,14 @@ router.get('/vendor', authenticateToken, requireRole('vendor'), GrievanceControl
 // only ever file for itself.
 router.post('/franchise', authenticateToken, requireRole(['vendor', 'admin']), handleUpload, GrievanceController.submitFranchiseGrievance);
 router.get('/franchise/submitted', authenticateToken, requireRole('vendor'), GrievanceController.getFranchiseSubmittedGrievances);
+
+// Categories — managed by an admin, so adding one no longer needs a deploy.
+// The read route is open to any signed-in user because the franchise form
+// needs the list to render its options.
+router.get('/categories', authenticateToken, GrievanceCategoryController.list);
+router.post('/categories', authenticateToken, requireRole('admin'), requirePermission('grievances', 'write'), GrievanceCategoryController.create);
+router.put('/categories/:id', authenticateToken, requireRole('admin'), requirePermission('grievances', 'write'), GrievanceCategoryController.update);
+router.delete('/categories/:id', authenticateToken, requireRole('admin'), requirePermission('grievances', 'write'), GrievanceCategoryController.remove);
 
 // Admin routes
 router.get('/admin', authenticateToken, requireRole('admin'), requirePermission('grievances', 'read'), GrievanceController.getAllGrievances);

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import api, { getErrorMessage } from "@/lib/api";
 import { formatToIST, cn, getISTTodayISO } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
@@ -10,8 +10,9 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, RefreshCw, MessageSquare, Search, Paperclip, Store, Users, Mail, Send, Clock, Eye, Filter, ShieldCheck, Download, Package, Box, Wrench, Monitor, HelpCircle, Plus, X, Upload, CheckCircle } from "lucide-react";
+import { Loader2, RefreshCw, MessageSquare, Search, Paperclip, Store, Users, Mail, Send, Clock, Eye, Filter, ShieldCheck, Download, Package, Box, Wrench, Monitor, HelpCircle, Plus, X, Upload, CheckCircle, Zap, Video, Image as ImageIcon, Settings2 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { GrievanceCategoryManager } from "./GrievanceCategoryManager";
 import { WarrantySpecSheet } from "@/components/warranty/WarrantySpecSheet";
 import {
     Pagination,
@@ -72,6 +73,7 @@ const CATEGORIES: Record<string, string> = {
     mats: "Mats",
     accessories: "Accessories",
     software_issue: "Software/Portal Issue",
+    ev_ppf: "EV & PPF",
     other: "Other",
 };
 
@@ -80,6 +82,7 @@ const CATEGORY_CONFIG: Record<string, { color: string; icon: any; border: string
     mats: { color: "bg-emerald-500", border: "border-emerald-200", bg: "bg-emerald-50", text: "text-emerald-700", icon: Box },
     accessories: { color: "bg-amber-500", border: "border-amber-200", bg: "bg-amber-50", text: "text-amber-700", icon: Wrench },
     software_issue: { color: "bg-fuchsia-500", border: "border-fuchsia-200", bg: "bg-fuchsia-50", text: "text-fuchsia-700", icon: Monitor },
+    ev_ppf: { color: "bg-teal-500", border: "border-teal-200", bg: "bg-teal-50", text: "text-teal-700", icon: Zap },
     other: { color: "bg-slate-500", border: "border-slate-200", bg: "bg-slate-100", text: "text-slate-700", icon: HelpCircle },
 };
 
@@ -88,6 +91,7 @@ const DEPARTMENTS = [
     { department: "Accessories", name: "Ashish Dwivedi", email: "aashishdwivedi@autoformindia.com" },
     { department: "Mats", name: "Anurag Gupta", email: "anuraggupta@autoformindia.com" },
     { department: "Tech-Software", name: "DevTeam", email: "Dev@autoformindia.com" },
+    { department: "EV & PPF", name: "Gaurish Sharma", email: "ev.warranty@autoformindia.com" },
     { department: "Others", name: "Ashish", email: "ashish@autoformindia.com" }
 ];
 
@@ -178,6 +182,25 @@ export const AdminGrievances = () => {
     const activeFilterCount = [statusFilter, categoryFilter, originFilter]
         .filter(v => v !== "all").length;
 
+    // Labels and badge styling come from the same table the manager edits, so a
+    // renamed category shows its new name here without a deploy.
+    const [catMeta, setCatMeta] = useState<Record<string, { label: string; color: string }>>({});
+    const loadCategories = useCallback(() => {
+        api.get("/grievance/categories")
+            .then(res => {
+                const map: Record<string, { label: string; color: string }> = {};
+                (res.data?.categories || []).forEach((c: any) => {
+                    map[c.value] = { label: c.label, color: c.color };
+                });
+                setCatMeta(map);
+            })
+            .catch(() => { /* fall back to the built-in labels */ });
+    }, []);
+    useEffect(() => { loadCategories(); }, [loadCategories]);
+
+    /** The admin-set label, falling back to the built-in one, then the raw value. */
+    const catLabel = (value: string) => catMeta[value]?.label || CATEGORIES[value] || value;
+
     useEffect(() => {
         let result = grievances.filter(g => g.source_type === 'franchise');
 
@@ -190,7 +213,7 @@ export const AdminGrievances = () => {
                 g.franchise_name?.toLowerCase().includes(query) ||
                 g.subject.toLowerCase().includes(query) ||
                 (g.created_by_name || "").toLowerCase().includes(query) ||
-                (CATEGORIES[g.category] || g.category).toLowerCase().includes(query)
+                catLabel(g.category).toLowerCase().includes(query)
             );
         }
 
@@ -319,6 +342,8 @@ export const AdminGrievances = () => {
     // Filing a grievance on a franchise's behalf, for ones that arrive by
     // phone or email rather than through the portal.
     const [onBehalfOpen, setOnBehalfOpen] = useState(false);
+    const [categoryMgrOpen, setCategoryMgrOpen] = useState(false);
+
     const [franchises, setFranchises] = useState<{ id: string; store_name: string; store_code?: string | null; city?: string | null }[]>([]);
     const [franchiseSearch, setFranchiseSearch] = useState("");
     const [obFranchiseId, setObFranchiseId] = useState<string | null>(null);
@@ -424,7 +449,7 @@ export const AdminGrievances = () => {
                 `"${g.ticket_id}"`,
                 `"${g.customer_name || ''}"`,
                 `"${g.franchise_name || '-'}"`,
-                `"${CATEGORIES[g.category] || g.category}"`,
+                `"${catLabel(g.category)}"`,
                 `"${g.subject.replace(/"/g, '""')}"`,
                 `"${g.status.replace("_", " ")}"`,
                 `"${g.created_by_role === 'admin' ? 'Admin (on behalf)' : 'Franchise'}"`,
@@ -602,6 +627,15 @@ export const AdminGrievances = () => {
                             <span>Export</span>
                         </Button>
                         <Button
+                            variant="outline"
+                            onClick={() => setCategoryMgrOpen(true)}
+                            title="Manage categories and who they go to"
+                            className="h-11 rounded-2xl border-orange-100 hover:bg-orange-50 shrink-0 gap-2 text-slate-600"
+                        >
+                            <Settings2 className="h-4 w-4" />
+                            <span className="hidden lg:inline">Categories</span>
+                        </Button>
+                        <Button
                             onClick={openOnBehalf}
                             className="h-11 rounded-2xl shrink-0 gap-2 bg-orange-600 hover:bg-orange-700 shadow-sm"
                         >
@@ -657,7 +691,7 @@ export const AdminGrievances = () => {
                                             </div>
                                             <div>
                                                 <p className="text-xs text-slate-500 uppercase tracking-wider mb-0.5">Category</p>
-                                                <p className="text-sm text-slate-700">{CATEGORIES[g.category] || g.category}</p>
+                                                <p className="text-sm text-slate-700">{catLabel(g.category)}</p>
                                             </div>
                                         </div>
 
@@ -740,7 +774,7 @@ export const AdminGrievances = () => {
                                                         </Badge>
                                                     ) : (
                                                         <Badge variant="outline" className="font-normal text-slate-600 border-slate-200">
-                                                            {CATEGORIES[g.category] || g.category}
+                                                            {catLabel(g.category)}
                                                         </Badge>
                                                     )}
                                                 </td>
@@ -1045,12 +1079,18 @@ export const AdminGrievances = () => {
                                                             Attachments
                                                         </h4>
                                                         <div className="flex flex-wrap gap-2">
-                                                            {attachments.map((url: string, idx: number) => (
-                                                                <a key={idx} href={url} target="_blank" rel="noopener noreferrer"
-                                                                    className="text-sm px-3 py-1 bg-orange-50 text-orange-600 border border-orange-100 rounded hover:bg-orange-100">
-                                                                    Attachment {idx + 1}
-                                                                </a>
-                                                            ))}
+                                                            {attachments.map((url: string, idx: number) => {
+                                                                // Grievances can carry video now, so say which is which
+                                                                // rather than making an admin click to find out.
+                                                                const isVideo = /\.(mp4|mov|m4v|webm|avi|3gp|mkv)(\?|$)/i.test(url);
+                                                                return (
+                                                                    <a key={idx} href={url} target="_blank" rel="noopener noreferrer"
+                                                                        className="text-sm px-3 py-1 bg-orange-50 text-orange-600 border border-orange-100 rounded hover:bg-orange-100 inline-flex items-center gap-1.5">
+                                                                        {isVideo ? <Video className="h-3.5 w-3.5" /> : <ImageIcon className="h-3.5 w-3.5" />}
+                                                                        {isVideo ? "Video" : "Image"} {idx + 1}
+                                                                    </a>
+                                                                );
+                                                            })}
                                                         </div>
                                                     </div>
                                                 );
@@ -1288,6 +1328,12 @@ export const AdminGrievances = () => {
                 isOpen={showWarrantySheet}
                 onClose={() => setShowWarrantySheet(false)}
                 warranty={viewingWarranty}
+            />
+
+            <GrievanceCategoryManager
+                open={categoryMgrOpen}
+                onClose={() => setCategoryMgrOpen(false)}
+                onChanged={() => { fetchGrievances(); loadCategories(); }}
             />
 
             {/* File a grievance on a franchise's behalf */}

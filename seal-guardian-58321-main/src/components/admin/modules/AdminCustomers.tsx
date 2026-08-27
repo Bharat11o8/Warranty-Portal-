@@ -141,9 +141,11 @@ export const AdminCustomers = () => {
         setCurrentPage(1);
     }, [search, sortField, sortOrder]);
 
-    // Customers without an email (e.g. fallback-UID submissions) are looked up
-    // by phone instead, since the backend identifier is "email OR phone".
-    const getCustomerIdentifier = (customer: any) => customer.customer_email || customer.customer_phone;
+    // The phone identifies a customer, so it is used in preference to the email.
+    // Preferring the email meant a warranty registered under a store's address
+    // could not be found by its real owner's email, and their history came back
+    // empty. Email remains the fallback for the few records with no phone.
+    const getCustomerIdentifier = (customer: any) => customer.customer_phone || customer.customer_email;
 
     const handleViewCustomer = async (customer: any) => {
         const identifier = getCustomerIdentifier(customer);

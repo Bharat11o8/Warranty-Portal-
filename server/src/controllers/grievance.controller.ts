@@ -4,6 +4,7 @@ import { AuthRequest } from '../middleware/auth.js';
 import { EmailService } from '../services/email.service.js';
 import { NotificationService } from '../services/notification.service.js';
 import { ActivityLogService } from '../services/activity-log.service.js';
+import { resolveCategoryAssignee } from './grievanceCategory.controller.js';
 import { v4 as uuidv4 } from 'uuid';
 
 /**
@@ -409,14 +410,9 @@ class GrievanceController {
             const ticketId = await this.generateTicketId(category);
 
             // Auto-Assignment Mapping
-            const categoryAssignments: Record<string, { name: string, email: string }> = {
-                'seat_cover': { name: "Anuka", email: "afacsales@autoformindia.com" },
-                'mats': { name: "Anurag Gupta", email: "anuraggupta@autoformindia.com" },
-                'accessories': { name: "Ashish Dwivedi", email: "aashishdwivedi@autoformindia.com" },
-                'software_issue': { name: "DevTeam", email: "Dev@autoformindia.com" },
-                'other': { name: "Ashish", email: "ashish@autoformindia.com" }
-            };
-            const assignee = categoryAssignments[category] || categoryAssignments['other'];
+            // Who receives this comes from grievance_categories, so an admin can
+            // change the desk without a deploy. Falls back to "other".
+            const assignee = await resolveCategoryAssignee(category);
 
             // Insert grievance
             const [insertResult]: any = await db.execute(

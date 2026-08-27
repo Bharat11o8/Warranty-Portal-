@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Loader2, RefreshCw, MessageSquare, AlertCircle, CheckCircle, Clock, Users, Building2, Package, Receipt, Store, Wrench, ShieldCheck, HelpCircle, Paperclip, Plus, X, Upload, Factory, Truck, UserCheck, Eye, Box, Monitor } from "lucide-react";
 import { compressImage, isCompressibleImage } from "@/lib/imageCompression";
+import { compressVideo, isCompressibleVideo } from "@/lib/videoCompression";
 import { Pagination } from "./Pagination";
 import { WarrantySpecSheet } from "@/components/warranty/WarrantySpecSheet";
 
@@ -71,11 +72,25 @@ const STATUS_CONFIG: Record<string, { color: string; icon: any; label: string }>
     rejected: { color: "bg-red-500", icon: AlertCircle, label: "Action Required" },
 };
 
-const FRANCHISE_CATEGORIES = [
+/** Matches the server's grievanceUpload limit; a larger file is rejected there. */
+const MAX_ATTACHMENT_BYTES = 20 * 1024 * 1024;
+
+const formatFileSize = (bytes: number) =>
+    bytes >= 1024 * 1024
+        ? `${(bytes / (1024 * 1024)).toFixed(1)}MB`
+        : `${Math.round(bytes / 1024)}KB`;
+
+/**
+ * Fallback only. Categories are managed by an admin and fetched below; this
+ * list keeps the form usable if that request fails, rather than showing a store
+ * no options at all.
+ */
+const FALLBACK_CATEGORIES = [
     { value: "seat_cover", label: "Seat Cover" },
     { value: "mats", label: "Mats" },
     { value: "accessories", label: "Accessories" },
     { value: "software_issue", label: "Software/Portal Issue" },
+    { value: "ev_ppf", label: "EV & PPF" },
     { value: "other", label: "Other" },
 ];
 
@@ -111,6 +126,19 @@ const VendorGrievances = () => {
     const [department, setDepartment] = useState("");
     const [departmentDetails, setDepartmentDetails] = useState("");
     const [category, setCategory] = useState("");
+    const [categories, setCategories] = useState(FALLBACK_CATEGORIES);
+
+    // Only the active ones — a retired category stays on old grievances but
+    // must not be offered again.
+    useEffect(() => {
+        api.get("/grievance/categories", { params: { active: true } })
+            .then(res => {
+                const list = (res.data?.categories || [])
+                    .map((c: any) => ({ value: c.value, label: c.label }));
+                if (list.length > 0) setCategories(list);
+            })
+            .catch(() => { /* keep the fallback */ });
+    }, []);
     const [subject, setSubject] = useState("");
     const [description, setDescription] = useState("");
     const [attachment1, setAttachment1] = useState<File | null>(null);
@@ -183,6 +211,7 @@ const VendorGrievances = () => {
     ) => {
         if (e.target.files && e.target.files[0]) {
             const file = e.target.files[0];
+
             if (isCompressibleImage(file)) {
                 setCompressing(true);
                 try {
@@ -195,9 +224,53 @@ const VendorGrievances = () => {
                 } finally {
                     setCompressing(false);
                 }
-            } else {
-                setter(file);
+                return;
             }
+
+            if (isCompressibleVideo(file)) {
+                setCompressing(true);
+                try {
+                    const compressed = await compressVideo(file);
+                    // Re-encoding runs the clip through in real time, so a video
+                    // already small enough comes back untouched — say so rather
+                    // than claiming a compression that did not happen.
+                    if (compressed.size < file.size) {
+                        const saved = Math.round((1 - compressed.size / file.size) * 100);
+                        toast({
+                            title: "Video compressed",
+                            description: `${formatFileSize(file.size)} → ${formatFileSize(compressed.size)} (${saved}% smaller)`,
+                        });
+                    }
+                    if (compressed.size > MAX_ATTACHMENT_BYTES) {
+                        toast({
+                            title: "Video too large",
+                            description: `Still ${formatFileSize(compressed.size)} after compressing. The limit is ${formatFileSize(MAX_ATTACHMENT_BYTES)} — please trim the clip.`,
+                            variant: "destructive",
+                        });
+                        e.target.value = "";
+                        return;
+                    }
+                    setter(compressed);
+                } catch (error) {
+                    console.error("Video compression failed", error);
+                    setter(file);
+                } finally {
+                    setCompressing(false);
+                }
+                return;
+            }
+
+            // Anything else (a PDF, say) goes straight through, size permitting.
+            if (file.size > MAX_ATTACHMENT_BYTES) {
+                toast({
+                    title: "File too large",
+                    description: `${formatFileSize(file.size)} exceeds the ${formatFileSize(MAX_ATTACHMENT_BYTES)} limit.`,
+                    variant: "destructive",
+                });
+                e.target.value = "";
+                return;
+            }
+            setter(file);
         }
     };
 
@@ -429,7 +502,7 @@ const VendorGrievances = () => {
                             <div>
                                 <label className="text-xs font-black text-slate-500 uppercase tracking-widest mb-3 block">Category <span className="text-red-500">*</span></label>
                                 <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                                    {FRANCHISE_CATEGORIES.map((cat) => (
+                                    {categories.map((cat) => (
                                         <div
                                             key={cat.value}
                                             onClick={() => setCategory(cat.value)}
@@ -474,7 +547,7 @@ const VendorGrievances = () => {
                             <div>
                                 <label className="text-xs font-black text-slate-500 uppercase tracking-widest mb-3 block flex items-center gap-2">
                                     <Paperclip className="h-4 w-4" />
-                                    Attachments (Optional - Max 3)
+                                    Attachments (Optional - Max 3, images or video)
                                 </label>
                                 <div className="grid grid-cols-3 gap-3">
                                     {[
@@ -487,7 +560,7 @@ const VendorGrievances = () => {
                                                 type="file"
                                                 id={`attachment-${slot.id}`}
                                                 className="hidden"
-                                                accept="image/*"
+                                                accept="image/*,video/*"
                                                 onChange={(e) => handleAttachmentChange(e, slot.setter)}
                                             />
                                             <label

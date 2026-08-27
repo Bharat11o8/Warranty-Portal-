@@ -291,7 +291,10 @@ export const grievanceUpload = multer({
         filename: genericFileName,
     }),
     limits: {
-        fileSize: 5 * 1024 * 1024, // 5MB
+        // 20MB, matching POSM: a grievance can carry a video of the fault, and
+        // 5MB rejected any clip a phone produces. The browser compresses first,
+        // so this is the ceiling for what arrives, not what was filmed.
+        fileSize: 20 * 1024 * 1024,
         files: 3,
     },
 });
