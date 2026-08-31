@@ -10,6 +10,7 @@ import { WhatsAppService } from '../services/whatsapp.service.js';
 import { geolocateIP, getClientIP } from '../utils/ipGeolocation.js';
 import { calculateFraudScore } from '../utils/fraudScoring.js';
 import { matchFallbackUidSequence, resolveFallbackUid, FALLBACK_UID_YEAR } from '../utils/customerMobileLimits.js';
+import { recordRegistrationEvent } from '../services/analyticsEvents.service.js';
 import { checkPurchaseDate } from '../services/purchaseDateWindow.service.js';
 
 
@@ -549,15 +550,9 @@ export class WarrantyController {
           ]
         );
 
-        // Log the action to the immutable analytics_events table
-        try {
-            await db.execute(
-                `INSERT INTO analytics_events (warranty_id, action_type, performed_by) VALUES (?, ?, ?)`,
-                [insertResult.insertId, 'registered', warrantyData.customerName]
-            );
-        } catch (err) {
-            console.error('Failed to log analytics event:', err);
-        }
+        // Log the action to the immutable analytics_events table. Shared with the
+        // QR path so both registration routes record the event the same way.
+        await recordRegistrationEvent(insertResult.insertId, warrantyData.customerName);
       }
 
       // UID is checked but NOT marked as used until Admin approves it.

@@ -9,6 +9,7 @@ import { calculateFraudScore } from '../utils/fraudScoring.js';
 import { WhatsAppService } from '../services/whatsapp.service.js';
 import { getMobileRegistrationUsage, normalizeCustomerMobile, matchFallbackUidSequence, resolveFallbackUid, FALLBACK_UID_YEAR } from '../utils/customerMobileLimits.js';
 import { checkPurchaseDate } from '../services/purchaseDateWindow.service.js';
+import { recordRegistrationEvent } from '../services/analyticsEvents.service.js';
 
 export class PublicController {
     static async getStores(req: Request, res: Response) {
@@ -787,7 +788,7 @@ export class PublicController {
             // Inject submission source for UI display
             warrantyData.productDetails.submissionSource = 'QR Scan';
 
-            await db.execute(
+            const [insertResult]: any = await db.execute(
                 `INSERT INTO warranty_registrations 
                 (uid, user_id, product_type, customer_name, customer_email, customer_phone, 
                  customer_address, registration_number, car_make, car_model, car_year, 
@@ -830,6 +831,11 @@ export class PublicController {
                     warrantyData.productDetails?.photos?.carOuter || null
                 ]
             );
+
+            // The trend chart counts registrations from analytics_events, so a
+            // warranty that never lands an event is invisible on that graph even
+            // though it exists everywhere else.
+            await recordRegistrationEvent(insertResult.insertId, customerName);
 
             // UID is checked but NOT marked as used until Admin approves it.
 

@@ -31,6 +31,7 @@ import uidRoutes from './routes/uid.routes.js';
 import orderRoutes from './routes/order.routes.js';
 import webhookRoutes from './routes/webhook.routes.js';
 import { AssignmentSchedulerService } from './services/assignment-scheduler.service.js';
+import { startAnalyticsRepairSchedule } from './services/analyticsEvents.service.js';
 import { initSocket } from './socket.js';
 import { getISTTimestamp } from './utils/dateUtils.js';
 import pool, { getDbRetryStats, pingDatabase } from './config/database.js';
@@ -97,6 +98,11 @@ if (dbReady) {
   console.error('⚠️ Database not reachable after retries — starting server anyway; it will recover once the DB is back.');
 }
 AssignmentSchedulerService.start();
+
+// Backstop for the analytics ledger. Events are written when a warranty is
+// registered; this closes any gap left by a failed write or a crash mid-request,
+// so the trend chart cannot silently drift again.
+startAnalyticsRepairSchedule();
 
 // Get current directory for ES modules
 const __filename = fileURLToPath(import.meta.url);
