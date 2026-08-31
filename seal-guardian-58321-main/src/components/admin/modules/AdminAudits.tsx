@@ -264,16 +264,16 @@ export const AdminAudits = () => {
         downloadCSV(
             visible.map(a => ({
                 "Submitted": fmtDate(a.submitted_at),
-                "Store": a.store_name || a.franchise_name || "(unmatched)",
+                "Store Name": a.store_name || a.franchise_name || "(unmatched)",
                 "Store code": a.store_code || "",
-                "Contact person": a.contact_person || "",
+                "Contact Person": a.contact_person || "",
                 "Phone": a.submitted_phone,
                 "City": a.city || "",
                 "State": a.state || "",
                 "Zone": a.zone || "",
                 "ASM": a.asm || "",
-                "Channel": a.channel === "call" ? "Call" : "WhatsApp",
-                "Done by": a.audited_by_name || "Store (self)",
+                "Source": a.channel === "call" ? "Call" : "WhatsApp",
+                "Audit By": a.audited_by_name || "Store (self)",
                 "Status": STATUS_META[a.review_status]?.label || a.review_status,
                 ...Object.fromEntries(
                     AUDIT_QUESTIONS.map(q => [q.label, auditLabel(q.key, a[q.key] as string)])
@@ -293,7 +293,7 @@ export const AdminAudits = () => {
         );
     }
 
-    const META_COLS = ["Submitted", "Contact", "Phone", "City", "Zone", "ASM", "Channel", "Done by"];
+    const META_COLS = ["Submitted", "Contact Person", "Phone", "City", "Zone", "ASM", "Source", "Audit By"];
 
     const activeRound = rounds.find(r => r.id === roundId) || null;
 
@@ -552,7 +552,7 @@ export const AdminAudits = () => {
                             <thead>
                                 <tr className="bg-slate-50 border-b border-slate-200">
                                     <th className="sticky left-0 z-10 bg-slate-50 text-left p-3 font-black text-[10px] uppercase tracking-wider text-slate-500 min-w-[200px] border-r border-slate-200">
-                                        Store
+                                        Store Name
                                     </th>
                                     {META_COLS.map(h => (
                                         <th key={h} className="text-left p-3 font-black text-[10px] uppercase tracking-wider text-slate-500 whitespace-nowrap">

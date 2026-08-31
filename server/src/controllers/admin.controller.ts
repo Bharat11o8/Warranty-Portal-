@@ -421,6 +421,11 @@ export class AdminController {
                         name: `${vendorData.contact_name} (Store Owner)`,
                         phone: vendorData.phone_number,
                         is_active: 1,
+                        // The owner is not a manpower record and has nothing to
+                        // approve. Without this the UI reads !undefined as true
+                        // and files them under "Pending Approval", offering an
+                        // Approve button that has no row to update.
+                        is_approved: 1,
                         total_applications: ownerStats[0].total_applications,
                         points: ownerStats[0].points || 0,
                         pending_points: ownerStats[0].pending_points || 0,

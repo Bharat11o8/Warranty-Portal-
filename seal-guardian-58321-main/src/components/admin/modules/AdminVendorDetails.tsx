@@ -477,9 +477,18 @@ export const AdminVendorDetails = ({ vendor: initialVendor, onBack, isDistributo
     };
 
     const showManpowerWarranties = (member: any, status: 'validated' | 'pending' | 'rejected') => {
-        const manpowerWarranties = (vendor.warranties || []).filter((w: any) =>
-            w.manpower_id === member.id && w.status === status
-        );
+        // The store owner is a virtual row with id 'owner', standing for every
+        // warranty filed without a named installer. Its count is built server
+        // side from manpower_id being 'owner', null or empty, so matching only
+        // the literal string here found nothing and the dialog came up empty
+        // beside a badge saying two.
+        const isOwner = member.id === 'owner';
+        const manpowerWarranties = (vendor.warranties || []).filter((w: any) => {
+            if (w.status !== status) return false;
+            return isOwner
+                ? (w.manpower_id === 'owner' || w.manpower_id === null || w.manpower_id === '')
+                : w.manpower_id === member.id;
+        });
         setManpowerWarrantyDialogData({ member, status, warranties: manpowerWarranties });
         setManpowerWarrantyDialogOpen(true);
     };
