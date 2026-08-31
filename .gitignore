@@ -89,3 +89,9 @@ cols.txt
 package-lock.json
 package.json
 CLAUDE.md
+
+# Docs and notes — internal working documents stay local. README is the one
+# exception, since a repo should explain itself to whoever clones it.
+*.md
+*.pdf
+!README.md
