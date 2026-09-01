@@ -4,6 +4,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { VendorEngagementTabs } from "./VendorEngagementTabs";
+import { VendorSourcingTab } from "./VendorSourcingTab";
+import { VendorAnnouncementsTab } from "./VendorAnnouncementsTab";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { MapPin, User, Mail, Phone, Download, Search, Loader2, QrCode } from "lucide-react";
@@ -35,7 +37,7 @@ export const AdminVendorDetails = ({ vendor: initialVendor, onBack, isDistributo
     const { toast } = useToast();
     const [vendor, setVendor] = useState(initialVendor);
     const [activeTab, setActiveTab] = useState<
-        'warranties' | 'manpower' | 'franchises' | 'orders' | 'posm' | 'grievances' | 'audits'
+        'warranties' | 'manpower' | 'franchises' | 'orders' | 'posm' | 'grievances' | 'audits' | 'sourcing' | 'announcements'
     >('warranties');
     const [isLoadingDetails, setIsLoadingDetails] = useState(true);
     const [franchises, setFranchises] = useState<any[]>([]);
@@ -976,7 +978,9 @@ export const AdminVendorDetails = ({ vendor: initialVendor, onBack, isDistributo
             </Card>
 
             <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="space-y-6">
-                <TabsList className={`grid w-full h-auto p-1 bg-slate-100 rounded-lg ${isDistributorsView ? 'grid-cols-3' : 'grid-cols-6'}`}>
+                {/* Eight tabs do not fit one readable row, so the franchise view
+                    wraps onto two rather than squeezing the labels. */}
+                <TabsList className={`grid w-full h-auto p-1 bg-slate-100 rounded-lg ${isDistributorsView ? 'grid-cols-3' : 'grid-cols-4 lg:grid-cols-8'}`}>
                     <TabsTrigger value="warranties" className="py-2.5">Warranties ({vendor.warranties?.length || 0})</TabsTrigger>
                     <TabsTrigger value="manpower" className="py-2.5">Manpower ({vendor.manpower?.length || 0})</TabsTrigger>
                     {isDistributorsView && (
@@ -990,6 +994,8 @@ export const AdminVendorDetails = ({ vendor: initialVendor, onBack, isDistributo
                             <TabsTrigger value="posm" className="py-2.5">POSM</TabsTrigger>
                             <TabsTrigger value="grievances" className="py-2.5">Grievances</TabsTrigger>
                             <TabsTrigger value="audits" className="py-2.5">Audits</TabsTrigger>
+                            <TabsTrigger value="sourcing" className="py-2.5">Sourcing</TabsTrigger>
+                            <TabsTrigger value="announcements" className="py-2.5">Announcements</TabsTrigger>
                         </>
                     )}
                 </TabsList>
@@ -1039,6 +1045,30 @@ export const AdminVendorDetails = ({ vendor: initialVendor, onBack, isDistributo
                                         kind="audits"
                                         vendorDetailsId={vendor.vendor_details_id || null}
                                         userId={vendor.user_id || vendor.id || null}
+                                    />
+                                </CardContent>
+                            </Card>
+                        </TabsContent>
+
+                        <TabsContent value="sourcing">
+                            <Card className="border-orange-100 shadow-sm">
+                                <CardContent className="pt-6">
+                                    {/* franchise_distributors keys on the profile id,
+                                        not vendor_details.id. */}
+                                    <VendorSourcingTab
+                                        franchiseUserId={vendor.user_id || vendor.id || null}
+                                        storeName={vendor.store_name}
+                                    />
+                                </CardContent>
+                            </Card>
+                        </TabsContent>
+
+                        <TabsContent value="announcements">
+                            <Card className="border-orange-100 shadow-sm">
+                                <CardContent className="pt-6">
+                                    <VendorAnnouncementsTab
+                                        franchiseUserId={vendor.user_id || vendor.id || null}
+                                        storeName={vendor.store_name}
                                     />
                                 </CardContent>
                             </Card>
