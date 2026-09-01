@@ -46,7 +46,13 @@ const pool = mysql.createPool({
   maxIdle: parseInt(process.env.DB_MAX_IDLE || '2'),
   queueLimit: 0,
 
-  enableKeepAlive: false,
+  // The database is remote, so an idle socket can be dropped by anything on the
+  // path — a router, a NAT table, a firewall — without either end being told.
+  // The pool then hands out a dead connection and the query fails with
+  // PROTOCOL_CONNECTION_LOST. TCP keepalive holds the socket open; the retry
+  // wrapper below covers the ones that still slip through.
+  enableKeepAlive: true,
+  keepAliveInitialDelay: 10000,
 
   connectTimeout: parseInt(process.env.DB_CONNECT_TIMEOUT || '20000'),
   idleTimeout: parseInt(process.env.DB_IDLE_TIMEOUT || '30000'),
@@ -57,7 +63,7 @@ const pool = mysql.createPool({
 // in MySQL 8.0 — it rejects LIMIT/OFFSET as strings and arrays in IN clauses.
 // query() uses the text protocol and handles all of these correctly.
 // Redirecting execute → query fixes all controllers without touching them.
-(pool as any).execute = pool.query.bind(pool);
+const rawQuery = pool.query.bind(pool);
 
 const TRANSIENT_DB_ERROR_CODES = new Set([
   'ETIMEDOUT',
@@ -93,7 +99,9 @@ export async function executeWithRetry<T = any>(
 
   for (let attempt = 0; ; attempt++) {
     try {
-      const result = await pool.query(sql, params) as T;
+      // rawQuery, not pool.query — pool.query is itself wrapped in this
+      // function below, and calling it here would recurse.
+      const result = await rawQuery(sql, params) as T;
       const duration = Date.now() - startTime;
 
       // Log slow queries (> 2 seconds)
@@ -135,6 +143,26 @@ export async function executeWithRetry<T = any>(
   }
 }
 
+/**
+ * Route every db.query / db.execute through the retry wrapper.
+ *
+ * A dropped idle connection surfaces as PROTOCOL_CONNECTION_LOST on whichever
+ * query happens to draw it from the pool — the failure has nothing to do with
+ * that query, and retrying it on a fresh connection simply works.
+ *
+ * Doing it here rather than at the call sites is deliberate: there are over 500
+ * of them, and a wrapper that has to be remembered is one that will be
+ * forgotten. Only the four calls that already wrapped themselves were ever
+ * protected, which is why an ordinary page load could fail.
+ *
+ * Retries are safe for reads, and for the writes here: an INSERT that never
+ * reached the server cannot have been applied, and PROTOCOL_CONNECTION_LOST
+ * means exactly that. mysql2 raises a different error for a connection lost
+ * mid-statement, and that one is not retried.
+ */
+(pool as any).query = (sql: any, params?: any) => executeWithRetry(sql, params ?? []);
+(pool as any).execute = (sql: any, params?: any) => executeWithRetry(sql, params ?? []);
+
 export function getDbRetryStats() {
   return {
     transientRetryCount,
@@ -144,7 +172,9 @@ export function getDbRetryStats() {
 
 export async function pingDatabase(): Promise<boolean> {
   try {
-    await pool.query('SELECT 1');
+    // rawQuery: a health check should report the state now, not spend three
+    // retries and several seconds hiding it.
+    await rawQuery('SELECT 1');
     return true;
   } catch {
     return false;
