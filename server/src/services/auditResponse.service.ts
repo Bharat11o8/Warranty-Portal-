@@ -291,31 +291,101 @@ export async function recordAuditSent(payload: any): Promise<void> {
 }
 
 /**
+ * Record a delivery milestone for a campaign message.
+ *
+ * Interakt reports the funnel — delivered, read, failed — as separate campaign
+ * events. Without these the round could only ever say "sent", which does not
+ * distinguish a store that ignored the audit from one that never received it;
+ * only the second is worth re-sending to.
+ *
+ * Each stamp is written once (COALESCE), so a repeated webhook keeps the first
+ * time rather than moving it forward.
+ */
+export async function recordAuditDelivery(payload: any, kind: 'delivered' | 'read' | 'failed'): Promise<void> {
+    try {
+        const c = campaignOf(payload);
+        if (!c.id) return;
+        if (c.template && c.template !== AUDIT_TEMPLATE) return;
+
+        const roundId = await ensureRound(payload);
+        if (!roundId) return;
+
+        const phone = findPhone(payload);
+        const key = phoneKey(phone);
+        if (!key) return;
+
+        const column = kind === 'delivered' ? 'delivered_at' : kind === 'read' ? 'read_at' : 'failed_at';
+        const reason = kind === 'failed'
+            ? String(payload?.data?.message?.channel_failure_reason ?? payload?.data?.message?.channel_error_code ?? '').slice(0, 255) || null
+            : null;
+
+        await db.execute(
+            `UPDATE audit_round_targets
+                SET ${column} = COALESCE(${column}, CURRENT_TIMESTAMP)
+                    ${kind === 'failed' ? ', failure_reason = COALESCE(failure_reason, ?)' : ''}
+              WHERE round_id = ? AND phone_key = ?`,
+            kind === 'failed' ? [reason, roundId, key] : [roundId, key]
+        );
+    } catch (error: any) {
+        // Never break the webhook over a status update.
+        console.error(`[Audit] Failed to record ${kind}:`, error?.message || error);
+    }
+}
+
+/**
  * Mark this store as having responded to the round.
  *
  * Only fills a target that is still outstanding, so a store that submits twice
  * keeps the first response time and both audits are still stored.
  */
-async function markResponded(roundId: string, vendorId: string, auditId: string) {
-    const [r]: any = await db.execute(
-        `UPDATE audit_round_targets
-         SET store_audit_id = ?, responded_at = CURRENT_TIMESTAMP
-         WHERE round_id = ? AND vendor_details_id = ? AND responded_at IS NULL`,
-        [auditId, roundId, vendorId]
-    );
+async function markResponded(
+    roundId: string,
+    vendorId: string | null,
+    auditId: string,
+    phone: string | null
+) {
+    // Match on the phone first. It is what the target list is keyed by, it
+    // exists for every store, and it is the same number the reply came from.
+    // Matching on vendor_details_id alone missed two ways: a store with no
+    // franchise record has none, and a reply that beat its own "sent" webhook
+    // found no row at all and inserted a duplicate — which is how a campaign
+    // to two contacts came to show three targets.
+    const key = phoneKey(phone);
 
-    // A reply with no target row means the send event never reached us. Record
-    // it anyway: a store that answered must never show as outstanding.
-    if (r.affectedRows === 0) {
-        await db.execute(
-            `INSERT INTO audit_round_targets (id, round_id, vendor_details_id, store_audit_id, responded_at)
-             VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
-             ON DUPLICATE KEY UPDATE
-                store_audit_id = COALESCE(store_audit_id, VALUES(store_audit_id)),
-                responded_at   = COALESCE(responded_at, VALUES(responded_at))`,
-            [uuidv4(), roundId, vendorId, auditId]
+    if (key) {
+        const [byPhone]: any = await db.execute(
+            `UPDATE audit_round_targets
+             SET store_audit_id = ?, responded_at = CURRENT_TIMESTAMP
+             WHERE round_id = ? AND phone_key = ? AND responded_at IS NULL`,
+            [auditId, roundId, key]
         );
+        if (byPhone.affectedRows > 0) return;
     }
+
+    if (vendorId) {
+        const [byVendor]: any = await db.execute(
+            `UPDATE audit_round_targets
+             SET store_audit_id = ?, responded_at = CURRENT_TIMESTAMP
+             WHERE round_id = ? AND vendor_details_id = ? AND responded_at IS NULL`,
+            [auditId, roundId, vendorId]
+        );
+        if (byVendor.affectedRows > 0) return;
+    }
+
+    // No target row yet — the reply arrived before the send event, which does
+    // happen. Insert keyed on the phone so the send event lands on this same
+    // row instead of creating a second one.
+    if (!key && !vendorId) return;
+
+    await db.execute(
+        `INSERT INTO audit_round_targets (id, round_id, vendor_details_id, phone_key, sent_phone, store_audit_id, responded_at)
+         VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+         ON DUPLICATE KEY UPDATE
+            vendor_details_id = COALESCE(vendor_details_id, VALUES(vendor_details_id)),
+            store_audit_id    = COALESCE(store_audit_id, VALUES(store_audit_id)),
+            responded_at      = COALESCE(responded_at, VALUES(responded_at))`,
+        [uuidv4(), roundId, vendorId, key || null, phone || null, auditId]
+    );
 }
 
 export interface AuditIngestResult {
@@ -348,6 +418,11 @@ export async function ingestFlowAuditResponse(payload: any): Promise<AuditIngest
                  VALUES (?, ?, NULL, ?, 'whatsapp', 'af_store_audit_2', ?, 'follow_up')`,
                 [id, roundId, phone || '', JSON.stringify(payload)]
             );
+            // The store did reply, even if the payload could not be read, so it
+            // must not stay on the chase list.
+            if (roundId) {
+                await markResponded(roundId, await resolveVendor(phone, null), id, phone);
+            }
             console.warn('[Audit] Flow response stored but no answers recognised — id', id);
             return { stored: true, id, vendorMatched: false, fieldsFound: 0, reason: 'no answer fields recognised' };
         }
@@ -415,9 +490,11 @@ export async function ingestFlowAuditResponse(payload: any): Promise<AuditIngest
         );
 
         // Tick this store off the round's target list, so what remains is the
-        // set of stores that have not answered.
-        if (roundId && vendorId) {
-            await markResponded(roundId, vendorId, id);
+        // set of stores that have not answered. Not gated on a franchise match:
+        // a store that exists only in the uploaded contact sheet still answered,
+        // and leaving it outstanding means chasing someone who already replied.
+        if (roundId) {
+            await markResponded(roundId, vendorId, id, phone);
         }
 
         const fieldsFound = ALL_FIELDS.filter(f => f in answers).length;
