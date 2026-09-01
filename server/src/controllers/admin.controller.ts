@@ -2935,6 +2935,10 @@ export class AdminController {
 
             // Normalize permissions â€” default all to false if not provided
             const defaultPermissions = {
+                // Must list every module the routes enforce. A key that is absent
+                // is not "denied by default" in a recoverable way — the check
+                // reads undefined and returns 403, and the permissions screen
+                // has no switch to turn on something it cannot see.
                 overview: { read: false, write: false },
                 analytics: { read: false, write: false },
                 warranties: { read: false, write: false },
@@ -2942,6 +2946,7 @@ export class AdminController {
                 uid_management: { read: false, write: false },
                 warranty_form: { read: false, write: false },
                 vendors: { read: false, write: false },
+                audits: { read: false, write: false },
                 distributors: { read: false, write: false },
                 order_management: { read: false, write: false },
                 customers: { read: false, write: false },

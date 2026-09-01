@@ -31,6 +31,7 @@ const PERMISSION_GROUPS: { label: string; modules: PermissionModule[] }[] = [
         label: "Network & Orders",
         modules: [
             { key: "vendors", label: "Franchises", description: "Franchise profiles & verification" },
+            { key: "audits", label: "Audit & Compliance", description: "Store audit rounds, responses & chase list" },
             { key: "distributors", label: "Distributors", description: "Distributor network & franchise mapping" },
             { key: "order_management", label: "Order Management", description: "Order activity, allocation & fulfilment" },
             { key: "customers", label: "Customers", description: "Customer data & warranty history" },

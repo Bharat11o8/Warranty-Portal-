@@ -53,22 +53,22 @@ router.post('/distributors/:id/franchises', ...adminAuth, requireAnyPermission([
 router.delete('/distributors/:id/franchises/:vendorId', ...adminAuth, requireAnyPermission(['distributors', 'order_management'], 'write'), AdminController.unassignDistributorFromFranchise);
 
 // Store audits (WhatsApp Flow responses)
-router.get('/audits', ...adminAuth, requirePermission('vendors', 'read'), AdminController.getStoreAudits);
-router.post('/audits/call', ...adminAuth, requirePermission('vendors', 'write'), AdminController.createCallAudit);
-router.put('/audits/:id/review', ...adminAuth, requirePermission('vendors', 'write'), AdminController.updateStoreAuditReview);
-router.put('/audits/:id/assign', ...adminAuth, requirePermission('vendors', 'write'), AdminController.assignStoreAudit);
+router.get('/audits', ...adminAuth, requirePermission('audits', 'read'), AdminController.getStoreAudits);
+router.post('/audits/call', ...adminAuth, requirePermission('audits', 'write'), AdminController.createCallAudit);
+router.put('/audits/:id/review', ...adminAuth, requirePermission('audits', 'write'), AdminController.updateStoreAuditReview);
+router.put('/audits/:id/assign', ...adminAuth, requirePermission('audits', 'write'), AdminController.assignStoreAudit);
 // Audit rounds — audits repeat, so submissions are grouped and non-responders tracked.
 // The admin's own store list, so an audit from a number the portal does not
 // hold is still named rather than showing as unmatched.
-router.get('/audit-contacts', ...adminAuth, requirePermission('vendors', 'read'), AdminController.getAuditContacts);
-router.post('/audit-contacts/preview', ...adminAuth, requirePermission('vendors', 'write'), AdminController.previewAuditContacts);
-router.post('/audit-contacts', ...adminAuth, requirePermission('vendors', 'write'), AdminController.uploadAuditContacts);
-router.get('/audit-rounds', ...adminAuth, requirePermission('vendors', 'read'), AdminController.getAuditRounds);
-router.post('/audit-rounds/:id/seed', ...adminAuth, requirePermission('vendors', 'write'), AdminController.seedAuditRoundTargets);
-router.put('/audit-rounds/:id/close', ...adminAuth, requirePermission('vendors', 'write'), AdminController.closeAuditRound);
-router.delete('/audit-rounds/:id', ...adminAuth, requirePermission('vendors', 'write'), AdminController.deleteAuditRound);
-router.delete('/audits/:id', ...adminAuth, requirePermission('vendors', 'write'), AdminController.deleteStoreAudit);
-router.get('/audit-rounds/:id/targets', ...adminAuth, requirePermission('vendors', 'read'), AdminController.getAuditRoundTargets);
+router.get('/audit-contacts', ...adminAuth, requirePermission('audits', 'read'), AdminController.getAuditContacts);
+router.post('/audit-contacts/preview', ...adminAuth, requirePermission('audits', 'write'), AdminController.previewAuditContacts);
+router.post('/audit-contacts', ...adminAuth, requirePermission('audits', 'write'), AdminController.uploadAuditContacts);
+router.get('/audit-rounds', ...adminAuth, requirePermission('audits', 'read'), AdminController.getAuditRounds);
+router.post('/audit-rounds/:id/seed', ...adminAuth, requirePermission('audits', 'write'), AdminController.seedAuditRoundTargets);
+router.put('/audit-rounds/:id/close', ...adminAuth, requirePermission('audits', 'write'), AdminController.closeAuditRound);
+router.delete('/audit-rounds/:id', ...adminAuth, requirePermission('audits', 'write'), AdminController.deleteAuditRound);
+router.delete('/audits/:id', ...adminAuth, requirePermission('audits', 'write'), AdminController.deleteStoreAudit);
+router.get('/audit-rounds/:id/targets', ...adminAuth, requirePermission('audits', 'read'), AdminController.getAuditRoundTargets);
 
 // Warranties
 router.get('/warranties', ...adminAuth, requirePermission('warranties', 'read'), AdminController.getAllWarranties);

@@ -158,7 +158,7 @@ const moduleToPermKey: Record<string, string> = {
     'content-manager': 'content_manager',
     'order-management': 'order_management',
     'franchise-distributor-map': 'distributors',
-    'audits': 'vendors',
+    'audits': 'audits',
     'profile': 'profile',  // Always visible
 };
 
