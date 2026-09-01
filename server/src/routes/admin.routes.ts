@@ -65,6 +65,8 @@ router.post('/audit-contacts', ...adminAuth, requirePermission('vendors', 'write
 router.get('/audit-rounds', ...adminAuth, requirePermission('vendors', 'read'), AdminController.getAuditRounds);
 router.post('/audit-rounds/:id/seed', ...adminAuth, requirePermission('vendors', 'write'), AdminController.seedAuditRoundTargets);
 router.put('/audit-rounds/:id/close', ...adminAuth, requirePermission('vendors', 'write'), AdminController.closeAuditRound);
+router.delete('/audit-rounds/:id', ...adminAuth, requirePermission('vendors', 'write'), AdminController.deleteAuditRound);
+router.delete('/audits/:id', ...adminAuth, requirePermission('vendors', 'write'), AdminController.deleteStoreAudit);
 router.get('/audit-rounds/:id/targets', ...adminAuth, requirePermission('vendors', 'read'), AdminController.getAuditRoundTargets);
 
 // Warranties

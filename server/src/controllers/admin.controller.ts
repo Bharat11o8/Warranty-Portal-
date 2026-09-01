@@ -4381,6 +4381,84 @@ export class AdminController {
     }
 
     /**
+     * Delete a round and its target list.
+     *
+     * Test campaigns land here the same way real ones do — the webhook opens a
+     * round for whatever Interakt sends — so there has to be a way to clear
+     * them without a database session.
+     *
+     * Submissions are deliberately kept: a store's answers are the record, and
+     * they outlive the round they arrived through. Their round_id is cleared so
+     * nothing points at a row that no longer exists. Targets go with the round
+     * (ON DELETE CASCADE) because they only describe who was messaged.
+     */
+    static async deleteAuditRound(req: Request, res: Response) {
+        try {
+            const roundId = req.params.id;
+
+            const [[round]]: any = await db.execute(
+                `SELECT id, name FROM audit_rounds WHERE id = ? LIMIT 1`,
+                [roundId]
+            );
+            if (!round) return res.status(404).json({ error: 'Round not found' });
+
+            const [[counts]]: any = await db.execute(
+                `SELECT
+                    (SELECT COUNT(*) FROM audit_round_targets WHERE round_id = ?) AS targets,
+                    (SELECT COUNT(*) FROM store_audits WHERE round_id = ?) AS audits`,
+                [roundId, roundId]
+            );
+
+            await db.execute(`UPDATE store_audits SET round_id = NULL WHERE round_id = ?`, [roundId]);
+            await db.execute(`DELETE FROM audit_rounds WHERE id = ?`, [roundId]);
+
+            res.json({
+                success: true,
+                message: `Deleted round "${round.name}"`,
+                data: {
+                    targetsRemoved: Number(counts.targets || 0),
+                    auditsKept: Number(counts.audits || 0),
+                },
+            });
+        } catch (error: any) {
+            console.error('Delete audit round error:', error);
+            res.status(500).json({ error: 'Failed to delete the round' });
+        }
+    }
+
+    /**
+     * Delete one audit submission.
+     *
+     * Used to clear test entries. If the submission had filled a target, that
+     * target is reopened so the store still reads as outstanding rather than
+     * silently counting as done.
+     */
+    static async deleteStoreAudit(req: Request, res: Response) {
+        try {
+            const auditId = req.params.id;
+
+            const [[audit]]: any = await db.execute(
+                `SELECT id, round_id FROM store_audits WHERE id = ? LIMIT 1`,
+                [auditId]
+            );
+            if (!audit) return res.status(404).json({ error: 'Audit not found' });
+
+            await db.execute(
+                `UPDATE audit_round_targets
+                    SET responded_at = NULL, store_audit_id = NULL
+                  WHERE store_audit_id = ?`,
+                [auditId]
+            );
+            await db.execute(`DELETE FROM store_audits WHERE id = ?`, [auditId]);
+
+            res.json({ success: true, message: 'Audit deleted' });
+        } catch (error: any) {
+            console.error('Delete store audit error:', error);
+            res.status(500).json({ error: 'Failed to delete the audit' });
+        }
+    }
+
+    /**
      * Which stores have and have not answered a round.
      *
      * The point of the whole round structure: outstanding stores are the ones
