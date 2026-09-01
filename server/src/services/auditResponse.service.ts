@@ -1,6 +1,6 @@
 import db from '../config/database.js';
 import { v4 as uuidv4 } from 'uuid';
-import { findContactByPhone } from './auditContacts.service.js';
+import { findContactByPhone, phoneKey } from './auditContacts.service.js';
 
 /**
  * Store the answers from a WhatsApp Flow audit submission.
@@ -267,11 +267,21 @@ export async function recordAuditSent(payload: any): Promise<void> {
 
         const vendorId = await resolveVendor(phone, null);
 
+        // phone_key carries the unique key (round_id, phone_key). Leaving it NULL
+        // defeats the ON DUPLICATE KEY below, because NULLs never collide in a
+        // MySQL unique index — every Interakt retry then inserted another row,
+        // and one campaign of 485 recipients counted as 836 targets.
+        const key = phoneKey(phone);
+        if (!key) return;
+
         await db.execute(
-            `INSERT INTO audit_round_targets (id, round_id, vendor_details_id, sent_at, sent_phone)
-             VALUES (?, ?, ?, CURRENT_TIMESTAMP, ?)
-             ON DUPLICATE KEY UPDATE sent_at = COALESCE(sent_at, CURRENT_TIMESTAMP)`,
-            [uuidv4(), roundId, vendorId, phone]
+            `INSERT INTO audit_round_targets (id, round_id, vendor_details_id, phone_key, sent_at, sent_phone)
+             VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, ?)
+             ON DUPLICATE KEY UPDATE
+                sent_at = COALESCE(sent_at, CURRENT_TIMESTAMP),
+                vendor_details_id = COALESCE(vendor_details_id, VALUES(vendor_details_id)),
+                sent_phone = COALESCE(sent_phone, VALUES(sent_phone))`,
+            [uuidv4(), roundId, vendorId, key, phone]
         );
     } catch (error: any) {
         // A failure here must not break the webhook, or Interakt retries and we
