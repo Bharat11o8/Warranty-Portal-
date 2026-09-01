@@ -15,7 +15,7 @@ import {
 import { downloadCSV } from "@/lib/utils";
 import {
     Search, Loader2, RefreshCw, Download, X, ClipboardCheck,
-    AlertTriangle, CheckCircle2, Flag, Phone, MessageCircle, Plus, SlidersHorizontal, FileSpreadsheet
+    AlertTriangle, CheckCircle2, Flag, Phone, MessageCircle, Plus, SlidersHorizontal, FileSpreadsheet, Trash2
 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AUDIT_QUESTIONS, AUDIT_SECTIONS, AUDIT_FLOW, auditLabel, type AuditFieldKey } from "@/lib/auditQuestions";
@@ -47,7 +47,6 @@ interface AuditRow {
     state: string | null;
     franchise_name: string | null;
     contact_person: string | null;
-    zone: string | null;
     asm: string | null;
     brands: string | null;
     category: string | null;
@@ -92,7 +91,16 @@ export const AdminAudits = () => {
     const [selected, setSelected] = useState<AuditRow | null>(null);
     const [note, setNote] = useState("");
     const [saving, setSaving] = useState(false);
+    const [deletingAudit, setDeletingAudit] = useState(false);
     const [callFormOpen, setCallFormOpen] = useState(false);
+    const [callPresetTarget, setCallPresetTarget] = useState<{
+        targetId: string;
+        vendorDetailsId: string | null;
+        storeName: string | null;
+        city: string | null;
+        contactPerson: string | null;
+        phone: string | null;
+    } | null>(null);
     const [contactsOpen, setContactsOpen] = useState(false);
 
     // Audits repeat, so submissions belong to a round — the campaign that sent
@@ -107,7 +115,7 @@ export const AdminAudits = () => {
     /**
      * Filters built from the data rather than a fixed list.
      *
-     * Territory (city/zone/asm) and the answers themselves are what an admin
+     * Territory (city/ASM) and the answers themselves are what an admin
      * actually slices by; the options come from the audits on hand, so a value
      * only ever appears when something matches it.
      */
@@ -131,7 +139,6 @@ export const AdminAudits = () => {
         return {
             city: uniq(scoped.map(a => a.city)),
             state: uniq(scoped.map(a => a.state)),
-            zone: uniq(scoped.map(a => a.zone)),
             asm: uniq(scoped.map(a => a.asm)),
         } as Record<string, string[]>;
     }, [audits, roundId]);
@@ -237,8 +244,37 @@ export const AdminAudits = () => {
         { k: "new",       label: "New",       n: scopedCounts.new,        tone: "text-blue-600",    bar: "bg-blue-500" },
         { k: "follow_up", label: "Follow up", n: scopedCounts.follow_up,  tone: "text-amber-600",   bar: "bg-amber-500" },
         { k: "reviewed",  label: "Reviewed",  n: scopedCounts.reviewed,   tone: "text-emerald-600", bar: "bg-emerald-500" },
-        { k: "unmatched", label: "Unmatched", n: scopedCounts.unmatched,  tone: "text-rose-600",    bar: "bg-rose-500" },
+        { k: "unmatched", label: "Not in franchise DB", n: scopedCounts.unmatched,  tone: "text-rose-600",    bar: "bg-rose-500" },
     ];
+
+    /**
+     * Delete one submission.
+     *
+     * The server reopens the matching round target, so a store whose test entry
+     * is removed goes back to "not done" instead of silently counting as done.
+     */
+    const removeAudit = async (audit: AuditRow) => {
+        if (!window.confirm("Delete this audit submission? This cannot be undone.")) return;
+        setDeletingAudit(true);
+        try {
+            await api.delete(`/admin/audits/${audit.id}`);
+            toast({ title: "Audit deleted" });
+            setSelected(null);
+            setNote("");
+            fetchAudits();
+            // The round's responded/outstanding counts just changed.
+            fetchRounds();
+            setChaseKey(k => k + 1);
+        } catch (error: any) {
+            toast({
+                title: "Could not delete",
+                description: getErrorMessage(error, "Failed to delete the audit"),
+                variant: "destructive",
+            });
+        } finally {
+            setDeletingAudit(false);
+        }
+    };
 
     const setReview = async (audit: AuditRow, status: AuditRow["review_status"]) => {
         setSaving(true);
@@ -264,13 +300,14 @@ export const AdminAudits = () => {
         downloadCSV(
             visible.map(a => ({
                 "Submitted": fmtDate(a.submitted_at),
-                "Store Name": a.store_name || a.franchise_name || "(unmatched)",
+                "Store Name": a.store_name || a.franchise_name || "(unknown)",
+                "In Franchise DB": a.vendor_details_id ? "Yes" : "No",
                 "Store code": a.store_code || "",
                 "Contact Person": a.contact_person || "",
                 "Phone": a.submitted_phone,
                 "City": a.city || "",
+                "Area": (a as any).contact_area || "",
                 "State": a.state || "",
-                "Zone": a.zone || "",
                 "ASM": a.asm || "",
                 "Source": a.channel === "call" ? "Call" : "WhatsApp",
                 "Audit By": a.audited_by_name || "Store (self)",
@@ -293,7 +330,7 @@ export const AdminAudits = () => {
         );
     }
 
-    const META_COLS = ["Submitted", "Contact Person", "Phone", "City", "Zone", "ASM", "Source", "Audit By"];
+    const META_COLS = ["Submitted", "Contact Person", "Phone", "City", "ASM", "Source", "Audit By"];
 
     const activeRound = rounds.find(r => r.id === roundId) || null;
 
@@ -376,7 +413,7 @@ export const AdminAudits = () => {
                             </div>
 
                             {/* Territory — only shown where the audits carry values */}
-                            {(["city", "state", "zone", "asm"] as const).map(key =>
+                            {(["city", "state", "asm"] as const).map(key =>
                                 facetOptions[key]?.length > 0 ? (
                                     <div key={key} className="space-y-1.5">
                                         <label className="text-[11px] font-bold text-slate-500 capitalize">
@@ -449,7 +486,25 @@ export const AdminAudits = () => {
 
             {view === "not_done" && roundId ? (
                 <div className="bg-white rounded-3xl border border-orange-50 shadow-sm p-5">
-                    <AuditChaseList roundId={roundId} responded="no" refreshKey={chaseKey} />
+                    <AuditChaseList
+                        roundId={roundId}
+                        responded="no"
+                        refreshKey={chaseKey}
+                        onAudit={(t) => {
+                            // Open the call form on the store whose row was
+                            // clicked, so the audit is filed against the one
+                            // being chased rather than one picked again by hand.
+                            setCallPresetTarget({
+                                targetId: t.id,
+                                vendorDetailsId: t.vendor_details_id,
+                                storeName: t.store_name,
+                                city: t.city,
+                                contactPerson: t.contact_person,
+                                phone: t.phone_number || t.sent_phone,
+                            });
+                            setCallFormOpen(true);
+                        }}
+                    />
                 </div>
             ) : (
             <>
@@ -490,7 +545,15 @@ export const AdminAudits = () => {
                             </button>
                         )}
                     </div>
-                    <Button variant="outline" size="icon" onClick={() => fetchAudits(true)} disabled={refreshing}
+                    {/* The round cards and the chase list come from their own
+                        endpoints, so refreshing only the submissions left the
+                        targeted/done counts stale — which is the part someone
+                        watching a live campaign is actually refreshing for. */}
+                    <Button
+                        variant="outline"
+                        size="icon"
+                        onClick={() => { fetchAudits(true); fetchRounds(); setChaseKey(k => k + 1); }}
+                        disabled={refreshing}
                         title="Refresh" aria-label="Refresh" className="h-9 w-9 shrink-0 border-slate-200">
                         <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? "animate-spin" : ""}`} />
                     </Button>
@@ -582,24 +645,42 @@ export const AdminAudits = () => {
                                     >
                                         <td className="sticky left-0 z-10 bg-white p-3 border-r border-slate-200 min-w-[200px]">
                                             <div className="font-bold text-slate-800 truncate max-w-[220px]">
-                                                {a.store_name || a.franchise_name || "Unmatched"}
+                                                {a.store_name || a.franchise_name || "Unknown store"}
                                             </div>
                                             <div className="flex items-center gap-1.5 mt-0.5">
                                                 {a.store_code && (
                                                     <span className="text-[10px] font-mono text-slate-400">{a.store_code}</span>
                                                 )}
+                                                {/* Two different things, so say which one.
+                                                    A store from the uploaded sheet has a name
+                                                    and is worth auditing — it simply has no
+                                                    franchise record. A store in neither list is
+                                                    the one that actually needs looking into. */}
                                                 {!a.vendor_details_id && (
-                                                    <span className="inline-flex items-center gap-1 text-[10px] font-bold text-rose-600">
-                                                        <AlertTriangle className="h-3 w-3" /> No match
-                                                    </span>
+                                                    (a as any).in_contact_sheet ? (
+                                                        <span
+                                                            title="Known from the uploaded store list, but this number is not in the franchise database"
+                                                            className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-600"
+                                                        >
+                                                            <FileSpreadsheet className="h-3 w-3" /> Sheet only
+                                                        </span>
+                                                    ) : (
+                                                        <span
+                                                            title="This number is in neither the franchise database nor the uploaded store list"
+                                                            className="inline-flex items-center gap-1 text-[10px] font-bold text-rose-600"
+                                                        >
+                                                            <AlertTriangle className="h-3 w-3" /> Not in DB
+                                                        </span>
+                                                    )
                                                 )}
                                             </div>
                                         </td>
                                         <td className="p-3 whitespace-nowrap text-[12px] text-slate-500 tabular-nums">{fmtDate(a.submitted_at)}</td>
                                         <td className="p-3 whitespace-nowrap text-[12px] text-slate-600">{a.contact_person || "—"}</td>
                                         <td className="p-3 whitespace-nowrap text-[12px] text-slate-600 tabular-nums">{a.submitted_phone}</td>
-                                        <td className="p-3 whitespace-nowrap text-[12px] text-slate-600">{a.city || "—"}</td>
-                                        <td className="p-3 whitespace-nowrap text-[12px] text-slate-600">{a.zone || "—"}</td>
+                                        <td className="p-3 whitespace-nowrap text-[12px] text-slate-600">
+                                            {a.city || "—"}
+                                        </td>
                                         <td className="p-3 whitespace-nowrap text-[12px] text-slate-600">{a.asm || "—"}</td>
                                         <td className="p-3 whitespace-nowrap">
                                             <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold ${
@@ -662,8 +743,16 @@ export const AdminAudits = () => {
 
             <AuditCallForm
                 open={callFormOpen}
-                onClose={() => setCallFormOpen(false)}
-                onSaved={fetchAudits}
+                presetTarget={callPresetTarget}
+                roundId={roundId}
+                onClose={() => { setCallFormOpen(false); setCallPresetTarget(null); }}
+                onSaved={() => {
+                    fetchAudits();
+                    // The store just moved from "not done" to "done", so the
+                    // round counters and the chase list are both stale.
+                    fetchRounds();
+                    setChaseKey(k => k + 1);
+                }}
             />
 
             {/* One audit in full */}
@@ -721,14 +810,29 @@ export const AdminAudits = () => {
                             className="text-sm resize-none"
                         />
                         <DialogFooter className="gap-2 sm:justify-between">
-                            <Button
-                                variant="outline"
-                                onClick={() => selected && setReview(selected, "follow_up")}
-                                disabled={saving}
-                                className="border-amber-200 text-amber-700 hover:bg-amber-50"
-                            >
-                                <Flag className="h-3.5 w-3.5 mr-1.5" /> Flag follow up
-                            </Button>
+                            <div className="flex gap-2">
+                                {/* Test submissions look exactly like real ones,
+                                    so removing one has to be possible here. */}
+                                <Button
+                                    variant="outline"
+                                    onClick={() => selected && removeAudit(selected)}
+                                    disabled={saving || deletingAudit}
+                                    className="border-red-200 text-red-600 hover:bg-red-50"
+                                >
+                                    {deletingAudit
+                                        ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />
+                                        : <Trash2 className="h-3.5 w-3.5 mr-1.5" />}
+                                    Delete
+                                </Button>
+                                <Button
+                                    variant="outline"
+                                    onClick={() => selected && setReview(selected, "follow_up")}
+                                    disabled={saving}
+                                    className="border-amber-200 text-amber-700 hover:bg-amber-50"
+                                >
+                                    <Flag className="h-3.5 w-3.5 mr-1.5" /> Flag follow up
+                                </Button>
+                            </div>
                             <Button
                                 onClick={() => selected && setReview(selected, "reviewed")}
                                 disabled={saving}

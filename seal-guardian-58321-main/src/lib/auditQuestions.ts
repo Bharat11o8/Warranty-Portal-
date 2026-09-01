@@ -188,7 +188,7 @@ export const AUDIT_SECTIONS: AuditSection[] =
 
 /**
  * Fields the Flow carries in but never asks — passed through from the store's
- * record when the audit is sent. zone, asm, brands and category have no home in
+ * record when the audit is sent. asm, brands and category have no home in
  * vendor_details, so the audit is the only place the portal holds them.
  */
 export const AUDIT_CONTEXT_FIELDS = [
@@ -198,7 +198,9 @@ export const AUDIT_CONTEXT_FIELDS = [
     { key: "contact_person", label: "Contact person" },
     { key: "city", label: "City" },
     { key: "state", label: "State" },
-    { key: "zone", label: "Zone" },
+    // Zone is not tracked: nothing populates it, and it carries no meaning for
+    // the business. ASM is the territory field that does. The database column
+    // stays so the one historical value is not destroyed.
     { key: "asm", label: "ASM" },
     { key: "brands", label: "Brands" },
     { key: "category", label: "Category" },

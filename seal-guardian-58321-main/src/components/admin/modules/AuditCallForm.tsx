@@ -23,6 +23,30 @@ interface AuditCallFormProps {
     open: boolean;
     onClose: () => void;
     onSaved: () => void;
+    /**
+     * Open on the store from a chase-list row.
+     *
+     * Carries the row's own details rather than a franchise id, because a large
+     * share of every round is stores that exist only in the uploaded contact
+     * sheet and have no franchise record to point at. They still need auditing,
+     * so the target itself identifies the store.
+     */
+    presetTarget?: {
+        targetId: string;
+        vendorDetailsId: string | null;
+        storeName: string | null;
+        city: string | null;
+        contactPerson: string | null;
+        phone: string | null;
+    } | null;
+    /**
+     * File the audit against this round.
+     *
+     * Without it the server falls back to the most recently opened round, which
+     * is wrong whenever more than one is open — an intro campaign and the audit
+     * campaign, say.
+     */
+    roundId?: string | null;
 }
 
 interface StoreOption {
@@ -32,17 +56,21 @@ interface StoreOption {
     city: string | null;
 }
 
-export const AuditCallForm = ({ open, onClose, onSaved }: AuditCallFormProps) => {
+export const AuditCallForm = ({ open, onClose, onSaved, presetTarget = null, roundId = null }: AuditCallFormProps) => {
     const { toast } = useToast();
     const [stores, setStores] = useState<StoreOption[]>([]);
     const [storeSearch, setStoreSearch] = useState("");
     const [vendorId, setVendorId] = useState<string | null>(null);
     const [answers, setAnswers] = useState<Record<string, string | string[]>>({});
     const [saving, setSaving] = useState(false);
+    // Whether the row's own store is still in force. Pressing Change drops it
+    // and reveals the picker.
+    const [useTarget, setUseTarget] = useState(false);
 
     useEffect(() => {
         if (!open) return;
-        setVendorId(null);
+        setVendorId(presetTarget?.vendorDetailsId ?? null);
+        setUseTarget(!!presetTarget);
         setAnswers({});
         setStoreSearch("");
         api.get("/admin/vendors")
@@ -60,7 +88,7 @@ export const AuditCallForm = ({ open, onClose, onSaved }: AuditCallFormProps) =>
                 description: "Try reopening the form.",
                 variant: "destructive",
             }));
-    }, [open]);
+    }, [open, presetTarget]);
 
     const filteredStores = useMemo(() => {
         const q = storeSearch.trim().toLowerCase();
@@ -72,7 +100,19 @@ export const AuditCallForm = ({ open, onClose, onSaved }: AuditCallFormProps) =>
         ).slice(0, 40);
     }, [stores, storeSearch]);
 
-    const selectedStore = stores.find(s => s.id === vendorId) || null;
+    // An unmatched store has no row in the vendors list, so fall back to the
+    // details the chase-list row already carries. Otherwise the form would ask
+    // you to search for a store you just clicked — and for the 83 unmatched
+    // stores in a round, searching would never find it.
+    const selectedStore: StoreOption | null =
+        (useTarget && presetTarget)
+            ? {
+                id: presetTarget.vendorDetailsId || presetTarget.targetId,
+                store_name: presetTarget.storeName || "Unnamed store",
+                store_code: null,
+                city: presetTarget.city,
+            }
+            : (stores.find(s => s.id === vendorId) || null);
 
     const setAnswer = (key: AuditFieldKey, value: string | string[]) =>
         setAnswers(prev => ({ ...prev, [key]: value }));
@@ -99,11 +139,24 @@ export const AuditCallForm = ({ open, onClose, onSaved }: AuditCallFormProps) =>
         return Array.isArray(v) ? v.length > 0 : Boolean(v && String(v).trim());
     }).length;
 
+    // An unmatched store is identified by its target row instead of a franchise.
+    const targetOnly = useTarget && presetTarget && !presetTarget.vendorDetailsId;
+    const canSave = Boolean(vendorId || targetOnly);
+
     const handleSave = async () => {
-        if (!vendorId) return;
+        if (!canSave) return;
         setSaving(true);
         try {
-            await api.post("/admin/audits/call", { vendorDetailsId: vendorId, ...answers });
+            // Name the round explicitly. The server otherwise falls back to the
+            // most recently opened one, which is not necessarily the round being
+            // chased when more than one is open.
+            await api.post("/admin/audits/call", {
+                ...(targetOnly
+                    ? { targetId: presetTarget!.targetId }
+                    : { vendorDetailsId: vendorId }),
+                ...(roundId ? { roundId } : {}),
+                ...answers,
+            });
             toast({
                 title: "Call audit saved",
                 description: `${selectedStore?.store_name} — ${answeredCount} of ${visibleQuestions.length} answered.`,
@@ -146,7 +199,7 @@ export const AuditCallForm = ({ open, onClose, onSaved }: AuditCallFormProps) =>
                                         {[selectedStore.store_code, selectedStore.city].filter(Boolean).join(" · ")}
                                     </p>
                                 </div>
-                                <Button variant="ghost" size="sm" onClick={() => setVendorId(null)} className="text-xs shrink-0">
+                                <Button variant="ghost" size="sm" onClick={() => { setVendorId(null); setUseTarget(false); }} className="text-xs shrink-0">
                                     Change
                                 </Button>
                             </div>
@@ -183,27 +236,21 @@ export const AuditCallForm = ({ open, onClose, onSaved }: AuditCallFormProps) =>
                         )}
                     </div>
 
-                    {/* Zone and ASM are carried by the Flow but held nowhere in the
-                        portal, so a call audit collects them if the auditor knows. */}
+                    {/* ASM is carried by the Flow but held nowhere in the portal,
+                        so a call audit collects it if the auditor knows. Zone was
+                        dropped — nothing populated it and it means nothing to the
+                        business. */}
                     {selectedStore && (
                         <div>
                             <p className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-2">
-                                Territory <span className="font-medium normal-case tracking-normal">(optional)</span>
+                                ASM <span className="font-medium normal-case tracking-normal">(optional)</span>
                             </p>
-                            <div className="grid grid-cols-2 gap-2">
-                                <Input
-                                    value={(answers["zone" as AuditFieldKey] as string) || ""}
-                                    onChange={e => setAnswer("zone" as AuditFieldKey, e.target.value)}
-                                    placeholder="Zone"
-                                    className="h-9 text-sm"
-                                />
-                                <Input
-                                    value={(answers["asm" as AuditFieldKey] as string) || ""}
-                                    onChange={e => setAnswer("asm" as AuditFieldKey, e.target.value)}
-                                    placeholder="ASM"
-                                    className="h-9 text-sm"
-                                />
-                            </div>
+                            <Input
+                                value={(answers["asm" as AuditFieldKey] as string) || ""}
+                                onChange={e => setAnswer("asm" as AuditFieldKey, e.target.value)}
+                                placeholder="ASM"
+                                className="h-9 text-sm"
+                            />
                         </div>
                     )}
 
@@ -302,7 +349,7 @@ export const AuditCallForm = ({ open, onClose, onSaved }: AuditCallFormProps) =>
                         <Button variant="outline" onClick={onClose} className="border-slate-200">Cancel</Button>
                         <Button
                             onClick={handleSave}
-                            disabled={!vendorId || saving}
+                            disabled={!canSave || saving}
                             className="bg-orange-600 hover:bg-orange-700"
                         >
                             {saving

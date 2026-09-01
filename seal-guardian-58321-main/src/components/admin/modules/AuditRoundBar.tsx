@@ -3,7 +3,17 @@ import api, { getErrorMessage } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, CalendarRange, Users, ListChecks } from "lucide-react";
+import { Loader2, CalendarRange, Users, ListChecks, Trash2 } from "lucide-react";
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
 
 /**
@@ -28,6 +38,15 @@ export interface AuditRound {
     responded_count: number;
     outstanding_count: number;
     audit_count: number;
+    /**
+     * The delivery funnel. Populated only once Interakt sends campaign
+     * delivered/read events — it currently sends neither, so nothing renders
+     * these yet. The server records them when they arrive.
+     */
+    sent_count?: number;
+    delivered_count?: number;
+    read_count?: number;
+    failed_count?: number;
 }
 
 interface Props {
@@ -44,6 +63,10 @@ const fmtDay = (d: string | null) =>
 export const AuditRoundBar = ({ rounds, loading, selectedId, onSelect, onSeeded }: Props) => {
     const { toast } = useToast();
     const [seeding, setSeeding] = useState(false);
+    const [deleting, setDeleting] = useState(false);
+    const [confirmOpen, setConfirmOpen] = useState(false);
+    // Off by default: keeping the answers is the safer of the two.
+    const [alsoDeleteAudits, setAlsoDeleteAudits] = useState(false);
 
     const round = rounds.find(r => r.id === selectedId) || null;
 
@@ -85,6 +108,47 @@ export const AuditRoundBar = ({ rounds, loading, selectedId, onSelect, onSeeded 
             });
         } finally {
             setSeeding(false);
+        }
+    };
+
+    /**
+     * Remove a round. Test campaigns open rounds exactly as real ones do, so
+     * there has to be a way to clear them from here.
+     *
+     * Submissions survive — the server only detaches them — because a store's
+     * answers are worth keeping even when the round they arrived through was a
+     * test.
+     */
+    const remove = async () => {
+        if (!round) return;
+        setDeleting(true);
+        try {
+            const res = await api.delete(`/admin/audit-rounds/${round.id}`, {
+                params: { deleteAudits: alsoDeleteAudits },
+            });
+            const kept = res.data?.data?.auditsKept ?? 0;
+            const gone = res.data?.data?.auditsDeleted ?? 0;
+            toast({
+                title: "Round deleted",
+                description: gone > 0
+                    ? `${gone} submission${gone === 1 ? "" : "s"} deleted with it.`
+                    : kept > 0
+                        ? `${kept} submission${kept === 1 ? "" : "s"} kept and moved to "All rounds".`
+                        : res.data?.message || "The round and its store list were removed.",
+            });
+            setConfirmOpen(false);
+            setAlsoDeleteAudits(false);
+            // Nothing is selected any more, so fall back to the whole list.
+            onSelect(null);
+            onSeeded();
+        } catch (error: any) {
+            toast({
+                title: "Could not delete the round",
+                description: getErrorMessage(error, "Failed to delete the round"),
+                variant: "destructive",
+            });
+        } finally {
+            setDeleting(false);
         }
     };
 
@@ -145,6 +209,20 @@ export const AuditRoundBar = ({ rounds, loading, selectedId, onSelect, onSeeded 
                             Open
                         </span>
                     )}
+                    {/* Test campaigns open rounds just like real ones, so the
+                        clean-up has to be possible from here. */}
+                    {round && (
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => setConfirmOpen(true)}
+                            title="Delete this round"
+                            aria-label="Delete this round"
+                            className="h-9 w-9 shrink-0 text-slate-400 hover:text-red-600 hover:bg-red-50"
+                        >
+                            <Trash2 className="h-4 w-4" />
+                        </Button>
+                    )}
                 </div>
 
                 {/* Seeding only makes sense when the send events did not build a list. */}
@@ -170,7 +248,6 @@ export const AuditRoundBar = ({ rounds, loading, selectedId, onSelect, onSeeded 
                         <Stat label="Done" value={round.responded_count} tone="emerald" />
                         <Stat label="Not done" value={round.outstanding_count} tone="amber" />
                     </div>
-
                     <div>
                         <div className="flex justify-between text-[11px] font-bold text-slate-400 mb-1.5">
                             <span>{pct}% responded</span>
@@ -194,6 +271,58 @@ export const AuditRoundBar = ({ rounds, loading, selectedId, onSelect, onSeeded 
                     </div>
                 </>
             )}
+
+            <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+                <AlertDialogContent className="rounded-3xl">
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Delete "{round?.name}"?</AlertDialogTitle>
+                        <AlertDialogDescription asChild>
+                            <div className="space-y-2 text-sm text-slate-500">
+                                <p>
+                                    This removes the round and its list of{" "}
+                                    <span className="font-bold text-slate-700">{round?.target_count ?? 0}</span>{" "}
+                                    targeted stores. It cannot be undone.
+                                </p>
+                                {/* A real campaign's answers are worth keeping; a
+                                    test round's are the whole reason for deleting
+                                    it, and leaving them behind under "All rounds"
+                                    is not what deleting meant. So it is a choice. */}
+                                {(round?.audit_count ?? 0) > 0 && (
+                                    <label className="flex items-start gap-2.5 p-3 rounded-xl border border-slate-200 bg-slate-50/60 cursor-pointer hover:border-orange-200 transition-colors">
+                                        <input
+                                            type="checkbox"
+                                            checked={alsoDeleteAudits}
+                                            onChange={e => setAlsoDeleteAudits(e.target.checked)}
+                                            className="mt-0.5 h-4 w-4 accent-red-600 shrink-0"
+                                        />
+                                        <span className="text-[13px] leading-relaxed">
+                                            Also delete the{" "}
+                                            <span className="font-bold text-slate-700">{round?.audit_count}</span>{" "}
+                                            submission{(round?.audit_count ?? 0) === 1 ? "" : "s"} received in this round.
+                                            <span className="block text-[11px] text-slate-400 mt-0.5">
+                                                {alsoDeleteAudits
+                                                    ? "The answers will be gone for good."
+                                                    : "Left unticked, they are kept and move to “All rounds”."}
+                                            </span>
+                                        </span>
+                                    </label>
+                                )}
+                            </div>
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel className="rounded-2xl">Cancel</AlertDialogCancel>
+                        <AlertDialogAction
+                            onClick={(e) => { e.preventDefault(); remove(); }}
+                            disabled={deleting}
+                            className="rounded-2xl bg-red-600 hover:bg-red-700 gap-2"
+                        >
+                            {deleting && <Loader2 className="h-4 w-4 animate-spin" />}
+                            Delete round
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </div>
     );
 };

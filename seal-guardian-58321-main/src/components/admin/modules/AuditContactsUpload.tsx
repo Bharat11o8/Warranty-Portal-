@@ -151,7 +151,7 @@ export const AuditContactsUpload = ({ open, onClose, onUploaded }: Props) => {
                                 <p>
                                     <span className="font-mono text-slate-700">Phone 1 - Value</span> or{" "}
                                     <span className="font-mono text-slate-700">phone</span> — required, everything else optional:{" "}
-                                    store name, contact person, city, state, zone, ASM, brands, category.
+                                    store name, contact person, city, state, ASM, brands, category.
                                 </p>
                             </div>
                         </>

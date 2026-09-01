@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import api from "@/lib/api";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Loader2, Search, Download, Phone, CheckCircle2 } from "lucide-react";
+import { Loader2, Search, Download, Phone, CheckCircle2, ClipboardCheck } from "lucide-react";
 
 /**
  * The stores that still owe an audit for this round.
@@ -31,12 +31,14 @@ interface Props {
     responded: "yes" | "no";
     /** Bumped by the parent to force a refetch. */
     refreshKey?: number;
+    /** Record a call audit for this store, straight from its row. */
+    onAudit?: (target: Target) => void;
 }
 
 const fmtDay = (d: string | null) =>
     d ? new Date(d).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "—";
 
-export const AuditChaseList = ({ roundId, responded, refreshKey = 0 }: Props) => {
+export const AuditChaseList = ({ roundId, responded, refreshKey = 0, onAudit }: Props) => {
     const [targets, setTargets] = useState<Target[]>([]);
     const [loading, setLoading] = useState(false);
     const [search, setSearch] = useState("");
@@ -148,6 +150,7 @@ export const AuditChaseList = ({ roundId, responded, refreshKey = 0 }: Props) =>
                                 <th className="p-4">Phone</th>
                                 <th className="p-4">Audit sent</th>
                                 <th className="p-4">{responded === "no" ? "Status" : "Responded"}</th>
+                                <th className="p-4"><span className="sr-only">Actions</span></th>
                             </tr>
                         </thead>
                         <tbody>
@@ -184,6 +187,23 @@ export const AuditChaseList = ({ roundId, responded, refreshKey = 0 }: Props) =>
                                             <span className="text-[10px] font-black uppercase tracking-wider text-amber-700 bg-amber-50 border border-amber-200 px-2 py-1 rounded-full">
                                                 Awaiting
                                             </span>
+                                        )}
+                                    </td>
+                                    {/* This list is where you decide who to ring,
+                                        so the call form opens from the row itself
+                                        rather than sending you back to search for
+                                        a store you are already looking at. */}
+                                    <td className="p-4 text-right">
+                                        {!t.responded_at && onAudit && (
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={() => onAudit(t)}
+                                                className="h-8 gap-1.5 border-orange-200 text-orange-700 hover:bg-orange-50 text-xs font-bold"
+                                            >
+                                                <ClipboardCheck className="h-3.5 w-3.5" />
+                                                Audit
+                                            </Button>
                                         )}
                                     </td>
                                 </tr>
