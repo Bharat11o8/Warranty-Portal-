@@ -14,6 +14,8 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { DatePicker } from "@/components/ui/date-picker";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
     Search,
     Download,
@@ -29,6 +31,7 @@ import {
     Power,
     Trophy,
     CalendarRange,
+    Filter,
 } from "lucide-react";
 import {
     Dialog,
@@ -70,9 +73,14 @@ export const AdminVendors = () => {
 
     // Leaderboard mode (date range ranking)
     const [leaderboardMode, setLeaderboardMode] = useState(false);
-    const [startDate, setStartDate] = useState("2026-05-15");
-    const [endDate, setEndDate] = useState(getISTTodayISO());
+    // Empty by default so the leaderboard opens on all time. The backend only
+    // applies a range when both dates are present, so a hardcoded start date
+    // silently dropped every warranty registered before it.
+    const [startDate, setStartDate] = useState("");
+    const [endDate, setEndDate] = useState("");
     const [dateField, setDateField] = useState<'created_at' | 'purchase_date'>('created_at');
+    const [stateFilter, setStateFilter] = useState("all");
+    const [cityFilter, setCityFilter] = useState("all");
 
     // Pagination
     const [currentPage, setCurrentPage] = useState(1);
@@ -124,7 +132,7 @@ export const AdminVendors = () => {
     // Reset pagination
     useEffect(() => {
         setCurrentPage(1);
-    }, [filter, search, leaderboardMode]);
+    }, [filter, search, leaderboardMode, stateFilter, cityFilter]);
 
     const fetchVendors = async (silent = false) => {
         if (!silent) setLoading(true);
@@ -261,7 +269,9 @@ export const AdminVendors = () => {
                     "Pending Warranties": v.range_pending_warranties || 0,
                     "Rejected Warranties": v.range_rejected_warranties || 0
                 }));
-                downloadCSV(exportData, `franchise_leaderboard_${startDate}_to_${endDate}.csv`);
+                downloadCSV(exportData, startDate && endDate
+                    ? `franchise_leaderboard_${startDate}_to_${endDate}.csv`
+                    : `franchise_leaderboard_all_time.csv`);
                 return;
             }
 
@@ -309,6 +319,64 @@ export const AdminVendors = () => {
     // counts are still shown, but they no longer drive the ranking or inclusion.)
     const leaderboardCountField = 'range_total_warranties';
 
+    // State and city are typed per franchise, so the same place can arrive as
+    // "Gujarat", "RAJASTHAN" or "delhi". Group case-insensitively and match the
+    // same way, otherwise picking one spelling silently hides the others.
+    const titleCase = (v: string) =>
+        v.trim().toLowerCase().replace(/\b\w/g, (ch) => ch.toUpperCase());
+
+    // Beyond casing, the same state is spelt several ways in the data
+    // ("Maharastra", "Utter pradesh ", "J&K"). Folding the known variants onto
+    // one key keeps 6 franchises from disappearing when their state is picked.
+    // Display only — nothing is rewritten in the database.
+    const STATE_ALIASES: Record<string, string> = {
+        'chattisgarh': 'chhattisgarh',
+        'maharastra': 'maharashtra',
+        'utter pradesh': 'uttar pradesh',
+        'new delhi': 'delhi',
+        'j&k': 'jammu & kashmir',
+        'jammu kashmir': 'jammu & kashmir',
+        'tamilnadu': 'tamil nadu',
+    };
+
+    const stateKey = (v: string) => {
+        // Collapse repeated spaces first — one value is "Jammu  Kashmir".
+        const k = v.trim().toLowerCase().replace(/\s+/g, ' ');
+        return STATE_ALIASES[k] || k;
+    };
+
+    const cityKey = (v: string) => v.trim().toLowerCase().replace(/\s+/g, ' ');
+
+    // Shown as a badge on the Filters button so an active filter is visible
+    // while the popover is shut. The range defaults to empty (all time), so a
+    // date set here is a real narrowing and counts.
+    const activeLeaderboardFilters =
+        (stateFilter !== 'all' ? 1 : 0) +
+        (cityFilter !== 'all' ? 1 : 0) +
+        (dateField !== 'created_at' ? 1 : 0) +
+        (startDate || endDate ? 1 : 0);
+
+    const stateOptions = Array.from(
+        new Map(
+            vendors
+                .map((v) => (v.state || '').trim())
+                .filter(Boolean)
+                .map((v) => [stateKey(v), titleCase(stateKey(v))] as [string, string])
+        ).entries()
+    ).sort((a, b) => a[1].localeCompare(b[1]));
+
+    // Cities follow the chosen state, so the list stays short and can't offer a
+    // city that would return nothing.
+    const cityOptions = Array.from(
+        new Map(
+            vendors
+                .filter((v) => stateFilter === 'all' || stateKey(v.state || '') === stateFilter)
+                .map((v) => (v.city || '').trim())
+                .filter(Boolean)
+                .map((v) => [cityKey(v), titleCase(v)] as [string, string])
+        ).entries()
+    ).sort((a, b) => a[1].localeCompare(b[1]));
+
     const filteredVendors = vendors
         .filter((vendor) => {
             if (leaderboardMode) return Number(vendor[leaderboardCountField] || 0) > 0;
@@ -316,6 +384,11 @@ export const AdminVendors = () => {
             if (filter === 'inactive') return vendor.is_verified && vendor.is_active === false;
             if (filter === 'disapproved') return !vendor.is_verified && vendor.verified_at; // Assuming verified_at + !is_verified = rejected
             if (filter === 'pending') return !vendor.is_verified && !vendor.verified_at;
+            return true;
+        })
+        .filter((vendor) => {
+            if (stateFilter !== 'all' && stateKey(vendor.state || '') !== stateFilter) return false;
+            if (cityFilter !== 'all' && cityKey(vendor.city || '') !== cityFilter) return false;
             return true;
         })
         .filter((vendor) => {
@@ -374,37 +447,187 @@ export const AdminVendors = () => {
             {/* Controls */}
             <div className="flex flex-col gap-4">
                 {leaderboardMode && (
-                    <div className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-center bg-orange-50/40 border border-orange-100 rounded-xl p-3">
-                        <div className="flex items-center bg-white border border-orange-100 rounded-md p-1 gap-1 text-xs font-bold">
-                            <button
-                                type="button"
-                                onClick={() => setDateField('created_at')}
-                                className={`px-3 py-1.5 rounded-sm transition-colors ${dateField === 'created_at' ? 'bg-orange-100 text-orange-700' : 'text-slate-500 hover:text-slate-700'}`}
-                            >
-                                Registered Date
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() => setDateField('purchase_date')}
-                                className={`px-3 py-1.5 rounded-sm transition-colors ${dateField === 'purchase_date' ? 'bg-orange-100 text-orange-700' : 'text-slate-500 hover:text-slate-700'}`}
-                            >
-                                Purchase Date
-                            </button>
+                    <div className="flex flex-wrap items-center gap-2">
+                        {/* The date and location controls were overflowing their
+                            row, so they live behind a Filters popover now. Only
+                            search and the actions stay on the surface. */}
+                        <div className="relative flex-1 min-w-[200px] sm:max-w-xs">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                            <Input
+                                placeholder="Search franchises..."
+                                className="pl-10 bg-white border-orange-100 focus:border-orange-300 focus:ring-orange-200 h-10"
+                                value={search}
+                                onChange={(e) => setSearch(e.target.value)}
+                            />
                         </div>
-                        <div className="w-full sm:w-40">
-                            <DatePicker value={startDate} onChange={setStartDate} maxDate={new Date()} placeholder="Start date" />
-                        </div>
-                        <span className="text-slate-400 text-sm hidden sm:inline">to</span>
-                        <div className="w-full sm:w-40">
-                            <DatePicker value={endDate} onChange={setEndDate} maxDate={new Date()} minDate={new Date(startDate)} placeholder="End date" />
-                        </div>
+
+                        <Popover>
+                            <PopoverTrigger asChild>
+                                <Button
+                                    variant="outline"
+                                    className={`h-10 gap-2 shrink-0 ${activeLeaderboardFilters > 0
+                                        ? "text-orange-600 border-orange-200 bg-orange-50"
+                                        : "text-slate-600 border-orange-100 bg-white"}`}
+                                >
+                                    <Filter className="h-4 w-4" />
+                                    <span>Filters</span>
+                                    {activeLeaderboardFilters > 0 && (
+                                        <span className="ml-0.5 h-5 min-w-5 px-1.5 rounded-full bg-orange-600 text-white text-[10px] font-black flex items-center justify-center">
+                                            {activeLeaderboardFilters}
+                                        </span>
+                                    )}
+                                </Button>
+                            </PopoverTrigger>
+                            <PopoverContent align="start" className="w-80 rounded-2xl p-4 space-y-4">
+                                <div className="flex items-center justify-between">
+                                    <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Filters</p>
+                                    {activeLeaderboardFilters > 0 && (
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setStateFilter('all');
+                                                setCityFilter('all');
+                                                setDateField('created_at');
+                                                setStartDate('');
+                                                setEndDate('');
+                                            }}
+                                            className="text-[11px] font-bold text-orange-600 hover:text-orange-700"
+                                        >
+                                            Clear all
+                                        </button>
+                                    )}
+                                </div>
+
+                                <div className="space-y-2">
+                                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Date Range</p>
+                                    <div className="flex items-center bg-slate-50 border border-orange-100 rounded-md p-1 gap-1 text-xs font-bold">
+                                        <button
+                                            type="button"
+                                            onClick={() => setDateField('created_at')}
+                                            className={`flex-1 px-3 py-1.5 rounded-sm transition-colors ${dateField === 'created_at' ? 'bg-orange-100 text-orange-700' : 'text-slate-500 hover:text-slate-700'}`}
+                                        >
+                                            Registered
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setDateField('purchase_date')}
+                                            className={`flex-1 px-3 py-1.5 rounded-sm transition-colors ${dateField === 'purchase_date' ? 'bg-orange-100 text-orange-700' : 'text-slate-500 hover:text-slate-700'}`}
+                                        >
+                                            Purchase
+                                        </button>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <div className="flex-1 min-w-0">
+                                            <DatePicker value={startDate} onChange={setStartDate} maxDate={new Date()} placeholder="Start date" />
+                                        </div>
+                                        <span className="text-slate-400 text-xs font-bold shrink-0">to</span>
+                                        <div className="flex-1 min-w-0">
+                                            <DatePicker value={endDate} onChange={setEndDate} maxDate={new Date()} minDate={startDate ? new Date(startDate) : undefined} placeholder="End date" />
+                                        </div>
+                                    </div>
+                                    {/* The range only applies once both ends are
+                                        set, so say so rather than let a half-filled
+                                        range look like it is filtering. */}
+                                    <p className="text-[11px] font-bold text-slate-400">
+                                        {startDate && endDate
+                                            ? 'Showing the selected range'
+                                            : (startDate || endDate)
+                                                ? 'Pick both dates to apply the range'
+                                                : 'Showing all time'}
+                                    </p>
+                                </div>
+
+                                <div className="space-y-2">
+                                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Location</p>
+                                    <Select
+                                        value={stateFilter}
+                                        onValueChange={(v) => {
+                                            setStateFilter(v);
+                                            // The city list is scoped to the state, so a
+                                            // city held over from the previous state would
+                                            // filter everything out.
+                                            setCityFilter('all');
+                                        }}
+                                    >
+                                        <SelectTrigger className="h-10 bg-white border-orange-100 text-xs font-bold">
+                                            <div className="flex items-center gap-2 truncate">
+                                                <MapPin className="h-3.5 w-3.5 text-orange-500 shrink-0" />
+                                                <SelectValue placeholder="All States" />
+                                            </div>
+                                        </SelectTrigger>
+                                        <SelectContent className="rounded-2xl border-orange-100 max-h-72">
+                                            <SelectItem value="all" className="text-xs font-bold">All States</SelectItem>
+                                            {stateOptions.map(([value, label]) => (
+                                                <SelectItem key={value} value={value} className="text-xs font-bold">{label}</SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+
+                                    <Select value={cityFilter} onValueChange={setCityFilter}>
+                                        <SelectTrigger className="h-10 bg-white border-orange-100 text-xs font-bold">
+                                            <div className="flex items-center gap-2 truncate">
+                                                <Store className="h-3.5 w-3.5 text-orange-500 shrink-0" />
+                                                <SelectValue placeholder="All Cities" />
+                                            </div>
+                                        </SelectTrigger>
+                                        <SelectContent className="rounded-2xl border-orange-100 max-h-72">
+                                            <SelectItem value="all" className="text-xs font-bold">All Cities</SelectItem>
+                                            {cityOptions.map(([value, label]) => (
+                                                <SelectItem key={value} value={value} className="text-xs font-bold">{label}</SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                            </PopoverContent>
+                        </Popover>
+
+                        {/* Export acts on exactly what the filters have narrowed.
+                            The exit is here because the Leaderboard toggle is
+                            hidden while this bar is open. */}
+                        <Button
+                            variant="outline"
+                            size="icon"
+                            onClick={handleExportVendors}
+                            title="Export leaderboard"
+                            aria-label="Export leaderboard"
+                            className="h-10 w-10 shrink-0 bg-white border-orange-100 text-slate-600 hover:text-orange-600 hover:border-orange-300"
+                        >
+                            <Download className="h-4 w-4" />
+                        </Button>
+                        <Button
+                            variant="outline"
+                            size="icon"
+                            onClick={() => {
+                                setStateFilter('all');
+                                setCityFilter('all');
+                                setLeaderboardMode(false);
+                            }}
+                            title="Exit leaderboard"
+                            aria-label="Exit leaderboard"
+                            className="h-10 w-10 shrink-0 bg-white border-orange-100 text-slate-500 hover:text-orange-600 hover:border-orange-300"
+                        >
+                            <X className="h-4 w-4" />
+                        </Button>
                     </div>
                 )}
 
-                <div className="flex flex-col md:flex-row gap-4 justify-between items-start md:items-center">
-                {/* Status tabs are only meaningful outside leaderboard mode.
-                    The leaderboard always ranks by total, so hide them there. */}
+                {/* Both children are hidden in leaderboard mode, so skip the
+                    wrapper too rather than leave an empty flex row behind. */}
                 {!leaderboardMode && (
+                <div className="flex flex-col md:flex-row gap-4 items-start md:items-center">
+                {/* Search leads the row — it applies to every status tab, so it
+                    reads as the entry point rather than one more action. It sits
+                    with the tabs so the actions can still sit hard right. */}
+                <div className="relative w-full md:w-64 md:shrink-0">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-slate-400" />
+                    <Input
+                        placeholder="Search franchises..."
+                        className="pl-10 bg-white border-orange-100 focus:border-orange-300 focus:ring-orange-200 h-11 sm:h-10"
+                        value={search}
+                        onChange={(e) => setSearch(e.target.value)}
+                    />
+                </div>
+
                 <Tabs value={filter} onValueChange={setFilter} className="w-full md:w-auto">
                     <TabsList className="grid w-full grid-cols-3 md:grid-cols-5 md:inline-flex bg-white/50 border border-orange-100 p-1 h-auto">
                         <TabsTrigger value="all" className="gap-2">
@@ -439,26 +662,25 @@ export const AdminVendors = () => {
                         </TabsTrigger>
                     </TabsList>
                 </Tabs>
-                )}
 
-                <div className="flex flex-col sm:flex-row w-full md:w-auto gap-2">
-                    <div className="relative flex-1 sm:w-64">
-                        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-slate-400" />
-                        <Input
-                            placeholder="Search franchises..."
-                            className="pl-10 bg-white border-orange-100 focus:border-orange-300 focus:ring-orange-200 h-11 sm:h-10"
-                            value={search}
-                            onChange={(e) => setSearch(e.target.value)}
-                        />
-                    </div>
+                <div className="flex flex-col sm:flex-row w-full md:w-auto gap-2 md:ml-auto">
                     <div className="flex gap-2">
                         <Button
                             variant="outline"
-                            onClick={() => setLeaderboardMode((v) => !v)}
-                            className={`flex-1 sm:flex-none flex items-center gap-2 h-11 sm:h-10 ${leaderboardMode ? "border-orange-300 bg-orange-50 text-orange-700" : "border-orange-100 text-slate-600"}`}
+                            size="icon"
+                            onClick={() => {
+                                // The location selects only render in leaderboard
+                                // mode, so leaving it with one set would filter the
+                                // main list with no visible control to undo it.
+                                setStateFilter('all');
+                                setCityFilter('all');
+                                setLeaderboardMode((v) => !v);
+                            }}
+                            title="Leaderboard"
+                            aria-label="Leaderboard"
+                            className="h-11 w-11 sm:h-10 sm:w-10 shrink-0 border-orange-100 text-slate-600 hover:text-orange-600 hover:border-orange-300"
                         >
                             <Trophy className="h-4 w-4" />
-                            <span>Leaderboard</span>
                         </Button>
                         {!leaderboardMode && (
                             <DropdownMenu>
@@ -525,7 +747,8 @@ export const AdminVendors = () => {
                         </Button>
                     </div>
                 </div>
-            </div>
+                </div>
+                )}
             </div>
 
             {/* Content */}
@@ -541,7 +764,9 @@ export const AdminVendors = () => {
                                 {leaderboardMode ? (
                                     <>
                                         <CalendarRange className="h-3.5 w-3.5" />
-                                        Ranked by total warranties ({dateField === 'purchase_date' ? 'purchase date' : 'registered date'}), {new Date(startDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })} – {new Date(endDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+                                        Ranked by total warranties ({dateField === 'purchase_date' ? 'purchase date' : 'registered date'}), {startDate && endDate
+                                            ? `${new Date(startDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })} – ${new Date(endDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}`
+                                            : 'all time'}
                                     </>
                                 ) : "Manage your network partners"}
                             </CardDescription>
