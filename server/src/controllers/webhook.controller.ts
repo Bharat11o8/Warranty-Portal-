@@ -3,9 +3,36 @@ import crypto from 'crypto';
 import db from '../config/database.js';
 import { WhatsAppService } from '../services/whatsapp.service.js';
 import { NotificationService } from '../services/notification.service.js';
-import { ingestFlowAuditResponse, recordAuditSent } from '../services/auditResponse.service.js';
+import { ingestFlowAuditResponse, recordAuditSent, recordAuditDelivery } from '../services/auditResponse.service.js';
 
 export class WebhookController {
+
+    /**
+     * Record an incoming webhook verbatim.
+     *
+     * Fire-and-forget and never throws: logging must not be able to fail the
+     * webhook, or Interakt retries and later events are lost too.
+     */
+    private static async logRawEvent(eventType: string, payload: any) {
+        try {
+            const d = payload?.data ?? {};
+            const m = d.message ?? {};
+            await db.execute(
+                `INSERT INTO webhook_events
+                   (id, provider, event_type, phone, campaign_id, campaign_name, payload)
+                 VALUES (UUID(), 'interakt', ?, ?, ?, ?, ?)`,
+                [
+                    eventType || null,
+                    d.customer?.phone_number ?? m.message_context?.from ?? null,
+                    m.campaign_id ?? d.campaign_id ?? null,
+                    m.campaign_name ?? d.campaign_name ?? null,
+                    JSON.stringify(payload ?? {}).slice(0, 60000),
+                ]
+            );
+        } catch (error: any) {
+            console.error('[Webhook] Could not log the raw event:', error?.message || error);
+        }
+    }
 
     /**
      * Handle incoming Interakt webhook events.
@@ -26,6 +53,15 @@ export class WebhookController {
         try {
             const payload   = req.body;
             const eventType = payload?.type || '';
+
+            // Log every event before anything can decide to ignore it.
+            //
+            // A campaign to two contacts showed both replies in Interakt but
+            // only one arrived here, and with nothing recorded there was no way
+            // to tell whether Interakt never sent it or we dropped it. This
+            // makes that question answerable with one query instead of
+            // inference.
+            void WebhookController.logRawEvent(eventType, payload);
 
             // Signature verification (secured by INTERAKT_WEBHOOK_SECRET)
             const signature = req.headers['interakt-signature'] as string;
@@ -59,6 +95,22 @@ export class WebhookController {
             // without it, a store that never replies is absent, not outstanding.
             if (eventType === 'message_campaign_sent') {
                 await recordAuditSent(payload);
+                return;
+            }
+
+            // The rest of the campaign funnel. Interakt's docs do not pin down
+            // these names, so both plausible spellings are accepted; the handler
+            // ignores anything that is not an audit campaign.
+            const CAMPAIGN_DELIVERY: Record<string, 'delivered' | 'read' | 'failed'> = {
+                message_campaign_delivered: 'delivered',
+                message_campaign_read: 'read',
+                message_campaign_failed: 'failed',
+                campaign_message_delivered: 'delivered',
+                campaign_message_read: 'read',
+                campaign_message_failed: 'failed',
+            };
+            if (CAMPAIGN_DELIVERY[eventType]) {
+                await recordAuditDelivery(payload, CAMPAIGN_DELIVERY[eventType]);
                 return;
             }
 
