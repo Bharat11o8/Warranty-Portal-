@@ -423,6 +423,78 @@ export class VendorController {
     }
   }
 
+  /**
+   * The audits this store has submitted.
+   *
+   * The store answers on WhatsApp and then has no record of what it said; this
+   * is that record. Scoped to the logged-in store from the session, never from
+   * the request, so one franchise cannot read another's answers.
+   *
+   * Matched on the phone as well as the franchise id: a store whose portal
+   * record carries a different number from the one it replied on would
+   * otherwise see nothing.
+   */
+  static async getOwnAudits(req: Request, res: Response) {
+    try {
+      const userId = (req as any).user?.id;
+      if (!userId) return res.status(401).json({ error: 'Not authenticated' });
+
+      const [[store]]: any = await db.execute(
+        `SELECT vd.id, vd.store_name, p.phone_number
+         FROM vendor_details vd
+         LEFT JOIN profiles p ON p.id = vd.user_id
+         WHERE vd.user_id = ? LIMIT 1`,
+        [userId]
+      );
+      if (!store) return res.status(404).json({ error: 'Store not found' });
+
+      const last10 = String(store.phone_number || '').replace(/\D/g, '').slice(-10);
+
+      const [audits]: any = await db.execute(
+        `SELECT sa.id, sa.round_id, sa.channel, sa.audit_date, sa.submitted_at,
+                sa.audited_by_name, sa.review_status,
+                sa.signage_status, sa.online_presence, sa.online_presence_other,
+                sa.footfall, sa.seat_covers_stock, sa.products_stocked,
+                sa.last_month_business, sa.staff_training, sa.warranty_registration,
+                sa.support_needed, sa.support_details,
+                ar.name AS round_name, ar.first_sent_at AS round_sent_at
+         FROM store_audits sa
+         LEFT JOIN audit_rounds ar ON ar.id = sa.round_id
+         WHERE sa.vendor_details_id = ?
+            OR (? <> '' AND RIGHT(REGEXP_REPLACE(COALESCE(sa.submitted_phone, ''), '[^0-9]', ''), 10) = ?)
+         ORDER BY sa.submitted_at DESC
+         LIMIT 100`,
+        [store.id, last10, last10]
+      );
+
+      // Whether an audit is currently being asked for, so a store that has not
+      // answered is told there is one waiting rather than just shown an empty
+      // list. Only open rounds count.
+      const [[pending]]: any = await db.execute(
+        `SELECT ar.name, ar.first_sent_at
+         FROM audit_round_targets t
+         JOIN audit_rounds ar ON ar.id = t.round_id
+         WHERE ar.status = 'open'
+           AND t.responded_at IS NULL
+           AND (t.vendor_details_id = ? OR (? <> '' AND t.phone_key = ?))
+         ORDER BY ar.first_sent_at DESC
+         LIMIT 1`,
+        [store.id, last10, last10]
+      );
+
+      res.json({
+        success: true,
+        audits,
+        pending: pending
+          ? { round_name: pending.name, sent_at: pending.first_sent_at }
+          : null,
+      });
+    } catch (error: any) {
+      console.error('Get own audits error:', error);
+      res.status(500).json({ error: 'Failed to load your audits' });
+    }
+  }
+
   static async getManpower(req: Request, res: Response) {
     try {
       const userId = (req as any).user?.id;

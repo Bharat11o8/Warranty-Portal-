@@ -17,6 +17,7 @@ import VendorCatalog from "@/components/eshop/VendorCatalog";
 import CatalogHeader from "@/components/eshop/CatalogHeader";
 import { NewsAlerts } from "@/components/fms/NewsAlerts";
 import { ComingSoon } from "@/components/fms/ComingSoon";
+import { FranchiseAudits } from "@/components/fms/FranchiseAudits";
 import VendorGrievances from "@/components/fms/VendorGrievances";
 import POSMModule from "@/components/fms/POSMModule";
 import ECatalogue from "@/components/fms/ECatalogue";
@@ -794,7 +795,11 @@ const FranchiseDashboard = () => {
             case 'offers':
                 return <ComingSoon title="Offers & Schemes" />;
             case 'audit':
-                return <ComingSoon title="Audit & Compliance" />;
+                return (
+                    <div className="-mt-8 md:-mt-14">
+                        <FranchiseAudits />
+                    </div>
+                );
             case 'targets':
                 return <ComingSoon title="Targets & Achievements" />;
             case 'posm':

@@ -180,7 +180,7 @@ export const menuGroups = [
                 icon: Gift,
                 comingSoon: true,
             },
-            { id: 'audit' as const, label: "Audit & Compliance", icon: ClipboardCheck, comingSoon: true },
+            { id: 'audit' as const, label: "Audit & Compliance", icon: ClipboardCheck },
         ]
     },
     {

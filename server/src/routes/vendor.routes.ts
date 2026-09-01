@@ -14,6 +14,10 @@ router.post('/warranty/:uid/reject', authenticateToken, requireRole(['vendor']),
 // Vendor profile route
 router.get('/profile', authenticateToken, requireRole(['vendor']), VendorController.getProfile);
 
+// The store's own audit submissions — what it answered, and whether one is
+// currently being asked for. Vendor role only; scoped by session.
+router.get('/audits', authenticateToken, requireRole(['vendor']), VendorController.getOwnAudits);
+
 // Manpower management routes
 router.get('/manpower', authenticateToken, requireRole(['vendor', 'admin']), VendorController.getManpower);
 router.get('/manpower/:manpowerId/warranties', authenticateToken, requireRole(['vendor', 'admin']), VendorController.getManpowerWarranties);
