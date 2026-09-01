@@ -460,7 +460,7 @@ const VendorGrievances = () => {
                                         <h3 className="font-black text-slate-800 text-sm md:text-lg truncate tracking-tight group-hover:text-orange-600 transition-colors">{g.subject}</h3>
                                         <div className="flex items-center gap-2 mt-1">
                                             <Badge variant="outline" className={`text-[8px] md:text-[9px] font-black uppercase tracking-widest border shrink-0 ${categoryConfig.bg} ${categoryConfig.text} ${categoryConfig.border}`}>
-                                                {CATEGORIES[g.category] || FRANCHISE_CATEGORIES.find(c => c.value === g.category)?.label || g.category}
+                                                {CATEGORIES[g.category] || categories.find(c => c.value === g.category)?.label || g.category}
                                             </Badge>
                                             <span className="text-slate-300 opacity-50">•</span>
                                             <span className="text-[8px] md:text-[10px] font-bold text-slate-400 uppercase tracking-widest">{formatToIST(g.created_at)}</span>
@@ -712,7 +712,7 @@ const VendorGrievances = () => {
                                                 {(() => {
                                                     const val = String(selectedGrievance.category || "").trim().toLowerCase();
                                                     const displayVal = CATEGORIES[val] ||
-                                                        FRANCHISE_CATEGORIES.find(c => c.value.toLowerCase() === val)?.label ||
+                                                        categories.find(c => c.value.toLowerCase() === val)?.label ||
                                                         selectedGrievance.category || "N/A";
 
                                                     // Dynamic color mapping for categories
