@@ -45,6 +45,7 @@ router.put('/distributors/:id/categories', ...adminAuth, requireAnyPermission(['
 router.get('/franchises/distributor-map', ...adminAuth, requireAnyPermission(['distributors', 'order_management'], 'read'), AdminController.getFranchiseDistributorMap);
 router.get('/franchises/eligible', ...adminAuth, requireAnyPermission(['distributors', 'order_management'], 'read'), AdminController.getEligibleFranchises);
 router.get('/franchises/:vendorId/orders', ...adminAuth, requireAnyPermission(['vendors', 'order_management'], 'read'), AdminController.getFranchiseOrders);
+router.get('/franchises/:vendorId/announcements', ...adminAuth, requirePermission('announcements', 'read'), AdminController.getFranchiseAnnouncements);
 router.get('/franchises/:vendorId/distributors', ...adminAuth, requirePermission('distributors', 'read'), AdminController.getFranchiseDistributors);
 router.get('/franchises/:vendorId/distributors/:distributorId/categories', ...adminAuth, requireAnyPermission(['distributors', 'order_management'], 'read'), AdminController.getFranchiseDistributorCategories);
 router.put('/franchises/:vendorId/distributors/:distributorId/categories', ...adminAuth, requireAnyPermission(['distributors', 'order_management'], 'write'), AdminController.setFranchiseDistributorCategories);

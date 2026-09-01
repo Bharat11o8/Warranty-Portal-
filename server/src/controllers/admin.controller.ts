@@ -3909,19 +3909,37 @@ export class AdminController {
                 params.push(channel);
             }
             if (search) {
-                where.push('(vd.store_name LIKE ? OR vd.store_code LIKE ? OR vd.city LIKE ? OR sa.submitted_phone LIKE ?)');
+                // Search the contact sheet too, or a store that exists only
+                // there could never be found by name.
+                where.push(`(vd.store_name LIKE ? OR vd.store_code LIKE ? OR vd.city LIKE ?
+                             OR ac.store_name LIKE ? OR ac.city LIKE ? OR ac.contact_person LIKE ?
+                             OR sa.submitted_phone LIKE ?)`);
                 const like = `%${search}%`;
-                params.push(like, like, like, like);
+                params.push(like, like, like, like, like, like, like);
             }
             if (from) { where.push('sa.submitted_at >= ?'); params.push(from); }
             if (to)   { where.push('sa.submitted_at <= ?'); params.push(`${to} 23:59:59`); }
 
             const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
 
+            // Fall back to the uploaded contact sheet for a store the portal has
+            // no franchise record for. Those stores were audited on purpose —
+            // they are on the sheet precisely because they should be — so the
+            // row must still say who they are. "Unmatched" then means only what
+            // it says: this number is not in the franchise database.
             const [audits]: any = await db.execute(
-                `SELECT sa.*, vd.store_name, vd.store_code, vd.city, vd.state
+                `SELECT sa.*,
+                        COALESCE(vd.store_name, ac.store_name)   AS store_name,
+                        vd.store_code,
+                        COALESCE(vd.city,  ac.city)              AS city,
+                        COALESCE(vd.state, ac.state)             AS state,
+                        COALESCE(sa.contact_person, ac.contact_person) AS contact_person,
+                        COALESCE(sa.asm,   ac.asm)               AS asm,
+                        (ac.id IS NOT NULL)                      AS in_contact_sheet
                  FROM store_audits sa
                  LEFT JOIN vendor_details vd ON vd.id = sa.vendor_details_id
+                 LEFT JOIN audit_contacts ac
+                        ON ac.phone_key = RIGHT(REGEXP_REPLACE(COALESCE(sa.submitted_phone, ''), '[^0-9]', ''), 10)
                  ${whereSql}
                  ORDER BY sa.submitted_at DESC
                  LIMIT 500`,
@@ -3958,25 +3976,67 @@ export class AdminController {
     static async createCallAudit(req: Request, res: Response) {
         try {
             const b = req.body || {};
-            if (!b.vendorDetailsId) {
+            if (!b.vendorDetailsId && !b.targetId) {
                 return res.status(400).json({ error: 'Select the store this audit is for' });
             }
 
-            // The admin vendors list returns profiles.id, not vendor_details.id, so
-            // accept either rather than forcing every caller to know which is which.
-            const [vendor]: any = await db.execute(
-                `SELECT vd.id, vd.user_id, vd.store_name, vd.city, vd.state,
-                        p.phone_number, p.name AS contact_person
-                 FROM vendor_details vd
-                 LEFT JOIN profiles p ON p.id = vd.user_id
-                 WHERE vd.id = ? OR vd.user_id = ?
-                 LIMIT 1`,
-                [b.vendorDetailsId, b.vendorDetailsId]
-            );
-            if (vendor.length === 0) {
-                return res.status(404).json({ error: 'Store not found' });
+            // Two ways in. Normally a franchise record, but a chunk of every
+            // round is stores that exist only in the uploaded contact sheet —
+            // never matched to a franchise. They still have to be auditable, or
+            // the round can never be completed, so a target row identifies the
+            // store just as well and carries the same details.
+            let v: any = null;
+
+            if (b.vendorDetailsId) {
+                // The admin vendors list returns profiles.id, not vendor_details.id, so
+                // accept either rather than forcing every caller to know which is which.
+                const [vendor]: any = await db.execute(
+                    `SELECT vd.id, vd.user_id, vd.store_name, vd.city, vd.state,
+                            p.phone_number, p.name AS contact_person
+                     FROM vendor_details vd
+                     LEFT JOIN profiles p ON p.id = vd.user_id
+                     WHERE vd.id = ? OR vd.user_id = ?
+                     LIMIT 1`,
+                    [b.vendorDetailsId, b.vendorDetailsId]
+                );
+                if (vendor.length === 0) {
+                    return res.status(404).json({ error: 'Store not found' });
+                }
+                v = vendor[0];
+            } else {
+                const [target]: any = await db.execute(
+                    `SELECT t.id AS target_id, t.round_id, t.vendor_details_id,
+                            COALESCE(t.store_name, ac.store_name) AS store_name,
+                            COALESCE(t.sent_phone, ac.raw_phone)  AS phone_number,
+                            ac.contact_person, ac.city, ac.state, ac.zone, ac.asm,
+                            ac.brands, ac.category
+                     FROM audit_round_targets t
+                     LEFT JOIN audit_contacts ac ON ac.phone_key = t.phone_key
+                     WHERE t.id = ?
+                     LIMIT 1`,
+                    [b.targetId]
+                );
+                if (target.length === 0) {
+                    return res.status(404).json({ error: 'Store not found' });
+                }
+                const t = target[0];
+                // A target may have been matched since the list was built; prefer
+                // the franchise link when there is one so the audit still joins up.
+                v = {
+                    id: t.vendor_details_id,
+                    store_name: t.store_name,
+                    city: t.city,
+                    state: t.state,
+                    phone_number: t.phone_number,
+                    contact_person: t.contact_person,
+                    _targetId: t.target_id,
+                    _roundId: t.round_id,
+                    _zone: t.zone,
+                    _asm: t.asm,
+                    _brands: t.brands,
+                    _category: t.category,
+                };
             }
-            const v = vendor[0];
 
             // Multi-selects arrive as arrays from the form; the Flow sends them
             // comma-joined. Normalise so both channels store the same shape.
@@ -3990,7 +4050,8 @@ export class AdminController {
             // no campaign id of its own, so it joins whichever round is still
             // open — the one being chased. Explicit roundId wins, for recording
             // a call against an earlier round after a newer one has opened.
-            let roundId: string | null = b.roundId || null;
+            // A target already knows its round, which beats guessing.
+            let roundId: string | null = b.roundId || v._roundId || null;
             if (!roundId) {
                 const [openRound]: any = await db.execute(
                     `SELECT id FROM audit_rounds WHERE status = 'open'
@@ -4021,8 +4082,12 @@ export class AdminController {
                     v.city || null,
                     v.state || null,
                     // zone / asm / brands / category have no column in vendor_details —
-                    // the auditor supplies them on the call if known.
-                    b.zone || null, b.asm || null, b.brands || null, b.category || null,
+                    // the auditor supplies them on the call, falling back to the
+                    // uploaded contact sheet, which is where they came from.
+                    b.zone || v._zone || null,
+                    b.asm || v._asm || null,
+                    b.brands || v._brands || null,
+                    b.category || v._category || null,
                     b.signage_status || null,
                     join(b.online_presence),
                     b.online_presence_other || null,
@@ -4041,7 +4106,18 @@ export class AdminController {
             // records the answers but the store stays outstanding, so the admin
             // would keep ringing someone who has already been audited — which
             // is the whole reason the call option exists.
-            if (roundId) {
+            if (v._targetId) {
+                // Audited straight from its chase-list row, so tick off exactly
+                // that row. This is the only way to close out a store that was
+                // never matched to a franchise: there is no vendor id to find it
+                // by, and 83 of the 526 stores in a round are in that position.
+                await db.execute(
+                    `UPDATE audit_round_targets
+                     SET store_audit_id = ?, responded_at = CURRENT_TIMESTAMP
+                     WHERE id = ? AND responded_at IS NULL`,
+                    [id, v._targetId]
+                );
+            } else if (roundId && v.id) {
                 const [upd]: any = await db.execute(
                     `UPDATE audit_round_targets
                      SET store_audit_id = ?, responded_at = CURRENT_TIMESTAMP
@@ -4275,6 +4351,12 @@ export class AdminController {
                         (SELECT COUNT(*) FROM audit_round_targets t WHERE t.round_id = r.id) AS target_count,
                         (SELECT COUNT(*) FROM audit_round_targets t WHERE t.round_id = r.id AND t.responded_at IS NOT NULL) AS responded_count,
                         (SELECT COUNT(*) FROM audit_round_targets t WHERE t.round_id = r.id AND t.responded_at IS NULL) AS outstanding_count,
+                        -- The delivery funnel, so a store that never received the
+                        -- audit is distinguishable from one that ignored it.
+                        (SELECT COUNT(*) FROM audit_round_targets t WHERE t.round_id = r.id AND t.sent_at IS NOT NULL) AS sent_count,
+                        (SELECT COUNT(*) FROM audit_round_targets t WHERE t.round_id = r.id AND t.delivered_at IS NOT NULL) AS delivered_count,
+                        (SELECT COUNT(*) FROM audit_round_targets t WHERE t.round_id = r.id AND t.read_at IS NOT NULL) AS read_count,
+                        (SELECT COUNT(*) FROM audit_round_targets t WHERE t.round_id = r.id AND t.failed_at IS NOT NULL) AS failed_count,
                         (SELECT COUNT(*) FROM store_audits sa WHERE sa.round_id = r.id) AS audit_count
                  FROM audit_rounds r
                  ORDER BY COALESCE(r.first_sent_at, r.created_at) DESC`
@@ -4409,7 +4491,25 @@ export class AdminController {
                 [roundId, roundId]
             );
 
-            await db.execute(`UPDATE store_audits SET round_id = NULL WHERE round_id = ?`, [roundId]);
+            // Detaching keeps a real store's answers when a campaign is tidied
+            // away. But a test round deleted to get rid of it left its
+            // submissions behind under "All rounds", which is not what deleting
+            // it meant — so the caller says which it wants.
+            const alsoDeleteAudits = req.query.deleteAudits === 'true' || req.body?.deleteAudits === true;
+
+            if (alsoDeleteAudits) {
+                // Reopen any target these filled first; a target pointing at a
+                // deleted audit would still read as done.
+                await db.execute(
+                    `UPDATE audit_round_targets SET responded_at = NULL, store_audit_id = NULL
+                      WHERE store_audit_id IN (SELECT id FROM store_audits WHERE round_id = ?)`,
+                    [roundId]
+                );
+                await db.execute(`DELETE FROM store_audits WHERE round_id = ?`, [roundId]);
+            } else {
+                await db.execute(`UPDATE store_audits SET round_id = NULL WHERE round_id = ?`, [roundId]);
+            }
+
             await db.execute(`DELETE FROM audit_rounds WHERE id = ?`, [roundId]);
 
             res.json({
@@ -4417,7 +4517,8 @@ export class AdminController {
                 message: `Deleted round "${round.name}"`,
                 data: {
                     targetsRemoved: Number(counts.targets || 0),
-                    auditsKept: Number(counts.audits || 0),
+                    auditsKept: alsoDeleteAudits ? 0 : Number(counts.audits || 0),
+                    auditsDeleted: alsoDeleteAudits ? Number(counts.audits || 0) : 0,
                 },
             });
         } catch (error: any) {
@@ -4788,6 +4889,78 @@ export class AdminController {
             res.status(500).json({ error: 'Failed to save category limits' });
         } finally {
             connection.release();
+        }
+    }
+
+    /**
+     * What this store has been sent by an admin broadcast.
+     *
+     * message_logs records one row per recipient but keys on the phone number,
+     * not the franchise, so the store's own number is the join. Done here rather
+     * than by filtering the full history client-side: that table holds ~40k rows
+     * and only a handful belong to any one store.
+     */
+    static async getFranchiseAnnouncements(req: Request, res: Response) {
+        try {
+            const { vendorId } = req.params; // Franchise user_id
+
+            const [[store]]: any = await db.execute(
+                `SELECT p.phone_number, vd.store_email
+                 FROM vendor_details vd
+                 LEFT JOIN profiles p ON p.id = vd.user_id
+                 WHERE vd.user_id = ? LIMIT 1`,
+                [vendorId]
+            );
+            if (!store) return res.status(404).json({ error: 'Franchise store not found' });
+
+            const last10 = String(store.phone_number || '').replace(/\D/g, '').slice(-10);
+            if (!last10) return res.json({ success: true, announcements: [] });
+
+            // The activity log holds the title and body; message_logs holds who
+            // it reached and what became of it. Joined on the campaign.
+            const [rows]: any = await db.execute(
+                `SELECT ml.id, ml.campaign_id, ml.channel, ml.status, ml.error_message,
+                        ml.created_at, ml.updated_at,
+                        al.details AS broadcast_details, al.admin_name
+                 FROM message_logs ml
+                 LEFT JOIN admin_activity_log al
+                        ON al.action_type = 'BROADCAST_SENT'
+                       AND JSON_UNQUOTE(JSON_EXTRACT(al.details, '$.campaignId')) = ml.campaign_id
+                 WHERE ml.context = 'admin_broadcast'
+                   AND (
+                        RIGHT(REGEXP_REPLACE(COALESCE(ml.recipient_phone, ''), '[^0-9]', ''), 10) = ?
+                        OR (? <> '' AND ml.recipient_email = ?)
+                   )
+                 ORDER BY ml.created_at DESC
+                 LIMIT 100`,
+                [last10, store.store_email || '', store.store_email || '']
+            );
+
+            const announcements = rows.map((r: any) => {
+                let details: any = {};
+                try {
+                    details = typeof r.broadcast_details === 'string'
+                        ? JSON.parse(r.broadcast_details)
+                        : (r.broadcast_details || {});
+                } catch { /* a malformed log entry must not hide the delivery row */ }
+                return {
+                    id: r.id,
+                    campaign_id: r.campaign_id,
+                    title: details.title || null,
+                    message: details.message || null,
+                    sent_by: r.admin_name || null,
+                    channel: r.channel,
+                    status: r.status,
+                    error_message: r.error_message,
+                    created_at: r.created_at,
+                    updated_at: r.updated_at,
+                };
+            });
+
+            res.json({ success: true, announcements });
+        } catch (error: any) {
+            console.error('Get franchise announcements error:', error);
+            res.status(500).json({ error: 'Failed to fetch announcements for this store' });
         }
     }
 
