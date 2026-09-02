@@ -24,7 +24,8 @@ import {
     abortReminderRun,
     sendTestReminder,
     preflightCheck,
-    lastReminderFailure
+    lastReminderFailure,
+    countEverReminded
 } from '../services/warrantyReminder.service.js';
 
 /**
@@ -764,14 +765,19 @@ export class AdminController {
     /** Reminder schedule plus a preview of what the one-time catch-up would send. */
     static async getWarrantyReminderSettings(_req: Request, res: Response) {
         try {
-            const [settings, preview, preflight, lastFailure] = await Promise.all([
+            const [settings, preview, preflight, lastFailure, everReminded] = await Promise.all([
                 getReminderSettings(),
                 previewInitialRun(),
                 preflightCheck(),
-                lastReminderFailure()
+                lastReminderFailure(),
+                countEverReminded()
             ]);
             res.json({
                 success: true, settings, preview, preflight, lastFailure,
+                // Whether the catch-up genuinely happened, as opposed to having
+                // merely recorded itself. The UI needs this to decide between
+                // "done" and "still available".
+                everReminded,
                 progress: getReminderProgress()
             });
         } catch (error: any) {
@@ -826,10 +832,8 @@ export class AdminController {
             // refused, which consumed the one-time action and stranded the
             // backlog; if nothing has ever been reminded, let it run again.
             if (settings.initialRunAt) {
-                const [[reminded]]: any = await db.execute(
-                    'SELECT COUNT(*) AS n FROM warranty_registrations WHERE reminder_count > 0'
-                );
-                if (Number(reminded.n) > 0) {
+                const reminded = await countEverReminded();
+                if (reminded > 0) {
                     return res.status(409).json({
                         error: `The one-time catch-up already ran on ${new Date(settings.initialRunAt).toLocaleString('en-IN')}. Ongoing reminders are handled by the schedule.`
                     });
@@ -1644,7 +1648,16 @@ export class AdminController {
                 if (status === 'validated') timestampUpdates = ', validated_at = NOW()';
                 // rejected_by distinguishes this from a dealer's own rejection.
                 // Only HO rejections are chased by the reminder job.
-                if (status === 'rejected') timestampUpdates = ", rejected_at = NOW(), rejected_by = 'admin'";
+                //
+                // The reminder counters reset here too: the attempt cap is meant
+                // to stop us pestering someone about one rejection, not to exempt
+                // a warranty for life. Without this, a warranty that used up its
+                // reminders, was corrected, and was then rejected again would
+                // never be chased about the second rejection.
+                if (status === 'rejected') {
+                    timestampUpdates = ", rejected_at = NOW(), rejected_by = 'admin'"
+                        + ", reminder_count = 0, last_reminder_at = NULL";
+                }
                 
                 await connection.execute(
                     `UPDATE warranty_registrations SET status = ?, rejection_reason = ? ${timestampUpdates} WHERE uid = ? LIMIT 1`,

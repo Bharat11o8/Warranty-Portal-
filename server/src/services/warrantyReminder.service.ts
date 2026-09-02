@@ -16,9 +16,9 @@ import { formatDateIST } from '../utils/dateUtils.js';
  *  1. HO rejections only (`rejected_by = 'admin'`). A dealer who rejected an
  *     installation themselves must never receive "please correct this", and the
  *     customer must never be told the company refused something their own
- *     dealer declined. Rows whose origin could not be established are left
- *     NULL by the migration; whether those are chased is the admin's call
- *     (`includeUnclassified`).
+ *     dealer declined. Rows the migration could not attribute are left NULL
+ *     and are still chased — every rejection written since carries
+ *     rejected_by, so only a handful of historical rows are affected.
  *
  *  2. Skip anything already resubmitted. A correction lands in
  *     `warranty_resubmissions` as `pending_review` and the original row *stays*
@@ -37,18 +37,6 @@ export interface WarrantyReminderSettings {
     repeatEveryDays: number;
     /** Total reminders any one warranty may ever receive. */
     maxReminders: number;
-    remindCustomer: boolean;
-    remindStore: boolean;
-    /**
-     * Whether to chase rejections whose author could not be established.
-     *
-     * These are rows the backfill could not attribute either way. Including
-     * them risks asking a customer to correct something their own dealer
-     * turned down; excluding them leaves real HO rejections unchased. The
-     * safer signals run first (see runMigrations), so what reaches this switch
-     * is only what genuinely could not be told apart.
-     */
-    includeUnclassified: boolean;
     /**
      * When the one-time catch-up over the existing backlog was run.
      *
@@ -64,9 +52,6 @@ const DEFAULTS: WarrantyReminderSettings = {
     firstReminderAfterDays: 7,
     repeatEveryDays: 7,
     maxReminders: 3,
-    remindCustomer: true,
-    remindStore: true,
-    includeUnclassified: true,
     initialRunAt: null,
 };
 
@@ -126,9 +111,6 @@ function sanitise(input: Partial<WarrantyReminderSettings>): Partial<WarrantyRem
     };
 
     if (input.enabled !== undefined) out.enabled = Boolean(input.enabled);
-    if (input.remindCustomer !== undefined) out.remindCustomer = Boolean(input.remindCustomer);
-    if (input.remindStore !== undefined) out.remindStore = Boolean(input.remindStore);
-    if (input.includeUnclassified !== undefined) out.includeUnclassified = Boolean(input.includeUnclassified);
 
     const first = num(input.firstReminderAfterDays, 1, 180);
     if (first !== undefined) out.firstReminderAfterDays = first;
@@ -199,11 +181,12 @@ const STORE_JOIN = `
  * Rows that may ever be chased, before any timing rule is applied.
  * Both exclusions in the file header live here.
  */
-const eligibleWhere = (includeUnclassified: boolean) => `
+// A dealer's own rejection is never chased. NULL is still allowed through for
+// the handful of historical rows the backfill could not attribute — every
+// rejection written since carries rejected_by, so nothing new lands here.
+const ELIGIBLE_WHERE = `
     w.status = 'rejected'
-    AND ${includeUnclassified
-        ? "(w.rejected_by = 'admin' OR w.rejected_by IS NULL)"
-        : "w.rejected_by = 'admin'"}
+    AND (w.rejected_by = 'admin' OR w.rejected_by IS NULL)
     AND NOT EXISTS (
         SELECT 1 FROM warranty_resubmissions r
         WHERE r.original_uid = w.uid AND r.status = 'pending_review'
@@ -261,7 +244,7 @@ export async function findDueWarranties(
         `SELECT ${SELECT_COLUMNS}
          FROM warranty_registrations w
          ${STORE_JOIN}
-         WHERE ${eligibleWhere(settings.includeUnclassified)} ${timing}
+         WHERE ${ELIGIBLE_WHERE} ${timing}
          ORDER BY COALESCE(w.rejected_at, w.created_at) ASC`,
         params
     );
@@ -294,7 +277,7 @@ export async function previewInitialRun(): Promise<{
                 MAX(COALESCE(w.rejected_at, w.created_at)) AS newest
          FROM warranty_registrations w
          ${STORE_JOIN}
-         WHERE ${eligibleWhere(settings.includeUnclassified)} AND w.reminder_count = 0`
+         WHERE ${ELIGIBLE_WHERE} AND w.reminder_count = 0`
     );
 
     const [[excluded]]: any = await db.execute(
@@ -340,19 +323,34 @@ export async function preflightCheck(): Promise<{ ok: boolean; problems: string[
         problems.push('WhatsApp is switched off on the server (ENABLE_WHATSAPP).');
     }
 
-    if (!settings.remindCustomer && !settings.remindStore) {
-        problems.push('Both recipients are switched off — nobody would be messaged.');
-    }
+    const [toCustomer, toStore] = await Promise.all([
+        isContextEnabled('warranty_reject_reminder_customer'),
+        isContextEnabled('warranty_reject_reminder_store')
+    ]);
 
-    if (settings.remindCustomer && !(await isContextEnabled('warranty_reject_reminder_customer'))) {
-        problems.push('"Customer — Rejection Reminder" is switched off in WhatsApp Messages.');
-    }
-
-    if (settings.remindStore && !(await isContextEnabled('warranty_reject_reminder_store'))) {
-        problems.push('"Store — Rejection Reminder" is switched off in WhatsApp Messages.');
+    if (!toCustomer && !toStore) {
+        problems.push('Both Rejection Reminder message types are switched off in WhatsApp Messages — nobody would be messaged.');
     }
 
     return { ok: problems.length === 0, problems };
+}
+
+/**
+ * How many warranties have ever actually been reminded.
+ *
+ * The truth about whether the catch-up happened. `initialRunAt` alone is not
+ * enough: an earlier version stamped it even when every send was refused, so
+ * a set flag with a zero count means the run recorded itself but did nothing.
+ */
+export async function countEverReminded(): Promise<number> {
+    try {
+        const [[row]]: any = await db.execute(
+            'SELECT COUNT(*) AS n FROM warranty_registrations WHERE reminder_count > 0'
+        );
+        return Number(row.n || 0);
+    } catch {
+        return 0;
+    }
 }
 
 /** Most recent send failure for either reminder type, to explain a dead run. */
@@ -407,6 +405,16 @@ export async function runReminderPass(mode: 'initial' | 'scheduled'): Promise<Re
     const settings = await getReminderSettings();
     const due = await findDueWarranties(mode, settings);
 
+    // Who gets messaged is decided by the two message-type switches in
+    // WhatsApp Messages — the same ones that gate every other send and carry
+    // the delivery stats. Resolved once here rather than per warranty, so a
+    // switched-off type is skipped outright instead of attempted 143 times and
+    // logged as 143 failures.
+    const [toCustomer, toStore] = await Promise.all([
+        isContextEnabled('warranty_reject_reminder_customer'),
+        isContextEnabled('warranty_reject_reminder_store')
+    ]);
+
     abortRequested = false;
     activeRun = {
         mode,
@@ -444,11 +452,10 @@ export async function runReminderPass(mode: 'initial' | 'scheduled'): Promise<Re
         // refused". Conflating them made a run where nothing was approved read
         // as 86 missing phone numbers.
         const hadRecipient = Boolean(
-            (settings.remindCustomer && row.customer_phone) ||
-            (settings.remindStore && row.store_phone)
+            (toCustomer && row.customer_phone) || (toStore && row.store_phone)
         );
 
-        if (settings.remindCustomer && row.customer_phone) {
+        if (toCustomer && row.customer_phone) {
             try {
                 const ok = await WhatsAppService.sendWarrantyRejectReminderCustomer(
                     row.customer_phone, row.customer_name, productName, row.registration_number,
@@ -463,7 +470,7 @@ export async function runReminderPass(mode: 'initial' | 'scheduled'): Promise<Re
             await sleep(SEND_SPACING_MS);
         }
 
-        if (settings.remindStore && row.store_phone) {
+        if (toStore && row.store_phone) {
             try {
                 const ok = await WhatsAppService.sendWarrantyRejectReminderStore(
                     row.store_phone, storeName, productName, row.registration_number,
@@ -609,7 +616,12 @@ export class WarrantyReminderScheduler {
             // Parked until the backlog has been dealt with deliberately.
             // Without this, switching the feature on would send every overdue
             // reminder in one unattended burst.
-            if (!settings.initialRunAt) {
+            //
+            // The flag alone is not enough: a catch-up that delivered nothing
+            // still stamped it, which would let this tick pick up the entire
+            // untouched backlog on its own — no preview, no confirmation, no
+            // one watching. Both conditions must hold.
+            if (!settings.initialRunAt || (await countEverReminded()) === 0) {
                 console.log('🕒 Warranty Reminder: waiting for the one-time catch-up to be run by an admin.');
                 return;
             }
