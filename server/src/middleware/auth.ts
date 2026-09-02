@@ -17,6 +17,31 @@ export interface AuthRequest extends Request {
   };
 }
 
+const SESSION_ROLES = new Set(['admin', 'vendor', 'customer']);
+
+/**
+ * A valid signature is not enough to be a session.
+ *
+ * JWT_SECRET also signs single-purpose action tokens — the invoice-download
+ * link in the WhatsApp button (`{ purpose: 'invoice', orderId }`) and the
+ * franchise verify/reject link in email (`{ warrantyId, vendorEmail }`). Those
+ * links are handed to franchises and get forwarded, so presenting one as
+ * `auth_token` used to produce a `req.user` with no id and no role. Every
+ * handler that scopes by `role === 'customer'` / `role === 'vendor'` then
+ * matched neither branch and applied no filter at all — an invoice link read
+ * the whole warranty table.
+ *
+ * Session tokens now carry `typ: 'session'`. The id/role check is what makes
+ * this safe *today*: action tokens have neither, so they are rejected before
+ * the 30-day cookies issued without a `typ` have expired.
+ */
+export const isSessionToken = (decoded: any): boolean => {
+  if (!decoded || typeof decoded !== 'object') return false;
+  if (decoded.typ !== undefined && decoded.typ !== 'session') return false;
+  return typeof decoded.id === 'string' && decoded.id.length > 0
+    && typeof decoded.role === 'string' && SESSION_ROLES.has(decoded.role);
+};
+
 export const authenticateToken = (req: AuthRequest, res: Response, next: NextFunction) => {
   // SBP-006: Read token from HttpOnly cookie first, then fall back to Authorization header
   const cookieToken = req.cookies?.auth_token;
@@ -30,6 +55,14 @@ export const authenticateToken = (req: AuthRequest, res: Response, next: NextFun
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET!) as any;
+
+    if (!isSessionToken(decoded)) {
+      if (cookieToken) {
+        res.clearCookie('auth_token', { path: '/' });
+      }
+      return res.status(401).json({ error: 'Access token required' });
+    }
+
     req.user = decoded;
     next();
   } catch (error) {

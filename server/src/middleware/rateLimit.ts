@@ -30,19 +30,56 @@ const apiLimiter = redis
     })
     : null;
 
-// Helper to extract IP
+/**
+ * The identity these limits are counted against.
+ *
+ * This used to read `x-forwarded-for` and take the leftmost entry. nginx sets
+ * that header with `proxy_add_x_forwarded_for`, which *appends* the real peer
+ * to whatever the client sent — so the leftmost value is supplied by the
+ * caller. Sending a different one per request gave every request a fresh
+ * bucket and disabled auth, OTP-resend and general rate limiting completely.
+ *
+ * `req.ip` honours Express's `trust proxy` setting (set to 1 in index.ts), so
+ * it skips exactly one trusted hop from the right and ignores anything the
+ * client prepended.
+ *
+ * NOTE: `trust proxy` must equal the real number of proxies in front of the
+ * app. It is 1 today (nginx only). If a CDN/WAF is ever put in front, raise it
+ * to match, or req.ip will read the CDN's hop instead of the client.
+ */
 const getClientIP = (req: Request): string => {
-    const forwarded = req.headers['x-forwarded-for'];
-    if (typeof forwarded === 'string') {
-        return forwarded.split(',')[0].trim();
-    }
     return req.ip || req.socket?.remoteAddress || 'unknown';
 };
 
 const shouldSkipAuthLimiter = (req: Request): boolean => {
     const path = req.path.toLowerCase();
+
     // /auth/me is called frequently by session bootstrap and should not consume OTP/login quota.
-    return path === '/me' || path === '/logout';
+    if (path === '/me' || path === '/logout') return true;
+
+    // verify-otp and resend-otp each have a better, narrower control of their
+    // own, and must not share the 10-per-15-minutes login budget.
+    //
+    // They used to. A user who mistyped their code a few times drained the
+    // shared pot, and then *both* the retry and the "Resend OTP" button
+    // returned 429 for the rest of the window — including the resend that the
+    // lockout message tells them to use. One person registering and then
+    // fumbling a login was enough to hit it.
+    //
+    // What guards them instead:
+    //   verify-otp → the per-user 5-strike counter in OTPService, which burns
+    //                the code outright. Stronger than an IP count, and it
+    //                cannot be sidestepped by changing IP.
+    //   resend-otp → otpResendLimiter (2/min), applied on the route itself.
+    //                This is the real choke point: only one code is ever live
+    //                per user, so guesses are capped at 5 per code issued, and
+    //                every code issued sends the owner a WhatsApp.
+    //
+    // /login and /register still take the shared budget — those mint codes and
+    // send messages, so they are the ones worth limiting by IP.
+    if (path === '/verify-otp' || path === '/resend-otp') return true;
+
+    return false;
 };
 
 // Helper to create Redis middleware

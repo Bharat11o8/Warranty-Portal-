@@ -59,6 +59,16 @@ async function runMigrations() {
       console.log('ℹ️ Migration: product_name already exists in pre_generated_uids.');
     }
 
+    // Per-user failed-OTP counter. Redis holds it when available; this column
+    // is the fallback so the guess limit still applies if Redis is unreachable.
+    const [otpAttemptCol]: any = await pool.query("SHOW COLUMNS FROM otp_codes LIKE 'attempts'");
+    if (otpAttemptCol.length === 0) {
+      await pool.query("ALTER TABLE otp_codes ADD COLUMN attempts INT NOT NULL DEFAULT 0");
+      console.log('✅ Migration: Added attempts to otp_codes.');
+    } else {
+      console.log('ℹ️ Migration: attempts already exists in otp_codes.');
+    }
+
     await ensureCustomerMobileLimitTable();
     console.log('Migration: customer_mobile_limits is ready.');
   } catch (error: any) {

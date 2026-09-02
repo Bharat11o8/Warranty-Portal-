@@ -2,6 +2,7 @@ import { Server } from 'socket.io';
 import { Server as HttpServer } from 'http';
 import jwt from 'jsonwebtoken';
 import dotenv from 'dotenv';
+import { isSessionToken } from './middleware/auth.js';
 
 dotenv.config();
 
@@ -46,6 +47,14 @@ export const initSocket = (server: HttpServer) => {
 
         try {
             const decoded = jwt.verify(token, process.env.JWT_SECRET!) as any;
+
+            // Same rule as the HTTP middleware: a single-purpose action token
+            // (invoice download, franchise verify link) is signed with the same
+            // secret but is not a session, and must not join a user's room.
+            if (!isSessionToken(decoded)) {
+                return next(new Error('Authentication error: Invalid token'));
+            }
+
             socket.data.user = decoded;
             next();
         } catch (err) {
