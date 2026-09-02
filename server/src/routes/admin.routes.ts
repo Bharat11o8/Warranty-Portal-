@@ -32,6 +32,16 @@ router.put('/manpower/:id/removal-review', ...adminAuth, requirePermission('vend
 router.get('/notification-settings', ...adminAuth, requirePermission('announcements', 'read'), AdminController.getNotificationSettings);
 router.put('/notification-settings', ...adminAuth, requirePermission('announcements', 'write'), AdminController.updateNotificationSettings);
 
+// Warranty rejection reminders. Gated on 'warranties' write rather than
+// 'announcements': starting the catch-up messages customers about their own
+// warranties, which is warranty work, not a broadcast.
+router.get('/warranty-reminders', ...adminAuth, requirePermission('warranties', 'read'), AdminController.getWarrantyReminderSettings);
+router.put('/warranty-reminders', ...adminAuth, requirePermission('warranties', 'write'), AdminController.updateWarrantyReminderSettings);
+router.post('/warranty-reminders/run-initial', ...adminAuth, requirePermission('warranties', 'write'), AdminController.runInitialWarrantyReminders);
+router.get('/warranty-reminders/progress', ...adminAuth, requirePermission('warranties', 'read'), AdminController.getWarrantyReminderProgress);
+router.post('/warranty-reminders/test', ...adminAuth, requirePermission('warranties', 'write'), AdminController.testWarrantyReminder);
+router.post('/warranty-reminders/abort', ...adminAuth, requirePermission('warranties', 'write'), AdminController.abortWarrantyReminders);
+
 // Distributors
 router.get('/distributors', ...adminAuth, requireAnyPermission(['distributors', 'order_management'], 'read'), AdminController.getAllDistributors);
 router.post('/distributors', ...adminAuth, requirePermission('distributors', 'write'), AdminController.createDistributor);

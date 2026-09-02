@@ -15,6 +15,15 @@ import {
     getNotificationSettings as loadNotificationSettings,
     saveNotificationSettings
 } from '../services/notificationSettings.service.js';
+import {
+    getReminderSettings,
+    saveReminderSettings,
+    previewInitialRun,
+    runReminderPass,
+    getReminderProgress,
+    abortReminderRun,
+    sendTestReminder
+} from '../services/warrantyReminder.service.js';
 
 /**
  * Run a promise-returning function with retries and exponential backoff
@@ -750,6 +759,139 @@ export class AdminController {
         }
     }
 
+    /** Reminder schedule plus a preview of what the one-time catch-up would send. */
+    static async getWarrantyReminderSettings(_req: Request, res: Response) {
+        try {
+            const [settings, preview] = await Promise.all([
+                getReminderSettings(),
+                previewInitialRun()
+            ]);
+            res.json({ success: true, settings, preview, progress: getReminderProgress() });
+        } catch (error: any) {
+            console.error('Get warranty reminder settings error:', error);
+            res.status(500).json({ error: 'Failed to load reminder settings' });
+        }
+    }
+
+    static async updateWarrantyReminderSettings(req: Request, res: Response) {
+        try {
+            const updates = req.body || {};
+            const admin = (req as any).user;
+            const saved = await saveReminderSettings(updates, admin?.email || 'admin');
+
+            res.json({ success: true, settings: saved });
+
+            try {
+                await ActivityLogService.log({
+                    adminId: admin?.id,
+                    adminName: admin?.name,
+                    adminEmail: admin?.email,
+                    actionType: 'SYSTEM_SETTING_UPDATED',
+                    targetType: 'SYSTEM_SETTING',
+                    targetId: 'warranty_reminders',
+                    targetName: 'Warranty Rejection Reminders',
+                    details: { updates },
+                    ipAddress: req.ip || req.socket?.remoteAddress
+                });
+            } catch (logErr) {
+                console.error('Failed to log reminder settings change', logErr);
+            }
+        } catch (error: any) {
+            console.error('Update warranty reminder settings error:', error);
+            res.status(500).json({ error: 'Failed to update reminder settings' });
+        }
+    }
+
+    /**
+     * Fire the one-time catch-up over the existing backlog.
+     *
+     * Deliberately a deliberate act. This is the only path that messages every
+     * outstanding rejection at once, so it is never triggered by a deploy or a
+     * timer — an admin has to ask for it, having seen the preview counts, and
+     * it refuses to run twice.
+     */
+    static async runInitialWarrantyReminders(req: Request, res: Response) {
+        try {
+            const settings = await getReminderSettings();
+            if (settings.initialRunAt) {
+                return res.status(409).json({
+                    error: `The one-time catch-up already ran on ${new Date(settings.initialRunAt).toLocaleString('en-IN')}. Ongoing reminders are handled by the schedule.`
+                });
+            }
+
+            const existing = getReminderProgress();
+            if (existing && existing.status === 'running') {
+                return res.status(409).json({ error: 'A reminder run is already in progress.', progress: existing });
+            }
+
+            const preview = await previewInitialRun();
+            if (preview.warranties === 0) {
+                return res.status(400).json({ error: 'Nothing is due a reminder.' });
+            }
+
+            // Answer immediately; the pass reports through the progress endpoint.
+            res.json({ success: true, message: `Sending reminders for ${preview.warranties} warranties.`, preview });
+
+            const admin = (req as any).user;
+            void runReminderPass('initial').then(result => {
+                ActivityLogService.log({
+                    adminId: admin?.id,
+                    adminName: admin?.name,
+                    adminEmail: admin?.email,
+                    actionType: 'SYSTEM_SETTING_UPDATED',
+                    targetType: 'SYSTEM_SETTING',
+                    targetId: 'warranty_reminders',
+                    targetName: 'Warranty Reminder Catch-Up',
+                    details: { sent: result.sent, failed: result.failed, skipped: result.skipped, status: result.status },
+                    ipAddress: req.ip || req.socket?.remoteAddress
+                }).catch(e => console.error('Failed to log catch-up run', e));
+            });
+        } catch (error: any) {
+            console.error('Run initial warranty reminders error:', error);
+            res.status(500).json({ error: 'Failed to start the reminder run' });
+        }
+    }
+
+    static async getWarrantyReminderProgress(_req: Request, res: Response) {
+        res.json({ success: true, progress: getReminderProgress() });
+    }
+
+    /**
+     * Send both reminder messages for one real warranty to a nominated phone.
+     * The only way to see the finished message without messaging a customer.
+     */
+    static async testWarrantyReminder(req: Request, res: Response) {
+        try {
+            const { phone, uid } = req.body || {};
+            if (!phone || !/^\+?[0-9\s-]{10,15}$/.test(String(phone))) {
+                return res.status(400).json({ error: 'A valid mobile number is required.' });
+            }
+
+            const result = await sendTestReminder(String(phone).trim(), uid ? String(uid).trim() : undefined);
+
+            res.json({
+                success: result.customerSent || result.storeSent,
+                result,
+                message: result.customerSent && result.storeSent
+                    ? `Both messages sent to ${phone}, using warranty ${result.uid}.`
+                    : result.customerSent || result.storeSent
+                        ? `Partly sent for warranty ${result.uid} — check WhatsApp Messages for the failure.`
+                        : 'Neither message was accepted by Interakt. The template is most likely still awaiting approval.'
+            });
+        } catch (error: any) {
+            console.error('Test warranty reminder error:', error);
+            res.status(400).json({ error: error?.message || 'Failed to send the test message' });
+        }
+    }
+
+    static async abortWarrantyReminders(_req: Request, res: Response) {
+        const stopped = abortReminderRun();
+        res.json({
+            success: stopped,
+            message: stopped ? 'Stopping after the current warranty.' : 'No reminder run is in progress.'
+        });
+    }
+
     /**
      * Decide a franchise's pending REMOVAL request.
      *
@@ -1473,7 +1615,9 @@ export class AdminController {
                 // 1. Update the main registration status
                 let timestampUpdates = '';
                 if (status === 'validated') timestampUpdates = ', validated_at = NOW()';
-                if (status === 'rejected') timestampUpdates = ', rejected_at = NOW()';
+                // rejected_by distinguishes this from a dealer's own rejection.
+                // Only HO rejections are chased by the reminder job.
+                if (status === 'rejected') timestampUpdates = ", rejected_at = NOW(), rejected_by = 'admin'";
                 
                 await connection.execute(
                     `UPDATE warranty_registrations SET status = ?, rejection_reason = ? ${timestampUpdates} WHERE uid = ? LIMIT 1`,

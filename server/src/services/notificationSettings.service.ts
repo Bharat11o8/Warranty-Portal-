@@ -88,6 +88,27 @@ export const NOTIFICATION_TYPES: NotificationType[] = [
         description: 'Acknowledges a newly submitted warranty registration.'
     },
     {
+        key: 'warranty_reject_reminder_customer',
+        label: 'Customer — Rejection Reminder',
+        group: 'Warranty',
+        template: 'af_war_rej_reminder_cust',
+        recipient: 'Customer',
+        context: 'warranty_reject_reminder_customer',
+        // OFF until the template is approved in Interakt.
+        defaultEnabled: false,
+        description: 'Chases a customer whose warranty HO rejected and nobody has corrected yet, with the reason and how long it has been waiting.'
+    },
+    {
+        key: 'warranty_reject_reminder_store',
+        label: 'Store — Rejection Reminder',
+        group: 'Warranty',
+        template: 'af_war_rej_reminder_fran',
+        recipient: 'Franchise store',
+        context: 'warranty_reject_reminder_store',
+        defaultEnabled: false,
+        description: 'Chases the store about one of its warranties that HO rejected and is still uncorrected.'
+    },
+    {
         key: 'vendor_rejected',
         label: 'Store — Warranty Rejected',
         group: 'Warranty',

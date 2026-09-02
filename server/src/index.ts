@@ -31,6 +31,7 @@ import uidRoutes from './routes/uid.routes.js';
 import orderRoutes from './routes/order.routes.js';
 import webhookRoutes from './routes/webhook.routes.js';
 import { AssignmentSchedulerService } from './services/assignment-scheduler.service.js';
+import { WarrantyReminderScheduler } from './services/warrantyReminder.service.js';
 import { startAnalyticsRepairSchedule } from './services/analyticsEvents.service.js';
 import { initSocket } from './socket.js';
 import { getISTTimestamp } from './utils/dateUtils.js';
@@ -67,6 +68,100 @@ async function runMigrations() {
       console.log('✅ Migration: Added attempts to otp_codes.');
     } else {
       console.log('ℹ️ Migration: attempts already exists in otp_codes.');
+    }
+
+    // Who rejected a warranty. The reminder job chases HO rejections only — a
+    // customer must never be asked to "correct" something their own dealer
+    // turned down. Backfilled below for rows that predate the column.
+    const [rejectedByCol]: any = await pool.query("SHOW COLUMNS FROM warranty_registrations LIKE 'rejected_by'");
+    if (rejectedByCol.length === 0) {
+      await pool.query(
+        "ALTER TABLE warranty_registrations ADD COLUMN rejected_by ENUM('admin','vendor') DEFAULT NULL"
+      );
+
+      // The two dealer paths that reject from WhatsApp / email write a fixed
+      // sentence, so those are identified exactly.
+      const [byReason]: any = await pool.query(
+        `UPDATE warranty_registrations
+         SET rejected_by = 'vendor'
+         WHERE status = 'rejected' AND rejected_by IS NULL AND rejection_reason IN (
+           'Franchise store could not confirm this installation.',
+           'Installation rejected by Vendor/Franchise via email verification.'
+         )`
+      );
+
+      // A dealer can only reject before approving, so a recorded dealer
+      // approval means someone else did the rejecting.
+      const [byApproval]: any = await pool.query(
+        `UPDATE warranty_registrations
+         SET rejected_by = 'admin'
+         WHERE status = 'rejected' AND rejected_by IS NULL AND vendor_approved_at IS NOT NULL`
+      );
+
+      // Anything still NULL is genuinely ambiguous: free-text reason, no
+      // recorded dealer approval. Left NULL on purpose — the reminder job
+      // treats unknown as "do not send" rather than guessing.
+      const [ambiguous]: any = await pool.query(
+        "SELECT COUNT(*) AS n FROM warranty_registrations WHERE status = 'rejected' AND rejected_by IS NULL"
+      );
+      console.log(
+        `✅ Migration: Added rejected_by. Classified ${byReason.affectedRows} as vendor, ` +
+        `${byApproval.affectedRows} as admin; ${ambiguous[0].n} left unclassified.`
+      );
+    } else {
+      console.log('ℹ️ Migration: rejected_by already exists in warranty_registrations.');
+    }
+
+    // Second pass over rejections the first backfill could not attribute.
+    // Runs whenever any are left, because the first pass only ran when the
+    // column was created and two better signals were found afterwards.
+    const [stillNull]: any = await pool.query(
+      "SELECT COUNT(*) AS n FROM warranty_registrations WHERE status = 'rejected' AND rejected_by IS NULL"
+    );
+    if (stillNull[0].n > 0) {
+      // A store name on the rejection event is positive evidence a dealer did
+      // it. The reverse is not true: the original backfill wrote 'system_admin'
+      // onto every row it touched, so that value proves nothing.
+      const [byActor]: any = await pool.query(
+        `UPDATE warranty_registrations w
+         JOIN analytics_events ae ON ae.warranty_id = w.id AND ae.action_type = 'rejected'
+         SET w.rejected_by = 'vendor'
+         WHERE w.status = 'rejected' AND w.rejected_by IS NULL
+           AND ae.performed_by IS NOT NULL AND ae.performed_by <> '' AND ae.performed_by <> 'system_admin'`
+      );
+
+      // A warranty raised on the franchise dashboard starts at 'pending', and
+      // the dealer's reject endpoint only accepts 'pending_vendor'. So the
+      // dealer never had the chance — the rejection can only have been HO's.
+      const [bySource]: any = await pool.query(
+        `UPDATE warranty_registrations
+         SET rejected_by = 'admin'
+         WHERE status = 'rejected' AND rejected_by IS NULL
+           AND JSON_UNQUOTE(JSON_EXTRACT(product_details, '$.submissionSource')) = 'Franchise Dashboard'`
+      );
+
+      const [remaining]: any = await pool.query(
+        "SELECT COUNT(*) AS n FROM warranty_registrations WHERE status = 'rejected' AND rejected_by IS NULL"
+      );
+      console.log(
+        `✅ Migration: re-checked ${stillNull[0].n} unattributed rejections — ` +
+        `${byActor.affectedRows} resolved to vendor, ${bySource.affectedRows} to admin, ${remaining[0].n} still unknown.`
+      );
+    }
+
+    // Reminder bookkeeping. Kept on the warranty rather than derived from
+    // message_logs so the daily query stays a single indexed scan and the admin
+    // list can show "reminded 2x, last 5 days ago" without a join.
+    const [reminderCols]: any = await pool.query("SHOW COLUMNS FROM warranty_registrations LIKE 'reminder_count'");
+    if (reminderCols.length === 0) {
+      await pool.query(
+        `ALTER TABLE warranty_registrations
+           ADD COLUMN reminder_count INT NOT NULL DEFAULT 0,
+           ADD COLUMN last_reminder_at DATETIME DEFAULT NULL`
+      );
+      console.log('✅ Migration: Added reminder_count/last_reminder_at to warranty_registrations.');
+    } else {
+      console.log('ℹ️ Migration: reminder columns already exist in warranty_registrations.');
     }
 
     await ensureCustomerMobileLimitTable();
@@ -108,6 +203,7 @@ if (dbReady) {
   console.error('⚠️ Database not reachable after retries — starting server anyway; it will recover once the DB is back.');
 }
 AssignmentSchedulerService.start();
+WarrantyReminderScheduler.start();
 
 // Backstop for the analytics ledger. Events are written when a warranty is
 // registered; this closes any gap left by a failed write or a crash mid-request,

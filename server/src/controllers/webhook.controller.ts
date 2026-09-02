@@ -241,9 +241,16 @@ export class WebhookController {
 
     // ── Reject Handler ────────────────────────────────────────────────────────
     private static async handleReject(warrantyId: string, warranty: any, vendorPhone: string) {
+        // rejected_at and rejected_by are stamped here as well as on the admin
+        // path: without them a dealer rejection is indistinguishable from an HO
+        // one, and the reminder job must never chase a customer about a
+        // warranty their own dealer turned down.
         await db.execute(
             `UPDATE warranty_registrations
-             SET status = 'rejected', rejection_reason = 'Franchise store could not confirm this installation.'
+             SET status = 'rejected',
+                 rejection_reason = 'Franchise store could not confirm this installation.',
+                 rejected_at = NOW(),
+                 rejected_by = 'vendor'
              WHERE uid = ?`,
             [warrantyId]
         );

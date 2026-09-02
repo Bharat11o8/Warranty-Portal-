@@ -1,0 +1,565 @@
+import db from '../config/database.js';
+import { WhatsAppService } from './whatsapp.service.js';
+import { formatDateIST } from '../utils/dateUtils.js';
+
+/**
+ * Reminders for warranties HO rejected and nobody has fixed.
+ *
+ * A rejected warranty is a dead end unless someone corrects and resubmits it.
+ * Most never are — the customer sees one rejection message and forgets, and the
+ * store has no list of what it owes. This chases both, on a schedule the admin
+ * controls.
+ *
+ * Two rules decide who is chased, and both matter more than they look:
+ *
+ *  1. HO rejections only (`rejected_by = 'admin'`). A dealer who rejected an
+ *     installation themselves must never receive "please correct this", and the
+ *     customer must never be told the company refused something their own
+ *     dealer declined. Rows whose origin could not be established are left
+ *     NULL by the migration; whether those are chased is the admin's call
+ *     (`includeUnclassified`).
+ *
+ *  2. Skip anything already resubmitted. A correction lands in
+ *     `warranty_resubmissions` as `pending_review` and the original row *stays*
+ *     `rejected`, so the obvious query would keep chasing the people who
+ *     already did what was asked.
+ */
+
+export const WARRANTY_REMINDER_SETTINGS_KEY = 'warranty_reminders';
+
+export interface WarrantyReminderSettings {
+    /** Master switch for the daily job. The one-time catch-up ignores this. */
+    enabled: boolean;
+    /** Days after rejection before the first reminder. */
+    firstReminderAfterDays: number;
+    /** Days between reminders after the first. */
+    repeatEveryDays: number;
+    /** Total reminders any one warranty may ever receive. */
+    maxReminders: number;
+    remindCustomer: boolean;
+    remindStore: boolean;
+    /**
+     * Whether to chase rejections whose author could not be established.
+     *
+     * These are rows the backfill could not attribute either way. Including
+     * them risks asking a customer to correct something their own dealer
+     * turned down; excluding them leaves real HO rejections unchased. The
+     * safer signals run first (see runMigrations), so what reaches this switch
+     * is only what genuinely could not be told apart.
+     */
+    includeUnclassified: boolean;
+    /**
+     * When the one-time catch-up over the existing backlog was run.
+     *
+     * Null means it has not run. The daily job stays parked until it has:
+     * switching the scheduler on with a backlog present would otherwise fire
+     * every overdue reminder at once, unattended, on the first tick.
+     */
+    initialRunAt: string | null;
+}
+
+const DEFAULTS: WarrantyReminderSettings = {
+    enabled: false,
+    firstReminderAfterDays: 7,
+    repeatEveryDays: 7,
+    maxReminders: 3,
+    remindCustomer: true,
+    remindStore: true,
+    includeUnclassified: true,
+    initialRunAt: null,
+};
+
+/** Pause between messages so a large catch-up does not burst at Interakt. */
+const SEND_SPACING_MS = 250;
+
+export interface ReminderProgress {
+    mode: 'initial' | 'scheduled';
+    total: number;
+    processed: number;
+    sent: number;
+    failed: number;
+    skipped: number;
+    status: 'running' | 'completed' | 'aborted';
+    startedAt: string;
+}
+
+let activeRun: ReminderProgress | null = null;
+let abortRequested = false;
+
+export function getReminderProgress(): ReminderProgress | null {
+    return activeRun;
+}
+
+export function abortReminderRun(): boolean {
+    if (activeRun && activeRun.status === 'running') {
+        abortRequested = true;
+        return true;
+    }
+    return false;
+}
+
+// ─── Settings ────────────────────────────────────────────────────────────────
+
+export async function getReminderSettings(): Promise<WarrantyReminderSettings> {
+    try {
+        const [rows]: any = await db.execute(
+            'SELECT setting_value FROM system_settings WHERE setting_key = ?',
+            [WARRANTY_REMINDER_SETTINGS_KEY]
+        );
+        if (rows.length > 0 && rows[0].setting_value) {
+            const stored = JSON.parse(rows[0].setting_value);
+            return { ...DEFAULTS, ...stored };
+        }
+    } catch (err) {
+        console.error('[WarrantyReminder] Could not load settings, using defaults:', err);
+    }
+    return { ...DEFAULTS };
+}
+
+/** Clamped so a mistyped value cannot turn the job into a daily mass-send. */
+function sanitise(input: Partial<WarrantyReminderSettings>): Partial<WarrantyReminderSettings> {
+    const out: Partial<WarrantyReminderSettings> = {};
+    const num = (v: any, min: number, max: number) => {
+        const n = Math.round(Number(v));
+        return Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : undefined;
+    };
+
+    if (input.enabled !== undefined) out.enabled = Boolean(input.enabled);
+    if (input.remindCustomer !== undefined) out.remindCustomer = Boolean(input.remindCustomer);
+    if (input.remindStore !== undefined) out.remindStore = Boolean(input.remindStore);
+    if (input.includeUnclassified !== undefined) out.includeUnclassified = Boolean(input.includeUnclassified);
+
+    const first = num(input.firstReminderAfterDays, 1, 180);
+    if (first !== undefined) out.firstReminderAfterDays = first;
+
+    const repeat = num(input.repeatEveryDays, 1, 180);
+    if (repeat !== undefined) out.repeatEveryDays = repeat;
+
+    const max = num(input.maxReminders, 1, 10);
+    if (max !== undefined) out.maxReminders = max;
+
+    return out;
+}
+
+export async function saveReminderSettings(
+    updates: Partial<WarrantyReminderSettings>,
+    updatedBy: string
+): Promise<WarrantyReminderSettings> {
+    const current = await getReminderSettings();
+    const next = { ...current, ...sanitise(updates) };
+
+    await db.execute(
+        `INSERT INTO system_settings (setting_key, setting_value, updated_by)
+         VALUES (?, ?, ?)
+         ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value), updated_by = VALUES(updated_by)`,
+        [WARRANTY_REMINDER_SETTINGS_KEY, JSON.stringify(next), updatedBy]
+    );
+
+    return next;
+}
+
+async function markInitialRunComplete(): Promise<void> {
+    const current = await getReminderSettings();
+    await db.execute(
+        `INSERT INTO system_settings (setting_key, setting_value, updated_by)
+         VALUES (?, ?, ?)
+         ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)`,
+        [
+            WARRANTY_REMINDER_SETTINGS_KEY,
+            JSON.stringify({ ...current, initialRunAt: new Date().toISOString() }),
+            'system'
+        ]
+    );
+}
+
+// ─── Finding who is due ──────────────────────────────────────────────────────
+
+/**
+ * The store behind a warranty, by the same three routes the admin warranty list
+ * uses: the installer's own store, an installer name + email match, or the
+ * `owner-<vendorDetailsId>` sentinel used when the owner did the fitting.
+ */
+const STORE_JOIN = `
+    LEFT JOIN manpower m ON w.manpower_id = m.id
+    LEFT JOIN vendor_details vd_m ON (
+        w.manpower_id IS NOT NULL AND w.manpower_id NOT LIKE 'owner-%' AND m.vendor_id = vd_m.id
+    )
+    LEFT JOIN vendor_details vd_i ON (
+        (w.installer_name = vd_i.store_name OR w.installer_name = CONCAT(vd_i.store_name, ' - ', vd_i.city))
+        AND w.installer_contact = vd_i.store_email
+    )
+    LEFT JOIN vendor_details vd_o ON (
+        w.manpower_id LIKE 'owner-%' AND vd_o.id = REPLACE(w.manpower_id, 'owner-', '')
+    )
+    LEFT JOIN profiles store_p ON COALESCE(vd_m.user_id, vd_i.user_id, vd_o.user_id) = store_p.id
+`;
+
+/**
+ * Rows that may ever be chased, before any timing rule is applied.
+ * Both exclusions in the file header live here.
+ */
+const eligibleWhere = (includeUnclassified: boolean) => `
+    w.status = 'rejected'
+    AND ${includeUnclassified
+        ? "(w.rejected_by = 'admin' OR w.rejected_by IS NULL)"
+        : "w.rejected_by = 'admin'"}
+    AND NOT EXISTS (
+        SELECT 1 FROM warranty_resubmissions r
+        WHERE r.original_uid = w.uid AND r.status = 'pending_review'
+    )
+`;
+
+const SELECT_COLUMNS = `
+    w.uid, w.customer_name, w.customer_phone, w.registration_number,
+    w.product_type, w.warranty_type, w.purchase_date, w.rejection_reason,
+    w.product_details, w.reminder_count,
+    COALESCE(w.rejected_at, w.created_at) AS rejected_on,
+    DATEDIFF(NOW(), COALESCE(w.rejected_at, w.created_at)) AS days_since_rejection,
+    COALESCE(vd_m.store_name, vd_i.store_name, vd_o.store_name) AS store_name,
+    store_p.phone_number AS store_phone
+`;
+
+interface DueWarranty {
+    uid: string;
+    customer_name: string;
+    customer_phone: string | null;
+    registration_number: string;
+    product_type: string;
+    warranty_type: string | null;
+    purchase_date: string | null;
+    rejection_reason: string | null;
+    product_details: any;
+    reminder_count: number;
+    rejected_on: string;
+    days_since_rejection: number;
+    store_name: string | null;
+    store_phone: string | null;
+}
+
+/**
+ * Warranties due a reminder.
+ *
+ * `initial` waives the age threshold so the existing backlog is picked up in
+ * one pass; `scheduled` applies the full timing rules.
+ */
+export async function findDueWarranties(
+    mode: 'initial' | 'scheduled',
+    settings: WarrantyReminderSettings
+): Promise<DueWarranty[]> {
+    const timing = mode === 'initial'
+        ? 'AND w.reminder_count = 0'
+        : `AND DATEDIFF(NOW(), COALESCE(w.rejected_at, w.created_at)) >= ?
+           AND w.reminder_count < ?
+           AND (w.last_reminder_at IS NULL OR DATEDIFF(NOW(), w.last_reminder_at) >= ?)`;
+
+    const params = mode === 'initial'
+        ? []
+        : [settings.firstReminderAfterDays, settings.maxReminders, settings.repeatEveryDays];
+
+    const [rows]: any = await db.execute(
+        `SELECT ${SELECT_COLUMNS}
+         FROM warranty_registrations w
+         ${STORE_JOIN}
+         WHERE ${eligibleWhere(settings.includeUnclassified)} ${timing}
+         ORDER BY COALESCE(w.rejected_at, w.created_at) ASC`,
+        params
+    );
+
+    return rows;
+}
+
+/**
+ * What the one-time catch-up would do, without doing it. Shown to the admin
+ * before they commit to messaging the whole backlog.
+ */
+export async function previewInitialRun(): Promise<{
+    warranties: number;
+    withCustomerPhone: number;
+    withStorePhone: number;
+    /** How many of the above are being chased despite an unknown rejector. */
+    unclassifiedIncluded: number;
+    oldestRejection: string | null;
+    newestRejection: string | null;
+    excluded: { dealerRejected: number; unclassified: number; alreadyResubmitted: number };
+}> {
+    const settings = await getReminderSettings();
+
+    const [[summary]]: any = await db.execute(
+        `SELECT COUNT(*) AS warranties,
+                SUM(w.customer_phone IS NOT NULL AND w.customer_phone <> '') AS with_customer_phone,
+                SUM(store_p.phone_number IS NOT NULL AND store_p.phone_number <> '') AS with_store_phone,
+                SUM(w.rejected_by IS NULL) AS unclassified_included,
+                MIN(COALESCE(w.rejected_at, w.created_at)) AS oldest,
+                MAX(COALESCE(w.rejected_at, w.created_at)) AS newest
+         FROM warranty_registrations w
+         ${STORE_JOIN}
+         WHERE ${eligibleWhere(settings.includeUnclassified)} AND w.reminder_count = 0`
+    );
+
+    const [[excluded]]: any = await db.execute(
+        `SELECT
+            SUM(w.rejected_by = 'vendor') AS dealer_rejected,
+            SUM(w.rejected_by IS NULL) AS unclassified,
+            SUM(EXISTS (
+                SELECT 1 FROM warranty_resubmissions r
+                WHERE r.original_uid = w.uid AND r.status = 'pending_review'
+            )) AS already_resubmitted
+         FROM warranty_registrations w
+         WHERE w.status = 'rejected'`
+    );
+
+    return {
+        warranties: Number(summary.warranties || 0),
+        withCustomerPhone: Number(summary.with_customer_phone || 0),
+        withStorePhone: Number(summary.with_store_phone || 0),
+        unclassifiedIncluded: Number(summary.unclassified_included || 0),
+        oldestRejection: summary.oldest || null,
+        newestRejection: summary.newest || null,
+        excluded: {
+            dealerRejected: Number(excluded.dealer_rejected || 0),
+            unclassified: Number(excluded.unclassified || 0),
+            alreadyResubmitted: Number(excluded.already_resubmitted || 0),
+        }
+    };
+}
+
+// ─── Sending ─────────────────────────────────────────────────────────────────
+
+function productNameOf(row: DueWarranty): string {
+    let details: any = {};
+    try {
+        details = typeof row.product_details === 'string'
+            ? JSON.parse(row.product_details)
+            : (row.product_details || {});
+    } catch { /* a malformed blob should not stop the reminder */ }
+
+    return details.productName
+        || details.product
+        || (row.product_type === 'seat-cover' ? 'Seat Cover'
+            : row.product_type === 'ev-products' ? 'Paint Protection Film'
+                : row.product_type)
+        || 'Autoform Product';
+}
+
+const sleep = (ms: number) => new Promise(res => setTimeout(res, ms));
+
+/**
+ * Send one pass of reminders.
+ *
+ * Counters are advanced once per warranty, not once per message: a warranty
+ * where the customer was reached but the store had no number on file has still
+ * had its reminder, and must not be retried tomorrow as though nothing
+ * happened.
+ */
+export async function runReminderPass(mode: 'initial' | 'scheduled'): Promise<ReminderProgress> {
+    if (activeRun && activeRun.status === 'running') {
+        return activeRun;
+    }
+
+    const settings = await getReminderSettings();
+    const due = await findDueWarranties(mode, settings);
+
+    abortRequested = false;
+    activeRun = {
+        mode,
+        total: due.length,
+        processed: 0,
+        sent: 0,
+        failed: 0,
+        skipped: 0,
+        status: 'running',
+        startedAt: new Date().toISOString(),
+    };
+
+    console.log(`[WarrantyReminder] ${mode} pass: ${due.length} warranties due.`);
+
+    for (const row of due) {
+        if (abortRequested) {
+            activeRun.status = 'aborted';
+            console.warn(`[WarrantyReminder] Aborted after ${activeRun.processed}/${due.length}.`);
+            break;
+        }
+
+        const productName = productNameOf(row);
+        // purchase_date arrives as a Date or a string depending on the driver's
+        // mood; formatDateIST only takes a Date, so normalise before calling it.
+        const parsedPurchase = row.purchase_date ? new Date(row.purchase_date) : null;
+        const purchaseDate = parsedPurchase && !Number.isNaN(parsedPurchase.getTime())
+            ? formatDateIST(parsedPurchase)
+            : 'N/A';
+        const warrantyType = row.warranty_type || 'Standard';
+        const reason = row.rejection_reason || 'Please review the submitted details.';
+        const storeName = row.store_name || 'Autoform Store';
+        const days = String(row.days_since_rejection ?? 0);
+        let anySent = false;
+
+        if (settings.remindCustomer && row.customer_phone) {
+            try {
+                const ok = await WhatsAppService.sendWarrantyRejectReminderCustomer(
+                    row.customer_phone, row.customer_name, productName, row.registration_number,
+                    row.uid, storeName, 'Not Approved', purchaseDate, warrantyType, reason, days
+                );
+                ok ? activeRun.sent++ : activeRun.failed++;
+                anySent = anySent || ok;
+            } catch (err) {
+                activeRun.failed++;
+                console.error(`[WarrantyReminder] Customer reminder failed for ${row.uid}:`, err);
+            }
+            await sleep(SEND_SPACING_MS);
+        }
+
+        if (settings.remindStore && row.store_phone) {
+            try {
+                const ok = await WhatsAppService.sendWarrantyRejectReminderStore(
+                    row.store_phone, storeName, productName, row.registration_number,
+                    row.uid, 'Not Approved', purchaseDate, warrantyType, reason, days
+                );
+                ok ? activeRun.sent++ : activeRun.failed++;
+                anySent = anySent || ok;
+            } catch (err) {
+                activeRun.failed++;
+                console.error(`[WarrantyReminder] Store reminder failed for ${row.uid}:`, err);
+            }
+            await sleep(SEND_SPACING_MS);
+        }
+
+        if (anySent) {
+            await db.execute(
+                `UPDATE warranty_registrations
+                 SET reminder_count = reminder_count + 1, last_reminder_at = NOW()
+                 WHERE uid = ?`,
+                [row.uid]
+            );
+        } else {
+            // No number for either party, or every send was refused. Counting it
+            // as processed but not reminded keeps it visible in the next pass.
+            activeRun.skipped++;
+        }
+
+        activeRun.processed++;
+    }
+
+    if (activeRun.status === 'running') activeRun.status = 'completed';
+
+    if (mode === 'initial' && activeRun.status === 'completed') {
+        await markInitialRunComplete();
+    }
+
+    console.log(
+        `[WarrantyReminder] ${mode} pass ${activeRun.status}: ` +
+        `${activeRun.sent} sent, ${activeRun.failed} failed, ${activeRun.skipped} without a number.`
+    );
+
+    return activeRun;
+}
+
+/** Contexts used only by test sends, kept out of the registry so they bypass
+ *  the on/off toggle and out of the real per-type stats. */
+const TEST_CONTEXT_CUSTOMER = 'warranty_reject_reminder_test_customer';
+const TEST_CONTEXT_STORE = 'warranty_reject_reminder_test_store';
+
+/**
+ * Send both reminders for one real warranty to a nominated phone.
+ *
+ * Everything is rendered from live data — the same code path, the same
+ * variables, so what arrives is exactly what a customer would get. Nobody else
+ * is messaged and no counter moves, so the warranty stays due for its real
+ * reminder afterwards.
+ */
+export async function sendTestReminder(phone: string, uid?: string): Promise<{
+    uid: string;
+    customerSent: boolean;
+    storeSent: boolean;
+}> {
+    const settings = await getReminderSettings();
+
+    let row: DueWarranty | undefined;
+    if (uid) {
+        const [rows]: any = await db.execute(
+            `SELECT ${SELECT_COLUMNS} FROM warranty_registrations w ${STORE_JOIN} WHERE w.uid = ?`,
+            [uid]
+        );
+        row = rows[0];
+        if (!row) throw new Error(`No warranty found with UID ${uid}.`);
+    } else {
+        // Prefer something genuinely due, so the test reflects real data.
+        const due = await findDueWarranties('initial', settings);
+        row = due[0];
+        if (!row) {
+            const [rows]: any = await db.execute(
+                `SELECT ${SELECT_COLUMNS} FROM warranty_registrations w ${STORE_JOIN}
+                 WHERE w.status = 'rejected' ORDER BY COALESCE(w.rejected_at, w.created_at) DESC LIMIT 1`
+            );
+            row = rows[0];
+        }
+        if (!row) throw new Error('There are no rejected warranties to build a test message from.');
+    }
+
+    const productName = productNameOf(row);
+    const parsedPurchase = row.purchase_date ? new Date(row.purchase_date) : null;
+    const purchaseDate = parsedPurchase && !Number.isNaN(parsedPurchase.getTime())
+        ? formatDateIST(parsedPurchase)
+        : 'N/A';
+    const warrantyType = row.warranty_type || 'Standard';
+    const reason = row.rejection_reason || 'Please review the submitted details.';
+    const storeName = row.store_name || 'Autoform Store';
+    const days = String(row.days_since_rejection ?? 0);
+
+    const customerSent = await WhatsAppService.sendWarrantyRejectReminderCustomer(
+        phone, row.customer_name, productName, row.registration_number, row.uid,
+        storeName, 'Not Approved', purchaseDate, warrantyType, reason, days,
+        TEST_CONTEXT_CUSTOMER
+    );
+
+    await sleep(SEND_SPACING_MS);
+
+    const storeSent = await WhatsAppService.sendWarrantyRejectReminderStore(
+        phone, storeName, productName, row.registration_number, row.uid,
+        'Not Approved', purchaseDate, warrantyType, reason, days,
+        TEST_CONTEXT_STORE
+    );
+
+    return { uid: row.uid, customerSent, storeSent };
+}
+
+// ─── Scheduler ───────────────────────────────────────────────────────────────
+
+export class WarrantyReminderScheduler {
+    private static timer: NodeJS.Timeout | null = null;
+    private static readonly INTERVAL_MS = 6 * 60 * 60 * 1000; // four times a day
+
+    static start() {
+        if (this.timer) return;
+        console.log('🕒 Warranty Reminder Scheduler: Started');
+        this.timer = setInterval(() => { void this.tick(); }, this.INTERVAL_MS);
+        // No run on boot. A deploy should never be the thing that sends
+        // messages — the first pass waits for the interval, or for the admin.
+    }
+
+    static stop() {
+        if (this.timer) {
+            clearInterval(this.timer);
+            this.timer = null;
+        }
+    }
+
+    private static async tick() {
+        try {
+            const settings = await getReminderSettings();
+
+            if (!settings.enabled) return;
+
+            // Parked until the backlog has been dealt with deliberately.
+            // Without this, switching the feature on would send every overdue
+            // reminder in one unattended burst.
+            if (!settings.initialRunAt) {
+                console.log('🕒 Warranty Reminder: waiting for the one-time catch-up to be run by an admin.');
+                return;
+            }
+
+            await runReminderPass('scheduled');
+        } catch (err) {
+            console.error('🕒 Warranty Reminder Scheduler error:', err);
+        }
+    }
+}
