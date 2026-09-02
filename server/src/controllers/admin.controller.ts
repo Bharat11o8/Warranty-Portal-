@@ -22,7 +22,9 @@ import {
     runReminderPass,
     getReminderProgress,
     abortReminderRun,
-    sendTestReminder
+    sendTestReminder,
+    preflightCheck,
+    lastReminderFailure
 } from '../services/warrantyReminder.service.js';
 
 /**
@@ -762,11 +764,16 @@ export class AdminController {
     /** Reminder schedule plus a preview of what the one-time catch-up would send. */
     static async getWarrantyReminderSettings(_req: Request, res: Response) {
         try {
-            const [settings, preview] = await Promise.all([
+            const [settings, preview, preflight, lastFailure] = await Promise.all([
                 getReminderSettings(),
-                previewInitialRun()
+                previewInitialRun(),
+                preflightCheck(),
+                lastReminderFailure()
             ]);
-            res.json({ success: true, settings, preview, progress: getReminderProgress() });
+            res.json({
+                success: true, settings, preview, preflight, lastFailure,
+                progress: getReminderProgress()
+            });
         } catch (error: any) {
             console.error('Get warranty reminder settings error:', error);
             res.status(500).json({ error: 'Failed to load reminder settings' });
@@ -813,9 +820,29 @@ export class AdminController {
     static async runInitialWarrantyReminders(req: Request, res: Response) {
         try {
             const settings = await getReminderSettings();
+
+            // A recorded run only counts if it actually reminded something. An
+            // earlier version marked itself done even when every send was
+            // refused, which consumed the one-time action and stranded the
+            // backlog; if nothing has ever been reminded, let it run again.
             if (settings.initialRunAt) {
-                return res.status(409).json({
-                    error: `The one-time catch-up already ran on ${new Date(settings.initialRunAt).toLocaleString('en-IN')}. Ongoing reminders are handled by the schedule.`
+                const [[reminded]]: any = await db.execute(
+                    'SELECT COUNT(*) AS n FROM warranty_registrations WHERE reminder_count > 0'
+                );
+                if (Number(reminded.n) > 0) {
+                    return res.status(409).json({
+                        error: `The one-time catch-up already ran on ${new Date(settings.initialRunAt).toLocaleString('en-IN')}. Ongoing reminders are handled by the schedule.`
+                    });
+                }
+                console.warn('[WarrantyReminder] Previous catch-up delivered nothing — allowing another attempt.');
+            }
+
+            // Refuse rather than burn the run against switched-off message types.
+            const preflight = await preflightCheck();
+            if (!preflight.ok) {
+                return res.status(400).json({
+                    error: `Nothing would be delivered: ${preflight.problems.join(' ')}`,
+                    problems: preflight.problems
                 });
             }
 

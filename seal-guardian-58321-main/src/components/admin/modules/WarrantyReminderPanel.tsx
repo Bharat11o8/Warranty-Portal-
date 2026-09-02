@@ -58,6 +58,8 @@ export const WarrantyReminderPanel = () => {
     const [settings, setSettings] = useState<ReminderSettings | null>(null);
     const [preview, setPreview] = useState<Preview | null>(null);
     const [progress, setProgress] = useState<Progress | null>(null);
+    const [preflight, setPreflight] = useState<{ ok: boolean; problems: string[] } | null>(null);
+    const [lastFailure, setLastFailure] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [confirmOpen, setConfirmOpen] = useState(false);
@@ -72,6 +74,8 @@ export const WarrantyReminderPanel = () => {
             setSettings(res.data.settings);
             setPreview(res.data.preview);
             setProgress(res.data.progress || null);
+            setPreflight(res.data.preflight || null);
+            setLastFailure(res.data.lastFailure || null);
         } catch (error: any) {
             toast({
                 title: "Could not load reminder settings",
@@ -360,9 +364,15 @@ export const WarrantyReminderPanel = () => {
                                 </p>
                             )}
 
+                            {preflight && !preflight.ok && (
+                                <div className="text-[11px] text-rose-700 bg-rose-50 border border-rose-100 rounded-lg px-3 py-2 space-y-0.5">
+                                    <p className="font-semibold">Nothing would be delivered right now:</p>
+                                    {preflight.problems.map(p => <p key={p}>· {p}</p>)}
+                                </div>
+                            )}
                             <Button
                                 size="sm"
-                                disabled={running || !preview || preview.warranties === 0}
+                                disabled={running || !preview || preview.warranties === 0 || (preflight ? !preflight.ok : false)}
                                 onClick={() => setConfirmOpen(true)}
                                 className="bg-orange-500 hover:bg-orange-600 h-9"
                             >
@@ -387,11 +397,18 @@ export const WarrantyReminderPanel = () => {
                                     </Button>
                                 )}
                             </div>
+                            {progress.status !== 'running' && progress.sent === 0 && progress.failed > 0 && (
+                                <p className="text-[11px] text-rose-700 bg-rose-50 border border-rose-100 rounded-lg px-3 py-2">
+                                    Nothing was delivered — every send was refused, so no warranty was marked as
+                                    reminded and the catch-up is still available.
+                                    {lastFailure && <> Interakt said: <span className="font-mono">{lastFailure}</span></>}
+                                </p>
+                            )}
                             <div className="h-1.5 w-full rounded-full bg-slate-200 overflow-hidden">
                                 <div className="h-full bg-orange-500 transition-all" style={{ width: `${pct}%` }} />
                             </div>
                             <p className="text-[11px] text-slate-400 tabular-nums">
-                                {progress.sent} sent · {progress.failed} failed · {progress.skipped} had no number
+                                {progress.sent} sent · {progress.failed} failed · {progress.skipped} with no phone on file
                             </p>
                         </div>
                     )}

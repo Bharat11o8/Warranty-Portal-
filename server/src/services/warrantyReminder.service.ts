@@ -1,5 +1,6 @@
 import db from '../config/database.js';
 import { WhatsAppService } from './whatsapp.service.js';
+import { isContextEnabled } from './notificationSettings.service.js';
 import { formatDateIST } from '../utils/dateUtils.js';
 
 /**
@@ -323,6 +324,53 @@ export async function previewInitialRun(): Promise<{
     };
 }
 
+/**
+ * Whether a send would actually reach anyone right now.
+ *
+ * Learned the hard way: the first catch-up ran with both message types still
+ * switched off, so all 172 sends were refused at the toggle gate, 0 arrived —
+ * and the run still marked itself done, using up an action that only runs
+ * once. Checking first turns that into a message instead of a wasted attempt.
+ */
+export async function preflightCheck(): Promise<{ ok: boolean; problems: string[] }> {
+    const settings = await getReminderSettings();
+    const problems: string[] = [];
+
+    if (process.env.ENABLE_WHATSAPP !== 'true') {
+        problems.push('WhatsApp is switched off on the server (ENABLE_WHATSAPP).');
+    }
+
+    if (!settings.remindCustomer && !settings.remindStore) {
+        problems.push('Both recipients are switched off — nobody would be messaged.');
+    }
+
+    if (settings.remindCustomer && !(await isContextEnabled('warranty_reject_reminder_customer'))) {
+        problems.push('"Customer — Rejection Reminder" is switched off in WhatsApp Messages.');
+    }
+
+    if (settings.remindStore && !(await isContextEnabled('warranty_reject_reminder_store'))) {
+        problems.push('"Store — Rejection Reminder" is switched off in WhatsApp Messages.');
+    }
+
+    return { ok: problems.length === 0, problems };
+}
+
+/** Most recent send failure for either reminder type, to explain a dead run. */
+export async function lastReminderFailure(): Promise<string | null> {
+    try {
+        const [rows]: any = await db.execute(
+            `SELECT error_message FROM message_logs
+             WHERE channel = 'whatsapp' AND status = 'failed'
+               AND context IN ('warranty_reject_reminder_customer', 'warranty_reject_reminder_store')
+               AND error_message IS NOT NULL
+             ORDER BY created_at DESC LIMIT 1`
+        );
+        return rows[0]?.error_message || null;
+    } catch {
+        return null;
+    }
+}
+
 // ─── Sending ─────────────────────────────────────────────────────────────────
 
 function productNameOf(row: DueWarranty): string {
@@ -392,6 +440,13 @@ export async function runReminderPass(mode: 'initial' | 'scheduled'): Promise<Re
         const storeName = row.store_name || 'Autoform Store';
         const days = String(row.days_since_rejection ?? 0);
         let anySent = false;
+        // Distinguishes "we had nobody to message" from "every send was
+        // refused". Conflating them made a run where nothing was approved read
+        // as 86 missing phone numbers.
+        const hadRecipient = Boolean(
+            (settings.remindCustomer && row.customer_phone) ||
+            (settings.remindStore && row.store_phone)
+        );
 
         if (settings.remindCustomer && row.customer_phone) {
             try {
@@ -430,9 +485,9 @@ export async function runReminderPass(mode: 'initial' | 'scheduled'): Promise<Re
                  WHERE uid = ?`,
                 [row.uid]
             );
-        } else {
-            // No number for either party, or every send was refused. Counting it
-            // as processed but not reminded keeps it visible in the next pass.
+        } else if (!hadRecipient) {
+            // Genuinely nobody to message. A warranty whose sends were all
+            // refused is already counted under `failed`.
             activeRun.skipped++;
         }
 
@@ -441,7 +496,9 @@ export async function runReminderPass(mode: 'initial' | 'scheduled'): Promise<Re
 
     if (activeRun.status === 'running') activeRun.status = 'completed';
 
-    if (mode === 'initial' && activeRun.status === 'completed') {
+    // A run that delivered nothing has not caught anything up. Marking it done
+    // would consume the one-time action and leave the backlog unreachable.
+    if (mode === 'initial' && activeRun.status === 'completed' && activeRun.sent > 0) {
         await markInitialRunComplete();
     }
 
