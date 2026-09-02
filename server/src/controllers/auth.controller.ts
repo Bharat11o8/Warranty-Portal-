@@ -327,9 +327,18 @@ export class AuthController {
       }
 
       // Verify OTP
-      const isValid = await OTPService.verifyOTP(userId, otp);
+      const otpResult = await OTPService.verifyOTP(userId, otp);
 
-      if (!isValid) {
+      if (!otpResult.valid) {
+        if (otpResult.lockedOut) {
+          // 401, not 429. This is not "slow down" — the code is genuinely dead
+          // and retrying it will never work. Using 429 here also made the
+          // lockout indistinguishable from a rate-limit block in the logs and
+          // on screen, which is exactly the confusion we hit while testing.
+          return res.status(401).json({
+            error: 'Too many incorrect attempts. That code is no longer valid — please tap Resend OTP for a new one.'
+          });
+        }
         return res.status(401).json({ error: 'Invalid or expired OTP' });
       }
 
@@ -473,6 +482,10 @@ export class AuthController {
           // Generate JWT for customer
           const token = jwt.sign(
             {
+              // Marks this as a login session, not one of the single-purpose
+              // action tokens signed with the same secret (invoice download,
+              // franchise verify link). See isSessionToken() in middleware/auth.
+              typ: 'session',
               id: newUserId,
               email: pending.email,
               name: pending.name,
@@ -568,6 +581,7 @@ export class AuthController {
       // Generate JWT (only for customers or verified vendors)
       const token = jwt.sign(
         {
+          typ: 'session',
           id: user.id,
           email: user.email,
           name: user.name,

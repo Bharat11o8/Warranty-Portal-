@@ -801,6 +801,11 @@ export class WarrantyController {
           params.push(req.user.id);
         }
       }
+      else if (req.user.role !== 'admin') {
+        // Default deny. Only admins are meant to read unscoped; any other role
+        // falling through used to mean "no WHERE clause", i.e. the whole table.
+        return res.status(403).json({ error: 'Insufficient permissions' });
+      }
 
       // 2. Apply Dynamic Filters
 
@@ -959,6 +964,10 @@ export class WarrantyController {
           params.push(req.user.id);
         }
       }
+      else if (req.user.role !== 'admin') {
+        // Default deny — see getWarranties.
+        return res.status(403).json({ error: 'Insufficient permissions' });
+      }
 
       // 2. Build Where Clause
       const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
@@ -1015,6 +1024,11 @@ export class WarrantyController {
       if (req.user.role === 'customer') {
         query += ' AND user_id = ?';
         params.push(req.user.id);
+      } else if (req.user.role !== 'vendor' && req.user.role !== 'admin') {
+        // Default deny — an unrecognised role must never read unscoped.
+        // NOTE: vendor reads are still unscoped here (report finding SBP-004);
+        // that is a separate fix, deliberately not changed in this pass.
+        return res.status(403).json({ error: 'Insufficient permissions' });
       }
 
       const [warranties]: any = await db.execute(query, params);

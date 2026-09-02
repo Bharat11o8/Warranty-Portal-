@@ -8,6 +8,7 @@ import { Switch } from "@/components/ui/switch";
 import {
     Loader2, MessageSquare, RefreshCw, AlertTriangle, CheckCircle2, PowerOff
 } from "lucide-react";
+import { WarrantyReminderPanel } from "./WarrantyReminderPanel";
 
 interface NotificationTypeRow {
     key: string;
@@ -116,6 +117,8 @@ export const AdminNotificationSettings = () => {
                     <RefreshCw className="h-3.5 w-3.5 mr-1.5" /> Refresh
                 </Button>
             </div>
+
+            <WarrantyReminderPanel />
 
             {groups.map(group => (
                 <Card key={group} className="border-orange-100 shadow-sm">

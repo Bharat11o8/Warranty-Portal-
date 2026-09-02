@@ -569,6 +569,82 @@ export class WhatsAppService {
     }
 
     /**
+     * Remind a customer that HO did not accept their warranty and it still
+     * needs correcting.
+     *
+     * Template: af_war_rej_reminder_cust
+     * Deliberately the same variable order as af_cust_warr_rejec_2 (the
+     * original rejection notice) with one addition, so the template can be
+     * duplicated in Interakt and reworded rather than built from scratch:
+     *   {{1}} Customer Name      {{6}} Status
+     *   {{2}} Product Name       {{7}} Purchase Date
+     *   {{3}} Registration No.   {{8}} Warranty Type
+     *   {{4}} UID                {{9}} Rejection Reason
+     *   {{5}} Store Name        {{10}} Days since rejection   <-- new
+     */
+    static async sendWarrantyRejectReminderCustomer(
+        phone: string,
+        customerName: string,
+        productName: string,
+        registrationNumber: string,
+        uid: string,
+        storeName: string,
+        status: string,
+        purchaseDate: string,
+        warrantyType: string,
+        rejectionReason: string,
+        daysSinceRejection: string,
+        // A test send passes its own context. That context is not in the
+        // registry, so it bypasses the admin on/off toggle (an explicit test
+        // should work while the type is still switched off) and its
+        // message_logs rows stay out of the real 30-day stats.
+        contextOverride?: string
+    ): Promise<boolean> {
+        return this.sendTemplateMessage(
+            phone,
+            'af_war_rej_reminder_cust',
+            [customerName, productName, registrationNumber, uid, storeName, status,
+             purchaseDate, warrantyType, rejectionReason, daysSinceRejection],
+            contextOverride || 'warranty_reject_reminder_customer',
+            uid
+        );
+    }
+
+    /**
+     * Remind a store that one of its warranties is still rejected and unfixed.
+     *
+     * Template: af_war_rej_reminder_fran
+     * Mirrors af_vendor_warr_rejected, plus the days count:
+     *   {{1}} Store Name         {{5}} Status
+     *   {{2}} Product Name       {{6}} Purchase Date
+     *   {{3}} Registration No.   {{7}} Warranty Type
+     *   {{4}} UID                {{8}} Rejection Reason
+     *                            {{9}} Days since rejection   <-- new
+     */
+    static async sendWarrantyRejectReminderStore(
+        phone: string,
+        storeName: string,
+        productName: string,
+        registrationNumber: string,
+        uid: string,
+        status: string,
+        purchaseDate: string,
+        warrantyType: string,
+        rejectionReason: string,
+        daysSinceRejection: string,
+        contextOverride?: string
+    ): Promise<boolean> {
+        return this.sendTemplateMessage(
+            phone,
+            'af_war_rej_reminder_fran',
+            [storeName, productName, registrationNumber, uid, status,
+             purchaseDate, warrantyType, rejectionReason, daysSinceRejection],
+            contextOverride || 'warranty_reject_reminder_store',
+            uid
+        );
+    }
+
+    /**
      * Send Franchise Verification Request
      * Template: franchise_verify_action
      * Variables:

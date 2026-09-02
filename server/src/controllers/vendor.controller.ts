@@ -1219,7 +1219,7 @@ export class VendorController {
 
       // Update the warranty status
       await db.execute(
-        `UPDATE warranty_registrations SET status = 'rejected', rejection_reason = ?, rejected_at = NOW() WHERE uid = ?`,
+        `UPDATE warranty_registrations SET status = 'rejected', rejection_reason = ?, rejected_at = NOW(), rejected_by = 'vendor' WHERE uid = ?`,
         [reason, uid]
       );
 

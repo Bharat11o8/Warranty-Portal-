@@ -402,8 +402,12 @@ export class PublicController {
             // We'll use a specific rejection reason
             const rejectionReason = "Installation rejected by Vendor/Franchise via email verification.";
 
+            // See the webhook reject handler: rejected_at/rejected_by are what
+            // let the reminder job tell an HO rejection from a dealer's own.
             await db.execute(
-                "UPDATE warranty_registrations SET status = 'rejected', rejection_reason = ? WHERE uid = ? AND status = 'pending_vendor'",
+                `UPDATE warranty_registrations
+                 SET status = 'rejected', rejection_reason = ?, rejected_at = NOW(), rejected_by = 'vendor'
+                 WHERE uid = ? AND status = 'pending_vendor'`,
                 [rejectionReason, decoded.warrantyId]
             );
 
