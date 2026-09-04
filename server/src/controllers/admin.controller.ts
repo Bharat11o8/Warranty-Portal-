@@ -1939,22 +1939,65 @@ export class AdminController {
                             // Running total for this installer. The status update is
                             // already committed above, so this count includes the
                             // warranty we're notifying about. Indexed on manpower_id.
+                            //
+                            // Bounded to the configured send window, when one is set,
+                            // by validated_at (when each one was approved) rather than
+                            // created_at (when it was registered) — a scheme running
+                            // Sep 1-30 should tell an installer how many they have had
+                            // approved this September, not their career total. Without
+                            // this an installer active for years saw their lifetime
+                            // count on every message regardless of the campaign's
+                            // actual window, which read as though a short scheme had
+                            // been running the whole time.
+                            // The send-gate (inside sendManpowerWarrantyApproved) checks
+                            // the WARRANTY'S registration date, so it can say "send"
+                            // for one registered inside the window but only approved
+                            // after the window's end date has passed. The bounded tally
+                            // below would then legitimately count 0 for that installer
+                            // — this approval's own validated_at (= NOW(), set above)
+                            // falls after the window closed, so it counts nothing.
+                            // "Total approved installations: 0" right after telling
+                            // someone their work was approved is a worse message than
+                            // just showing their real total, so a window that has
+                            // already ended falls back to the lifetime count instead
+                            // of a bounded one. A currently-open window is not affected
+                            // by this — it still constrains the count as intended.
                             let totalApproved = 0;
+                            let tallyFailed = false;
                             try {
+                                const windows = await loadNotificationWindows();
+                                const win = windows['manpower_warranty_approved'];
+                                const today = new Date().toISOString().slice(0, 10);
+                                const windowHasClosed = Boolean(win?.endDate && win.endDate < today);
+
+                                const params: any[] = [warrantyData.manpower_id];
+                                let dateClause = '';
+                                if (!windowHasClosed) {
+                                    if (win?.startDate) { dateClause += ' AND validated_at >= ?'; params.push(`${win.startDate} 00:00:00`); }
+                                    if (win?.endDate) { dateClause += ' AND validated_at <= ?'; params.push(`${win.endDate} 23:59:59`); }
+                                }
+
                                 const [tally]: any = await db.execute(
                                     `SELECT COUNT(*) AS n FROM warranty_registrations
-                                     WHERE manpower_id = ? AND status = 'validated'`,
-                                    [warrantyData.manpower_id]
+                                     WHERE manpower_id = ? AND status = 'validated'${dateClause}`,
+                                    params
                                 );
                                 totalApproved = Number(tally[0]?.n || 0);
+                                // This request's own approval just committed, so a
+                                // genuinely successful tally can never be < 1: either
+                                // the window is open and covers today (this row is
+                                // in it), or the window has closed and the query above
+                                // ran unbounded (lifetime always includes this row).
+                                if (totalApproved < 1) tallyFailed = true;
                             } catch (tallyErr) {
                                 console.error('[WhatsApp] Installer tally failed:', tallyErr);
+                                tallyFailed = true;
                             }
 
-                            // A zero total would mean the count query failed — skip
-                            // rather than send "Total approved installations: 0"
-                            // right after telling them one was approved.
-                            if (totalApproved < 1) {
+                            // Skip only on a genuine failure — never send "Total
+                            // approved installations: 0" right after telling them one
+                            // was approved.
+                            if (tallyFailed) {
                                 console.warn(`[WhatsApp] Skipping installer notice for ${warrantyData.uid} — tally unavailable`);
                             } else {
                                 await runWithRetry(

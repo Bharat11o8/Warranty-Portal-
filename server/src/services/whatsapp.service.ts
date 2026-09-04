@@ -474,7 +474,14 @@ export class WhatsAppService {
      *   {{1}} = Installer Name
      *   {{2}} = Product Name
      *   {{3}} = Customer Name
-     *   {{4}} = Total approved warranties for this installer (includes this one)
+     *   {{4}} = Approved warranties for this installer, INCLUDING this one — but
+     *           scoped to the send window configured for this type when one is
+     *           set (validated_at, not created_at), not their lifetime total.
+     *           The template text itself ("Total approved installations") is
+     *           fixed and Meta-approved, so it cannot say "this month" — a
+     *           running scheme should still show its own count, not a career
+     *           number that reads as though the scheme had been running for
+     *           years.
      *
      * Full text:
      *   "Hi {{1}}
