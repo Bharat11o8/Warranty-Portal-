@@ -6,10 +6,16 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { DatePicker } from "@/components/ui/date-picker";
 import {
-    Loader2, MessageSquare, RefreshCw, AlertTriangle, CheckCircle2, PowerOff, ChevronDown
+    Loader2, MessageSquare, RefreshCw, AlertTriangle, CheckCircle2, PowerOff, ChevronDown, CalendarRange, X
 } from "lucide-react";
 import { WarrantyReminderSchedule } from "./WarrantyReminderPanel";
+
+interface NotificationWindow {
+    startDate: string | null;
+    endDate: string | null;
+}
 
 interface NotificationTypeRow {
     key: string;
@@ -20,6 +26,9 @@ interface NotificationTypeRow {
     description: string;
     enabled: boolean;
     templateApproved: boolean;
+    /** Only present on a type whose registry entry sets supportsDateWindow. */
+    supportsDateWindow?: boolean;
+    window: NotificationWindow | null;
     stats: {
         total: number;
         failed: number;
@@ -50,6 +59,10 @@ export const AdminNotificationSettings = () => {
     // Bumped whenever a toggle changes, so the reminder schedule re-reads its
     // counts instead of showing the state as of page load.
     const [settingsVersion, setSettingsVersion] = useState(0);
+    // Keyed by row.key — the pending edit for a window before it is saved, so
+    // typing a date doesn't fire a request per keystroke.
+    const [windowDrafts, setWindowDrafts] = useState<Record<string, NotificationWindow>>({});
+    const [savingWindow, setSavingWindow] = useState<string | null>(null);
 
     const fetchSettings = async (showToast = false) => {
         try {
@@ -104,54 +117,165 @@ export const AdminNotificationSettings = () => {
         }
     };
 
+    /** The row's saved window, overridden by any unsaved edit in progress. */
+    const draftFor = (row: NotificationTypeRow): NotificationWindow =>
+        windowDrafts[row.key] ?? row.window ?? { startDate: null, endDate: null };
+
+    const setDraft = (key: string, patch: Partial<NotificationWindow>) =>
+        setWindowDrafts(prev => ({
+            ...prev,
+            [key]: { ...(prev[key] ?? types.find(t => t.key === key)?.window ?? { startDate: null, endDate: null }), ...patch }
+        }));
+
+    const saveWindow = async (row: NotificationTypeRow, value: NotificationWindow | null) => {
+        setSavingWindow(row.key);
+        try {
+            const res = await api.put(`/admin/notification-settings/${row.key}/window`, {
+                startDate: value?.startDate ?? null,
+                endDate: value?.endDate ?? null,
+            });
+            const saved: NotificationWindow | null = res.data?.windows?.[row.key] ?? null;
+            setTypes(prev => prev.map(t => t.key === row.key ? { ...t, window: saved } : t));
+            setWindowDrafts(prev => {
+                const next = { ...prev };
+                delete next[row.key];
+                return next;
+            });
+            toast({
+                title: saved ? "Send window saved" : "Send window cleared",
+                description: saved
+                    ? `${row.label} will only send for warranties registered ${saved.startDate || "any date"} through ${saved.endDate || "any date"}.`
+                    : `${row.label} will send regardless of registration date.`
+            });
+        } catch (error: any) {
+            toast({
+                title: "Could not save the date range",
+                description: getErrorMessage(error, "Failed to update the send window"),
+                variant: "destructive"
+            });
+        } finally {
+            setSavingWindow(null);
+        }
+    };
+
     const messageRow = (row: NotificationTypeRow) => (
         <div
             key={row.key}
-            className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 rounded-xl border transition-colors ${
+            className={`flex flex-col gap-3 p-3 rounded-xl border transition-colors ${
                 row.enabled ? "border-slate-100 bg-white" : "border-slate-100 bg-slate-50/70"
             }`}
         >
-            <div className="min-w-0 flex-1">
-                <div className="flex flex-wrap items-center gap-2">
-                    <p className={`font-bold text-sm ${row.enabled ? "text-slate-800" : "text-slate-400"}`}>
-                        {row.label}
-                    </p>
-                    {!row.templateApproved && (
-                        <Badge className="bg-rose-100 text-rose-700 border-rose-200 gap-1">
-                            <AlertTriangle className="h-3 w-3" /> Template not approved
-                        </Badge>
-                    )}
-                    {row.templateApproved && row.stats.total === 0 && (
-                        <Badge variant="secondary" className="bg-slate-100 text-slate-500 border-none">
-                            Never sent
-                        </Badge>
-                    )}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                        <p className={`font-bold text-sm ${row.enabled ? "text-slate-800" : "text-slate-400"}`}>
+                            {row.label}
+                        </p>
+                        {!row.templateApproved && (
+                            <Badge className="bg-rose-100 text-rose-700 border-rose-200 gap-1">
+                                <AlertTriangle className="h-3 w-3" /> Template not approved
+                            </Badge>
+                        )}
+                        {row.templateApproved && row.stats.total === 0 && (
+                            <Badge variant="secondary" className="bg-slate-100 text-slate-500 border-none">
+                                Never sent
+                            </Badge>
+                        )}
+                        {row.supportsDateWindow && row.window && (row.window.startDate || row.window.endDate) && (
+                            <Badge variant="secondary" className="bg-orange-50 text-orange-700 border-orange-200 gap-1">
+                                <CalendarRange className="h-3 w-3" />
+                                {row.window.startDate || "any date"} → {row.window.endDate || "any date"}
+                            </Badge>
+                        )}
+                    </div>
+                    <p className="text-xs text-slate-500 mt-0.5">{row.description}</p>
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-slate-400 mt-1">
+                        <span className="font-mono">{row.template}</span>
+                        <span>→ {row.recipient}</span>
+                        {row.stats.total > 0 && (
+                            <span className="tabular-nums">
+                                {row.stats.total} sent (30d)
+                                {row.stats.failed > 0 && (
+                                    <span className="text-rose-500 font-semibold"> · {row.stats.failed} failed</span>
+                                )}
+                            </span>
+                        )}
+                    </div>
                 </div>
-                <p className="text-xs text-slate-500 mt-0.5">{row.description}</p>
-                <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-slate-400 mt-1">
-                    <span className="font-mono">{row.template}</span>
-                    <span>→ {row.recipient}</span>
-                    {row.stats.total > 0 && (
-                        <span className="tabular-nums">
-                            {row.stats.total} sent (30d)
-                            {row.stats.failed > 0 && (
-                                <span className="text-rose-500 font-semibold"> · {row.stats.failed} failed</span>
-                            )}
-                        </span>
-                    )}
+
+                <div className="flex items-center gap-3 shrink-0">
+                    <span className={`text-[11px] font-bold uppercase tracking-wider ${
+                        row.enabled ? "text-emerald-600" : "text-slate-400"
+                    }`}>
+                        {row.enabled ? "On" : "Off"}
+                    </span>
+                    {saving === row.key
+                        ? <Loader2 className="h-4 w-4 animate-spin text-orange-500" />
+                        : <Switch checked={row.enabled} onCheckedChange={v => toggle(row, v)} />}
                 </div>
             </div>
 
-            <div className="flex items-center gap-3 shrink-0">
-                <span className={`text-[11px] font-bold uppercase tracking-wider ${
-                    row.enabled ? "text-emerald-600" : "text-slate-400"
-                }`}>
-                    {row.enabled ? "On" : "Off"}
-                </span>
-                {saving === row.key
-                    ? <Loader2 className="h-4 w-4 animate-spin text-orange-500" />
-                    : <Switch checked={row.enabled} onCheckedChange={v => toggle(row, v)} />}
-            </div>
+            {/* Registration-date send window. Only offered where the server
+                registry marks the type as supporting one — a date range means
+                nothing for e.g. login OTP. */}
+            {row.supportsDateWindow && (() => {
+                const draft = draftFor(row);
+                const isDirty = windowDrafts[row.key] !== undefined;
+                return (
+                    <div className="pt-3 border-t border-slate-100 flex flex-col sm:flex-row sm:items-end gap-2">
+                        <div className="flex-1 min-w-0">
+                            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">
+                                Only send for warranties registered
+                            </p>
+                            <div className="flex items-center gap-2">
+                                <div className="flex-1 min-w-0">
+                                    <DatePicker
+                                        value={draft.startDate ?? undefined}
+                                        onChange={v => setDraft(row.key, { startDate: v })}
+                                        maxDate={draft.endDate ? new Date(draft.endDate) : undefined}
+                                        placeholder="Any start"
+                                    />
+                                </div>
+                                <span className="text-slate-400 text-xs font-bold shrink-0">to</span>
+                                <div className="flex-1 min-w-0">
+                                    <DatePicker
+                                        value={draft.endDate ?? undefined}
+                                        onChange={v => setDraft(row.key, { endDate: v })}
+                                        minDate={draft.startDate ? new Date(draft.startDate) : undefined}
+                                        placeholder="Any end"
+                                    />
+                                </div>
+                            </div>
+                            <p className="text-[11px] text-slate-400 mt-1">
+                                Left blank on either side, that side is unbounded. Blank on both means every date.
+                            </p>
+                        </div>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                            {(draft.startDate || draft.endDate) && (
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-9 text-slate-400 hover:text-rose-600"
+                                    disabled={savingWindow === row.key}
+                                    onClick={() => saveWindow(row, null)}
+                                >
+                                    <X className="h-3.5 w-3.5 mr-1" /> Clear
+                                </Button>
+                            )}
+                            <Button
+                                size="sm"
+                                className="h-9 bg-orange-600 hover:bg-orange-700"
+                                disabled={!isDirty || savingWindow === row.key}
+                                onClick={() => saveWindow(row, draft)}
+                            >
+                                {savingWindow === row.key
+                                    ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                    : "Save range"}
+                            </Button>
+                        </div>
+                    </div>
+                );
+            })()}
         </div>
     );
 

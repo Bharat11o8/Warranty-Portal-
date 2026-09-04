@@ -13,7 +13,10 @@ import {
 import {
     NOTIFICATION_TYPES,
     getNotificationSettings as loadNotificationSettings,
-    saveNotificationSettings
+    saveNotificationSettings,
+    getNotificationWindows as loadNotificationWindows,
+    saveNotificationWindow,
+    type NotificationWindow
 } from '../services/notificationSettings.service.js';
 import {
     getReminderSettings,
@@ -668,6 +671,7 @@ export class AdminController {
     static async getNotificationSettings(req: Request, res: Response) {
         try {
             const settings = await loadNotificationSettings(true);
+            const windows = await loadNotificationWindows(true);
 
             // 30-day traffic per context, so the admin can see what each toggle
             // actually controls before flipping it.
@@ -707,7 +711,11 @@ export class AdminController {
                         delivered: Number(s?.delivered || 0),
                         lastSent: s?.last_sent || null
                     },
-                    templateApproved: !unapproved.has(t.context)
+                    templateApproved: !unapproved.has(t.context),
+                    // Only meaningful when supportsDateWindow is set; present as
+                    // null rather than omitted so the client never has to
+                    // distinguish "not configured" from "field absent".
+                    window: t.supportsDateWindow ? (windows[t.key] || null) : null
                 };
             });
 
@@ -921,6 +929,66 @@ export class AdminController {
             success: stopped,
             message: stopped ? 'Stopping after the current warranty.' : 'No reminder run is in progress.'
         });
+    }
+
+    /**
+     * Set or clear the send-date window for one message type.
+     *
+     * Only types with `supportsDateWindow` accept one — a window on a type with
+     * no natural "as of" date would be silently ignored by the sender, which is
+     * worse than rejecting the request here.
+     */
+    static async updateNotificationWindow(req: Request, res: Response) {
+        try {
+            const { key } = req.params;
+            const type = NOTIFICATION_TYPES.find(t => t.key === key);
+            if (!type) {
+                return res.status(400).json({ error: `Unknown notification type: ${key}` });
+            }
+            if (!type.supportsDateWindow) {
+                return res.status(400).json({ error: `"${type.label}" does not support a date window` });
+            }
+
+            const { startDate, endDate } = req.body || {};
+            const isIsoDate = (v: unknown) => v === null || v === undefined || /^\d{4}-\d{2}-\d{2}$/.test(String(v));
+            if (!isIsoDate(startDate) || !isIsoDate(endDate)) {
+                return res.status(400).json({ error: 'startDate and endDate must be YYYY-MM-DD or null' });
+            }
+            if (startDate && endDate && String(startDate) > String(endDate)) {
+                return res.status(400).json({ error: 'startDate must not be after endDate' });
+            }
+
+            const admin = (req as any).user;
+            // Both ends absent means "remove the window" rather than store an
+            // empty one — an empty NotificationWindow and no window at all
+            // already mean the same thing (send regardless of date), so there is
+            // no reason to keep a row around for it.
+            const windowValue: NotificationWindow | null =
+                (startDate || endDate) ? { startDate: startDate || null, endDate: endDate || null } : null;
+
+            const saved = await saveNotificationWindow(key, windowValue, admin?.email || 'admin');
+
+            res.json({ success: true, windows: saved });
+
+            try {
+                await ActivityLogService.log({
+                    adminId: admin?.id,
+                    adminName: admin?.name,
+                    adminEmail: admin?.email,
+                    actionType: 'SYSTEM_SETTING_UPDATED',
+                    targetType: 'SYSTEM_SETTING',
+                    targetId: 'whatsapp_notification_windows',
+                    targetName: `${type.label} — Send Window`,
+                    details: { key, startDate: startDate || null, endDate: endDate || null },
+                    ipAddress: req.ip || req.socket?.remoteAddress
+                });
+            } catch (logErr) {
+                console.error('Failed to log notification window change', logErr);
+            }
+        } catch (error: any) {
+            console.error('Update notification window error:', error);
+            res.status(500).json({ error: 'Failed to update the send window' });
+        }
     }
 
     /**
@@ -1839,11 +1907,23 @@ export class AdminController {
                     // installer their work was approved.
                     // Gated by the 'manpower_warranty_approved' admin toggle inside
                     // the WhatsApp service, so no extra check is needed here.
+                    //
+                    // A franchise owner who fits the product themselves gets a real
+                    // manpower row too (manpower_id like "owner-<hash>"), so this
+                    // send site can't otherwise tell an owner apart from hired staff.
+                    // Skipped on purpose: "installed by you... credited to your
+                    // profile" reads as though someone else is crediting an
+                    // employee, which is the wrong framing for the person who owns
+                    // the store — and they already see the approval in their own
+                    // dashboard.
+                    const installerIsOwner = String(warrantyData.applicator_code || '').startsWith('owner-');
+
                     if (
                         status === 'validated' &&
                         process.env.ENABLE_WHATSAPP === 'true' &&
                         warrantyData.applicator_phone &&
-                        warrantyData.applicator_active
+                        warrantyData.applicator_active &&
+                        !installerIsOwner
                     ) {
                         try {
                             // productName is a bare model code (e.g. "D3"); fall back to
@@ -1884,7 +1964,11 @@ export class AdminController {
                                         String(rawProduct),
                                         warrantyData.customer_name || 'Customer',
                                         warrantyData.uid,
-                                        totalApproved
+                                        totalApproved,
+                                        // Registration date, not today's — the admin's
+                                        // send window describes which warranties
+                                        // qualify, not when this approval happened.
+                                        warrantyData.created_at
                                     ),
                                     3,
                                     5000,

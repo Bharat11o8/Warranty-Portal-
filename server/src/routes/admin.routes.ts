@@ -31,6 +31,7 @@ router.put('/manpower/:id/removal-review', ...adminAuth, requirePermission('vend
 // WhatsApp notification toggles
 router.get('/notification-settings', ...adminAuth, requirePermission('announcements', 'read'), AdminController.getNotificationSettings);
 router.put('/notification-settings', ...adminAuth, requirePermission('announcements', 'write'), AdminController.updateNotificationSettings);
+router.put('/notification-settings/:key/window', ...adminAuth, requirePermission('announcements', 'write'), AdminController.updateNotificationWindow);
 
 // Warranty rejection reminders. Gated on 'warranties' write rather than
 // 'announcements': starting the catch-up messages customers about their own

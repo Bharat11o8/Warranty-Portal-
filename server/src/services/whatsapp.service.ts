@@ -2,7 +2,7 @@ import axios from 'axios';
 import db from '../config/database.js';
 import { v4 as uuidv4 } from 'uuid';
 import dotenv from 'dotenv';
-import { isContextEnabled } from './notificationSettings.service.js';
+import { isContextEnabled, getNotificationSettings, NOTIFICATION_TYPES } from './notificationSettings.service.js';
 
 dotenv.config();
 
@@ -73,17 +73,24 @@ export class WhatsAppService {
         referenceId?: string,
         buttonValues?: string[],  // For templates with variable buttons (e.g., OTP copy button)
         headerValues?: string[],  // For templates with text or media (image/video) headers
-        campaignId?: string       // Groups messages belonging to the same broadcast run
+        campaignId?: string,      // Groups messages belonging to the same broadcast run
+        dateContext?: string | Date | null  // Warranty date checked against the type's send window, if it has one
     ): Promise<boolean> {
         const logId = uuidv4();
         const { countryCode, phoneNumber } = this.formatPhoneNumber(phone);
 
-        // Admin toggle gate. Checked here rather than at each call site so no
-        // sender can bypass it. Skipped messages are logged as 'failed' with a
-        // clear reason so the admin UI can show them as suppressed, not broken.
+        // Admin toggle gate — on/off, and for a type with a configured send
+        // window, in/out of date range. Checked here rather than at each call
+        // site so no sender can bypass it. Skipped messages are logged as
+        // 'failed' with a clear reason so the admin UI can show them as
+        // suppressed, not broken.
         try {
-            if (!(await isContextEnabled(context))) {
-                console.log(`[WhatsApp] Skipped "${templateName}" — "${context}" is turned off by admin.`);
+            const allowed = await isContextEnabled(context, dateContext);
+            if (!allowed) {
+                const settings = await getNotificationSettings();
+                const toggledOff = settings[NOTIFICATION_TYPES.find(t => t.context === context)?.key ?? ''] === false;
+                const reason = toggledOff ? 'Skipped: disabled by admin' : 'Skipped: outside configured send window';
+                console.log(`[WhatsApp] Skipped "${templateName}" — ${reason.replace('Skipped: ', '')}.`);
                 await this.logMessage({
                     id: logId,
                     recipient_phone: `${countryCode}${phoneNumber}`,
@@ -92,7 +99,7 @@ export class WhatsAppService {
                     status: 'failed',
                     context,
                     reference_id: referenceId,
-                    error_message: 'Skipped: disabled by admin',
+                    error_message: reason,
                     campaign_id: campaignId
                 });
                 return false;
@@ -475,8 +482,11 @@ export class WhatsAppService {
      *    for the customer {{3}}. Credited to your profile
      *    Total approved installations: {{4}}"
      *
-     * Gated by the 'manpower_warranty_approved' admin toggle, which ships OFF
-     * until the template is approved in Interakt.
+     * Gated by the 'manpower_warranty_approved' admin toggle, and by an
+     * optional admin-set date range checked against `registeredAt` — the
+     * warranty's registration date, not today's date, so the range describes
+     * which warranties qualify rather than when the button happened to be
+     * clicked.
      */
     static async sendManpowerWarrantyApproved(
         phone: string,
@@ -484,7 +494,8 @@ export class WhatsAppService {
         productName: string,
         customerName: string,
         uid: string,
-        totalApproved: number | string
+        totalApproved: number | string,
+        registeredAt?: string | Date | null
     ): Promise<boolean> {
         // Names are stored with inconsistent casing ("SAGAR PATEL", "Jayesh bhai"),
         // so normalise them here rather than shouting at the recipient.
@@ -498,7 +509,11 @@ export class WhatsAppService {
             'af_manpower_warranty_approved_2',
             [titleCase(installerName), productName, titleCase(customerName), String(totalApproved)],
             'manpower_warranty_approved',
-            uid
+            uid,
+            undefined,
+            undefined,
+            undefined,
+            registeredAt
         );
     }
 
