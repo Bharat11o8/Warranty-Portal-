@@ -21,6 +21,81 @@ interface ProductInfoProps {
   existingPhotos?: any;
 }
 
+/**
+ * The five photos, and the `product_details.photos` key each is stored under.
+ *
+ * Declared once rather than as five near-identical JSX blocks: they had already
+ * drifted apart, and the asterisk bug below existed in all five copies.
+ */
+const PHOTO_FIELDS = [
+  { field: 'lhsPhoto', photoKey: 'lhs', label: 'Left Hand Side' },
+  { field: 'rhsPhoto', photoKey: 'rhs', label: 'Right Hand Side' },
+  { field: 'frontRegPhoto', photoKey: 'frontReg', label: 'Front with Reg. No.' },
+  { field: 'backRegPhoto', photoKey: 'backReg', label: 'Back with Reg. No.' },
+  { field: 'warrantyPhoto', photoKey: 'warranty', label: 'Warranty Card (Dealer Stamp)', fullWidth: true },
+] as const;
+
+/** Existing photos are stored either as a full URL or a bare filename. */
+const photoSrc = (value: string) =>
+  value.startsWith('http') ? value : `${window.location.origin}/uploads/${value}`;
+
+/**
+ * One photo slot.
+ *
+ * When editing, the form cannot turn a stored URL back into a File, so the
+ * field starts null even though a photo exists on the warranty. The label must
+ * therefore key off the EXISTING photo, not the empty file input — the previous
+ * `|| formData.xPhoto === null` clause was always true while editing, so every
+ * photo showed a red asterisk and people re-uploaded all five believing they
+ * had to. The server keeps whatever is not replaced.
+ */
+const PhotoField = ({
+  field, label, existingUrl, file, onChange, loading, fullWidth,
+}: {
+  field: keyof EVFormData;
+  label: string;
+  existingUrl?: string;
+  file: File | null;
+  onChange: (field: keyof EVFormData, file: File | null) => void;
+  loading: boolean;
+  fullWidth?: boolean;
+}) => {
+  const keepingExisting = Boolean(existingUrl) && !file;
+
+  return (
+    <div className={`space-y-2 ${fullWidth ? 'md:col-span-2' : ''}`}>
+      <Label htmlFor={field}>
+        {label} {!existingUrl && <span className="text-destructive">*</span>}
+      </Label>
+
+      {keepingExisting && (
+        <div className="flex items-center gap-3">
+          <a
+            href={photoSrc(existingUrl!)}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="w-24 h-24 rounded-lg overflow-hidden border-2 border-emerald-100 shadow-sm shrink-0"
+          >
+            <img src={photoSrc(existingUrl!)} alt={`Existing ${label}`} className="w-full h-full object-cover" />
+          </a>
+          <p className="text-xs text-emerald-600 font-medium">
+            ✓ Already uploaded — only choose a file if you want to replace it.
+          </p>
+        </div>
+      )}
+
+      <Input
+        id={field}
+        type="file"
+        accept="image/*"
+        onChange={(e) => onChange(field, e.target.files?.[0] || null)}
+        required={!existingUrl}
+        disabled={loading}
+      />
+    </div>
+  );
+};
+
 const ProductInfo = ({ formData, updateFormData, onPrev, onSubmit, loading, existingPhotos }: ProductInfoProps) => {
   const { toast } = useToast();
   const [products, setProducts] = useState<any[]>([]);
@@ -250,100 +325,18 @@ const ProductInfo = ({ formData, updateFormData, onPrev, onSubmit, loading, exis
         <h4 className="text-lg font-semibold">📸 Photo Documentation</h4>
 
         <div className="grid md:grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <Label htmlFor="lhsPhoto">
-              Left Hand Side {(!existingPhotos?.lhs || formData.lhsPhoto === null) && <span className="text-destructive">*</span>}
-            </Label>
-            {existingPhotos?.lhs && !formData.lhsPhoto && (
-              <div className="mb-2 w-24 h-24 rounded-lg overflow-hidden border-2 border-emerald-100 shadow-sm">
-                 <img src={existingPhotos.lhs.startsWith('http') ? existingPhotos.lhs : `${window.location.origin}/uploads/${existingPhotos.lhs}`} alt="Existing LHS" className="w-full h-full object-cover" />
-              </div>
-            )}
-            <Input
-              id="lhsPhoto"
-              type="file"
-              accept="image/*"
-              onChange={(e) => handleFileChange("lhsPhoto", e.target.files?.[0] || null)}
-              required={!existingPhotos?.lhs}
-              disabled={loading}
+          {PHOTO_FIELDS.map(({ field, photoKey, label, fullWidth }) => (
+            <PhotoField
+              key={field}
+              field={field}
+              label={label}
+              existingUrl={existingPhotos?.[photoKey]}
+              file={formData[field] as File | null}
+              onChange={handleFileChange}
+              loading={loading}
+              fullWidth={fullWidth}
             />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="rhsPhoto">
-              Right Hand Side {(!existingPhotos?.rhs || formData.rhsPhoto === null) && <span className="text-destructive">*</span>}
-            </Label>
-            {existingPhotos?.rhs && !formData.rhsPhoto && (
-              <div className="mb-2 w-24 h-24 rounded-lg overflow-hidden border-2 border-emerald-100 shadow-sm">
-                 <img src={existingPhotos.rhs.startsWith('http') ? existingPhotos.rhs : `${window.location.origin}/uploads/${existingPhotos.rhs}`} alt="Existing RHS" className="w-full h-full object-cover" />
-              </div>
-            )}
-            <Input
-              id="rhsPhoto"
-              type="file"
-              accept="image/*"
-              onChange={(e) => handleFileChange("rhsPhoto", e.target.files?.[0] || null)}
-              required={!existingPhotos?.rhs}
-              disabled={loading}
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="frontRegPhoto">
-              Front with Reg. No. {(!existingPhotos?.frontReg || formData.frontRegPhoto === null) && <span className="text-destructive">*</span>}
-            </Label>
-            {existingPhotos?.frontReg && !formData.frontRegPhoto && (
-              <div className="mb-2 w-24 h-24 rounded-lg overflow-hidden border-2 border-emerald-100 shadow-sm">
-                 <img src={existingPhotos.frontReg.startsWith('http') ? existingPhotos.frontReg : `${window.location.origin}/uploads/${existingPhotos.frontReg}`} alt="Existing Front" className="w-full h-full object-cover" />
-              </div>
-            )}
-            <Input
-              id="frontRegPhoto"
-              type="file"
-              accept="image/*"
-              onChange={(e) => handleFileChange("frontRegPhoto", e.target.files?.[0] || null)}
-              required={!existingPhotos?.frontReg}
-              disabled={loading}
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="backRegPhoto">
-              Back with Reg. No. {(!existingPhotos?.backReg || formData.backRegPhoto === null) && <span className="text-destructive">*</span>}
-            </Label>
-            {existingPhotos?.backReg && !formData.backRegPhoto && (
-              <div className="mb-2 w-24 h-24 rounded-lg overflow-hidden border-2 border-emerald-100 shadow-sm">
-                 <img src={existingPhotos.backReg.startsWith('http') ? existingPhotos.backReg : `${window.location.origin}/uploads/${existingPhotos.backReg}`} alt="Existing Back" className="w-full h-full object-cover" />
-              </div>
-            )}
-            <Input
-              id="backRegPhoto"
-              type="file"
-              accept="image/*"
-              onChange={(e) => handleFileChange("backRegPhoto", e.target.files?.[0] || null)}
-              required={!existingPhotos?.backReg}
-              disabled={loading}
-            />
-          </div>
-
-          <div className="space-y-2 md:col-span-2">
-            <Label htmlFor="warrantyPhoto">
-              Warranty Card (Dealer Stamp) {(!existingPhotos?.warranty || formData.warrantyPhoto === null) && <span className="text-destructive">*</span>}
-            </Label>
-            {existingPhotos?.warranty && !formData.warrantyPhoto && (
-              <div className="mb-2 w-24 h-24 rounded-lg overflow-hidden border-2 border-emerald-100 shadow-sm">
-                 <img src={existingPhotos.warranty.startsWith('http') ? existingPhotos.warranty : `${window.location.origin}/uploads/${existingPhotos.warranty}`} alt="Existing Warranty Card" className="w-full h-full object-cover" />
-              </div>
-            )}
-            <Input
-              id="warrantyPhoto"
-              type="file"
-              accept="image/*"
-              onChange={(e) => handleFileChange("warrantyPhoto", e.target.files?.[0] || null)}
-              required={!existingPhotos?.warranty}
-              disabled={loading}
-            />
-          </div>
+          ))}
         </div>
 
         <p className="text-sm text-muted-foreground">
