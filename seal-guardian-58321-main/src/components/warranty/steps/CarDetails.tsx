@@ -16,9 +16,11 @@ interface CarDetailsProps {
   updateFormData: (updates: Partial<EVFormData>) => void;
   onNext: () => void;
   onPrev: () => void;
+  /** Correcting an existing warranty rather than filing a new one. */
+  isEditing?: boolean;
 }
 
-const CarDetails = ({ formData, updateFormData, onNext, onPrev }: CarDetailsProps) => {
+const CarDetails = ({ formData, updateFormData, onNext, onPrev, isEditing }: CarDetailsProps) => {
   const { toast } = useToast();
   const { user } = useAuth();
 
@@ -62,6 +64,26 @@ const CarDetails = ({ formData, updateFormData, onNext, onPrev }: CarDetailsProp
     if (!formData.installationDate) {
       toast({ title: "Installation Date Required", description: "Please select installation date", variant: "destructive" });
       return;
+    }
+
+    // New registrations only. Correcting a rejected warranty is deliberately
+    // exempt — it was rejected days after it was filed, so its purchase date is
+    // almost always outside the window by then, and blocking that would break
+    // the correction flow. The server agrees: it checks the window on submit
+    // but never on update.
+    if (user?.role !== 'admin' && !isEditing) {
+      const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
+      const daysAgo = Math.round(
+        (startOfDay(new Date()).getTime() - startOfDay(new Date(formData.installationDate)).getTime()) / 86_400_000
+      );
+      if (daysAgo > purchaseDateWindowDays) {
+        toast({
+          title: "Installation Date Too Old",
+          description: `Warranty must be registered within ${purchaseDateWindowDays} days of purchase. This one is ${daysAgo} days ago.`,
+          variant: "destructive",
+        });
+        return;
+      }
     }
 
     if (!formData.carMake) {
@@ -192,6 +214,14 @@ const CarDetails = ({ formData, updateFormData, onNext, onPrev }: CarDetailsProp
             maxDate={new Date()}
             placeholder="Select installation date"
           />
+          {/* The calendar greys out anything older than the window, which on its
+              own reads as a broken date picker. Admins have no limit, so they
+              are not told about one. */}
+          {user?.role !== 'admin' && !isEditing && (
+            <p className="text-xs text-muted-foreground">
+              Warranty must be registered within {purchaseDateWindowDays} days of purchase.
+            </p>
+          )}
         </div>
       </div>
 

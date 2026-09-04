@@ -651,6 +651,7 @@ const EVProductsForm = ({ initialData, warrantyId, onSuccess, isUniversal, isEdi
                   updateFormData={updateFormData}
                   onNext={handleNext}
                   onPrev={handlePrev}
+                  isEditing={isEditing}
                 />
               </div>
             )}
