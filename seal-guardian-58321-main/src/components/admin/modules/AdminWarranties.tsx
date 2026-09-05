@@ -636,6 +636,7 @@ export const AdminWarranties = () => {
                         <QuickReviewPanel
                             warranty={selectedWarranty}
                             processingWarranty={processingId}
+                            onRefresh={() => fetchWarranties(false)}
                             onApprove={(id) => handleUpdateStatus(id, 'validated')}
                             onReject={(id) => {
                                 setRejectingWarrantyId(id);

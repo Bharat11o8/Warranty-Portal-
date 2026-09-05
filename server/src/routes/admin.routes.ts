@@ -4,9 +4,33 @@ import { DiagnosticController } from '../controllers/diagnostic.controller.js';
 import { ProductController } from '../controllers/product.controller.js';
 import { ImageRepairController } from '../controllers/imageRepair.controller.js';
 import { authenticateToken, requireRole, requirePermission, requireAnyPermission } from '../middleware/auth.js';
+import { warrantyUpload, attachPublicUrls } from '../config/localUpload.js';
+import type { Request, Response, NextFunction } from 'express';
 
 const router = Router();
 const adminAuth = [authenticateToken, requireRole('admin')];
+
+/**
+ * Single-image upload for admin photo replacement.
+ *
+ * Mirrors the warranty routes' wrapper: without it multer's LIMIT_FILE_SIZE
+ * surfaces as an unhandled 500 and the client just goes blank.
+ */
+const handleAdminImageUpload = (req: Request, res: Response, next: NextFunction) => {
+    warrantyUpload.any()(req, res, (err: any) => {
+        if (err) {
+            console.error('[Admin Image Upload] Multer error:', err.code || err.message);
+            if (err.code === 'LIMIT_FILE_SIZE') {
+                return res.status(413).json({
+                    success: false,
+                    error: 'File too large. Maximum allowed size is 5 MB. Please compress the image and try again.'
+                });
+            }
+            return res.status(400).json({ success: false, error: err.message || 'File upload failed' });
+        }
+        attachPublicUrls(req, res, next);
+    });
+};
 
 // Dashboard
 router.get('/stats', ...adminAuth, requirePermission('overview', 'read'), AdminController.getDashboardStats);
@@ -89,6 +113,8 @@ router.post('/warranties/resubmissions/:id/reject', ...adminAuth, requirePermiss
 router.get('/warranties/:id', ...adminAuth, requirePermission('warranties', 'read'), AdminController.getWarrantyById);
 router.put('/warranties/:uid/status', ...adminAuth, requirePermission('warranties', 'write'), AdminController.updateWarrantyStatus);
 router.put('/warranties/:uid/details', ...adminAuth, requirePermission('warranties', 'write'), AdminController.updateWarrantyDetails);
+// Swap one photo or the invoice without resubmitting the whole form.
+router.put('/warranties/:uid/photo', ...adminAuth, requirePermission('warranties', 'write'), handleAdminImageUpload, AdminController.replaceWarrantyPhoto);
 
 // Customers
 router.get('/customers', ...adminAuth, requirePermission('customers', 'read'), AdminController.getCustomers);

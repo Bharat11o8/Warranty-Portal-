@@ -7,7 +7,7 @@ import {
 } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Download, FileText, ExternalLink, XCircle, Loader2, Pencil, Save, X, CheckCircle2, AlertTriangle, ZoomIn, RefreshCw } from "lucide-react";
+import { Download, FileText, ExternalLink, XCircle, Loader2, Pencil, Save, X, CheckCircle2, AlertTriangle, ZoomIn, RefreshCw, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn, getWarrantyExpiration, formatToIST } from "@/lib/utils";
 import { useState, useEffect, createContext, useContext } from "react";
@@ -40,7 +40,7 @@ const SpecRow = ({ label, value, mono = false, editField }: { label: string, val
             <span className="text-sm text-muted-foreground font-medium whitespace-nowrap mr-4">{label}</span>
             {isEditing && editField ? (
                 editField === 'product_name' ? (
-                    <Select value={editData.product_name} onValueChange={(val) => {
+                    <Select value={editData.product_name || ''} onValueChange={(val) => {
                         const selected = products.find((p: any) => p.name === val);
                         setEditData({ ...editData, product_name: val, warranty_type: selected?.warranty_years || editData.warranty_type });
                     }}>
@@ -73,6 +73,8 @@ export const WarrantySpecSheet = ({ isOpen, onClose, warranty, isAdmin, onRefres
     const [products, setProducts] = useState<any[]>([]);
     const [editData, setEditData] = useState<any>({});
     const [viewingPhoto, setViewingPhoto] = useState<string | null>(null);
+    /** Which image slot is mid-upload, so only that thumbnail shows a spinner. */
+    const [uploadingField, setUploadingField] = useState<string | null>(null);
     const [actionLoading, setActionLoading] = useState<'approve' | 'reject' | null>(null);
 
     useEffect(() => {
@@ -120,6 +122,72 @@ export const WarrantySpecSheet = ({ isOpen, onClose, warranty, isAdmin, onRefres
         } finally {
             setSaving(false);
         }
+    };
+
+    /**
+     * Swap one image. Same endpoint the Quick Review panel uses, so a photo
+     * replaced from either screen behaves identically.
+     *
+     * Sent immediately rather than bundled into Save: replacing a blurred photo
+     * usually changes nothing else, and the point is to see the new one.
+     */
+    const handleReplaceImage = async (field: string, file: File) => {
+        if (!file || !warranty) return;
+        setUploadingField(field);
+        try {
+            const form = new FormData();
+            form.append('field', field);
+            form.append('image', file);
+            const res = await api.put(`/admin/warranties/${warranty.uid}/photo`, form, {
+                headers: { 'Content-Type': 'multipart/form-data' }
+            });
+            if (res.data.success) {
+                toast({ title: "Image replaced", description: "The new image has been saved." });
+                onRefresh?.();
+            }
+        } catch (err: any) {
+            toast({
+                title: "Upload failed",
+                description: getErrorMessage(err, "Could not replace the image"),
+                variant: "destructive"
+            });
+        } finally {
+            setUploadingField(null);
+        }
+    };
+
+    /* One overlay for all four thumbnail blocks (seat-cover and PPF, invoice and
+       photos), so replacing behaves the same wherever it is used. */
+    const ReplaceOverlay = ({ field }: { field: string }) => {
+        if (!isEditing || !isAdmin) return null;
+        const busy = uploadingField === field;
+        return (
+            <label
+                title="Replace this image"
+                onClick={e => e.stopPropagation()}
+                className={cn(
+                    "absolute inset-x-0 top-0 h-7 z-20 flex items-center justify-center gap-1",
+                    "bg-orange-500/90 text-white text-[10px] font-bold uppercase tracking-wide",
+                    busy ? "cursor-wait" : "cursor-pointer hover:bg-orange-600"
+                )}
+            >
+                {busy
+                    ? <><Loader2 className="h-3 w-3 animate-spin" /> Saving</>
+                    : <><Upload className="h-3 w-3" /> Replace</>}
+                <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    disabled={busy}
+                    onChange={e => {
+                        const file = e.target.files?.[0];
+                        // Reset so choosing the same file twice still fires.
+                        e.target.value = '';
+                        if (file) handleReplaceImage(field, file);
+                    }}
+                />
+            </label>
+        );
     };
 
     if (!warranty) return null;
@@ -372,6 +440,7 @@ export const WarrantySpecSheet = ({ isOpen, onClose, warranty, isAdmin, onRefres
                                                 <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent px-2 py-1">
                                                     <span className="text-white text-[10px] font-medium leading-tight block">Invoice / MRP</span>
                                                 </div>
+                                                <ReplaceOverlay field="invoiceFileName" />
                                             </div>
                                         );
                                     })()}
@@ -391,6 +460,7 @@ export const WarrantySpecSheet = ({ isOpen, onClose, warranty, isAdmin, onRefres
                                                     <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent px-2 py-1">
                                                         <span className="text-white text-[10px] font-medium leading-tight block">{label}</span>
                                                     </div>
+                                                    <ReplaceOverlay field={key} />
                                                 </div>
                                             );
                                         })}
@@ -428,6 +498,7 @@ export const WarrantySpecSheet = ({ isOpen, onClose, warranty, isAdmin, onRefres
                                                 <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent px-2 py-1">
                                                     <span className="text-white text-[10px] font-medium leading-tight block">Invoice / MRP</span>
                                                 </div>
+                                                <ReplaceOverlay field="warranty" />
                                             </div>
                                         );
                                     })()}
@@ -447,6 +518,7 @@ export const WarrantySpecSheet = ({ isOpen, onClose, warranty, isAdmin, onRefres
                                                     <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent px-2 py-1">
                                                         <span className="text-white text-[10px] font-medium leading-tight block">{label}</span>
                                                     </div>
+                                                    <ReplaceOverlay field={key} />
                                                 </div>
                                             );
                                         })}

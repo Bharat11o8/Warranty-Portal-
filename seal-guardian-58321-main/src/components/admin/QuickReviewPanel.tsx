@@ -22,6 +22,11 @@ import {
 } from "lucide-react";
 import { cn, formatToIST } from "@/lib/utils";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import api, { getErrorMessage } from "@/lib/api";
+import { useToast } from "@/hooks/use-toast";
+import { Pencil, Save, X, Upload } from "lucide-react";
 
 function haversineDistance(lat1: number, lng1: number, lat2: number, lng2: number): number {
     const R = 6371; // Earth's radius in km
@@ -40,14 +45,24 @@ interface QuickReviewPanelProps {
     onApprove: (uid: string) => Promise<void> | void;
     onReject: (uid: string) => Promise<void> | void;
     processingWarranty?: string | null;
+    /** Reload the list after an edit, so the row matches what was saved. */
+    onRefresh?: () => void;
 }
 
 export const QuickReviewPanel = ({
     warranty,
     onApprove,
     onReject,
-    processingWarranty
+    processingWarranty,
+    onRefresh
 }: QuickReviewPanelProps) => {
+    const { toast } = useToast();
+    const [isEditing, setIsEditing] = useState(false);
+    const [saving, setSaving] = useState(false);
+    const [products, setProducts] = useState<any[]>([]);
+    const [editData, setEditData] = useState<any>({});
+    /** Which image slot is mid-upload, so only that card shows a spinner. */
+    const [uploadingField, setUploadingField] = useState<string | null>(null);
     const [rotations, setRotations] = useState<Record<string, number>>({});
     const [actionLoading, setActionLoading] = useState<'approve' | 'reject' | null>(null);
     const [zoomState, setZoomState] = useState<{
@@ -66,6 +81,43 @@ export const QuickReviewPanel = ({
         setActionLoading(null);
         setZoomState(null);
     }, [warranty]);
+
+    /* Editing here mirrors the spec sheet's edit on the pending and approved
+       tabs: same fields, same endpoint. Quick Review is where most reviewing
+       actually happens, so a wrong name or registration had to be fixed by
+       leaving the tab and finding the warranty again. */
+
+    // Selecting a different warranty must not carry an open edit across to it.
+    useEffect(() => {
+        setIsEditing(false);
+    }, [warranty?.uid, warranty?.id]);
+
+    useEffect(() => {
+        if (isEditing && products.length === 0) {
+            api.get('/public/products')
+                .then(res => { if (res.data.success) setProducts(res.data.products); })
+                .catch(err => console.error("Failed to load products", err));
+        }
+        if (isEditing && warranty) {
+            const pd = typeof warranty.product_details === 'string'
+                ? JSON.parse(warranty.product_details || '{}')
+                : warranty.product_details || {};
+            setEditData({
+                customer_name: warranty.customer_name || pd.customerName || '',
+                customer_email: warranty.customer_email || pd.customerEmail || '',
+                customer_phone: warranty.customer_phone || pd.customerPhone || '',
+                car_make: warranty.car_make || '',
+                car_model: warranty.car_model || '',
+                registration_number: warranty.registration_number || pd.carRegistration || '',
+                product_name: pd.product || pd.productName || '',
+                warranty_type: warranty.warranty_type || '',
+                purchase_date: warranty.purchase_date ? new Date(warranty.purchase_date).toISOString().split('T')[0] : '',
+                // Editable identifiers: UID (seat covers) and Serial Number (PPF/EV).
+                new_uid: warranty.uid || pd.uid || '',
+                serial_number: pd.serialNumber || warranty.uid || ''
+            });
+        }
+    }, [isEditing, warranty]);
 
     if (!warranty) {
         return (
@@ -148,6 +200,52 @@ export const QuickReviewPanel = ({
         return `rotate(${angle}deg) ${scale}`;
     };
 
+    const handleSave = async () => {
+        setSaving(true);
+        try {
+            const res = await api.put(`/admin/warranties/${warranty.uid}/details`, editData);
+            if (res.data.success) {
+                toast({ title: "Success", description: "Warranty details updated" });
+                setIsEditing(false);
+                onRefresh?.();
+            }
+        } catch (err: any) {
+            toast({ title: "Error", description: getErrorMessage(err, "Failed to update details"), variant: "destructive" });
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    /**
+     * Swap one image. Sent on its own rather than bundled into Save, because an
+     * admin replacing a blurred photo usually changes nothing else, and waiting
+     * for a form submit to see whether the new picture is any better is worse.
+     */
+    const handleReplaceImage = async (field: string, file: File) => {
+        if (!file) return;
+        setUploadingField(field);
+        try {
+            const form = new FormData();
+            form.append('field', field);
+            form.append('image', file);
+            const res = await api.put(`/admin/warranties/${warranty.uid}/photo`, form, {
+                headers: { 'Content-Type': 'multipart/form-data' }
+            });
+            if (res.data.success) {
+                toast({ title: "Image replaced", description: "The new image has been saved." });
+                onRefresh?.();
+            }
+        } catch (err: any) {
+            toast({
+                title: "Upload failed",
+                description: getErrorMessage(err, "Could not replace the image"),
+                variant: "destructive"
+            });
+        } finally {
+            setUploadingField(null);
+        }
+    };
+
     const handleAction = async (type: 'approve' | 'reject') => {
         setActionLoading(type);
         try {
@@ -193,6 +291,40 @@ export const QuickReviewPanel = ({
         fitScale = angle % 180 !== 0 ? 0.7 : 1.0;
     }
 
+    /* One definition for all four image slots (two photo rows, extra photos and
+       the invoice), so the replace control behaves identically everywhere. */
+    const ReplaceButton = ({ field }: { field: string }) => {
+        if (!isEditing) return null;
+        const busy = uploadingField === field;
+        return (
+            <label
+                title="Replace this image"
+                className={cn(
+                    "absolute top-2 right-12 h-8 px-2.5 rounded-full shadow-md bg-white/90 hover:bg-white",
+                    "text-slate-700 inline-flex items-center gap-1 text-[10px] font-bold uppercase z-10",
+                    busy ? "cursor-wait opacity-80" : "cursor-pointer"
+                )}
+            >
+                {busy
+                    ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    : <Upload className="h-3.5 w-3.5" />}
+                {busy ? "Saving" : "Replace"}
+                <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    disabled={busy}
+                    onChange={e => {
+                        const file = e.target.files?.[0];
+                        // Reset the input so picking the same file twice still fires.
+                        e.target.value = '';
+                        if (file) handleReplaceImage(field, file);
+                    }}
+                />
+            </label>
+        );
+    };
+
     return (
         <Card className="h-full border-orange-100 shadow-sm flex flex-col bg-white rounded-3xl relative">
             {/* Zoom Overlay (rendered to the left) */}
@@ -224,8 +356,8 @@ export const QuickReviewPanel = ({
             )}
 
             {/* Header info */}
-            <div className="p-5 border-b border-orange-50 bg-gradient-to-r from-orange-50/30 to-white flex items-center justify-between flex-shrink-0 rounded-t-3xl">
-                <div className="space-y-1">
+            <div className="p-5 border-b border-orange-50 bg-gradient-to-r from-orange-50/30 to-white flex items-center justify-between gap-4 flex-shrink-0 rounded-t-3xl">
+                <div className="space-y-1 min-w-0">
                     <div className="flex items-center gap-2">
                         <Badge className="font-bold text-[10px] uppercase bg-orange-100 text-orange-700 hover:bg-orange-100 border-none px-2 py-0.5">
                             {warranty.product_type === 'seat-cover' ? 'Seat Cover' : 'PPF / SPF'}
@@ -243,19 +375,52 @@ export const QuickReviewPanel = ({
                         </Badge>
                     </div>
                     <div className="mt-1 flex flex-col sm:flex-row sm:items-center gap-x-3 gap-y-1 text-slate-800">
-                        <h3 className="text-base font-extrabold uppercase tracking-tight leading-none flex items-center gap-1.5">
+                        <h3 className="text-base font-extrabold uppercase tracking-tight leading-none flex items-center gap-1.5 min-w-0">
                             <User className="h-4 w-4 text-orange-500 shrink-0" />
-                            {toTitleCase(warranty.customer_name || productDetails.customerName || 'N/A')}
+                            <span className="truncate">{toTitleCase(warranty.customer_name || productDetails.customerName || 'N/A')}</span>
                         </h3>
                         <span className="hidden sm:inline text-slate-300">|</span>
-                        <span className="text-xs font-bold text-slate-500 flex items-center gap-1">
+                        <span className="text-xs font-bold text-slate-500 flex items-center gap-1 shrink-0">
                             <Phone className="h-3.5 w-3.5 text-slate-400 shrink-0" />
                             {warranty.customer_phone || productDetails.customerPhone || 'N/A'}
                         </span>
                     </div>
                 </div>
 
-                <div className="flex items-center gap-4">
+                <div className="flex items-center gap-3 shrink-0">
+                    {isEditing ? (
+                        /* Save leads, Cancel is the quiet way out — and the pair sits
+                           apart from the read-only badges so they never look related. */
+                        <div className="flex items-center gap-2 pr-3 border-r border-orange-100">
+                            <Button
+                                size="sm" variant="ghost"
+                                className="h-9 px-3 text-xs font-bold text-slate-500 hover:text-slate-700"
+                                onClick={() => setIsEditing(false)}
+                                disabled={saving}
+                            >
+                                Cancel
+                            </Button>
+                            <Button
+                                size="sm"
+                                className="h-9 px-4 text-xs font-bold bg-orange-500 hover:bg-orange-600 shadow-sm"
+                                onClick={handleSave}
+                                disabled={saving}
+                            >
+                                {saving
+                                    ? <><Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> Saving</>
+                                    : <><Save className="h-3.5 w-3.5 mr-1.5" /> Save changes</>}
+                            </Button>
+                        </div>
+                    ) : (
+                        <Button
+                            size="sm" variant="outline"
+                            className="h-9 px-3 text-xs font-bold text-orange-600 border-orange-200 hover:bg-orange-50"
+                            onClick={() => setIsEditing(true)}
+                            disabled={isProcessing}
+                        >
+                            <Pencil className="h-3.5 w-3.5 mr-1.5" /> Edit
+                        </Button>
+                    )}
                     {warranty.fraud_score !== undefined && warranty.fraud_score !== null && (
                         <Popover>
                             <PopoverTrigger asChild>
@@ -424,6 +589,38 @@ export const QuickReviewPanel = ({
                 </div>
             </div>
 
+            {/* Customer fields while editing.
+                Their own full-width band under the header — inline beside the badges
+                left them about 100px wide, too narrow to read a name in. */}
+            {isEditing && (
+                <div className="px-5 py-4 border-b border-orange-100 bg-orange-50/40 flex-shrink-0">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div className="space-y-1.5">
+                            <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+                                <User className="h-3 w-3 text-orange-500" /> Customer name
+                            </label>
+                            <Input
+                                value={editData.customer_name || ''}
+                                onChange={e => setEditData({ ...editData, customer_name: e.target.value })}
+                                placeholder="Customer name"
+                                className="h-9 text-sm bg-white"
+                            />
+                        </div>
+                        <div className="space-y-1.5">
+                            <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+                                <Phone className="h-3 w-3 text-slate-400" /> Phone
+                            </label>
+                            <Input
+                                value={editData.customer_phone || ''}
+                                onChange={e => setEditData({ ...editData, customer_phone: e.target.value })}
+                                placeholder="Phone"
+                                className="h-9 text-sm bg-white font-mono"
+                            />
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* Main content split */}
             <div className="flex-1 overflow-y-auto p-5 space-y-6">
                 
@@ -449,10 +646,40 @@ export const QuickReviewPanel = ({
                         <div className="space-y-2.5">
                             <div className="flex items-center gap-2 text-sm">
                                 <span className="text-slate-450 font-normal w-24 shrink-0">UID:</span>
-                                <span className="font-mono font-bold text-slate-700">{warranty.uid || 'N/A'}</span>
+                                {isEditing ? (
+                                    <Input
+                                        value={editData.new_uid || ''}
+                                        onChange={e => setEditData({ ...editData, new_uid: e.target.value })}
+                                        className="h-8 text-sm font-mono bg-white"
+                                    />
+                                ) : (
+                                    <span className="font-mono font-bold text-slate-700">{warranty.uid || 'N/A'}</span>
+                                )}
                             </div>
                             <div className="flex items-center gap-2 text-sm">
                                 <span className="text-slate-450 font-normal w-24 shrink-0">Product:</span>
+                                {isEditing ? (
+                                    <Select
+                                        value={editData.product_name || ''}
+                                        onValueChange={(val) => {
+                                            const selected = products.find((p: any) => p.name === val);
+                                            setEditData({
+                                                ...editData,
+                                                product_name: val,
+                                                warranty_type: selected?.warranty_years || editData.warranty_type
+                                            });
+                                        }}
+                                    >
+                                        <SelectTrigger className="h-8 text-sm bg-white">
+                                            <SelectValue placeholder="Select product" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {products.map((p: any) => (
+                                                <SelectItem key={p.id} value={p.name}>{p.name}</SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                ) : (
                                 <span className="font-bold text-slate-700 truncate" title={(() => {
                                     const productNameMapping: Record<string, string> = {
                                         'paint-protection': 'Paint Protection Films',
@@ -475,10 +702,19 @@ export const QuickReviewPanel = ({
                                         return toTitleCase(productName);
                                     })()}
                                 </span>
+                                )}
                             </div>
                             <div className="flex items-center gap-2 text-sm">
                                 <span className="text-slate-450 font-normal w-24 shrink-0">Reg No:</span>
-                                <span className="font-mono font-bold text-slate-700 uppercase">{warranty.registration_number || productDetails.carRegistration || 'N/A'}</span>
+                                {isEditing ? (
+                                    <Input
+                                        value={editData.registration_number || ''}
+                                        onChange={e => setEditData({ ...editData, registration_number: e.target.value })}
+                                        className="h-8 text-sm font-mono uppercase bg-white"
+                                    />
+                                ) : (
+                                    <span className="font-mono font-bold text-slate-700 uppercase">{warranty.registration_number || productDetails.carRegistration || 'N/A'}</span>
+                                )}
                             </div>
                         </div>
                     </div>
@@ -571,12 +807,29 @@ export const QuickReviewPanel = ({
                                         >
                                             <RotateCw className="h-4 w-4" />
                                         </Button>
+                                        <ReplaceButton field="invoiceFileName" />
                                     </div>
                                 )
                             ) : (
-                                <div className="flex-1 flex flex-col items-center justify-center text-slate-300 rounded-xl border border-dashed border-slate-200">
+                                <div className="flex-1 flex flex-col items-center justify-center text-slate-300 rounded-xl border border-dashed border-slate-200 relative">
                                     <FileText className="h-10 w-10 mb-1" />
                                     <span className="text-xs font-medium">No invoice uploaded</span>
+                                    {isEditing && (
+                                        <label className="mt-2 cursor-pointer text-[10px] font-bold uppercase text-orange-600 hover:text-orange-700 inline-flex items-center gap-1">
+                                            {uploadingField === 'invoiceFileName'
+                                                ? <><Loader2 className="h-3 w-3 animate-spin" /> Saving</>
+                                                : <><Upload className="h-3 w-3" /> Upload invoice</>}
+                                            <input
+                                                type="file" accept="image/*" className="hidden"
+                                                disabled={uploadingField === 'invoiceFileName'}
+                                                onChange={e => {
+                                                    const file = e.target.files?.[0];
+                                                    e.target.value = '';
+                                                    if (file) handleReplaceImage('invoiceFileName', file);
+                                                }}
+                                            />
+                                        </label>
+                                    )}
                                 </div>
                             )}
                         </div>
@@ -616,6 +869,7 @@ export const QuickReviewPanel = ({
                                     >
                                         <RotateCw className="h-4 w-4" />
                                     </Button>
+                                    <ReplaceButton field={photo.key} />
                                 </div>
                             </div>
                         ))}
@@ -665,6 +919,7 @@ export const QuickReviewPanel = ({
                                         >
                                             <RotateCw className="h-4 w-4" />
                                         </Button>
+                                        <ReplaceButton field={photo.key} />
                                     </div>
                                 </div>
                             ))}

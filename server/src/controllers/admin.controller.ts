@@ -59,6 +59,19 @@ async function runWithRetry<T>(
     throw lastError;
 }
 
+/**
+ * Image slots an admin may replace.
+ *
+ * Seat covers carry vehicle/seatCover/carOuter; PPF and SPF carry the four
+ * corner shots. Keeping this an allow-list means a bad `field` cannot write an
+ * arbitrary key into product_details.
+ */
+const REPLACEABLE_PHOTO_FIELDS = new Set([
+    'invoiceFileName',
+    'vehicle', 'seatCover', 'carOuter',
+    'lhs', 'rhs', 'frontReg', 'backReg', 'warranty',
+]);
+
 export class AdminController {
     static async getDashboardStats(_req: Request, res: Response) {
         try {
@@ -377,7 +390,9 @@ export class AdminController {
                     vd.pincode,
                     vd.latitude,
                     vd.longitude,
-                    dist.gst_number,
+                    -- A franchise has no distributors row, so dist.gst_number is always
+                    -- NULL for one. Fall back to the franchise's own column.
+                    COALESCE(dist.gst_number, vd.gst_number) AS gst_number,
                     dist.area_head_name,
                     vv.is_verified,
                     COALESCE(vv.is_active, true) as is_active,
@@ -1535,9 +1550,11 @@ export class AdminController {
                     [contact_name, email, phone_number, id]
                 );
 
+                // gst_number lives on both tables: distributors already had it, and
+                // franchises now do too, so a franchise's GST no longer has nowhere to go.
                 await connection.execute(
-                    'UPDATE vendor_details SET store_name = ?, store_email = ?, address = ?, city = ?, state = ?, pincode = ? WHERE user_id = ?',
-                    [store_name, email, address, city, state, pincode, id]
+                    'UPDATE vendor_details SET store_name = ?, store_email = ?, address = ?, city = ?, state = ?, pincode = ?, gst_number = ? WHERE user_id = ?',
+                    [store_name, email, address, city, state, pincode, gst_number, id]
                 );
 
                 // Keep the distributor dashboard in sync with the updated profile.
@@ -2413,6 +2430,151 @@ export class AdminController {
         } catch (error: any) {
             console.error('Update warranty details error:', error);
             res.status(500).json({ error: 'Failed to update warranty details' });
+        }
+    }
+
+    /**
+     * Replace a single warranty photo or the invoice.
+     *
+     * The customer/vendor resubmit route (PUT /warranty/:uid) needs the whole
+     * form and is built for the store correcting its own entry. An admin fixing
+     * one blurred photo should not have to resend every field, so this takes a
+     * single file and swaps just that key.
+     *
+     * The previous URL is kept in the activity log rather than deleted from
+     * disk: an image replaced by mistake is then still recoverable.
+     */
+    static async replaceWarrantyPhoto(req: Request, res: Response) {
+        try {
+            const { uid } = req.params;
+            const { field } = req.body as { field?: string };
+            const files = (req.files as Express.Multer.File[]) || [];
+            const file = files[0];
+
+            if (!file) {
+                return res.status(400).json({ error: 'No file uploaded' });
+            }
+            if (!field || !REPLACEABLE_PHOTO_FIELDS.has(field)) {
+                return res.status(400).json({
+                    error: `field must be one of: ${[...REPLACEABLE_PHOTO_FIELDS].join(', ')}`
+                });
+            }
+
+            // CAST(? AS CHAR) forces a string comparison. `uid` is VARCHAR, so a
+            // numeric-looking parameter would otherwise make MySQL coerce the whole
+            // column to a number — every non-numeric uid collapses to 0 and can
+            // match unrelated rows. That was the cause of the earlier
+            // "one edit filled every entry" incident; see updateWarranty.
+            const [rows]: any = await db.execute(
+                'SELECT id, uid, customer_name, product_details FROM warranty_registrations WHERE uid = CAST(? AS CHAR)',
+                [String(uid)]
+            );
+            if (rows.length === 0) {
+                return res.status(404).json({ error: 'Warranty not found' });
+            }
+            // Defence in depth: refuse rather than risk writing to the wrong record.
+            if (rows.length > 1) {
+                console.error(`[Replace Photo] Ambiguous uid "${uid}" matched ${rows.length} rows. Aborting.`);
+                return res.status(409).json({ error: 'This identifier matches multiple registrations. Please contact support.' });
+            }
+            const existing = rows[0];
+
+            let productDetails: any = {};
+            try {
+                productDetails = typeof existing.product_details === 'string'
+                    ? JSON.parse(existing.product_details)
+                    : (existing.product_details || {});
+            } catch (e) {
+                console.error('Failed to parse product_details', e);
+            }
+
+            // attachPublicUrls has already rewritten file.path to a public URL.
+            const newUrl = (file as any).path;
+            const previousUrl: string | null = field === 'invoiceFileName'
+                ? (productDetails.invoiceFileName ?? null)
+                : (productDetails.photos?.[field] ?? null);
+
+            /*
+             * Write only the one key, via JSON_SET, rather than serialising the
+             * whole object back.
+             *
+             * Reading the JSON, editing it here and writing it all back would let
+             * two admins working on the same warranty clobber each other: both
+             * read the same snapshot, and whoever saves last silently reverts the
+             * other's image. JSON_SET edits the stored document in place, so a
+             * concurrent change to a different key survives.
+             *
+             * The path is built from REPLACEABLE_PHOTO_FIELDS, never raw input.
+             */
+            const jsonPath = field === 'invoiceFileName'
+                ? '$.invoiceFileName'
+                : `$.photos.${field}`;
+
+            /*
+             * JSON_SET silently does nothing when the PARENT path is absent —
+             * setting $.photos.vehicle on a document with no "photos" key leaves
+             * the document unchanged. Three live rows have no photos object, so
+             * the inner JSON_SET creates it first when it is missing.
+             */
+            const [result]: any = await db.execute(
+                `UPDATE warranty_registrations
+                    SET product_details = JSON_SET(
+                        JSON_SET(
+                            COALESCE(product_details, JSON_OBJECT()),
+                            '$.photos',
+                            COALESCE(JSON_EXTRACT(product_details, '$.photos'), JSON_OBJECT())
+                        ),
+                        ?, ?
+                    )
+                  WHERE id = ?`,
+                [jsonPath, newUrl, existing.id]
+            );
+
+            /*
+             * seat_cover_photo_url and car_outer_photo_url mirror two of the JSON
+             * photos. Nothing renders from them today — every screen reads
+             * product_details.photos — but they are written on submit, and 7 rows
+             * have already drifted out of step. Updating them here keeps the
+             * mirror honest instead of widening that gap.
+             */
+            const MIRRORED_COLUMNS: Record<string, string> = {
+                seatCover: 'seat_cover_photo_url',
+                carOuter: 'car_outer_photo_url',
+            };
+            const mirrorColumn = MIRRORED_COLUMNS[field];
+            if (mirrorColumn) {
+                await db.execute(
+                    `UPDATE warranty_registrations SET \`${mirrorColumn}\` = ? WHERE id = ?`,
+                    [newUrl, existing.id]
+                );
+            }
+
+            if (result.affectedRows !== 1) {
+                console.error(`[Replace Photo] Expected to update 1 row, updated ${result.affectedRows} for uid ${uid}`);
+                return res.status(500).json({ error: 'Image was not saved. Please try again.' });
+            }
+
+            const admin = (req as any).user;
+            await ActivityLogService.log({
+                adminId: admin.id,
+                adminName: admin.name,
+                adminEmail: admin.email,
+                actionType: 'WARRANTY_UPDATED',
+                targetType: 'WARRANTY',
+                targetId: uid,
+                targetName: `${existing.customer_name} (${uid})`,
+                details: {
+                    summary: `Admin replaced the ${field} image for ${existing.customer_name}`,
+                    changes: { [field]: { before: previousUrl, after: newUrl } }
+                },
+                ipAddress: req.ip || req.socket?.remoteAddress
+            });
+
+            res.json({ success: true, field, url: newUrl, message: 'Image replaced successfully' });
+
+        } catch (error: any) {
+            console.error('Replace warranty photo error:', error);
+            res.status(500).json({ error: 'Failed to replace image' });
         }
     }
 
