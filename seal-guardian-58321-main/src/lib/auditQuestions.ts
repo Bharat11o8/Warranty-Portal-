@@ -225,11 +225,12 @@ export function auditLabel(key: AuditFieldKey, value: string | null | undefined)
  *
  * Nine questions, 100 marks in total.
  *
- * Three have a defined right answer and score all-or-nothing: signage must be
- * installed AND working, warranty registration must be yes, and needing support
- * scores 0 because it means something is wrong.
+ * Four have a defined right answer and score all-or-nothing: signage must be
+ * installed AND working, warranty registration must be yes, staff must be
+ * trained or not need training, and needing support scores 0 because it means
+ * something is wrong.
  *
- * The other six score on whether the store answered at all. That is a
+ * The other five score on whether the store answered at all. That is a
  * deliberate call, not a shortcut: footfall, stock and monthly business are
  * free text, and stores type "100k", "2.5", "2.5 lakh" and "Q180" for the same
  * kind of value. Ranking those against thresholds would invent a precision the
@@ -260,7 +261,9 @@ const SCORE_RULES: Partial<Record<AuditFieldKey, ScoreRule>> = {
     seat_covers_stock:     { mode: "answered", marks: 10 },
     products_stocked:      { mode: "answered", marks: 10 },
     last_month_business:   { mode: "answered", marks: 10 },
-    staff_training:        { mode: "answered", marks: 10 },
+    // A trained team scores, and so does one that does not need training.
+    // Only an outstanding training gap loses the marks.
+    staff_training:        { mode: "expected", accept: ["already_trained", "not_required"], marks: 10 },
     warranty_registration: { mode: "expected", accept: ["yes"], marks: 15 },
     // Needing support is the negative answer here — "no issues" is what scores.
     support_needed:        { mode: "expected", accept: ["no"], marks: 15 },
