@@ -21,6 +21,8 @@ export interface VideoCompressionOptions {
     skipBelowBytes?: number;
     /** Refuse anything longer than this, rather than blocking the form for minutes. */
     maxDurationSeconds?: number;
+    /** Audio bitrate. Kept because a fault is often audible — a rattle, a whine. */
+    audioBitsPerSecond?: number;
 }
 
 const DEFAULTS: Required<VideoCompressionOptions> = {
@@ -28,6 +30,7 @@ const DEFAULTS: Required<VideoCompressionOptions> = {
     videoBitsPerSecond: 1_200_000,
     skipBelowBytes: 5 * 1024 * 1024,
     maxDurationSeconds: 180,
+    audioBitsPerSecond: 96_000,
 };
 
 export const isCompressibleVideo = (file: File): boolean => {
@@ -64,7 +67,9 @@ export const compressVideo = async (
 
     try {
         const video = document.createElement('video');
-        video.muted = true;
+        // Not muted: muting drops the audio track we need to re-record. Volume 0
+        // keeps the track live while staying silent for whoever is filling the form.
+        video.volume = 0;
         video.playsInline = true;
         video.src = url;
 
@@ -88,9 +93,26 @@ export const compressVideo = async (
         if (!ctx) return file;
 
         const stream = canvas.captureStream(24);
+
+        /*
+         * Carry the original audio across.
+         *
+         * A canvas stream is picture only, so re-encoding used to return a silent
+         * clip — and for a grievance the sound is often the evidence: a rattle, a
+         * whine, a click. captureStream() on the video element gives us the audio
+         * track; if the browser will not provide one we still get the video.
+         */
+        try {
+            const withAudio = (video as any).captureStream?.() || (video as any).mozCaptureStream?.();
+            withAudio?.getAudioTracks?.().forEach((track: MediaStreamTrack) => stream.addTrack(track));
+        } catch (audioError) {
+            console.warn('Could not carry the audio track across; sending video only', audioError);
+        }
+
         const recorder = new MediaRecorder(stream, {
             mimeType,
             videoBitsPerSecond: opts.videoBitsPerSecond,
+            ...(stream.getAudioTracks().length ? { audioBitsPerSecond: opts.audioBitsPerSecond } : {}),
         });
 
         const chunks: BlobPart[] = [];

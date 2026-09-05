@@ -9,10 +9,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Upload, Star, Send, RefreshCw, X, ImageIcon, MessageSquare, Store, FileText, HelpCircle, AlertTriangle, Clock, Shield, Car } from "lucide-react";
+import { Loader2, Upload, Star, Send, RefreshCw, X, ImageIcon, MessageSquare, Store, FileText, HelpCircle, AlertTriangle, Clock, Shield, Car, Video } from "lucide-react";
 import api, { getErrorMessage } from "@/lib/api";
 import { formatToIST, cn } from "@/lib/utils";
 import { compressImage, isCompressibleImage } from "@/lib/imageCompression";
+import { compressVideo, isCompressibleVideo, canCompressVideo } from "@/lib/videoCompression";
 
 interface Grievance {
     id: number;
@@ -334,10 +335,13 @@ const GrievancePage = () => {
         const file = e.target.files?.[0];
         if (!file) return;
 
-        const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+        // Matches the server's grievance limit. The old 5MB cap here rejected
+        // every clip a phone produces, so video was effectively impossible.
+        const MAX_FILE_SIZE = 20 * 1024 * 1024;
+        const fmt = (bytes: number) => `${(bytes / 1024 / 1024).toFixed(1)}MB`;
 
-        // Compress image if needed
         let processedFile = file;
+
         if (isCompressibleImage(file) && file.size > 1024 * 1024) { // Compress if > 1MB
             setCompressing(true);
             try {
@@ -347,14 +351,56 @@ const GrievancePage = () => {
                 // Continue with original file if compression fails
             }
             setCompressing(false);
+        } else if (isCompressibleVideo(file)) {
+            /*
+             * Phone video is routinely 30-80MB and would never have fit. Re-encode
+             * in the browser first — 720p at 1.2 Mbps keeps a fault clearly visible
+             * and keeps the audio, which is often the evidence.
+             *
+             * Re-encoding plays the clip through in real time, so tell the user
+             * what is happening rather than leaving the form looking stuck.
+             */
+            if (!canCompressVideo()) {
+                if (file.size > MAX_FILE_SIZE) {
+                    toast({
+                        title: "Video too large",
+                        description: `This browser cannot compress video, and the file is ${fmt(file.size)}. Please record a shorter clip under ${fmt(MAX_FILE_SIZE)}.`,
+                        variant: "destructive",
+                    });
+                    e.target.value = '';
+                    return;
+                }
+            } else if (file.size > 5 * 1024 * 1024) {
+                setCompressing(true);
+                toast({
+                    title: "Compressing video…",
+                    description: "This plays the clip through once, so it takes about as long as the video itself.",
+                });
+                try {
+                    processedFile = await compressVideo(file, { maxDimension: 1280 });
+                    if (processedFile.size < file.size) {
+                        toast({
+                            title: "Video compressed",
+                            description: `${fmt(file.size)} → ${fmt(processedFile.size)}`,
+                        });
+                    }
+                } catch (err) {
+                    console.error('Video compression failed:', err);
+                } finally {
+                    setCompressing(false);
+                }
+            }
         }
 
         if (processedFile.size > MAX_FILE_SIZE) {
             toast({
                 title: "File Too Large",
-                description: `${slotName} must be under 5MB`,
+                description: isCompressibleVideo(file)
+                    ? `Still ${fmt(processedFile.size)} after compressing. Please record a shorter clip — the limit is ${fmt(MAX_FILE_SIZE)}.`
+                    : `${slotName} must be under ${fmt(MAX_FILE_SIZE)}`,
                 variant: "destructive",
             });
+            e.target.value = '';
             return;
         }
 
@@ -745,10 +791,15 @@ const GrievancePage = () => {
                                             <Upload className="h-4 w-4 text-purple-500" />
                                             Attachments {selectedCategory?.requiresAttachment ? <span className="text-red-500">*</span> : <span className="text-slate-400 font-normal normal-case">(Optional)</span>}
                                         </Label>
+                                        {/* Say what is allowed up front, rather than letting
+                                            people discover it by being rejected. */}
+                                        <p className="text-[11px] text-slate-400">
+                                            Photos, video or PDF — up to 20MB each. Long videos are compressed automatically.
+                                        </p>
                                         {compressing && (
                                             <div className="flex items-center gap-2 text-sm text-orange-600 bg-orange-50 p-3 rounded-xl">
-                                                <Loader2 className="h-4 w-4 animate-spin" />
-                                                Compressing image...
+                                                <Loader2 className="h-4 w-4 animate-spin shrink-0" />
+                                                <span>Compressing… a video takes about as long as the clip itself, so please keep this page open.</span>
                                             </div>
                                         )}
                                         <div className="grid gap-3 grid-cols-3">
@@ -758,12 +809,12 @@ const GrievancePage = () => {
                                                     type="file"
                                                     id="attachment1"
                                                     className="hidden"
-                                                    accept="image/*,.pdf"
+                                                    accept="image/*,video/*,.pdf"
                                                     onChange={(e) => handleAttachmentChange(e, setAttachment1, "Attachment 1")}
                                                 />
                                                 {attachment1 ? (
                                                     <div className="flex flex-col items-center gap-1">
-                                                        <ImageIcon className="h-6 w-6 text-orange-500" />
+                                                        {isCompressibleVideo(attachment1) ? <Video className="h-6 w-6 text-orange-500" /> : <ImageIcon className="h-6 w-6 text-orange-500" />}
                                                         <span className="text-[10px] text-orange-600 font-bold truncate max-w-full text-center">{attachment1.name.length > 10 ? attachment1.name.substring(0, 10) + '...' : attachment1.name}</span>
                                                         <Button
                                                             type="button"
@@ -789,12 +840,12 @@ const GrievancePage = () => {
                                                     type="file"
                                                     id="attachment2"
                                                     className="hidden"
-                                                    accept="image/*,.pdf"
+                                                    accept="image/*,video/*,.pdf"
                                                     onChange={(e) => handleAttachmentChange(e, setAttachment2, "Attachment 2")}
                                                 />
                                                 {attachment2 ? (
                                                     <div className="flex flex-col items-center gap-1">
-                                                        <ImageIcon className="h-6 w-6 text-orange-500" />
+                                                        {isCompressibleVideo(attachment2) ? <Video className="h-6 w-6 text-orange-500" /> : <ImageIcon className="h-6 w-6 text-orange-500" />}
                                                         <span className="text-[10px] text-orange-600 font-bold truncate max-w-full text-center">{attachment2.name.length > 10 ? attachment2.name.substring(0, 10) + '...' : attachment2.name}</span>
                                                         <Button
                                                             type="button"
@@ -820,12 +871,12 @@ const GrievancePage = () => {
                                                     type="file"
                                                     id="attachment3"
                                                     className="hidden"
-                                                    accept="image/*,.pdf"
+                                                    accept="image/*,video/*,.pdf"
                                                     onChange={(e) => handleAttachmentChange(e, setAttachment3, "Attachment 3")}
                                                 />
                                                 {attachment3 ? (
                                                     <div className="flex flex-col items-center gap-1">
-                                                        <ImageIcon className="h-6 w-6 text-orange-500" />
+                                                        {isCompressibleVideo(attachment3) ? <Video className="h-6 w-6 text-orange-500" /> : <ImageIcon className="h-6 w-6 text-orange-500" />}
                                                         <span className="text-[10px] text-orange-600 font-bold truncate max-w-full text-center">{attachment3.name.length > 10 ? attachment3.name.substring(0, 10) + '...' : attachment3.name}</span>
                                                         <Button
                                                             type="button"
