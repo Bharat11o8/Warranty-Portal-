@@ -370,6 +370,8 @@ export class VendorController {
           vd.city,
           vd.state,
           vd.pincode as postal_code,
+          -- Distributors keep GST on their own table; franchises on vendor_details.
+          COALESCE(dist.gst_number, vd.gst_number) AS gst_number,
           vd.is_distributor,
           vd.is_franchise,
           CASE
@@ -408,6 +410,7 @@ export class VendorController {
           city: profile.city,
           state: profile.state,
           postal_code: profile.postal_code,
+          gst_number: profile.gst_number || null,
           is_distributor: Boolean(profile.is_distributor),
           is_franchise: profile.is_franchise === undefined ? true : Boolean(profile.is_franchise),
           allowed_brands: profile.allowed_brands || 'AF',

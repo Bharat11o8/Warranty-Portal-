@@ -7,13 +7,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { useAuth, UserRole } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
-import { User, Mail, Phone, AlertCircle, KeyRound, Store, Plus, Trash2, Users, Loader2 } from "lucide-react";
+import { User, Mail, Phone, AlertCircle, KeyRound, Store, Plus, Trash2, Users, Loader2, FileText } from "lucide-react";
 import {
   validateIndianMobile,
   cleanPhoneNumber,
   getPhoneError,
   getEmailError,
-  getPincodeError
+  getPincodeError,
+  getGstError
 } from "@/lib/validation";
 
 interface Manpower {
@@ -34,6 +35,7 @@ interface FormErrors {
   state?: string;
   city?: string;
   pincode?: string;
+  gstNumber?: string;
 }
 
 const Register = () => {
@@ -71,6 +73,7 @@ const Register = () => {
     state: "",
     city: "",
     pincode: "",
+    gstNumber: "",
   });
 
   // Handle Customer Input Change with validation
@@ -107,6 +110,13 @@ const Register = () => {
       const sanitized = value.trim().toLowerCase();
       setVendorData(prev => ({ ...prev, [name]: sanitized }));
       setErrors(prev => ({ ...prev, storeEmail: getEmailError(sanitized) }));
+    } else if (name === 'gstNumber') {
+      // GST is always uppercase; validate live so a bad one is caught at entry
+      // rather than sitting in the database (one stored value has a leading space).
+      const cleaned = value.toUpperCase().replace(/\s/g, '').slice(0, 15);
+      setVendorData(prev => ({ ...prev, gstNumber: cleaned }));
+      setErrors(prev => ({ ...prev, gstNumber: getGstError(cleaned) }));
+      return;
     } else if (name === 'pincode') {
       const cleaned = value.replace(/\D/g, '').slice(0, 6);
       setVendorData(prev => ({ ...prev, [name]: cleaned }));
@@ -208,12 +218,14 @@ const Register = () => {
       const emailError = getEmailError(vendorData.storeEmail);
       const phoneError = getPhoneError(vendorData.phoneNumber);
       const pincodeError = getPincodeError(vendorData.pincode);
+      // Empty GST returns no error — optional, so it never blocks registration.
+      const gstError = getGstError(vendorData.gstNumber);
 
-      if (emailError || phoneError || pincodeError) {
-        setErrors({ storeEmail: emailError, phoneNumber: phoneError, pincode: pincodeError });
+      if (emailError || phoneError || pincodeError || gstError) {
+        setErrors({ storeEmail: emailError, phoneNumber: phoneError, pincode: pincodeError, gstNumber: gstError });
         toast({
           title: "Validation Error",
-          description: emailError || phoneError || pincodeError,
+          description: emailError || phoneError || pincodeError || gstError,
           variant: "destructive",
         });
         return;
@@ -567,6 +579,32 @@ const Register = () => {
                         </p>
                       )}
                     </div>
+                  </div>
+
+                  {/* Optional: a store without a GST number must still be able to
+                      register, so this never blocks submission. */}
+                  <div className="space-y-2">
+                    <Label htmlFor="gstNumber" className="text-white">
+                      GST Number <span className="text-xs text-white/60">(optional, 15 characters)</span>
+                    </Label>
+                    <div className="relative">
+                      <FileText className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/40" />
+                      <Input
+                        id="gstNumber"
+                        name="gstNumber"
+                        placeholder="22AAAAA0000A1Z5"
+                        value={vendorData.gstNumber}
+                        onChange={handleVendorChange}
+                        maxLength={15}
+                        disabled={loading}
+                        className={`h-11 pl-9 font-mono tracking-wide bg-white/10 border-white/20 text-white placeholder:text-white/40 focus:bg-white/20 border ${errors.gstNumber ? 'border-red-400' : ''}`}
+                      />
+                    </div>
+                    {errors.gstNumber && (
+                      <p className="text-sm text-red-300 flex items-center gap-1">
+                        <AlertCircle className="h-3 w-3" /> {errors.gstNumber}
+                      </p>
+                    )}
                   </div>
                 </div>
 

@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
-import { Shield, Store, UserCircle, Mail, Phone, User, ArrowLeft, Download, ExternalLink, QrCode } from "lucide-react";
+import { Shield, Store, UserCircle, Mail, Phone, User, ArrowLeft, Download, ExternalLink, QrCode, FileText } from "lucide-react";
 import api, { getErrorMessage } from "@/lib/api";
 import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
@@ -24,7 +24,7 @@ const Profile = ({ embedded }: { embedded?: boolean }) => {
     const [email, setEmail] = useState(user?.email || "");
     const [phoneNumber, setPhoneNumber] = useState(user?.phoneNumber || "");
     const [saving, setSaving] = useState(false);
-    const [vendorDetails, setVendorDetails] = useState<{ store_code?: string; store_name?: string; allowed_brands?: string } | null>(null);
+    const [vendorDetails, setVendorDetails] = useState<{ store_code?: string; store_name?: string; allowed_brands?: string; gst_number?: string } | null>(null);
 
     // Fetch vendor details for QR code
     useEffect(() => {
@@ -315,6 +315,30 @@ const Profile = ({ embedded }: { embedded?: boolean }) => {
                                     Role is managed by administrators and cannot be changed
                                 </p>
                             </div>
+
+                            {/* GST number — shown to the store, edited by an admin,
+                                matching how store code and role already behave here. */}
+                            {user.role === 'vendor' && (
+                                <div className="space-y-2">
+                                    <Label htmlFor="gst">GST Number</Label>
+                                    <div className="relative">
+                                        <FileText className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+                                        <Input
+                                            id="gst"
+                                            type="text"
+                                            value={vendorDetails?.gst_number || ""}
+                                            placeholder="Not provided"
+                                            disabled
+                                            className="pl-11 h-12 bg-muted cursor-not-allowed rounded-xl font-mono tracking-wide"
+                                        />
+                                    </div>
+                                    <p className="text-xs text-muted-foreground">
+                                        {vendorDetails?.gst_number
+                                            ? "Contact your administrator to update this"
+                                            : "Ask your administrator to add your GST number"}
+                                    </p>
+                                </div>
+                            )}
 
                             {user.role === 'vendor' ? (
                                 <div className="p-4 mt-6 bg-orange-50/50 border border-orange-200 rounded-xl text-orange-800 text-sm text-center font-medium">

@@ -762,19 +762,26 @@ export const AdminVendorDetails = ({ vendor: initialVendor, onBack, isDistributo
                             </div>
                         </div>
 
-                        {isDistributorsView && (
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                <div className="space-y-2">
-                                    <Label htmlFor="gst_number">GST Number</Label>
-                                    <Input
-                                        id="gst_number"
-                                        className="font-mono uppercase"
-                                        maxLength={15}
-                                        placeholder="e.g. 22AAAAA0000A1Z5"
-                                        value={editProfileForm.gst_number}
-                                        onChange={(e) => setEditProfileForm({ ...editProfileForm, gst_number: e.target.value.toUpperCase() })}
-                                    />
-                                </div>
+                        {/* GST applies to franchises and distributors alike; Area Head is
+                            a distributor-only field, so they no longer share a block. */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                                <Label htmlFor="gst_number">GST Number</Label>
+                                <Input
+                                    id="gst_number"
+                                    className="font-mono uppercase"
+                                    maxLength={15}
+                                    placeholder="e.g. 22AAAAA0000A1Z5"
+                                    value={editProfileForm.gst_number}
+                                    onChange={(e) => setEditProfileForm({ ...editProfileForm, gst_number: e.target.value.toUpperCase() })}
+                                />
+                                {editProfileForm.gst_number && editProfileForm.gst_number.length !== 15 && (
+                                    <p className="text-xs text-amber-600">
+                                        A GST number is 15 characters — this one has {editProfileForm.gst_number.length}.
+                                    </p>
+                                )}
+                            </div>
+                            {isDistributorsView && (
                                 <div className="space-y-2">
                                     <Label htmlFor="area_head_name">Area Head Name</Label>
                                     <Input
@@ -783,8 +790,8 @@ export const AdminVendorDetails = ({ vendor: initialVendor, onBack, isDistributo
                                         onChange={(e) => setEditProfileForm({ ...editProfileForm, area_head_name: e.target.value })}
                                     />
                                 </div>
-                            </div>
-                        )}
+                            )}
+                        </div>
                     </div>
                     <div className="flex justify-end gap-3">
                         <Button variant="outline" onClick={() => setIsEditProfileOpen(false)}>Cancel</Button>
@@ -821,17 +828,15 @@ export const AdminVendorDetails = ({ vendor: initialVendor, onBack, isDistributo
                             <span className="text-xs uppercase font-semibold tracking-wider text-slate-500 mb-1">Pincode</span>
                             <span className="font-medium text-slate-800">{vendor.pincode || 'Not set'}</span>
                         </div>
+                        <div className="bg-slate-50 p-4 rounded-lg border border-slate-100 flex flex-col">
+                            <span className="text-xs uppercase font-semibold tracking-wider text-slate-500 mb-1">GST Number</span>
+                            <span className="font-medium text-slate-800 font-mono">{vendor.gst_number || 'Not set'}</span>
+                        </div>
                         {isDistributorsView && (
-                            <>
-                                <div className="bg-slate-50 p-4 rounded-lg border border-slate-100 flex flex-col">
-                                    <span className="text-xs uppercase font-semibold tracking-wider text-slate-500 mb-1">GST Number</span>
-                                    <span className="font-medium text-slate-800 font-mono">{vendor.gst_number || 'Not set'}</span>
-                                </div>
-                                <div className="bg-slate-50 p-4 rounded-lg border border-slate-100 flex flex-col">
-                                    <span className="text-xs uppercase font-semibold tracking-wider text-slate-500 mb-1">Area Head</span>
-                                    <span className="font-medium text-slate-800">{vendor.area_head_name || 'Not set'}</span>
-                                </div>
-                            </>
+                            <div className="bg-slate-50 p-4 rounded-lg border border-slate-100 flex flex-col">
+                                <span className="text-xs uppercase font-semibold tracking-wider text-slate-500 mb-1">Area Head</span>
+                                <span className="font-medium text-slate-800">{vendor.area_head_name || 'Not set'}</span>
+                            </div>
                         )}
                     </div>
                 </CardContent>

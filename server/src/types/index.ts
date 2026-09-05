@@ -26,6 +26,7 @@ export interface RegisterData {
   state?: string;
   city?: string;
   pincode?: string;
+  gstNumber?: string;
   manpower?: ManpowerData[];
 }
 

@@ -105,6 +105,30 @@ export const getPincodeError = (pincode: string): string => {
 };
 
 // ============================================
+// GST NUMBER VALIDATION
+// ============================================
+
+/**
+ * Indian GSTIN: 2-digit state code, 10-character PAN, entity digit, 'Z', checksum.
+ * e.g. 22AAAAA0000A1Z5
+ */
+export const GST_REGEX = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/;
+
+/**
+ * Get validation error message for a GST number.
+ *
+ * Empty is valid — GST is optional, and a store without one must still be able
+ * to register.
+ */
+export const getGstError = (gst: string): string => {
+    if (!gst || !gst.trim()) return '';
+    const value = gst.trim().toUpperCase();
+    if (value.length !== 15) return `GST number must be 15 characters (this one has ${value.length})`;
+    if (!GST_REGEX.test(value)) return 'That does not look like a valid GST number';
+    return '';
+};
+
+// ============================================
 // INDIAN VEHICLE REGISTRATION VALIDATION
 // ============================================
 // Supports: Standard (4W/2W), BH Series, Temporary, Diplomatic, Defense plates

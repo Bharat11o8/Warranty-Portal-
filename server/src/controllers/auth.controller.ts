@@ -70,11 +70,13 @@ export class AuthController {
     try {
       let {
         name, email, phoneNumber, role,
-        storeName, address, state, city, pincode, manpower
+        storeName, address, state, city, pincode, gstNumber, manpower
       }: RegisterData = req.body;
 
       // SBP-DB: Trim string lengths to prevent database overflow (Data Too Long) edge cases
       name = name?.substring(0, 100);
+      // Optional at signup — a store without a GST number can still register.
+      gstNumber = gstNumber ? String(gstNumber).trim().toUpperCase().substring(0, 20) : undefined;
       email = email?.substring(0, 100);
       storeName = storeName?.substring(0, 255);
       city = city?.substring(0, 100);
@@ -155,8 +157,8 @@ export class AuthController {
       // Insert into pending_registrations table
       await db.execute(
         `INSERT INTO pending_registrations 
-         (id, name, email, phone_number, role, store_name, store_email, address, state, city, pincode, manpower_data, expires_at) 
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         (id, name, email, phone_number, role, store_name, store_email, address, state, city, pincode, gst_number, manpower_data, expires_at) 
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           pendingId,
           name,
@@ -169,6 +171,7 @@ export class AuthController {
           role === 'vendor' ? state : null,
           role === 'vendor' ? city : null,
           role === 'vendor' ? pincode : null,
+          role === 'vendor' ? (gstNumber || null) : null,
           manpowerJson,
           expiresAt
         ]
@@ -390,9 +393,9 @@ export class AuthController {
             const vendorDetailsId = uuidv4();
             await connection.execute(
               `INSERT INTO vendor_details 
-               (id, user_id, store_name, store_email, address, state, city, pincode) 
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-              [vendorDetailsId, newUserId, pending.store_name, pending.store_email, pending.address, pending.state, pending.city, pending.pincode]
+               (id, user_id, store_name, store_email, address, state, city, pincode, gst_number) 
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+              [vendorDetailsId, newUserId, pending.store_name, pending.store_email, pending.address, pending.state, pending.city, pending.pincode, pending.gst_number || null]
             );
 
             // Insert manpower details if any
