@@ -5,7 +5,9 @@ import { Badge } from "@/components/ui/badge";
 import {
     Loader2, ClipboardCheck, MessageCircle, Phone, ChevronDown, ChevronUp, Clock, CheckCircle2
 } from "lucide-react";
-import { AUDIT_QUESTIONS, AUDIT_SECTIONS, auditLabel, type AuditFieldKey } from "@/lib/auditQuestions";
+import {
+    AUDIT_QUESTIONS, AUDIT_SECTIONS, auditLabel, scoreAudit, BAND_META, type AuditFieldKey
+} from "@/lib/auditQuestions";
 
 /**
  * The store's own audit history.
@@ -147,7 +149,19 @@ export const FranchiseAudits = () => {
                                         </div>
                                     </div>
                                     <div className="flex items-center gap-2 shrink-0">
-                                        <Badge variant="secondary" className="bg-emerald-50 text-emerald-700 border-emerald-200 text-[10px] font-black uppercase">
+                                        {(() => {
+                                            const sc = scoreAudit(a);
+                                            return (
+                                                <span
+                                                    title={`${sc.earned} of ${sc.total}`}
+                                                    className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-[11px] font-black tabular-nums ${BAND_META[sc.band].cls}`}
+                                                >
+                                                    <span className={`h-1.5 w-1.5 rounded-full ${BAND_META[sc.band].dot}`} />
+                                                    {sc.earned}/{sc.total}
+                                                </span>
+                                            );
+                                        })()}
+                                        <Badge variant="secondary" className="hidden sm:inline-flex bg-emerald-50 text-emerald-700 border-emerald-200 text-[10px] font-black uppercase">
                                             Submitted
                                         </Badge>
                                         {open
@@ -158,6 +172,41 @@ export const FranchiseAudits = () => {
 
                                 {open && (
                                     <div className="border-t border-slate-100 p-5 space-y-5 bg-slate-50/40">
+                                        {/* What the score was, and which answers cost marks — a store
+                                            asking "why 70?" should not have to work it out. */}
+                                        {(() => {
+                                            const sc = scoreAudit(a);
+                                            const lost = sc.breakdown.filter(b => b.earned < b.marks);
+                                            return (
+                                                <div className={`rounded-2xl border p-4 ${BAND_META[sc.band].cls}`}>
+                                                    <p className="text-[10px] font-black uppercase tracking-widest opacity-70">
+                                                        Your score
+                                                    </p>
+                                                    <p className="text-3xl font-black tabular-nums leading-tight mt-1">
+                                                        {sc.earned}<span className="text-lg opacity-50"> / {sc.total}</span>
+                                                    </p>
+                                                    {lost.length > 0 ? (
+                                                        <div className="mt-3">
+                                                            <p className="text-[11px] font-bold opacity-75 mb-1.5">
+                                                                Marks lost on:
+                                                            </p>
+                                                            <div className="flex flex-wrap gap-1.5">
+                                                                {lost.map(b => (
+                                                                    <span key={b.key} className="text-[10px] font-bold bg-white/70 rounded px-1.5 py-0.5">
+                                                                        {b.label} 0/{b.marks}
+                                                                    </span>
+                                                                ))}
+                                                            </div>
+                                                        </div>
+                                                    ) : (
+                                                        <p className="text-[12px] font-bold opacity-80 mt-2">
+                                                            Full marks on every question.
+                                                        </p>
+                                                    )}
+                                                </div>
+                                            );
+                                        })()}
+
                                         {AUDIT_SECTIONS.map(section => {
                                             const qs = AUDIT_QUESTIONS.filter(q => q.section === section);
                                             // Only what this store actually answered.

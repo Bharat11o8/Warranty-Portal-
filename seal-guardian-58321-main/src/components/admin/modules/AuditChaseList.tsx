@@ -140,17 +140,19 @@ export const AuditChaseList = ({ roundId, responded, refreshKey = 0, onAudit }: 
             </div>
 
             <div className="rounded-2xl border border-slate-100 overflow-hidden">
-                <div className="overflow-x-auto">
+                {/* Hundreds of stores can owe an audit, so the list scrolls in its own
+                    box rather than running the page on, and the header stays visible. */}
+                <div className="overflow-auto max-h-[calc(100vh-360px)] min-h-[280px]">
                     <table className="w-full text-sm">
-                        <thead className="bg-slate-50/70">
+                        <thead>
                             <tr className="text-left text-[10px] font-black uppercase tracking-wider text-slate-400">
-                                <th className="p-4">Store</th>
-                                <th className="p-4">City</th>
-                                <th className="p-4">Contact</th>
-                                <th className="p-4">Phone</th>
-                                <th className="p-4">Audit sent</th>
-                                <th className="p-4">{responded === "no" ? "Status" : "Responded"}</th>
-                                <th className="p-4"><span className="sr-only">Actions</span></th>
+                                <th className="sticky top-0 z-10 bg-slate-50 p-4">Store</th>
+                                <th className="sticky top-0 z-10 bg-slate-50 p-4">City</th>
+                                <th className="sticky top-0 z-10 bg-slate-50 p-4">Contact</th>
+                                <th className="sticky top-0 z-10 bg-slate-50 p-4">Phone</th>
+                                <th className="sticky top-0 z-10 bg-slate-50 p-4">Audit sent</th>
+                                <th className="sticky top-0 z-10 bg-slate-50 p-4">{responded === "no" ? "Status" : "Responded"}</th>
+                                <th className="sticky top-0 z-10 bg-slate-50 p-4"><span className="sr-only">Actions</span></th>
                             </tr>
                         </thead>
                         <tbody>

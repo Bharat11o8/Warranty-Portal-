@@ -219,3 +219,151 @@ export function auditLabel(key: AuditFieldKey, value: string | null | undefined)
         .map(v => q.options!.find(o => o.id === v)?.title || v)
         .join(", ");
 }
+
+/* ------------------------------------------------------------------ *
+ * Scoring
+ *
+ * Nine questions, 100 marks in total.
+ *
+ * Three have a defined right answer and score all-or-nothing: signage must be
+ * installed AND working, warranty registration must be yes, and needing support
+ * scores 0 because it means something is wrong.
+ *
+ * The other six score on whether the store answered at all. That is a
+ * deliberate call, not a shortcut: footfall, stock and monthly business are
+ * free text, and stores type "100k", "2.5", "2.5 lakh" and "Q180" for the same
+ * kind of value. Ranking those against thresholds would invent a precision the
+ * data does not have, so an answer earns the marks and a blank does not.
+ * ------------------------------------------------------------------ */
+
+/**
+ * How one question earns its marks.
+ *
+ * `answered`  — any non-empty answer scores full marks.
+ * `expected`  — only the listed option ids score; anything else is 0.
+ */
+type ScoreRule =
+    | { mode: "answered"; marks: number }
+    | { mode: "expected"; accept: string[]; marks: number };
+
+/**
+ * Seven questions at 10, and the two that matter most at 15 — 100 in total.
+ *
+ * Warranty registration and support carry the extra weight because they are the
+ * two answers the business acts on: a store not registering warranties, or one
+ * sitting on an unresolved issue, is worth more than a missing footfall figure.
+ */
+const SCORE_RULES: Partial<Record<AuditFieldKey, ScoreRule>> = {
+    signage_status:        { mode: "expected", accept: ["installed_working"], marks: 10 },
+    online_presence:       { mode: "answered", marks: 10 },
+    footfall:              { mode: "answered", marks: 10 },
+    seat_covers_stock:     { mode: "answered", marks: 10 },
+    products_stocked:      { mode: "answered", marks: 10 },
+    last_month_business:   { mode: "answered", marks: 10 },
+    staff_training:        { mode: "answered", marks: 10 },
+    warranty_registration: { mode: "expected", accept: ["yes"], marks: 15 },
+    // Needing support is the negative answer here — "no issues" is what scores.
+    support_needed:        { mode: "expected", accept: ["no"], marks: 15 },
+};
+
+/** Derived, so changing a rule above can never leave the total out of step. */
+export const AUDIT_TOTAL_MARKS = Object.values(SCORE_RULES)
+    .reduce((sum, rule) => sum + (rule?.marks ?? 0), 0);
+
+/** The scored questions, in the order they are asked. */
+export const SCORED_KEYS = AUDIT_QUESTIONS
+    .filter(q => q.key in SCORE_RULES)
+    .map(q => q.key);
+
+export interface QuestionScore {
+    key: AuditFieldKey;
+    label: string;
+    /** What the store answered, already mapped to titles. */
+    answer: string;
+    earned: number;
+    marks: number;
+    /** False when nothing was answered, so the UI can say so rather than imply a wrong answer. */
+    answered: boolean;
+}
+
+export interface AuditScore {
+    earned: number;
+    total: number;
+    percent: number;
+    band: "excellent" | "good" | "fair" | "poor";
+    breakdown: QuestionScore[];
+    /** Questions left blank — the reason a score is low is usually here. */
+    unanswered: number;
+}
+
+/**
+ * Bands for the whole audit.
+ *
+ * Colour only, deliberately — the score is shown as a number and nothing else.
+ * A word like "Poor" against a store's own audit reads as a judgement, and the
+ * marks already say what the marks say.
+ */
+export function scoreBand(percent: number): AuditScore["band"] {
+    if (percent >= 80) return "excellent";
+    if (percent >= 60) return "good";
+    if (percent >= 40) return "fair";
+    return "poor";
+}
+
+export const BAND_META: Record<AuditScore["band"], { cls: string; dot: string }> = {
+    excellent: { cls: "bg-emerald-50 text-emerald-700 border-emerald-200", dot: "bg-emerald-500" },
+    good:      { cls: "bg-blue-50 text-blue-700 border-blue-200",          dot: "bg-blue-500" },
+    fair:      { cls: "bg-amber-50 text-amber-700 border-amber-200",       dot: "bg-amber-500" },
+    poor:      { cls: "bg-rose-50 text-rose-700 border-rose-200",          dot: "bg-rose-500" },
+};
+
+/** True when a stored value counts as an answer at all. */
+function hasAnswer(value: unknown): boolean {
+    if (value === null || value === undefined) return false;
+    return String(value).trim() !== "";
+}
+
+/**
+ * Score one audit row.
+ *
+ * Takes anything with the answer fields on it, so the same function serves the
+ * admin table, the franchise page and the call form preview.
+ */
+export function scoreAudit(row: Record<string, any>): AuditScore {
+    const breakdown: QuestionScore[] = [];
+    let earned = 0;
+    let unanswered = 0;
+
+    for (const question of AUDIT_QUESTIONS) {
+        const rule = SCORE_RULES[question.key];
+        if (!rule) continue;
+
+        const raw = row[question.key];
+        const answered = hasAnswer(raw);
+        if (!answered) unanswered++;
+
+        let got = 0;
+        if (answered) {
+            if (rule.mode === "answered") {
+                got = rule.marks;
+            } else {
+                // Multi-selects arrive comma-joined, so accept a match on any part.
+                const parts = String(raw).split(",").map(v => v.trim().toLowerCase()).filter(Boolean);
+                got = parts.some(p => rule.accept.includes(p)) ? rule.marks : 0;
+            }
+        }
+
+        earned += got;
+        breakdown.push({
+            key: question.key,
+            label: question.label,
+            answer: answered ? auditLabel(question.key, String(raw)) : "",
+            earned: got,
+            marks: rule.marks,
+            answered,
+        });
+    }
+
+    const percent = Math.round((earned / AUDIT_TOTAL_MARKS) * 100);
+    return { earned, total: AUDIT_TOTAL_MARKS, percent, band: scoreBand(percent), breakdown, unanswered };
+}

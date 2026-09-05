@@ -18,7 +18,10 @@ import {
     AlertTriangle, CheckCircle2, Flag, Phone, MessageCircle, Plus, SlidersHorizontal, FileSpreadsheet, Trash2
 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { AUDIT_QUESTIONS, AUDIT_SECTIONS, AUDIT_FLOW, auditLabel, type AuditFieldKey } from "@/lib/auditQuestions";
+import {
+    AUDIT_QUESTIONS, AUDIT_SECTIONS, AUDIT_FLOW, auditLabel, scoreAudit, BAND_META,
+    AUDIT_TOTAL_MARKS, type AuditFieldKey
+} from "@/lib/auditQuestions";
 import { AuditCallForm } from "./AuditCallForm";
 
 /**
@@ -312,6 +315,8 @@ export const AdminAudits = () => {
                 "Source": a.channel === "call" ? "Call" : "WhatsApp",
                 "Audit By": a.audited_by_name || "Store (self)",
                 "Status": STATUS_META[a.review_status]?.label || a.review_status,
+                "Score": scoreAudit(a).earned,
+                "Score %": scoreAudit(a).percent,
                 ...Object.fromEntries(
                     AUDIT_QUESTIONS.map(q => [q.label, auditLabel(q.key, a[q.key] as string)])
                 ),
@@ -610,15 +615,24 @@ export const AdminAudits = () => {
                 /* Horizontal scroll is confined to this container, so the page body
                    never scrolls sideways however many question columns exist. */
                 <div className="border border-slate-200 rounded-xl overflow-hidden bg-white">
-                    <div className="overflow-x-auto">
+                    {/* Both axes scroll inside this box, so a long list never takes the
+                        page with it and the header stays put while reading down. */}
+                    <div className="overflow-auto max-h-[calc(100vh-320px)] min-h-[300px]">
                         <table className="w-full border-collapse text-sm">
                             <thead>
                                 <tr className="bg-slate-50 border-b border-slate-200">
-                                    <th className="sticky left-0 z-10 bg-slate-50 text-left p-3 font-black text-[10px] uppercase tracking-wider text-slate-500 min-w-[200px] border-r border-slate-200">
+                                    {/* z-30: above both the pinned first column (z-20) and the body. */}
+                                    <th className="sticky left-0 top-0 z-30 bg-slate-50 text-left p-3 font-black text-[10px] uppercase tracking-wider text-slate-500 min-w-[200px] border-r border-slate-200">
                                         Store Name
                                     </th>
+                                    <th
+                                        title={`Audit score out of ${AUDIT_TOTAL_MARKS}`}
+                                        className="sticky top-0 z-20 bg-slate-50 text-left p-3 font-black text-[10px] uppercase tracking-wider text-slate-500 whitespace-nowrap"
+                                    >
+                                        Score
+                                    </th>
                                     {META_COLS.map(h => (
-                                        <th key={h} className="text-left p-3 font-black text-[10px] uppercase tracking-wider text-slate-500 whitespace-nowrap">
+                                        <th key={h} className="sticky top-0 z-20 bg-slate-50 text-left p-3 font-black text-[10px] uppercase tracking-wider text-slate-500 whitespace-nowrap">
                                             {h}
                                         </th>
                                     ))}
@@ -626,12 +640,12 @@ export const AdminAudits = () => {
                                         <th
                                             key={q.key}
                                             title={q.question}
-                                            className="text-left p-3 font-black text-[10px] uppercase tracking-wider text-slate-500 whitespace-nowrap min-w-[140px]"
+                                            className="sticky top-0 z-20 bg-slate-50 text-left p-3 font-black text-[10px] uppercase tracking-wider text-slate-500 whitespace-nowrap min-w-[140px]"
                                         >
                                             {q.label}
                                         </th>
                                     ))}
-                                    <th className="text-left p-3 font-black text-[10px] uppercase tracking-wider text-slate-500 whitespace-nowrap">
+                                    <th className="sticky top-0 z-20 bg-slate-50 text-left p-3 font-black text-[10px] uppercase tracking-wider text-slate-500 whitespace-nowrap">
                                         Status
                                     </th>
                                 </tr>
@@ -641,9 +655,11 @@ export const AdminAudits = () => {
                                     <tr
                                         key={a.id}
                                         onClick={() => { setSelected(a); setNote(a.review_note || ""); }}
-                                        className="border-b border-slate-100 hover:bg-orange-50/40 cursor-pointer transition-colors"
+                                        className="group border-b border-slate-100 hover:bg-orange-50/40 cursor-pointer transition-colors"
                                     >
-                                        <td className="sticky left-0 z-10 bg-white p-3 border-r border-slate-200 min-w-[200px]">
+                                        {/* Opaque so scrolled columns pass behind it — which means the
+                                            row hover has to be repainted here to match. */}
+                                        <td className="sticky left-0 z-20 bg-white group-hover:bg-orange-50 transition-colors p-3 border-r border-slate-200 min-w-[200px]">
                                             <div className="font-bold text-slate-800 truncate max-w-[220px]">
                                                 {a.store_name || a.franchise_name || "Unknown store"}
                                             </div>
@@ -674,6 +690,20 @@ export const AdminAudits = () => {
                                                     )
                                                 )}
                                             </div>
+                                        </td>
+                                        <td className="p-3 whitespace-nowrap">
+                                            {(() => {
+                                                const s = scoreAudit(a);
+                                                return (
+                                                    <span
+                                                        title={`${s.earned} of ${s.total}`}
+                                                        className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md border text-[11px] font-black tabular-nums ${BAND_META[s.band].cls}`}
+                                                    >
+                                                        <span className={`h-1.5 w-1.5 rounded-full ${BAND_META[s.band].dot}`} />
+                                                        {s.earned}
+                                                    </span>
+                                                );
+                                            })()}
                                         </td>
                                         <td className="p-3 whitespace-nowrap text-[12px] text-slate-500 tabular-nums">{fmtDate(a.submitted_at)}</td>
                                         <td className="p-3 whitespace-nowrap text-[12px] text-slate-600">{a.contact_person || "—"}</td>
@@ -778,6 +808,48 @@ export const AdminAudits = () => {
                     </DialogHeader>
 
                     <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4 space-y-4">
+                        {/* The score first: it is the summary the rest of the dialog explains. */}
+                        {selected && (() => {
+                            const sc = scoreAudit(selected);
+                            return (
+                                <div className={`rounded-xl border p-4 ${BAND_META[sc.band].cls}`}>
+                                    <div className="flex items-center justify-between gap-4">
+                                        <div>
+                                            <p className="text-[10px] font-black uppercase tracking-wider opacity-70">
+                                                Audit score
+                                            </p>
+                                            <p className="text-2xl font-black tabular-nums leading-tight mt-0.5">
+                                                {sc.earned}
+                                                <span className="text-base opacity-50"> / {sc.total}</span>
+                                            </p>
+                                        </div>
+                                        {sc.unanswered > 0 && (
+                                            <p className="text-[11px] opacity-70 text-right">
+                                                {sc.unanswered} question{sc.unanswered > 1 ? "s" : ""} not answered
+                                            </p>
+                                        )}
+                                    </div>
+                                    {/* Where the marks were lost, without opening every section. */}
+                                    <div className="flex flex-wrap gap-1.5 mt-3">
+                                        {sc.breakdown.filter(b => b.earned < b.marks).map(b => (
+                                            <span
+                                                key={b.key}
+                                                title={b.answered ? b.answer : "Not answered"}
+                                                className="text-[10px] font-bold bg-white/70 rounded px-1.5 py-0.5"
+                                            >
+                                                {b.label} 0/{b.marks}
+                                            </span>
+                                        ))}
+                                        {sc.earned === sc.total && (
+                                            <span className="text-[11px] font-bold opacity-80">
+                                                Full marks on every question.
+                                            </span>
+                                        )}
+                                    </div>
+                                </div>
+                            );
+                        })()}
+
                         {selected && AUDIT_SECTIONS.map(section => (
                             <div key={section}>
                                 <p className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-2">
@@ -786,12 +858,21 @@ export const AdminAudits = () => {
                                 <div className="space-y-2">
                                     {AUDIT_QUESTIONS.filter(q => q.section === section).map(q => {
                                         const value = selected[q.key] as string | null;
+                                        const mark = scoreAudit(selected).breakdown.find(b => b.key === q.key);
                                         return (
-                                            <div key={q.key} className="flex gap-3 text-sm">
+                                            <div key={q.key} className="flex gap-3 text-sm items-start">
                                                 <span className="w-1/2 shrink-0 text-slate-500">{q.question}</span>
                                                 <span className={`flex-1 font-semibold ${value ? "text-slate-800" : "text-slate-300 italic"}`}>
                                                     {value ? auditLabel(q.key, value) : "Not answered"}
                                                 </span>
+                                                {/* Only scored questions carry marks; the follow-ups do not. */}
+                                                {mark && (
+                                                    <span className={`shrink-0 text-[11px] font-black tabular-nums ${
+                                                        mark.earned === mark.marks ? "text-emerald-600" : "text-rose-500"
+                                                    }`}>
+                                                        {mark.earned}/{mark.marks}
+                                                    </span>
+                                                )}
                                             </div>
                                         );
                                     })}
