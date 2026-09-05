@@ -356,7 +356,12 @@ const FranchiseDashboard = () => {
                 applicatorType: data.type
             });
             if (response.data.success) {
-                toast({ title: "Manpower Added" });
+                // The server says "awaiting admin approval" — pass that through, since
+                // a bare "Added" reads as done and the member is not selectable yet.
+                toast({
+                    title: "Added — awaiting approval",
+                    description: response.data.message || "An admin needs to approve this member before they can be picked on a warranty form."
+                });
                 setManpowerList([...manpowerList, response.data.manpower]);
                 return true;
             }
@@ -377,7 +382,7 @@ const FranchiseDashboard = () => {
                 applicatorType: data.type
             });
             if (response.data.success) {
-                toast({ title: "Manpower Updated" });
+                toast({ title: "Manpower Updated", description: response.data.message });
                 setManpowerList(manpowerList.map(m => m.id === id ? response.data.manpower : m));
                 setEditingId(null);
                 return true;
