@@ -452,6 +452,51 @@ export const AdminVendorDetails = ({ vendor: initialVendor, onBack, isDistributo
 
     // Bring an Ex-Team member back onto the roster. They return as pending so
     // they're re-verified before becoming selectable again.
+    /**
+     * Approve or decline a store's request to remove a staff member.
+     *
+     * Previously this could only be done from the standalone Manpower module, so
+     * an admin looking at the franchise itself saw no sign a request was waiting.
+     * Same endpoint, so reviewing from either place does the same thing.
+     */
+    const handleRemovalReview = async (member: any, approve: boolean) => {
+        let note = "";
+        if (!approve) {
+            const reason = window.prompt(`Why are you declining the removal of ${member.name}? (optional)`);
+            if (reason === null) return;   // cancelled
+            note = reason;
+        } else if (!window.confirm(`Approve removal of ${member.name}? They will move to Ex-Team.`)) {
+            return;
+        }
+
+        setApprovingManpowerId(member.id);
+        try {
+            const res = await api.put(`/admin/manpower/${member.id}/removal-review`, { approve, note });
+            if (res.data.success) {
+                toast({
+                    title: approve ? 'Removal Approved' : 'Removal Declined',
+                    description: res.data.message,
+                });
+                setVendor((prev: any) => ({
+                    ...prev,
+                    manpower: (prev.manpower || []).map((m: any) =>
+                        m.id === member.id
+                            ? { ...m, is_active: approve ? 0 : m.is_active, request_status: approve ? 'approved' : 'rejected' }
+                            : m
+                    )
+                }));
+            }
+        } catch (error: any) {
+            toast({
+                title: 'Review Failed',
+                description: getErrorMessage(error, 'Could not review the removal request'),
+                variant: 'destructive',
+            });
+        } finally {
+            setApprovingManpowerId(null);
+        }
+    };
+
     const handleRestoreManpower = async (member: any) => {
         setApprovingManpowerId(member.id);
         try {
@@ -1298,16 +1343,54 @@ export const AdminVendorDetails = ({ vendor: initialVendor, onBack, isDistributo
                                                                             Pending Approval
                                                                         </span>
                                                                     )}
+                                                                    {member.request_status === 'pending' && member.request_type === 'remove' && (
+                                                                        <span
+                                                                            title={member.request_reason ? `Reason: ${member.request_reason}` : undefined}
+                                                                            className="text-[10px] font-black uppercase tracking-wider bg-rose-100 text-rose-700 border border-rose-200 px-2 py-0.5 rounded-full"
+                                                                        >
+                                                                            Removal Requested
+                                                                        </span>
+                                                                    )}
                                                                 </div>
                                                                 <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground mt-1">
                                                                     <span className="font-mono bg-white border px-1.5 py-0.5 rounded">{member.phone_number}</span>
                                                                     <span>•</span>
                                                                     <span className="capitalize">{member.applicator_type?.replace('_', ' ')}</span>
                                                                 </div>
+                                                                {member.request_status === 'pending' && member.request_type === 'remove' && member.request_reason && (
+                                                                    <p className="text-xs text-rose-600/90 mt-1 italic">
+                                                                        Reason given: {member.request_reason}
+                                                                    </p>
+                                                                )}
                                                             </div>
                                                         </div>
 
                                                         <div className="flex items-center gap-2">
+                                                            {/* A removal request is the decision that matters most on this
+                                                                row, so it leads and replaces the usual approve/revoke pair. */}
+                                                            {member.request_status === 'pending' && member.request_type === 'remove' && (
+                                                                <>
+                                                                    <Button
+                                                                        size="sm"
+                                                                        variant="outline"
+                                                                        disabled={approvingManpowerId === member.id}
+                                                                        onClick={() => handleRemovalReview(member, false)}
+                                                                        className="h-7 text-xs"
+                                                                    >
+                                                                        Decline
+                                                                    </Button>
+                                                                    <Button
+                                                                        size="sm"
+                                                                        disabled={approvingManpowerId === member.id}
+                                                                        onClick={() => handleRemovalReview(member, true)}
+                                                                        className="h-7 text-xs bg-rose-600 hover:bg-rose-700"
+                                                                    >
+                                                                        {approvingManpowerId === member.id
+                                                                            ? <Loader2 className="h-3 w-3 animate-spin" />
+                                                                            : 'Approve Removal'}
+                                                                    </Button>
+                                                                </>
+                                                            )}
                                                             {/* Ex-Team members can be brought back; they return as pending. */}
                                                             {!Boolean(member.is_active) && (
                                                                 <Button
@@ -1322,8 +1405,9 @@ export const AdminVendorDetails = ({ vendor: initialVendor, onBack, isDistributo
                                                                         : 'Restore'}
                                                                 </Button>
                                                             )}
-                                                            {/* Approve / revoke — only meaningful while the member is on the team */}
-                                                            {Boolean(member.is_active) && (
+                                                            {/* Approve / revoke — only while the member is on the team, and not
+                                                                while a removal request is waiting: that decision comes first. */}
+                                                            {Boolean(member.is_active) && !(member.request_status === 'pending' && member.request_type === 'remove') && (
                                                                 Boolean(member.is_approved) ? (
                                                                     <Button
                                                                         size="sm"
