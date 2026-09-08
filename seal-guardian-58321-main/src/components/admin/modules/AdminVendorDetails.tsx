@@ -23,7 +23,7 @@ import {
     PaginationNext,
     PaginationPrevious,
 } from "@/components/ui/pagination";
-import { downloadCSV, formatToIST, cn } from "@/lib/utils";
+import { downloadCSV, formatToIST, cn, getWarrantyExpiration } from "@/lib/utils";
 import api, { getErrorMessage } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 
@@ -1735,18 +1735,70 @@ export const AdminVendorDetails = ({ vendor: initialVendor, onBack, isDistributo
                         {manpowerWarrantyDialogData.warranties.length === 0 ? (
                             <p className="text-center text-slate-500">No warranties found.</p>
                         ) : (
-                            manpowerWarrantyDialogData.warranties.map((w: any) => (
-                                <div key={w.id} className="flex justify-between items-start p-3 border rounded-lg bg-slate-50">
-                                    <div>
-                                        <p className="font-semibold">{w.customer_name}</p>
-                                        <p className="text-xs text-slate-500">{w.car_make} {w.car_model} - {w.product_type}</p>
-                                        <p className="text-xs font-mono text-slate-400 mt-1">UID: {w.uid}</p>
+                            manpowerWarrantyDialogData.warranties.map((w: any) => {
+                                /* Purchase and expiry are dates, not moments — formatToIST
+                                   would append a "12:00 am" that was never recorded. */
+                                const asDay = (d: string | Date | null | undefined) =>
+                                    d ? new Date(d).toLocaleDateString('en-IN', {
+                                        timeZone: 'Asia/Kolkata', day: 'numeric', month: 'short', year: 'numeric'
+                                    }) : '';
+
+                                // The product the customer actually bought lives in the JSON;
+                                // product_type is only the broad category.
+                                let productName = '';
+                                try {
+                                    const pd = typeof w.product_details === 'string'
+                                        ? JSON.parse(w.product_details || '{}')
+                                        : (w.product_details || {});
+                                    productName = pd.productName || pd.product || '';
+                                } catch { /* leave blank rather than break the row */ }
+
+                                const { expirationDate, isExpired } = getWarrantyExpiration(
+                                    w.created_at, w.warranty_type, w.purchase_date
+                                );
+                                // Approved and rejected are the same column in spirit — whichever
+                                // happened is the date this warranty was actioned.
+                                const actionedAt = w.validated_at || w.rejected_at || w.vendor_approved_at;
+                                const actionedLabel = w.validated_at
+                                    ? 'Approved'
+                                    : w.rejected_at ? 'Action required' : 'Vendor approved';
+
+                                return (
+                                    <div key={w.id} className="flex justify-between items-start gap-4 p-3 border rounded-lg bg-slate-50">
+                                        <div className="min-w-0">
+                                            <p className="font-semibold">{w.customer_name}</p>
+                                            <p className="text-xs text-slate-500">{w.car_make} {w.car_model} - {w.product_type}</p>
+                                            <p className="text-xs font-mono text-slate-400 mt-1">UID: {w.uid}</p>
+                                            {productName && (
+                                                <p className="text-xs text-slate-600 font-medium mt-0.5">
+                                                    {productName}
+                                                    {w.warranty_type && <span className="text-slate-400 font-normal"> · {w.warranty_type}</span>}
+                                                </p>
+                                            )}
+                                        </div>
+                                        <div className="text-right shrink-0 space-y-1">
+                                            <Badge>{formatToIST(w.created_at)}</Badge>
+                                            <div className="text-[11px] text-slate-500 space-y-0.5">
+                                                {w.purchase_date && (
+                                                    <p>Purchased: <span className="text-slate-700">{asDay(w.purchase_date)}</span></p>
+                                                )}
+                                                {actionedAt && (
+                                                    <p>{actionedLabel}: <span className="text-slate-700">{formatToIST(actionedAt)}</span></p>
+                                                )}
+                                                {expirationDate && (
+                                                    <p>
+                                                        Expires:{' '}
+                                                        <span className={isExpired ? 'text-rose-600 font-semibold' : 'text-slate-700'}>
+                                                            {asDay(expirationDate)}
+                                                        </span>
+                                                        {isExpired && <span className="text-rose-600 font-semibold"> (expired)</span>}
+                                                    </p>
+                                                )}
+                                            </div>
+                                        </div>
                                     </div>
-                                    <div className="text-right">
-                                        <Badge>{formatToIST(w.created_at)}</Badge>
-                                    </div>
-                                </div>
-                            ))
+                                );
+                            })
                         )}
                     </div>
                 </DialogContent>
