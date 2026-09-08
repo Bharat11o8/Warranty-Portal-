@@ -64,10 +64,33 @@ export const AdminManpower = () => {
         rows: any[]; loading: boolean;
     }>({ open: false, member: null, status: 'validated', rows: [], loading: false });
 
+    const [updatingId, setUpdatingId] = useState<string | null>(null);
+    const [refreshing, setRefreshing] = useState(false);
+    const [view, setView] = useState<"leaderboard" | "byFranchise">("leaderboard");
+
+    // Period filter — narrows the warranty tallies (the leaderboard numbers).
+    // The staff roster itself is always shown in full.
+    type Period = "all" | "year" | "month" | "week" | "custom";
+    const now = new Date();
+    const [period, setPeriod] = useState<Period>("all");
+    /* 308 of 381 members are the auto-created store owner, and they hold the top
+       of the leaderboard — so real staff are invisible until they can be
+       separated out. */
+    const [ownerScope, setOwnerScope] = useState<"all" | "staff" | "owners">("all");
+    const [year, setYear] = useState(String(now.getFullYear()));
+    const [month, setMonth] = useState(String(now.getMonth() + 1));
+    const [startDate, setStartDate] = useState("");
+    const [endDate, setEndDate] = useState("");
+
     const showWarranties = async (member: ManpowerRow, status: 'validated' | 'pending' | 'rejected') => {
         setWarrantyDialog({ open: true, member, status, rows: [], loading: true });
         try {
-            const res = await api.get(`/vendor/manpower/${member.id}/warranties`, { params: { status } });
+            // Carry the period through, so the list matches the count that was clicked.
+            const params: Record<string, string> = { status, period };
+            if (period === "year") params.year = year;
+            if (period === "month") { params.year = year; params.month = month; }
+            if (period === "custom") { params.startDate = startDate; params.endDate = endDate; }
+            const res = await api.get(`/vendor/manpower/${member.id}/warranties`, { params });
             setWarrantyDialog(prev => ({ ...prev, rows: res.data.warranties || [], loading: false }));
         } catch (error: any) {
             toast({
@@ -78,19 +101,6 @@ export const AdminManpower = () => {
             setWarrantyDialog(prev => ({ ...prev, loading: false }));
         }
     };
-    const [updatingId, setUpdatingId] = useState<string | null>(null);
-    const [refreshing, setRefreshing] = useState(false);
-    const [view, setView] = useState<"leaderboard" | "byFranchise">("leaderboard");
-
-    // Period filter — narrows the warranty tallies (the leaderboard numbers).
-    // The staff roster itself is always shown in full.
-    type Period = "all" | "year" | "month" | "week" | "custom";
-    const now = new Date();
-    const [period, setPeriod] = useState<Period>("all");
-    const [year, setYear] = useState(String(now.getFullYear()));
-    const [month, setMonth] = useState(String(now.getMonth() + 1));
-    const [startDate, setStartDate] = useState("");
-    const [endDate, setEndDate] = useState("");
 
     // silent = keep the list on screen and spin the Refresh icon instead of
     // swapping the whole panel for a loader.
@@ -192,11 +202,16 @@ export const AdminManpower = () => {
     // Staff currently in scope: the whole roster on the leaderboard, or just the
     // selected franchise's team. The status tabs count from THIS, so their numbers
     // always describe what you're actually looking at.
-    const scopedManpower = useMemo(() => (
-        view === "byFranchise" && selectedStore
+    const isOwnerRow = (m: ManpowerRow) => String(m.manpower_id || "").startsWith("owner-");
+
+    const scopedManpower = useMemo(() => {
+        const base = view === "byFranchise" && selectedStore
             ? manpower.filter(m => m.vendor_details_id === selectedStore)
-            : manpower
-    ), [manpower, view, selectedStore]);
+            : manpower;
+        if (ownerScope === "staff") return base.filter(m => !isOwnerRow(m));
+        if (ownerScope === "owners") return base.filter(isOwnerRow);
+        return base;
+    }, [manpower, view, selectedStore, ownerScope]);
 
     const scopedCounts = useMemo(() => ({
         all: scopedManpower.length,
@@ -598,6 +613,19 @@ export const AdminManpower = () => {
                                         />
                                     </div>
                                 )}
+
+                                {/* Owners hold most of the leaderboard, so being able to set
+                                    them aside is what makes real staff numbers readable. */}
+                                <select
+                                    value={ownerScope}
+                                    onChange={e => setOwnerScope(e.target.value as typeof ownerScope)}
+                                    title="Store owners are created automatically for every franchise"
+                                    className="h-8 rounded-lg border border-slate-200 bg-white px-2 text-[11px] font-bold text-slate-700"
+                                >
+                                    <option value="all">Everyone</option>
+                                    <option value="staff">Staff only (no owners)</option>
+                                    <option value="owners">Owners only</option>
+                                </select>
 
                                 <span className="ml-auto text-[11px] font-semibold text-slate-400 tabular-nums">
                                     {visibleMembers.length} shown

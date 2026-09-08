@@ -979,6 +979,13 @@ export class VendorController {
       const userId = (req as any).user?.id;
       const { manpowerId } = req.params;
       const { status } = req.query; // 'validated', 'pending', 'rejected', or 'all'
+      // Same period vocabulary the manpower leaderboard uses, so opening a count
+      // shows the warranties that count was actually describing.
+      const period = (req.query.period as string) || 'all';
+      const year = req.query.year as string;
+      const month = req.query.month as string;
+      const startDate = req.query.startDate as string;
+      const endDate = req.query.endDate as string;
 
       if (!userId) {
         return res.status(401).json({ error: 'User not authenticated' });
@@ -1029,6 +1036,20 @@ export class VendorController {
           whereClause += ' AND w.status = ?';
           params.push(status);
         }
+      }
+
+      // Mirrors getAllManpower's date clause, so the list and the tally agree.
+      if (period === 'year') {
+        whereClause += ' AND YEAR(w.created_at) = ?';
+        params.push(year || String(new Date().getFullYear()));
+      } else if (period === 'month') {
+        whereClause += ' AND YEAR(w.created_at) = ? AND MONTH(w.created_at) = ?';
+        params.push(year || String(new Date().getFullYear()), month || String(new Date().getMonth() + 1));
+      } else if (period === 'week') {
+        whereClause += ' AND DATE(w.created_at) >= DATE_SUB(CURDATE(), INTERVAL 6 DAY)';
+      } else if (period === 'custom' && startDate && endDate) {
+        whereClause += ' AND DATE(w.created_at) >= ? AND DATE(w.created_at) <= ?';
+        params.push(startDate, endDate);
       }
 
       // Fetch warranties for this manpower
