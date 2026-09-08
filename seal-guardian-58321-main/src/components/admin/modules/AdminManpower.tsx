@@ -5,7 +5,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { downloadCSV } from "@/lib/utils";
+import { downloadCSV, formatToIST, getWarrantyExpiration } from "@/lib/utils";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
     Search, Users, Loader2, Store, Clock, CheckCircle2,
     Trophy, Download, Phone, ChevronRight, RefreshCw, CalendarDays, X
@@ -38,6 +39,13 @@ interface ManpowerRow {
     request_review_note: string | null;
 }
 
+/** Dialog wording per status — "rejected" is called Action Required in the UI. */
+const STATUS_WORDING: Record<'validated' | 'pending' | 'rejected', string> = {
+    validated: 'Approved',
+    pending: 'Pending',
+    rejected: 'Action required',
+};
+
 export const AdminManpower = () => {
     const { toast } = useToast();
     const [manpower, setManpower] = useState<ManpowerRow[]>([]);
@@ -46,6 +54,30 @@ export const AdminManpower = () => {
     const [memberSearch, setMemberSearch] = useState("");
     const [selectedStore, setSelectedStore] = useState<string | null>(null);
     const [statusFilter, setStatusFilter] = useState<"all" | "approved" | "pending" | "removalRequests" | "inactive">("all");
+
+    /* Warranty breakdown, opened from the count badges.
+       The franchise tab can filter an already-loaded list because it holds one
+       store; this module spans every store, so the rows are fetched per member. */
+    const [warrantyDialog, setWarrantyDialog] = useState<{
+        open: boolean; member: ManpowerRow | null;
+        status: 'validated' | 'pending' | 'rejected';
+        rows: any[]; loading: boolean;
+    }>({ open: false, member: null, status: 'validated', rows: [], loading: false });
+
+    const showWarranties = async (member: ManpowerRow, status: 'validated' | 'pending' | 'rejected') => {
+        setWarrantyDialog({ open: true, member, status, rows: [], loading: true });
+        try {
+            const res = await api.get(`/vendor/manpower/${member.id}/warranties`, { params: { status } });
+            setWarrantyDialog(prev => ({ ...prev, rows: res.data.warranties || [], loading: false }));
+        } catch (error: any) {
+            toast({
+                title: "Could not load warranties",
+                description: getErrorMessage(error, "Please try again"),
+                variant: "destructive",
+            });
+            setWarrantyDialog(prev => ({ ...prev, loading: false }));
+        }
+    };
     const [updatingId, setUpdatingId] = useState<string | null>(null);
     const [refreshing, setRefreshing] = useState(false);
     const [view, setView] = useState<"leaderboard" | "byFranchise">("leaderboard");
@@ -632,16 +664,35 @@ export const AdminManpower = () => {
                                     </div>
 
                                     <div className="flex items-center gap-2 shrink-0">
+                                        {/* Clickable: the count is the question, the list is the answer. */}
                                         <div className="flex gap-1.5">
-                                            <span className="px-2 py-1 rounded-lg bg-emerald-50 text-emerald-700 text-[11px] font-bold" title="Approved warranties">
+                                            <button
+                                                type="button"
+                                                disabled={!m.points}
+                                                onClick={() => showWarranties(m, 'validated')}
+                                                title={m.points ? "View approved warranties" : "No approved warranties"}
+                                                className="px-2 py-1 rounded-lg bg-emerald-50 text-emerald-700 text-[11px] font-bold enabled:hover:bg-emerald-100 enabled:cursor-pointer disabled:opacity-50 transition-colors"
+                                            >
                                                 {m.points}
-                                            </span>
-                                            <span className="px-2 py-1 rounded-lg bg-amber-50 text-amber-700 text-[11px] font-bold" title="Pending warranties">
+                                            </button>
+                                            <button
+                                                type="button"
+                                                disabled={!m.pending_points}
+                                                onClick={() => showWarranties(m, 'pending')}
+                                                title={m.pending_points ? "View pending warranties" : "No pending warranties"}
+                                                className="px-2 py-1 rounded-lg bg-amber-50 text-amber-700 text-[11px] font-bold enabled:hover:bg-amber-100 enabled:cursor-pointer disabled:opacity-50 transition-colors"
+                                            >
                                                 {m.pending_points}
-                                            </span>
-                                            <span className="px-2 py-1 rounded-lg bg-red-50 text-red-600 text-[11px] font-bold" title="Rejected warranties">
+                                            </button>
+                                            <button
+                                                type="button"
+                                                disabled={!m.rejected_points}
+                                                onClick={() => showWarranties(m, 'rejected')}
+                                                title={m.rejected_points ? "View action-required warranties" : "None needing action"}
+                                                className="px-2 py-1 rounded-lg bg-red-50 text-red-600 text-[11px] font-bold enabled:hover:bg-red-100 enabled:cursor-pointer disabled:opacity-50 transition-colors"
+                                            >
                                                 {m.rejected_points}
-                                            </span>
+                                            </button>
                                         </div>
 
                                         {hasPendingRemoval(m) ? (
@@ -692,6 +743,85 @@ export const AdminManpower = () => {
                     </Card>
                 </div>
             </div>
+
+            {/* Same row format as the franchise tab, so a warranty reads the
+                same wherever it is opened from. */}
+            <Dialog
+                open={warrantyDialog.open}
+                onOpenChange={open => setWarrantyDialog(prev => ({ ...prev, open }))}
+            >
+                <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
+                    <DialogHeader>
+                        <DialogTitle>
+                            {warrantyDialog.member?.name} — {STATUS_WORDING[warrantyDialog.status]} warranties
+                        </DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4 pt-4">
+                        {warrantyDialog.loading ? (
+                            <div className="flex items-center justify-center gap-2 py-10 text-slate-400">
+                                <Loader2 className="h-4 w-4 animate-spin" /> Loading…
+                            </div>
+                        ) : warrantyDialog.rows.length === 0 ? (
+                            <p className="text-center text-slate-500 py-8">No warranties found.</p>
+                        ) : (
+                            warrantyDialog.rows.map((w: any) => {
+                                const asDay = (d: string | Date | null | undefined) =>
+                                    d ? new Date(d).toLocaleDateString('en-IN', {
+                                        timeZone: 'Asia/Kolkata', day: 'numeric', month: 'short', year: 'numeric'
+                                    }) : '';
+
+                                // product_type is the category; the product bought is in the JSON.
+                                const pd = w.product_details || {};
+                                const productName = pd.productName || pd.product || '';
+
+                                const { expirationDate, isExpired } = getWarrantyExpiration(
+                                    w.created_at, w.warranty_type, w.purchase_date
+                                );
+                                const actionedAt = w.validated_at || w.rejected_at || w.vendor_approved_at;
+                                const actionedLabel = w.validated_at
+                                    ? 'Approved'
+                                    : w.rejected_at ? 'Action required' : 'Vendor approved';
+
+                                return (
+                                    <div key={w.id} className="flex justify-between items-start gap-4 p-3 border rounded-lg bg-slate-50">
+                                        <div className="min-w-0">
+                                            <p className="font-semibold">{w.customer_name}</p>
+                                            <p className="text-xs text-slate-500">{w.car_make} {w.car_model} - {w.product_type}</p>
+                                            <p className="text-xs font-mono text-slate-400 mt-1">UID: {w.uid}</p>
+                                            {productName && (
+                                                <p className="text-xs text-slate-600 font-medium mt-0.5">
+                                                    {productName}
+                                                    {w.warranty_type && <span className="text-slate-400 font-normal"> · {w.warranty_type}</span>}
+                                                </p>
+                                            )}
+                                        </div>
+                                        <div className="text-right shrink-0 space-y-1">
+                                            <Badge>{formatToIST(w.created_at)}</Badge>
+                                            <div className="text-[11px] text-slate-500 space-y-0.5">
+                                                {w.purchase_date && (
+                                                    <p>Purchased: <span className="text-slate-700">{asDay(w.purchase_date)}</span></p>
+                                                )}
+                                                {actionedAt && (
+                                                    <p>{actionedLabel}: <span className="text-slate-700">{formatToIST(actionedAt)}</span></p>
+                                                )}
+                                                {expirationDate && (
+                                                    <p>
+                                                        Expires:{' '}
+                                                        <span className={isExpired ? 'text-rose-600 font-semibold' : 'text-slate-700'}>
+                                                            {asDay(expirationDate)}
+                                                        </span>
+                                                        {isExpired && <span className="text-rose-600 font-semibold"> (expired)</span>}
+                                                    </p>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            })
+                        )}
+                    </div>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 };

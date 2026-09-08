@@ -984,23 +984,35 @@ export class VendorController {
         return res.status(401).json({ error: 'User not authenticated' });
       }
 
-      // Get vendor details id to ensure ownership
-      const [vendorDetails]: any = await db.execute(
-        'SELECT id FROM vendor_details WHERE user_id = ?',
-        [userId]
-      );
+      /*
+       * The route admits admins, but this used to resolve the caller's own
+       * vendor_details row — which an admin does not have — so every admin
+       * request 404'd. A store stays scoped to its own team; an admin may read
+       * any member's warranties, the same split restoreManpower uses.
+       */
+      const isAdmin = (req as any).user?.role === 'admin';
 
-      if (vendorDetails.length === 0) {
-        return res.status(404).json({ error: 'Vendor details not found' });
+      let manpowerCheck: any;
+      if (isAdmin) {
+        [manpowerCheck] = await db.execute(
+          'SELECT id, name FROM manpower WHERE id = ?',
+          [manpowerId]
+        );
+      } else {
+        const [vendorDetails]: any = await db.execute(
+          'SELECT id FROM vendor_details WHERE user_id = ?',
+          [userId]
+        );
+
+        if (vendorDetails.length === 0) {
+          return res.status(404).json({ error: 'Vendor details not found' });
+        }
+
+        [manpowerCheck] = await db.execute(
+          'SELECT id, name FROM manpower WHERE id = ? AND vendor_id = ?',
+          [manpowerId, vendorDetails[0].id]
+        );
       }
-
-      const vendorId = vendorDetails[0].id;
-
-      // Verify manpower belongs to this vendor
-      const [manpowerCheck]: any = await db.execute(
-        'SELECT id, name FROM manpower WHERE id = ? AND vendor_id = ?',
-        [manpowerId, vendorId]
-      );
 
       if (manpowerCheck.length === 0) {
         return res.status(403).json({ error: 'Unauthorized access to manpower' });
