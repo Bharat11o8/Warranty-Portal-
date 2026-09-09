@@ -30,6 +30,7 @@ import posmRoutes from './routes/posm.routes.js';
 import uidRoutes from './routes/uid.routes.js';
 import orderRoutes from './routes/order.routes.js';
 import webhookRoutes from './routes/webhook.routes.js';
+import asmRoutes from './routes/asm.routes.js';
 import { AssignmentSchedulerService } from './services/assignment-scheduler.service.js';
 import { WarrantyReminderScheduler } from './services/warrantyReminder.service.js';
 import { startAnalyticsRepairSchedule } from './services/analyticsEvents.service.js';
@@ -340,6 +341,7 @@ app.use('/api/orders', generalApiLimiter, orderRoutes);
 
 // Webhook routes (no rate limiting — Interakt needs reliable delivery)
 app.use('/api/webhooks', webhookRoutes);
+app.use('/api/asm', generalApiLimiter, asmRoutes);
 
 // ===========================================
 // ERROR HANDLING

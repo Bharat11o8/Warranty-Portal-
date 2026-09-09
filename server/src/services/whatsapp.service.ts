@@ -537,6 +537,41 @@ export class WhatsAppService {
      *   {{8}} = Warranty Type
      *   {{9}} = Rejection Reason
      */
+    /**
+     * Tell an ASM about a customer enquiry in their area.
+     *
+     * The enquiry reaches us from two places — a customer messaging us directly,
+     * or an Instagram ad form — but the message out is identical, because by
+     * this point all that matters is the area and who covers it.
+     */
+    static async sendAsmEnquiry(
+        phone: string,
+        asmName: string,
+        customerName: string,
+        customerPhone: string,
+        area: string,
+        receivedAt: string
+    ): Promise<boolean> {
+        const titleCase = (s: string) =>
+            String(s || '')
+                .toLowerCase()
+                .replace(/[a-z]/g, ch => ch.toUpperCase());
+
+        return this.sendTemplateMessage(
+            phone,
+            'af_asm_enquiry',
+            [
+                titleCase(area),
+                titleCase(customerName) || 'Not provided',
+                customerPhone,
+                titleCase(area),
+                receivedAt,
+            ],
+            'asm_enquiry',
+            customerPhone
+        );
+    }
+
     static async sendWarrantyRejectedCustomer(
         phone: string,
         customerName: string,
