@@ -17,6 +17,7 @@ const AdminWarranties = lazy(() => import("../modules/AdminWarranties").then(({ 
 const AdminVendors = lazy(() => import("../modules/AdminVendors").then(({ AdminVendors }) => ({ default: AdminVendors })));
 const AdminDistributors = lazy(() => import("../modules/AdminDistributors").then(({ AdminDistributors }) => ({ default: AdminDistributors })));
 const AdminManpower = lazy(() => import("../modules/AdminManpower").then(({ AdminManpower }) => ({ default: AdminManpower })));
+const AdminLeadManagement = lazy(() => import("../modules/AdminLeadManagement").then(({ AdminLeadManagement }) => ({ default: AdminLeadManagement })));
 const AdminCustomers = lazy(() => import("../modules/AdminCustomers").then(({ AdminCustomers }) => ({ default: AdminCustomers })));
 const AdminAdmins = lazy(() => import("../modules/AdminAdmins").then(({ AdminAdmins }) => ({ default: AdminAdmins })));
 const AdminActivityLogs = lazy(() => import("../modules/AdminActivityLogs").then(({ AdminActivityLogs }) => ({ default: AdminActivityLogs })));
@@ -98,6 +99,8 @@ export const AdminLayout = () => {
                 return <AdminFranchiseDistributorMap />;
             case 'audits':
                 return <AdminAudits />;
+            case 'leads':
+                return <AdminLeadManagement />;
             case 'posm':
                 return <AdminPOSM />;
             case 'uid-management':
@@ -137,6 +140,7 @@ export const AdminLayout = () => {
             'order-management': 'B2B Order Hierarchy',
             'franchise-distributor-map': 'Franchise Sourcing Map',
             'audits': 'Audit & Compliance',
+            'leads': 'Lead Management',
             'profile': 'My Profile'
         };
         return titles[activeModule];
