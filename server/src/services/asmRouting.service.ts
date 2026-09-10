@@ -83,29 +83,58 @@ export interface RouteResult {
 /**
  * Find the ASM for an area.
  *
- * Exact key match only. A fuzzy match that silently picks the wrong ASM is
- * worse than no match: the customer is told someone will call, and the wrong
- * person is chasing them. An unmatched area surfaces in the admin queue, which
- * is a problem someone can actually fix.
+ * Tries the whole string first, then each word within it. People write their
+ * location as they speak it — "Rohini, Delhi", "Andheri Mumbai" — and only the
+ * wider part of that is ever mapped, so matching the whole string alone would
+ * turn a perfectly clear answer into an unmatched lead.
+ *
+ * A word only matches if it IS a mapped area, so this cannot invent a match:
+ * "Rohini" hits nothing, "Delhi" hits Gunjan, and a location naming no mapped
+ * area still lands in the unmatched queue where someone can fix it.
+ *
+ * Longer words are tried first, so "New Delhi" beats "Delhi" when both are
+ * mapped to different people — the more specific mapping should win.
  */
 async function findAsmForArea(area: string) {
-    const key = areaKey(area);
-    if (!key) return null;
+    const whole = areaKey(area);
+    if (!whole) return null;
 
-    const [rows]: any = await db.execute(
-        `SELECT a.id, a.name, a.phone_number, a.is_active, ar.area_label
-           FROM asm_areas ar
-           JOIN asms a ON a.id = ar.asm_id
-          WHERE ar.area_key = ?
-          LIMIT 1`,
-        [key]
-    );
-    if (!rows.length) return null;
+    const candidates = [whole];
 
-    // A deactivated ASM should not be messaged, but the area is still "known" —
-    // recorded as unmatched so it shows up as a gap needing reassignment.
-    if (!rows[0].is_active) return null;
-    return rows[0];
+    // Multi-word locations: try the parts too, longest first.
+    const words = String(area)
+        .split(/[^A-Za-z0-9]+/)
+        .map(w => areaKey(w))
+        .filter(w => w.length > 2 && w !== whole)
+        .sort((a, b) => b.length - a.length);
+
+    // Adjacent pairs catch "New Delhi" inside "Rohini New Delhi".
+    const raw = String(area).split(/[^A-Za-z0-9]+/).filter(Boolean);
+    for (let i = 0; i < raw.length - 1; i++) {
+        const pair = areaKey(raw[i] + raw[i + 1]);
+        if (pair && pair !== whole) candidates.push(pair);
+    }
+    candidates.push(...words);
+
+    for (const key of [...new Set(candidates)]) {
+        const [rows]: any = await db.execute(
+            `SELECT a.id, a.name, a.phone_number, a.is_active, ar.area_label
+               FROM asm_areas ar
+               JOIN asms a ON a.id = ar.asm_id
+              WHERE ar.area_key = ?
+              LIMIT 1`,
+            [key]
+        );
+        if (!rows.length) continue;
+
+        // A deactivated ASM should not be messaged, but the area is still
+        // "known" — recorded as unmatched so it shows as a gap to reassign.
+        if (!rows[0].is_active) return null;
+
+        if (key !== whole) console.log(`[ASM] "${area}" matched on "${rows[0].area_label}"`);
+        return rows[0];
+    }
+    return null;
 }
 
 /**
