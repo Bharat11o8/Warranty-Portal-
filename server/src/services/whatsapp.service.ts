@@ -551,7 +551,8 @@ export class WhatsAppService {
         customerPhone: string,
         area: string,
         receivedAt: string,
-        product?: string | null
+        product?: string | null,
+        car?: string | null
     ): Promise<boolean> {
         const titleCase = (s: string) =>
             String(s || '')
@@ -577,6 +578,7 @@ export class WhatsAppService {
                   titleCase(customerName) || 'Not provided',
                   customerPhone,
                   product || 'Not specified',
+                  car || 'Not specified',
                   label,
                   receivedAt,
               ]

@@ -19,7 +19,7 @@ export class AsmController {
      * never costs us the webhook. Routing continues regardless.
      */
     static async routeEnquiryWebhook(req: Request, res: Response) {
-        const { area, phone, name, product, source, flow_id, fallbackArea, dryRun } = req.body || {};
+        const { area, phone, name, product, car, source, flow_id, fallbackArea, dryRun } = req.body || {};
 
         if (!phone || !area) {
             return res.status(400).json({ error: 'phone and area are required' });
@@ -30,6 +30,7 @@ export class AsmController {
             phone: String(phone),
             name: name ? String(name) : null,
             product: product ? String(product) : null,
+            car: car ? String(car) : null,
             source: source ? String(source) : 'whatsapp',
             flowId: flow_id ? String(flow_id) : null,
             fallbackArea: fallbackArea ? String(fallbackArea) : null,
@@ -58,6 +59,7 @@ export class AsmController {
             asm_phone: result?.asm?.phone_number || '',
             area: result?.matchedArea || String(area),
             product: result?.product || '',
+            car: result?.car || '',
         });
     }
 
@@ -222,13 +224,18 @@ export class AsmController {
 
     static async listLeads(req: Request, res: Response) {
         try {
-            const { status, source, asm_id, product, limit } = req.query as Record<string, string>;
+            const { status, source, asm_id, product, q, limit } = req.query as Record<string, string>;
             const where: string[] = [];
             const params: any[] = [];
             if (status) { where.push('l.status = ?'); params.push(status); }
             if (source) { where.push('l.source = ?'); params.push(source); }
             if (asm_id) { where.push('l.asm_id = ?'); params.push(asm_id); }
             if (product) { where.push('l.product = ?'); params.push(product); }
+            if (q) {
+                where.push('(l.customer_phone LIKE ? OR l.customer_name LIKE ? OR l.raw_area LIKE ? OR l.car_model LIKE ?)');
+                const like = `%${q}%`;
+                params.push(like, like, like, like);
+            }
 
             const [rows]: any = await db.execute(
                 `SELECT l.*, a.name AS asm_name, a.phone_number AS asm_phone

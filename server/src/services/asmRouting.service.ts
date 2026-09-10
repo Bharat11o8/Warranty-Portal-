@@ -113,6 +113,8 @@ export interface EnquiryInput {
     name?: string | null;
     /** Which line they asked about, however they said it. Normalised below. */
     product?: string | null;
+    /** The customer's car, as they typed it. Kept verbatim — free text. */
+    car?: string | null;
     /** Match and report, but send nothing. For checking routing safely. */
     dryRun?: boolean;
     /** 'whatsapp' | 'instagram' — where the enquiry came from. */
@@ -130,6 +132,7 @@ export interface RouteResult {
     asm?: { id: string; name: string; phone_number: string };
     matchedArea?: string;
     product?: Product | null;
+    car?: string | null;
 }
 
 /**
@@ -274,6 +277,8 @@ export async function routeEnquiry(input: EnquiryInput): Promise<RouteResult> {
     const rawArea = String(input.area || '').trim();
     const source = input.source || 'whatsapp';
     const product = normaliseProduct(input.product);
+    // Kept as typed: a car model is not a closed set, and trimming is enough.
+    const car = String(input.car || '').trim().slice(0, 80) || null;
 
     /*
      * Try the specific area first, then the wider one. A customer in Jaipur
@@ -294,6 +299,7 @@ export async function routeEnquiry(input: EnquiryInput): Promise<RouteResult> {
         leadId,
         source,
         product,
+        car,
         input.name || null,
         phone,
         phoneKey(phone),
@@ -305,13 +311,13 @@ export async function routeEnquiry(input: EnquiryInput): Promise<RouteResult> {
     if (!asm) {
         await db.execute(
             `INSERT INTO leads
-               (id, source, product, customer_name, customer_phone, phone_key,
-                raw_area, flow_id, raw_payload, status)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'unmatched')`,
+               (id, source, product, car_model, customer_name, customer_phone,
+                phone_key, raw_area, flow_id, raw_payload, status)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'unmatched')`,
             baseRow
         );
         console.log(`[ASM] no ASM covers "${rawArea}" — lead ${leadId} queued as unmatched`);
-        return { leadId, status: 'unmatched', product };
+        return { leadId, status: 'unmatched', product, car };
     }
 
     /*
@@ -332,10 +338,10 @@ export async function routeEnquiry(input: EnquiryInput): Promise<RouteResult> {
     if (recent.length) {
         await db.execute(
             `INSERT INTO leads
-               (id, source, product, customer_name, customer_phone, phone_key,
-                raw_area, flow_id, raw_payload, matched_area, asm_id, status,
-                failure_reason)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'duplicate', ?)`,
+               (id, source, product, car_model, customer_name, customer_phone,
+                phone_key, raw_area, flow_id, raw_payload, matched_area, asm_id,
+                status, failure_reason)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'duplicate', ?)`,
             [...baseRow, asm.area_label || rawArea, asm.id,
              `Repeat within ${DUPLICATE_WINDOW_MINUTES} minutes — not re-sent`]
         );
@@ -345,6 +351,7 @@ export async function routeEnquiry(input: EnquiryInput): Promise<RouteResult> {
             asm: { id: asm.id, name: asm.name, phone_number: asm.phone_number },
             matchedArea: asm.area_label || rawArea,
             product,
+            car,
         };
     }
 
@@ -357,6 +364,7 @@ export async function routeEnquiry(input: EnquiryInput): Promise<RouteResult> {
             asm: { id: asm.id, name: asm.name, phone_number: asm.phone_number },
             matchedArea: asm.area_label || rawArea,
             product,
+            car,
         };
     }
 
@@ -374,7 +382,8 @@ export async function routeEnquiry(input: EnquiryInput): Promise<RouteResult> {
             phone,
             asm.area_label || rawArea,
             receivedAt,
-            product
+            product,
+            car
         );
     } catch (err: any) {
         // Swallowed deliberately — the lead is still recorded below, and a lost
@@ -384,10 +393,10 @@ export async function routeEnquiry(input: EnquiryInput): Promise<RouteResult> {
 
     await db.execute(
         `INSERT INTO leads
-           (id, source, product, customer_name, customer_phone, phone_key,
-            raw_area, flow_id, raw_payload, matched_area, asm_id, status,
-            sent_at, failure_reason)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+           (id, source, product, car_model, customer_name, customer_phone,
+            phone_key, raw_area, flow_id, raw_payload, matched_area, asm_id,
+            status, sent_at, failure_reason)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
             ...baseRow,
             asm.area_label || rawArea,
@@ -408,5 +417,6 @@ export async function routeEnquiry(input: EnquiryInput): Promise<RouteResult> {
         asm: { id: asm.id, name: asm.name, phone_number: asm.phone_number },
         matchedArea: asm.area_label || rawArea,
         product,
+        car,
     };
 }

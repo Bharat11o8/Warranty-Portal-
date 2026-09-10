@@ -9,9 +9,11 @@ import { Badge } from "@/components/ui/badge";
 import {
     Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle
 } from "@/components/ui/dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { AdminLeadsList } from "./AdminLeadsList";
 import {
     Loader2, Plus, Trash2, Search, MapPin, Phone, UserRound,
-    RefreshCw, X, AlertTriangle, Power
+    RefreshCw, X, AlertTriangle, Power, Inbox
 } from "lucide-react";
 
 /**
@@ -248,21 +250,35 @@ export const AdminLeadManagement = () => {
 
     return (
         <div className="space-y-5">
-            <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                    <h2 className="text-2xl font-black tracking-tight text-slate-800 uppercase">Lead Management</h2>
-                    <p className="text-sm text-slate-500 mt-1">
-                        ASMs and the areas they cover. An enquiry is forwarded to whoever owns its area.
-                    </p>
-                </div>
-                <div className="flex items-center gap-2">
-                    <Button variant="outline" size="sm" onClick={() => fetchAll(true)} disabled={refreshing}>
-                        <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
-                    </Button>
-                    <Button size="sm" onClick={openAdd} className="bg-orange-500 hover:bg-orange-600">
-                        <Plus className="h-4 w-4 mr-1.5" /> Add ASM
-                    </Button>
-                </div>
+            <div>
+                <h2 className="text-2xl font-black tracking-tight text-slate-800 uppercase">Lead Management</h2>
+                <p className="text-sm text-slate-500 mt-1">
+                    Enquiries received, and the ASMs and areas they are routed by.
+                </p>
+            </div>
+
+            <Tabs defaultValue="enquiries" className="space-y-5">
+                <TabsList className="bg-slate-100 rounded-xl p-1">
+                    <TabsTrigger value="enquiries" className="rounded-lg text-xs font-black uppercase gap-1.5">
+                        <Inbox className="h-3.5 w-3.5" /> Enquiries
+                    </TabsTrigger>
+                    <TabsTrigger value="asms" className="rounded-lg text-xs font-black uppercase gap-1.5">
+                        <UserRound className="h-3.5 w-3.5" /> ASMs &amp; Areas
+                    </TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="enquiries" className="space-y-5 mt-0">
+                    <AdminLeadsList />
+                </TabsContent>
+
+                <TabsContent value="asms" className="space-y-5 mt-0">
+            <div className="flex flex-wrap items-center justify-end gap-2">
+                <Button variant="outline" size="sm" onClick={() => fetchAll(true)} disabled={refreshing}>
+                    <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
+                </Button>
+                <Button size="sm" onClick={openAdd} className="bg-orange-500 hover:bg-orange-600">
+                    <Plus className="h-4 w-4 mr-1.5" /> Add ASM
+                </Button>
             </div>
 
             {/* Coverage at a glance — an area nobody covers is the thing that
@@ -397,6 +413,9 @@ export const AdminLeadManagement = () => {
                     })}
                 </div>
             )}
+
+                </TabsContent>
+            </Tabs>
 
             {/* Add / edit ASM */}
             <Dialog open={asmDialogOpen} onOpenChange={setAsmDialogOpen}>
