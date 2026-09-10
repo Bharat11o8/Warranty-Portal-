@@ -8,28 +8,51 @@ export class AsmController {
     /**
      * Called by the Interakt workflow when a customer has given their area.
      *
-     * Answers immediately and routes afterwards. Interakt requires a 200 within
-     * three seconds and disables the webhook after five failures in ten minutes,
-     * so the WhatsApp send must never sit inside the response.
+     * Returns the matched ASM so the workflow can name them in its own closing
+     * message. That message is then an ordinary reply inside the 24-hour window
+     * rather than a paid template — the reason this answers synchronously
+     * instead of acknowledging first.
+     *
+     * Interakt requires a 200 within three seconds and disables the webhook
+     * after five failures in ten minutes, so the whole thing is raced against a
+     * 2.2s timer: a slow WhatsApp send loses the ASM's name in the reply, but
+     * never costs us the webhook. Routing continues regardless.
      */
     static async routeEnquiryWebhook(req: Request, res: Response) {
-        const { area, phone, name, source, flow_id } = req.body || {};
+        const { area, phone, name, source, flow_id, fallbackArea } = req.body || {};
 
         if (!phone || !area) {
             return res.status(400).json({ error: 'phone and area are required' });
         }
 
-        // Acknowledge first, work second.
-        res.json({ received: true });
-
-        routeEnquiry({
+        const routing = routeEnquiry({
             area: String(area),
             phone: String(phone),
             name: name ? String(name) : null,
             source: source ? String(source) : 'whatsapp',
             flowId: flow_id ? String(flow_id) : null,
+            fallbackArea: fallbackArea ? String(fallbackArea) : null,
             rawPayload: req.body,
-        }).catch(err => console.error('[ASM] routing failed:', err?.message));
+        });
+
+        // Keep routing alive even if the race below gives up on it.
+        routing.catch(err => console.error('[ASM] routing failed:', err?.message));
+
+        const timeout = new Promise<null>(resolve => setTimeout(() => resolve(null), 2200));
+        const result = await Promise.race([routing.catch(() => null), timeout]);
+
+        /*
+         * Always answer with the same keys. Interakt's Save Response maps fields
+         * by name, so a missing key would leave a variable unset and print an
+         * empty gap in the customer's message.
+         */
+        res.json({
+            received: true,
+            matched: Boolean(result?.asm),
+            asm_name: result?.asm?.name || '',
+            asm_phone: result?.asm?.phone_number || '',
+            area: result?.matchedArea || String(area),
+        });
     }
 
     // ── ASMs ────────────────────────────────────────────────────────────────
