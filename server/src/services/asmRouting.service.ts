@@ -36,6 +36,30 @@ export function phoneKey(raw: string): string {
     return String(raw || '').replace(/\D/g, '').slice(-10);
 }
 
+/**
+ * Pull the area out of an `af_enquiry_area` Flow submission.
+ *
+ * The Flow asks for state (a fixed dropdown) and city (free text). We try the
+ * city first, since an ASM may cover a single city, then fall back to the
+ * state — which is always one of a known set, so it can be mapped reliably
+ * however the customer spells their town.
+ */
+export function areaFromFlowAnswers(answers: Record<string, any>): {
+    area: string;
+    state: string | null;
+    city: string | null;
+    carModel: string | null;
+} {
+    const state = answers?.state ? String(answers.state).trim() : null;
+    const city = answers?.city ? String(answers.city).trim() : null;
+    return {
+        area: city || state || '',
+        state,
+        city,
+        carModel: answers?.car_model ? String(answers.car_model).trim() : null,
+    };
+}
+
 export interface EnquiryInput {
     area: string;
     phone: string;
@@ -44,6 +68,8 @@ export interface EnquiryInput {
     source?: string;
     /** Which WhatsApp Flow produced this, when it came from one. */
     flowId?: string | null;
+    /** Wider area to try when the specific one is unmapped — usually the state. */
+    fallbackArea?: string | null;
     rawPayload?: any;
 }
 
@@ -95,10 +121,20 @@ export async function routeEnquiry(input: EnquiryInput): Promise<RouteResult> {
     const rawArea = String(input.area || '').trim();
     const source = input.source || 'whatsapp';
 
-    const asm = await findAsmForArea(rawArea).catch(err => {
+    /*
+     * Try the specific area first, then the wider one. A customer in Jaipur
+     * should reach the Jaipur ASM if there is one, but still reach the
+     * Rajasthan ASM if there is not — falling back is what keeps an enquiry
+     * from being orphaned by a town nobody has mapped yet.
+     */
+    let asm = await findAsmForArea(rawArea).catch(err => {
         console.error('[ASM] area lookup failed:', err?.message);
         return null;
     });
+    if (!asm && input.fallbackArea && areaKey(input.fallbackArea) !== areaKey(rawArea)) {
+        asm = await findAsmForArea(input.fallbackArea).catch(() => null);
+        if (asm) console.log(`[ASM] "${rawArea}" unmapped — matched on "${input.fallbackArea}" instead`);
+    }
 
     const baseRow = [
         leadId,

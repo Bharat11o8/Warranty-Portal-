@@ -1,0 +1,201 @@
+{
+  "version": "7.1",
+  "screens": [
+    {
+      "id": "ENQUIRY",
+      "title": "Your location",
+      "terminal": true,
+      "data": {},
+      "layout": {
+        "type": "SingleColumnLayout",
+        "children": [
+          {
+            "type": "TextHeading",
+            "text": "Where are you located?"
+          },
+          {
+            "type": "TextBody",
+            "text": "We will connect you with the area manager for your region."
+          },
+          {
+            "type": "Form",
+            "name": "enquiry_form",
+            "children": [
+              {
+                "type": "Dropdown",
+                "name": "state",
+                "label": "State / UT",
+                "required": true,
+                "data-source": [
+                  {
+                    "id": "andhra_pradesh",
+                    "title": "Andhra Pradesh"
+                  },
+                  {
+                    "id": "arunachal_pradesh",
+                    "title": "Arunachal Pradesh"
+                  },
+                  {
+                    "id": "assam",
+                    "title": "Assam"
+                  },
+                  {
+                    "id": "bihar",
+                    "title": "Bihar"
+                  },
+                  {
+                    "id": "chhattisgarh",
+                    "title": "Chhattisgarh"
+                  },
+                  {
+                    "id": "goa",
+                    "title": "Goa"
+                  },
+                  {
+                    "id": "gujarat",
+                    "title": "Gujarat"
+                  },
+                  {
+                    "id": "haryana",
+                    "title": "Haryana"
+                  },
+                  {
+                    "id": "himachal_pradesh",
+                    "title": "Himachal Pradesh"
+                  },
+                  {
+                    "id": "jharkhand",
+                    "title": "Jharkhand"
+                  },
+                  {
+                    "id": "karnataka",
+                    "title": "Karnataka"
+                  },
+                  {
+                    "id": "kerala",
+                    "title": "Kerala"
+                  },
+                  {
+                    "id": "madhya_pradesh",
+                    "title": "Madhya Pradesh"
+                  },
+                  {
+                    "id": "maharashtra",
+                    "title": "Maharashtra"
+                  },
+                  {
+                    "id": "manipur",
+                    "title": "Manipur"
+                  },
+                  {
+                    "id": "meghalaya",
+                    "title": "Meghalaya"
+                  },
+                  {
+                    "id": "mizoram",
+                    "title": "Mizoram"
+                  },
+                  {
+                    "id": "nagaland",
+                    "title": "Nagaland"
+                  },
+                  {
+                    "id": "odisha",
+                    "title": "Odisha"
+                  },
+                  {
+                    "id": "punjab",
+                    "title": "Punjab"
+                  },
+                  {
+                    "id": "rajasthan",
+                    "title": "Rajasthan"
+                  },
+                  {
+                    "id": "sikkim",
+                    "title": "Sikkim"
+                  },
+                  {
+                    "id": "tamil_nadu",
+                    "title": "Tamil Nadu"
+                  },
+                  {
+                    "id": "telangana",
+                    "title": "Telangana"
+                  },
+                  {
+                    "id": "tripura",
+                    "title": "Tripura"
+                  },
+                  {
+                    "id": "uttar_pradesh",
+                    "title": "Uttar Pradesh"
+                  },
+                  {
+                    "id": "uttarakhand",
+                    "title": "Uttarakhand"
+                  },
+                  {
+                    "id": "west_bengal",
+                    "title": "West Bengal"
+                  },
+                  {
+                    "id": "andaman_nicobar",
+                    "title": "Andaman & Nicobar"
+                  },
+                  {
+                    "id": "chandigarh",
+                    "title": "Chandigarh"
+                  },
+                  {
+                    "id": "dadra_nagar_haveli_and_daman_diu",
+                    "title": "Dadra & Nagar Haveli and Daman & Diu"
+                  },
+                  {
+                    "id": "delhi_ncr",
+                    "title": "Delhi NCR"
+                  },
+                  {
+                    "id": "jammu_kashmir",
+                    "title": "Jammu & Kashmir"
+                  },
+                  {
+                    "id": "ladakh",
+                    "title": "Ladakh"
+                  },
+                  {
+                    "id": "lakshadweep",
+                    "title": "Lakshadweep"
+                  },
+                  {
+                    "id": "puducherry",
+                    "title": "Puducherry"
+                  }
+                ]
+              },
+              {
+                "type": "TextInput",
+                "name": "city",
+                "label": "City / town",
+                "required": true,
+                "input-type": "text",
+                "helper-text": "Type your city, e.g. Jaipur"
+              },
+              {
+                "type": "Footer",
+                "label": "Submit",
+                "on-click-action": {
+                  "name": "complete",
+                  "payload": {
+                    "state": "${form.state}",
+                    "city": "${form.city}"
+                  }
+                }
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

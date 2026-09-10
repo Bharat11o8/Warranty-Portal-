@@ -557,11 +557,12 @@ export class WhatsAppService {
                 .toLowerCase()
                 .replace(/[a-z]/g, ch => ch.toUpperCase());
 
+        // Four variables, each used once. The area appeared twice in an earlier
+        // draft — a wasted parameter, and Meta queries redundant ones at review.
         return this.sendTemplateMessage(
             phone,
             'af_asm_enquiry',
             [
-                titleCase(area),
                 titleCase(customerName) || 'Not provided',
                 customerPhone,
                 titleCase(area),
