@@ -81,59 +81,131 @@ export interface RouteResult {
 }
 
 /**
+ * Edit distance, capped, counting a swap of two adjacent letters as one edit.
+ *
+ * That last part matters more than it sounds: "dehli" for "delhi" is the most
+ * common way this word is mistyped, and plain Levenshtein scores it 2 — the
+ * same as two unrelated wrong letters. Treating a transposition as one edit
+ * catches it without raising the allowance, which would otherwise let "Dehri"
+ * (a real town in Bihar) match Delhi.
+ *
+ * Bails out as soon as the best possible distance exceeds `max`, so a long
+ * sentence is rejected in a few comparisons rather than a full matrix.
+ */
+function editDistance(a: string, b: string, max: number): number {
+    if (Math.abs(a.length - b.length) > max) return max + 1;
+
+    let twoBack: number[] = [];
+    let prev = Array.from({ length: b.length + 1 }, (_, i) => i);
+
+    for (let i = 1; i <= a.length; i++) {
+        const curr = [i];
+        let rowBest = i;
+        for (let j = 1; j <= b.length; j++) {
+            const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+            let val = Math.min(curr[j - 1] + 1, prev[j] + 1, prev[j - 1] + cost);
+            // Adjacent letters swapped — one edit, not two.
+            if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) {
+                val = Math.min(val, twoBack[j - 2] + 1);
+            }
+            curr[j] = val;
+            if (val < rowBest) rowBest = val;
+        }
+        if (rowBest > max) return max + 1;
+        twoBack = prev;
+        prev = curr;
+    }
+    return prev[b.length];
+}
+
+/**
+ * How close a typo may be before we accept it.
+ *
+ * Scaled to the word: one edit on a short name, two on a longer one. "dehli"
+ * reaches "delhi", but "delhi" never reaches "dehradun" — being generous with
+ * short words is how a matcher starts sending enquiries to the wrong person.
+ */
+function typoAllowance(len: number): number {
+    if (len <= 4) return 0;
+    if (len <= 7) return 1;
+    return 2;
+}
+
+/**
  * Find the ASM for an area.
  *
- * Tries the whole string first, then each word within it. People write their
- * location as they speak it — "Rohini, Delhi", "Andheri Mumbai" — and only the
- * wider part of that is ever mapped, so matching the whole string alone would
- * turn a perfectly clear answer into an unmatched lead.
+ * A customer types their location however they please: "Delhi", "rohini,
+ * delhi", "I am from dehli", "Delhi 110085". So rather than matching the
+ * string, this looks for a mapped area *inside* whatever they wrote.
  *
- * A word only matches if it IS a mapped area, so this cannot invent a match:
- * "Rohini" hits nothing, "Delhi" hits Gunjan, and a location naming no mapped
- * area still lands in the unmatched queue where someone can fix it.
+ * Three passes, each stricter than the next is loose:
+ *   1. the whole string, exactly
+ *   2. any word or adjacent pair that IS a mapped area, longest first
+ *   3. the same, allowing a typo or two on longer words
  *
- * Longer words are tried first, so "New Delhi" beats "Delhi" when both are
- * mapped to different people — the more specific mapping should win.
+ * Longest-first ordering matters: with both "Delhi" and "New Delhi" mapped,
+ * "Dwarka, New Delhi" must reach whoever holds New Delhi.
+ *
+ * Fuzziness is deliberately mean — no allowance under five characters, and at
+ * most two edits on a long name. A matcher that guesses generously sends
+ * enquiries to the wrong person, which is worse than queueing them as
+ * unmatched where somebody can see and fix the gap.
  */
 async function findAsmForArea(area: string) {
     const whole = areaKey(area);
     if (!whole) return null;
 
-    const candidates = [whole];
+    const [mapped]: any = await db.execute(
+        `SELECT ar.area_key, ar.area_label, a.id, a.name, a.phone_number, a.is_active
+           FROM asm_areas ar
+           JOIN asms a ON a.id = ar.asm_id`
+    );
+    if (!mapped.length) return null;
 
-    // Multi-word locations: try the parts too, longest first.
-    const words = String(area)
-        .split(/[^A-Za-z0-9]+/)
-        .map(w => areaKey(w))
-        .filter(w => w.length > 2 && w !== whole)
-        .sort((a, b) => b.length - a.length);
+    const byKey = new Map<string, any>(mapped.map((m: any) => [m.area_key, m]));
 
-    // Adjacent pairs catch "New Delhi" inside "Rohini New Delhi".
-    const raw = String(area).split(/[^A-Za-z0-9]+/).filter(Boolean);
-    for (let i = 0; i < raw.length - 1; i++) {
-        const pair = areaKey(raw[i] + raw[i + 1]);
-        if (pair && pair !== whole) candidates.push(pair);
-    }
-    candidates.push(...words);
+    // Candidates: the whole string, then adjacent pairs, then single words.
+    const words = String(area).split(/[^A-Za-z0-9]+/).filter(Boolean);
+    const pairs = words.slice(0, -1).map((w, i) => areaKey(w + words[i + 1]));
+    const singles = words.map(w => areaKey(w)).filter(w => w.length > 2);
 
-    for (const key of [...new Set(candidates)]) {
-        const [rows]: any = await db.execute(
-            `SELECT a.id, a.name, a.phone_number, a.is_active, ar.area_label
-               FROM asm_areas ar
-               JOIN asms a ON a.id = ar.asm_id
-              WHERE ar.area_key = ?
-              LIMIT 1`,
-            [key]
-        );
-        if (!rows.length) continue;
+    const candidates = [
+        whole,
+        ...[...pairs, ...singles].filter(k => k && k !== whole).sort((a, b) => b.length - a.length),
+    ];
 
+    const accept = (hit: any, via: string) => {
         // A deactivated ASM should not be messaged, but the area is still
-        // "known" — recorded as unmatched so it shows as a gap to reassign.
-        if (!rows[0].is_active) return null;
+        // "known" — queued as unmatched so it shows as a gap to reassign.
+        if (!hit.is_active) return null;
+        if (via !== whole) console.log(`[ASM] "${area}" matched on "${hit.area_label}"`);
+        return hit;
+    };
 
-        if (key !== whole) console.log(`[ASM] "${area}" matched on "${rows[0].area_label}"`);
-        return rows[0];
+    // Pass 1 and 2 — exact.
+    for (const key of new Set(candidates)) {
+        const hit = byKey.get(key);
+        if (hit) return accept(hit, key);
     }
+
+    // Pass 3 — allow a typo. "dehli" reaches Delhi; "dwarka" still reaches
+    // nothing, because it is a real place nobody has mapped.
+    for (const key of new Set(candidates)) {
+        const allow = typoAllowance(key.length);
+        if (!allow) continue;
+
+        let best: any = null;
+        let bestDist = allow + 1;
+        for (const m of mapped) {
+            const d = editDistance(key, m.area_key, allow);
+            if (d < bestDist) { bestDist = d; best = m; }
+        }
+        if (best) {
+            console.log(`[ASM] "${area}" ~ "${best.area_label}" (${bestDist} edit${bestDist > 1 ? 's' : ''})`);
+            return accept(best, best.area_key);
+        }
+    }
+
     return null;
 }
 
