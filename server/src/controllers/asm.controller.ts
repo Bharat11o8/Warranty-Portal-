@@ -19,7 +19,7 @@ export class AsmController {
      * never costs us the webhook. Routing continues regardless.
      */
     static async routeEnquiryWebhook(req: Request, res: Response) {
-        const { area, phone, name, source, flow_id, fallbackArea } = req.body || {};
+        const { area, phone, name, source, flow_id, fallbackArea, dryRun } = req.body || {};
 
         if (!phone || !area) {
             return res.status(400).json({ error: 'phone and area are required' });
@@ -32,6 +32,7 @@ export class AsmController {
             source: source ? String(source) : 'whatsapp',
             flowId: flow_id ? String(flow_id) : null,
             fallbackArea: fallbackArea ? String(fallbackArea) : null,
+            dryRun: dryRun === true,
             rawPayload: req.body,
         });
 
@@ -49,6 +50,9 @@ export class AsmController {
         res.json({
             received: true,
             matched: Boolean(result?.asm),
+            // 'sent' | 'duplicate' | 'unmatched' | 'failed' | 'dry-run', or
+            // empty when routing outran the timer and the reply went without it.
+            status: result?.status || '',
             asm_name: result?.asm?.name || '',
             asm_phone: result?.asm?.phone_number || '',
             area: result?.matchedArea || String(area),

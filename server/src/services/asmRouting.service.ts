@@ -60,10 +60,22 @@ export function areaFromFlowAnswers(answers: Record<string, any>): {
     };
 }
 
+/**
+ * How long the same person + area is treated as one enquiry.
+ *
+ * A customer tapping twice, a workflow re-firing, or a stale trait replaying an
+ * old location should not put the same lead on an ASM's phone again. Ten
+ * minutes is long enough to absorb those and short enough that someone genuinely
+ * enquiring again later still gets through.
+ */
+const DUPLICATE_WINDOW_MINUTES = 10;
+
 export interface EnquiryInput {
     area: string;
     phone: string;
     name?: string | null;
+    /** Match and report, but send nothing. For checking routing safely. */
+    dryRun?: boolean;
     /** 'whatsapp' | 'instagram' — where the enquiry came from. */
     source?: string;
     /** Which WhatsApp Flow produced this, when it came from one. */
@@ -75,7 +87,7 @@ export interface EnquiryInput {
 
 export interface RouteResult {
     leadId: string;
-    status: 'sent' | 'failed' | 'unmatched';
+    status: 'sent' | 'failed' | 'unmatched' | 'duplicate' | 'dry-run';
     asm?: { id: string; name: string; phone_number: string };
     matchedArea?: string;
 }
@@ -258,6 +270,49 @@ export async function routeEnquiry(input: EnquiryInput): Promise<RouteResult> {
         );
         console.log(`[ASM] no ASM covers "${rawArea}" — lead ${leadId} queued as unmatched`);
         return { leadId, status: 'unmatched' };
+    }
+
+    /*
+     * Same person, same area, moments ago — do not put it on the ASM's phone
+     * twice. A customer tapping again, the workflow re-firing, or a stale trait
+     * replaying an old location all land here, and none of them is a new
+     * enquiry. Recorded so the repeat is still visible rather than silently
+     * dropped.
+     */
+    const [recent]: any = await db.execute(
+        `SELECT id FROM leads
+          WHERE phone_key = ? AND asm_id = ?
+            AND status IN ('sent', 'duplicate')
+            AND created_at >= DATE_SUB(NOW(), INTERVAL ? MINUTE)
+          LIMIT 1`,
+        [phoneKey(phone), asm.id, DUPLICATE_WINDOW_MINUTES]
+    );
+    if (recent.length) {
+        await db.execute(
+            `INSERT INTO leads
+               (id, source, customer_name, customer_phone, phone_key, raw_area,
+                flow_id, raw_payload, matched_area, asm_id, status, failure_reason)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'duplicate', ?)`,
+            [...baseRow, asm.area_label || rawArea, asm.id,
+             `Repeat within ${DUPLICATE_WINDOW_MINUTES} minutes — not re-sent`]
+        );
+        console.log(`[ASM] repeat enquiry from ${phone} for ${asm.name} — not re-sent`);
+        return {
+            leadId, status: 'duplicate',
+            asm: { id: asm.id, name: asm.name, phone_number: asm.phone_number },
+            matchedArea: asm.area_label || rawArea,
+        };
+    }
+
+    // Matching is the part worth checking; sending is not. A dry run reports
+    // who would be messaged without putting anything on their phone.
+    if (input.dryRun) {
+        console.log(`[ASM] dry run: "${rawArea}" would go to ${asm.name}`);
+        return {
+            leadId, status: 'dry-run',
+            asm: { id: asm.id, name: asm.name, phone_number: asm.phone_number },
+            matchedArea: asm.area_label || rawArea,
+        };
     }
 
     const receivedAt = new Date().toLocaleString('en-IN', {
