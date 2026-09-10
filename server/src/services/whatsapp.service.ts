@@ -554,10 +554,12 @@ export class WhatsAppService {
         product?: string | null,
         car?: string | null
     ): Promise<boolean> {
+        // "rohini, delhi" -> "Rohini, Delhi". The previous version uppercased
+        // every letter, which shouted ROHINI, DELHI at the ASM.
         const titleCase = (s: string) =>
             String(s || '')
                 .toLowerCase()
-                .replace(/[a-z]/g, ch => ch.toUpperCase());
+                .replace(/\b[a-z]/g, ch => ch.toUpperCase());
 
         /*
          * The approved `af_asm_enquiry` has four variables and no slot for the
