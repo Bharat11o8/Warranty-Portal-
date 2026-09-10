@@ -31,6 +31,43 @@ export function areaKey(raw: string): string {
         .trim();
 }
 
+/**
+ * The three product lines, and the many ways a customer names them.
+ *
+ * The greeting offers buttons, so most enquiries arrive as an exact label. But
+ * a customer can also type instead of tapping, and the keyword that opened the
+ * conversation ("mat", "seat cover") is itself a product signal worth keeping.
+ * Both paths land here so the lead is filed under one of three names rather
+ * than a dozen spellings — the team wants leads bifurcated by product, and that
+ * only works if the value is closed.
+ */
+export const PRODUCTS = ['Seat Covers', 'Mats', 'Accessories'] as const;
+export type Product = (typeof PRODUCTS)[number];
+
+const PRODUCT_PATTERNS: Array<[Product, RegExp]> = [
+    // Seat covers first: "car seat cover mat" is a seat cover enquiry, and the
+    // looser mat pattern would otherwise claim it.
+    ['Seat Covers', /seat\s*-?\s*covers?|seatcovers?|\bcovers?\b/i],
+    ['Mats', /\bmats?\b|floor\s*mats?|car\s*mats?/i],
+    ['Accessories', /accessor|\baccs?\b/i],
+];
+
+/**
+ * Resolve whatever the customer sent into one of the three product lines.
+ *
+ * Returns null rather than guessing when nothing matches — an unlabelled lead
+ * is honest, whereas defaulting to Seat Covers would quietly inflate one line's
+ * numbers and make the bifurcation useless.
+ */
+export function normaliseProduct(raw: string | null | undefined): Product | null {
+    const text = String(raw || '').trim();
+    if (!text) return null;
+    for (const [product, pattern] of PRODUCT_PATTERNS) {
+        if (pattern.test(text)) return product;
+    }
+    return null;
+}
+
 /** Last 10 digits — the stable part of an Indian number however it is written. */
 export function phoneKey(raw: string): string {
     return String(raw || '').replace(/\D/g, '').slice(-10);
@@ -74,6 +111,8 @@ export interface EnquiryInput {
     area: string;
     phone: string;
     name?: string | null;
+    /** Which line they asked about, however they said it. Normalised below. */
+    product?: string | null;
     /** Match and report, but send nothing. For checking routing safely. */
     dryRun?: boolean;
     /** 'whatsapp' | 'instagram' — where the enquiry came from. */
@@ -90,6 +129,7 @@ export interface RouteResult {
     status: 'sent' | 'failed' | 'unmatched' | 'duplicate' | 'dry-run';
     asm?: { id: string; name: string; phone_number: string };
     matchedArea?: string;
+    product?: Product | null;
 }
 
 /**
@@ -233,6 +273,7 @@ export async function routeEnquiry(input: EnquiryInput): Promise<RouteResult> {
     const phone = String(input.phone || '').trim();
     const rawArea = String(input.area || '').trim();
     const source = input.source || 'whatsapp';
+    const product = normaliseProduct(input.product);
 
     /*
      * Try the specific area first, then the wider one. A customer in Jaipur
@@ -252,6 +293,7 @@ export async function routeEnquiry(input: EnquiryInput): Promise<RouteResult> {
     const baseRow = [
         leadId,
         source,
+        product,
         input.name || null,
         phone,
         phoneKey(phone),
@@ -263,13 +305,13 @@ export async function routeEnquiry(input: EnquiryInput): Promise<RouteResult> {
     if (!asm) {
         await db.execute(
             `INSERT INTO leads
-               (id, source, customer_name, customer_phone, phone_key, raw_area,
-                flow_id, raw_payload, status)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'unmatched')`,
+               (id, source, product, customer_name, customer_phone, phone_key,
+                raw_area, flow_id, raw_payload, status)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'unmatched')`,
             baseRow
         );
         console.log(`[ASM] no ASM covers "${rawArea}" — lead ${leadId} queued as unmatched`);
-        return { leadId, status: 'unmatched' };
+        return { leadId, status: 'unmatched', product };
     }
 
     /*
@@ -290,9 +332,10 @@ export async function routeEnquiry(input: EnquiryInput): Promise<RouteResult> {
     if (recent.length) {
         await db.execute(
             `INSERT INTO leads
-               (id, source, customer_name, customer_phone, phone_key, raw_area,
-                flow_id, raw_payload, matched_area, asm_id, status, failure_reason)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'duplicate', ?)`,
+               (id, source, product, customer_name, customer_phone, phone_key,
+                raw_area, flow_id, raw_payload, matched_area, asm_id, status,
+                failure_reason)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'duplicate', ?)`,
             [...baseRow, asm.area_label || rawArea, asm.id,
              `Repeat within ${DUPLICATE_WINDOW_MINUTES} minutes — not re-sent`]
         );
@@ -301,6 +344,7 @@ export async function routeEnquiry(input: EnquiryInput): Promise<RouteResult> {
             leadId, status: 'duplicate',
             asm: { id: asm.id, name: asm.name, phone_number: asm.phone_number },
             matchedArea: asm.area_label || rawArea,
+            product,
         };
     }
 
@@ -312,6 +356,7 @@ export async function routeEnquiry(input: EnquiryInput): Promise<RouteResult> {
             leadId, status: 'dry-run',
             asm: { id: asm.id, name: asm.name, phone_number: asm.phone_number },
             matchedArea: asm.area_label || rawArea,
+            product,
         };
     }
 
@@ -328,7 +373,8 @@ export async function routeEnquiry(input: EnquiryInput): Promise<RouteResult> {
             input.name || '',
             phone,
             asm.area_label || rawArea,
-            receivedAt
+            receivedAt,
+            product
         );
     } catch (err: any) {
         // Swallowed deliberately — the lead is still recorded below, and a lost
@@ -338,9 +384,10 @@ export async function routeEnquiry(input: EnquiryInput): Promise<RouteResult> {
 
     await db.execute(
         `INSERT INTO leads
-           (id, source, customer_name, customer_phone, phone_key, raw_area,
-            flow_id, raw_payload, matched_area, asm_id, status, sent_at, failure_reason)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+           (id, source, product, customer_name, customer_phone, phone_key,
+            raw_area, flow_id, raw_payload, matched_area, asm_id, status,
+            sent_at, failure_reason)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
             ...baseRow,
             asm.area_label || rawArea,
@@ -351,11 +398,15 @@ export async function routeEnquiry(input: EnquiryInput): Promise<RouteResult> {
         ]
     );
 
-    console.log(`[ASM] "${rawArea}" -> ${asm.name} (${sent ? 'sent' : 'FAILED'}) — lead ${leadId}`);
+    console.log(
+        `[ASM] "${rawArea}"${product ? ` / ${product}` : ''} -> ${asm.name} ` +
+        `(${sent ? 'sent' : 'FAILED'}) — lead ${leadId}`
+    );
     return {
         leadId,
         status: sent ? 'sent' : 'failed',
         asm: { id: asm.id, name: asm.name, phone_number: asm.phone_number },
         matchedArea: asm.area_label || rawArea,
+        product,
     };
 }

@@ -550,24 +550,47 @@ export class WhatsAppService {
         customerName: string,
         customerPhone: string,
         area: string,
-        receivedAt: string
+        receivedAt: string,
+        product?: string | null
     ): Promise<boolean> {
         const titleCase = (s: string) =>
             String(s || '')
                 .toLowerCase()
-                .replace(/[a-z]/g, ch => ch.toUpperCase());
+                .replace(/[a-z]/g, ch => ch.toUpperCase());
 
-        // Four variables, each used once. The area appeared twice in an earlier
-        // draft — a wasted parameter, and Meta queries redundant ones at review.
+        /*
+         * The approved `af_asm_enquiry` has four variables and no slot for the
+         * product line. Meta does not allow variables to be added to a live
+         * template, so until a five-variable version is approved the product
+         * rides along inside the area field.
+         *
+         * Set ASM_ENQUIRY_TEMPLATE=af_asm_enquiry_v2 once that clears review and
+         * the product gets its own line, no code change needed. Either way the
+         * lead row carries `product` as a real column, so the bifurcated
+         * reporting the team asked for never depended on the template.
+         */
+        const template = process.env.ASM_ENQUIRY_TEMPLATE || 'af_asm_enquiry';
+        const label = titleCase(area);
+
+        const variables = template.endsWith('_v2')
+            ? [
+                  titleCase(customerName) || 'Not provided',
+                  customerPhone,
+                  product || 'Not specified',
+                  label,
+                  receivedAt,
+              ]
+            : [
+                  titleCase(customerName) || 'Not provided',
+                  customerPhone,
+                  product ? `${label} - ${product}` : label,
+                  receivedAt,
+              ];
+
         return this.sendTemplateMessage(
             phone,
-            'af_asm_enquiry',
-            [
-                titleCase(customerName) || 'Not provided',
-                customerPhone,
-                titleCase(area),
-                receivedAt,
-            ],
+            template,
+            variables,
             'asm_enquiry',
             customerPhone
         );

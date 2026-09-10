@@ -19,7 +19,7 @@ export class AsmController {
      * never costs us the webhook. Routing continues regardless.
      */
     static async routeEnquiryWebhook(req: Request, res: Response) {
-        const { area, phone, name, source, flow_id, fallbackArea, dryRun } = req.body || {};
+        const { area, phone, name, product, source, flow_id, fallbackArea, dryRun } = req.body || {};
 
         if (!phone || !area) {
             return res.status(400).json({ error: 'phone and area are required' });
@@ -29,6 +29,7 @@ export class AsmController {
             area: String(area),
             phone: String(phone),
             name: name ? String(name) : null,
+            product: product ? String(product) : null,
             source: source ? String(source) : 'whatsapp',
             flowId: flow_id ? String(flow_id) : null,
             fallbackArea: fallbackArea ? String(fallbackArea) : null,
@@ -56,6 +57,7 @@ export class AsmController {
             asm_name: result?.asm?.name || '',
             asm_phone: result?.asm?.phone_number || '',
             area: result?.matchedArea || String(area),
+            product: result?.product || '',
         });
     }
 
@@ -220,12 +222,13 @@ export class AsmController {
 
     static async listLeads(req: Request, res: Response) {
         try {
-            const { status, source, asm_id, limit } = req.query as Record<string, string>;
+            const { status, source, asm_id, product, limit } = req.query as Record<string, string>;
             const where: string[] = [];
             const params: any[] = [];
             if (status) { where.push('l.status = ?'); params.push(status); }
             if (source) { where.push('l.source = ?'); params.push(source); }
             if (asm_id) { where.push('l.asm_id = ?'); params.push(asm_id); }
+            if (product) { where.push('l.product = ?'); params.push(product); }
 
             const [rows]: any = await db.execute(
                 `SELECT l.*, a.name AS asm_name, a.phone_number AS asm_phone
@@ -240,7 +243,11 @@ export class AsmController {
                 `SELECT COUNT(*) total,
                         SUM(status = 'sent') sent,
                         SUM(status = 'failed') failed,
-                        SUM(status = 'unmatched') unmatched
+                        SUM(status = 'unmatched') unmatched,
+                        SUM(product = 'Seat Covers') seat_covers,
+                        SUM(product = 'Mats') mats,
+                        SUM(product = 'Accessories') accessories,
+                        SUM(product IS NULL) no_product
                    FROM leads`
             );
             res.json({ success: true, leads: rows, counts });
