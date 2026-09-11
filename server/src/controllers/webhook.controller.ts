@@ -4,6 +4,7 @@ import db from '../config/database.js';
 import { WhatsAppService } from '../services/whatsapp.service.js';
 import { NotificationService } from '../services/notification.service.js';
 import { ingestFlowAuditResponse, recordAuditSent, recordAuditDelivery } from '../services/auditResponse.service.js';
+import { handleInstagramLead } from '../services/instagramLead.service.js';
 
 export class WebhookController {
 
@@ -117,6 +118,38 @@ export class WebhookController {
             if (eventType === 'message_campaign_flow_response') {
                 console.log(`[Webhook][audit] ${eventType}: ${JSON.stringify(payload)}`);
                 await ingestFlowAuditResponse(payload);
+                return;
+            }
+
+            /*
+             * An Instagram lead-ad form arrives here as the customer's first
+             * WhatsApp message, carrying every answer they gave. Those are
+             * routed straight to an ASM rather than being asked the same
+             * questions again by the workflow.
+             *
+             * Anything that is not a lead form falls through untouched, so an
+             * ordinary "hi" still reaches the Interakt workflow as before.
+             */
+            if (eventType === 'message_received') {
+                const message = payload?.data?.message;
+                const customer = payload?.data?.customer;
+                const body: string = message?.message || message?.text || '';
+                const code: string = String(customer?.country_code || '+91').replace('+', '');
+                const senderPhone = `${code}${customer?.phone_number || ''}`;
+
+                if (customer?.phone_number) {
+                    try {
+                        const routed = await handleInstagramLead(body, senderPhone, payload);
+                        if (routed) {
+                            console.log(`[Webhook] Instagram lead from ${senderPhone} routed`);
+                            return;
+                        }
+                    } catch (err: any) {
+                        // Never let this break the webhook — Interakt disables
+                        // one after five failures in ten minutes.
+                        console.error('[Webhook] Instagram lead handling failed:', err?.message);
+                    }
+                }
                 return;
             }
 
