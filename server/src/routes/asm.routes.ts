@@ -33,6 +33,8 @@ router.post('/route-enquiry', (req, res, next) => {
  */
 router.get('/known-areas', ...adminAuth, requirePermission('leads', 'read'), AsmController.knownAreas);
 router.get('/leads/list', ...adminAuth, requirePermission('leads', 'read'), AsmController.listLeads);
+router.post('/leads', ...adminAuth, requirePermission('leads', 'write'), AsmController.createLead);
+router.put('/leads/:id', ...adminAuth, requirePermission('leads', 'write'), AsmController.updateLead);
 router.post('/areas', ...adminAuth, requirePermission('leads', 'write'), AsmController.addArea);
 router.delete('/areas/:id', ...adminAuth, requirePermission('leads', 'write'), AsmController.removeArea);
 
