@@ -1,6 +1,7 @@
 import db from '../config/database.js';
 import { v4 as uuidv4 } from 'uuid';
 import { WhatsAppService } from './whatsapp.service.js';
+import { findState } from './indianStates.js';
 
 /**
  * Route a customer enquiry to the ASM who covers their area.
@@ -107,6 +108,21 @@ export function areaFromFlowAnswers(answers: Record<string, any>): {
  */
 const DUPLICATE_WINDOW_MINUTES = 10;
 
+/**
+ * How many enquiries one number may send an ASM in a day.
+ *
+ * The duplicate window above only stops a repeat of the *same* area, so
+ * someone naming a different area each time walks straight past it — and an
+ * ASM covering eighteen areas could be messaged eighteen times in a minute by
+ * one person. Every send is a paid template and a real phone buzzing, so there
+ * is a ceiling on top of it.
+ *
+ * Three is set well above genuine use: a customer asking about seat covers,
+ * then mats, then accessories is still served. The fourth in a day is somebody
+ * playing with the bot.
+ */
+const MAX_ENQUIRIES_PER_DAY = 3;
+
 export interface EnquiryInput {
     area: string;
     phone: string;
@@ -128,7 +144,7 @@ export interface EnquiryInput {
 
 export interface RouteResult {
     leadId: string;
-    status: 'sent' | 'failed' | 'unmatched' | 'duplicate' | 'dry-run';
+    status: 'sent' | 'failed' | 'unmatched' | 'duplicate' | 'throttled' | 'dry-run';
     asm?: { id: string; name: string; phone_number: string };
     matchedArea?: string;
     product?: Product | null;
@@ -219,6 +235,43 @@ async function findAsmForArea(area: string) {
 
     const byKey = new Map<string, any>(mapped.map((m: any) => [m.area_key, m]));
 
+    /*
+     * The state decides who gets the enquiry.
+     *
+     * An ASM covers a state, so "Rohini Delhi", "Saket delhi" and "dehli" are
+     * all the same routing decision — and resolving the state first is what
+     * makes them so. Matching on the city instead meant the same input could
+     * land on whichever mapped area happened to win: identical enquiries
+     * reading "Rohini" one time and "Delhi" the next.
+     *
+     * The city is not discarded. It travels to the ASM in the message, which is
+     * where it is actually useful.
+     */
+    const resolved = findState(area);
+    if (resolved) {
+        const hit = byKey.get(areaKey(resolved.state));
+        if (hit) {
+            if (areaKey(resolved.state) !== whole) {
+                console.log(`[ASM] "${area}" -> ${resolved.state} (${resolved.how})`);
+            }
+            return hit.is_active ? hit : null;
+        }
+
+        /*
+         * The state was understood, and nobody covers it. That is the answer.
+         *
+         * Falling through to the city passes below would undo the decision:
+         * "Noida" is Uttar Pradesh, but a leftover area row named "Noida"
+         * belonging to the Delhi ASM would match it by name and send the
+         * enquiry across a state line — silently, and looking like a success.
+         *
+         * An uncovered state is a gap in the roster, and queueing it as
+         * unmatched is what puts that gap in front of somebody.
+         */
+        console.log(`[ASM] "${area}" is ${resolved.state} — no ASM covers that state`);
+        return null;
+    }
+
     // Candidates: the whole string, then adjacent pairs, then single words.
     const words = String(area).split(/[^A-Za-z0-9]+/).filter(Boolean);
     const pairs = words.slice(0, -1).map((w, i) => areaKey(w + words[i + 1]));
@@ -281,6 +334,17 @@ export async function routeEnquiry(input: EnquiryInput): Promise<RouteResult> {
     const car = String(input.car || '').trim().slice(0, 80) || null;
 
     /*
+     * The state the area resolved to, stored on the lead.
+     *
+     * Routing already turns on this — it is the thing that decides which ASM
+     * gets the enquiry — so recording it costs nothing and makes the column
+     * reportable: leads per state, and which states have no ASM behind them.
+     * Null when the customer wrote something no state could be read from,
+     * which is itself worth seeing.
+     */
+    const state = findState(rawArea)?.state ?? null;
+
+    /*
      * Try the specific area first, then the wider one. A customer in Jaipur
      * should reach the Jaipur ASM if there is one, but still reach the
      * Rajasthan ASM if there is not — falling back is what keeps an enquiry
@@ -300,6 +364,7 @@ export async function routeEnquiry(input: EnquiryInput): Promise<RouteResult> {
         source,
         product,
         car,
+        state,
         input.name || null,
         phone,
         phoneKey(phone),
@@ -311,13 +376,54 @@ export async function routeEnquiry(input: EnquiryInput): Promise<RouteResult> {
     if (!asm) {
         await db.execute(
             `INSERT INTO leads
-               (id, source, product, car_model, customer_name, customer_phone,
-                phone_key, raw_area, flow_id, raw_payload, status)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'unmatched')`,
+               (id, source, product, car_model, state, customer_name,
+                customer_phone, phone_key, raw_area, flow_id, raw_payload, status)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'unmatched')`,
             baseRow
         );
         console.log(`[ASM] no ASM covers "${rawArea}" — lead ${leadId} queued as unmatched`);
         return { leadId, status: 'unmatched', product, car };
+    }
+
+    /*
+     * The daily ceiling, checked before the duplicate window because it does
+     * not care which area was named — that is the hole it exists to close.
+     *
+     * Only sends count. A lead already refused as a duplicate or a throttle
+     * cost nothing, and counting those would shrink a customer's real
+     * allowance every time the workflow re-fired.
+     */
+    const [[{ sentToday }]]: any = await db.execute(
+        `SELECT COUNT(*) AS sentToday FROM leads
+          WHERE phone_key = ?
+            AND status = 'sent'
+            AND created_at >= DATE_SUB(NOW(), INTERVAL 1 DAY)`,
+        [phoneKey(phone)]
+    );
+    if (sentToday >= MAX_ENQUIRIES_PER_DAY) {
+        await db.execute(
+            `INSERT INTO leads
+               (id, source, product, car_model, state, customer_name,
+                customer_phone, phone_key, raw_area, flow_id, raw_payload,
+                matched_area, asm_id, status, failure_reason)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'throttled', ?)`,
+            [...baseRow, asm.area_label || rawArea, asm.id,
+             `Daily cap reached — ${sentToday} already forwarded in 24 hours`]
+        );
+        console.warn(`[ASM] ${phone} hit the daily cap (${sentToday}) — not forwarded`);
+        /*
+         * Answered as though it matched. The customer still gets the ASM's
+         * name and number in the workflow's reply, so a genuine person on
+         * their fourth question is not left staring at a failure — they simply
+         * are not put on the ASM's phone a fourth time.
+         */
+        return {
+            leadId, status: 'throttled',
+            asm: { id: asm.id, name: asm.name, phone_number: asm.phone_number },
+            matchedArea: asm.area_label || rawArea,
+            product,
+            car,
+        };
     }
 
     /*
@@ -338,10 +444,10 @@ export async function routeEnquiry(input: EnquiryInput): Promise<RouteResult> {
     if (recent.length) {
         await db.execute(
             `INSERT INTO leads
-               (id, source, product, car_model, customer_name, customer_phone,
-                phone_key, raw_area, flow_id, raw_payload, matched_area, asm_id,
-                status, failure_reason)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'duplicate', ?)`,
+               (id, source, product, car_model, state, customer_name,
+                customer_phone, phone_key, raw_area, flow_id, raw_payload,
+                matched_area, asm_id, status, failure_reason)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'duplicate', ?)`,
             [...baseRow, asm.area_label || rawArea, asm.id,
              `Repeat within ${DUPLICATE_WINDOW_MINUTES} minutes — not re-sent`]
         );
@@ -373,6 +479,21 @@ export async function routeEnquiry(input: EnquiryInput): Promise<RouteResult> {
         day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hour12: true,
     });
 
+    /*
+     * The ASM is told what the customer actually wrote, not the area we matched
+     * on.
+     *
+     * Matching deliberately narrows — "Rohini Delhi" finds the ASM through
+     * "Rohini" — but narrowing is a routing decision, not information. Sending
+     * only "Rohini" threw away the half of the answer the ASM needs to find
+     * them, and the same input could arrive as "Rohini" or "Delhi" depending on
+     * which mapped area won, so two identical enquiries read differently.
+     *
+     * The matched area is still recorded on the lead, where it explains why
+     * this ASM was chosen.
+     */
+    const areaForAsm = rawArea || asm.area_label || '';
+
     let sent = false;
     try {
         sent = await WhatsAppService.sendAsmEnquiry(
@@ -380,7 +501,7 @@ export async function routeEnquiry(input: EnquiryInput): Promise<RouteResult> {
             asm.name,
             input.name || '',
             phone,
-            asm.area_label || rawArea,
+            areaForAsm,
             receivedAt,
             product,
             car
@@ -393,10 +514,10 @@ export async function routeEnquiry(input: EnquiryInput): Promise<RouteResult> {
 
     await db.execute(
         `INSERT INTO leads
-           (id, source, product, car_model, customer_name, customer_phone,
-            phone_key, raw_area, flow_id, raw_payload, matched_area, asm_id,
-            status, sent_at, failure_reason)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+           (id, source, product, car_model, state, customer_name,
+            customer_phone, phone_key, raw_area, flow_id, raw_payload,
+            matched_area, asm_id, status, sent_at, failure_reason)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
             ...baseRow,
             asm.area_label || rawArea,
