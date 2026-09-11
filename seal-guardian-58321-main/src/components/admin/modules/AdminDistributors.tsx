@@ -310,6 +310,7 @@ export const AdminDistributors = () => {
 
             const exportData = filteredVendors.map(v => ({
                 "Store Name": v.store_name,
+                "Brand": v.distributor_allowed_brands || "AF",
                 "Store Email": v.store_email,
                 "Contact Person": v.contact_name,
                 "Phone": v.phone_number,

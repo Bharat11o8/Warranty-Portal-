@@ -9,7 +9,7 @@ import { downloadCSV, formatToIST, getWarrantyExpiration } from "@/lib/utils";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
     Search, Users, Loader2, Store, Clock, CheckCircle2,
-    Trophy, Download, Phone, ChevronRight, RefreshCw, CalendarDays, X
+    Trophy, Download, Phone, ChevronRight, RefreshCw, CalendarDays, X, Trash2
 } from "lucide-react";
 
 interface ManpowerRow {
@@ -154,6 +154,42 @@ export const AdminManpower = () => {
             toast({
                 title: "Update Failed",
                 description: getErrorMessage(error, "Could not update approval status"),
+                variant: "destructive"
+            });
+        } finally {
+            setUpdatingId(null);
+        }
+    };
+
+    /*
+     * Delete a staff member outright.
+     *
+     * Distinct from approving a removal, which keeps the record and its
+     * history. This is for rows that should not exist at all — staff of a store
+     * that turned out not to be ours, or a duplicate. The server refuses when
+     * the member has warranties, so the confirm below is about intent, not
+     * safety.
+     */
+    const handleDelete = async (member: ManpowerRow) => {
+        if (!window.confirm(
+            `Delete ${member.name} permanently?
+
+` +
+            `This cannot be undone. To remove them from the team while keeping ` +
+            `their record, use the removal flow instead.`
+        )) return;
+
+        setUpdatingId(member.id);
+        try {
+            const res = await api.delete(`/admin/manpower/${member.id}`);
+            if (res.data.success) {
+                toast({ title: "Staff Deleted", description: res.data.message });
+                setManpower(prev => prev.filter(m => m.id !== member.id));
+            }
+        } catch (error: any) {
+            toast({
+                title: "Delete Failed",
+                description: getErrorMessage(error, "Could not delete this staff member"),
                 variant: "destructive"
             });
         } finally {
@@ -722,6 +758,24 @@ export const AdminManpower = () => {
                                                 {m.rejected_points}
                                             </button>
                                         </div>
+
+                                        {/* Delete sits outside the approval
+                                            buttons below, which only show for
+                                            active staff — a record that should
+                                            never have existed needs removing
+                                            whatever state it is in. */}
+                                        <Button
+                                            size="sm" variant="outline"
+                                            disabled={updatingId === m.id}
+                                            onClick={() => handleDelete(m)}
+                                            title="Delete permanently"
+                                            aria-label={`Delete ${m.name}`}
+                                            className="h-7 w-7 p-0 border-rose-200 text-rose-600 hover:bg-rose-50"
+                                        >
+                                            {updatingId === m.id
+                                                ? <Loader2 className="h-3 w-3 animate-spin" />
+                                                : <Trash2 className="h-3 w-3" />}
+                                        </Button>
 
                                         {hasPendingRemoval(m) ? (
                                             // A removal request takes precedence — decide it first.

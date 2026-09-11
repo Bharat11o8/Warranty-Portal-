@@ -261,6 +261,7 @@ export const AdminVendors = () => {
                 const exportData = filteredVendors.map((v, i) => ({
                     "Rank": i + 1,
                     "Store Name": v.store_name,
+                    "Brand": v.franchise_allowed_brands || "AF",
                     "Contact Person": v.contact_name,
                     "City": v.city,
                     "State": v.state,
@@ -277,6 +278,10 @@ export const AdminVendors = () => {
 
             const exportData = filteredVendors.map(v => ({
                 "Store Name": v.store_name,
+                // Which brand the store may sell — shown in the table, and
+                // missing from this file until now, so a downloaded list could
+                // not be split by brand at all.
+                "Brand": v.franchise_allowed_brands || "AF",
                 "Store Email": v.store_email,
                 "Contact Person": v.contact_name,
                 "Phone": v.phone_number,

@@ -200,7 +200,10 @@ export const AdminCustomers = () => {
         setLimitCustomer(customer);
         setLimitPhone(customer.customer_phone || "");
         setAllowedRegistrations(String(customer.mobile_allowed_registrations || 1));
-        setLimitReason("");
+        // Carry the existing reason in rather than blanking it. Reopening the
+        // dialog to change a count used to wipe the note explaining why the
+        // limit was raised in the first place.
+        setLimitReason(customer.mobile_limit_reason || "");
         setLimitDialogOpen(true);
     };
 
@@ -239,7 +242,10 @@ export const AdminCustomers = () => {
                     mobile_allowed_registrations: updated.allowedCount,
                     mobile_used_registrations: updated.usedCount,
                     mobile_remaining_registrations: updated.remainingCount,
-                    mobile_limit_override: updated.hasOverride
+                    mobile_limit_override: updated.hasOverride,
+                    // Kept in step with the saved value, so the reason shows
+                    // immediately rather than only after the next refresh.
+                    mobile_limit_reason: limitReason.trim() || null
                 });
 
                 setCustomers(prev => prev.map(customer => (
@@ -328,6 +334,21 @@ export const AdminCustomers = () => {
                         <div className="text-slate-500 mt-1">
                             Used {limitCustomer?.mobile_used_registrations || 0} of {limitCustomer?.mobile_allowed_registrations || 1} allowed submissions
                         </div>
+                        {/* Why the limit was raised, and by whom — otherwise the
+                            next admin sees a raised number with no explanation. */}
+                        {limitCustomer?.mobile_limit_override && limitCustomer?.mobile_limit_reason && (
+                            <div className="mt-2 pt-2 border-t border-slate-200">
+                                <p className="text-slate-700">{limitCustomer.mobile_limit_reason}</p>
+                                {limitCustomer.mobile_limit_updated_by && (
+                                    <p className="text-xs text-slate-400 mt-0.5">
+                                        Set by {limitCustomer.mobile_limit_updated_by}
+                                        {limitCustomer.mobile_limit_updated_at
+                                            ? ` · ${formatToIST(limitCustomer.mobile_limit_updated_at)}`
+                                            : ""}
+                                    </p>
+                                )}
+                            </div>
+                        )}
                     </div>
 
                     <div className="space-y-2">
@@ -599,9 +620,22 @@ export const AdminCustomers = () => {
                                         <div className="font-semibold text-slate-700 pl-4">{customer.total_warranties || 0}</div>
                                     </td>
                                     <td className="px-6 py-4">
-                                        <Badge variant="outline" className={customer.mobile_limit_override ? "border-blue-200 bg-blue-50 text-blue-700" : "border-slate-200 bg-slate-50 text-slate-600"}>
+                                        <Badge
+                                            variant="outline"
+                                            // The reason on hover, so a raised limit can be
+                                            // understood without opening the dialog.
+                                            title={customer.mobile_limit_override && customer.mobile_limit_reason
+                                                ? `${customer.mobile_limit_reason}${customer.mobile_limit_updated_by ? ` — ${customer.mobile_limit_updated_by}` : ""}`
+                                                : undefined}
+                                            className={customer.mobile_limit_override ? "border-blue-200 bg-blue-50 text-blue-700" : "border-slate-200 bg-slate-50 text-slate-600"}
+                                        >
                                             {customer.mobile_used_registrations || 0}/{customer.mobile_allowed_registrations || 1}
                                         </Badge>
+                                        {customer.mobile_limit_override && customer.mobile_limit_reason && (
+                                            <p className="text-[11px] text-slate-400 mt-1 max-w-[180px] truncate">
+                                                {customer.mobile_limit_reason}
+                                            </p>
+                                        )}
                                     </td>
                                     <td className="px-6 py-4 text-slate-600">
                                         {formatToIST(customer.registered_at)}
