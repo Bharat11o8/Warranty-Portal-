@@ -655,6 +655,20 @@ export class AdminController {
                     COALESCE(w.rejected_points, 0)   AS rejected_points
                 FROM manpower m
                 JOIN vendor_details vd ON vd.id = m.vendor_id
+                /*
+                 * A rejected store's staff have no business on this screen.
+                 * Rejection means the store was found not to be ours at all —
+                 * one such member was even approved, so they read as a real
+                 * installer sitting in the leaderboard. The rows stay in the
+                 * table (warranty history still points at them); they are just
+                 * not offered as current staff.
+                 *
+                 * NULL is treated as rejected too: every live franchise has a
+                 * verification row, so a missing one is an anomaly, and showing
+                 * an unverifiable store is the worse failure.
+                 */
+                JOIN vendor_verification vv
+                  ON vv.user_id = vd.user_id AND vv.is_verified = 1
                 LEFT JOIN (
                     SELECT manpower_id,
                            COUNT(*) AS total_applications,
@@ -1082,6 +1096,78 @@ export class AdminController {
         } catch (error: any) {
             console.error('Review manpower removal error:', error);
             res.status(500).json({ error: 'Failed to review removal request' });
+        }
+    }
+
+    /**
+     * Delete a staff member outright, whatever state they are in.
+     *
+     * The franchise-request flow above is the ordinary way a member leaves a
+     * team, and it is deliberately reversible. This is the other case: a record
+     * that should never have existed — staff of a store that turned out not to
+     * be ours, or a duplicate — where leaving a soft-deleted row behind is
+     * itself the problem.
+     *
+     * There are no foreign keys on `manpower`, so the database will happily
+     * delete a member whose warranties then point at nothing. That check lives
+     * here instead: a member with history is refused, because losing the
+     * installer on a live warranty is worse than keeping a row nobody wants.
+     */
+    static async deleteManpower(req: Request, res: Response) {
+        try {
+            const { id } = req.params;
+            const admin = (req as any).user;
+
+            const [rows]: any = await db.execute(
+                `SELECT m.id, m.name, m.manpower_id, m.phone_number, m.vendor_id,
+                        vd.store_name, vd.user_id AS franchise_user_id
+                   FROM manpower m
+                   JOIN vendor_details vd ON vd.id = m.vendor_id
+                  WHERE m.id = ?`,
+                [id]
+            );
+            if (!rows.length) return res.status(404).json({ error: 'Staff member not found' });
+            const member = rows[0];
+
+            const [[{ used }]]: any = await db.execute(
+                'SELECT COUNT(*) AS used FROM warranty_registrations WHERE manpower_id = ?',
+                [id]
+            );
+            if (used > 0) {
+                return res.status(409).json({
+                    error:
+                        `${member.name} has ${used} warrant${used === 1 ? 'y' : 'ies'} on record and ` +
+                        `cannot be deleted. Remove them from the team instead — their history stays intact.`,
+                });
+            }
+
+            await db.execute('DELETE FROM manpower WHERE id = ?', [id]);
+
+            // Logged because a delete leaves nothing behind to inspect later.
+            try {
+                await ActivityLogService.log({
+                    adminId: admin?.id,
+                    adminName: admin?.name,
+                    adminEmail: admin?.email,
+                    actionType: 'MANPOWER_DELETED',
+                    targetType: 'MANPOWER',
+                    targetId: id,
+                    targetName: member.name,
+                    details: {
+                        manpower_id: member.manpower_id,
+                        phone_number: member.phone_number,
+                        store_name: member.store_name,
+                    },
+                    ipAddress: req.ip || req.socket?.remoteAddress,
+                });
+            } catch (e) {
+                console.error('Failed to log manpower deletion', e);
+            }
+
+            res.json({ success: true, message: `${member.name} deleted from ${member.store_name}` });
+        } catch (error: any) {
+            console.error('Delete manpower error:', error);
+            res.status(500).json({ error: 'Failed to delete the staff member' });
         }
     }
 
@@ -3027,7 +3113,9 @@ export class AdminController {
                     GROUP BY customer_phone
                 `)),
                 timedQuery('mobile limits query', () => db.execute(
-                    'SELECT mobile_number, allowed_registrations FROM customer_mobile_limits'
+                    // The reason an admin raised a number's limit, so the
+                    // next admin can see why rather than guessing.
+                    'SELECT mobile_number, allowed_registrations, reason, updated_by, updated_at FROM customer_mobile_limits'
                 ))
             ]);
 
@@ -3061,19 +3149,29 @@ export class AdminController {
                 phoneStatsMap.set(mobileNumber, merged);
             });
 
-            const mobileLimitMap = new Map<string, number>();
+            // Holds the whole override, not just the count: an admin looking at
+            // a raised limit wants to know why it was raised and by whom.
+            const mobileLimitMap = new Map<string, {
+                allowed: number; reason: string | null; by: string | null; at: Date | null;
+            }>();
             limitRows.forEach((row: any) => {
                 const mobileNumber = normalizeCustomerMobile(row.mobile_number);
                 if (!mobileNumber) return;
-                mobileLimitMap.set(mobileNumber, Math.max(1, Number(row.allowed_registrations || 1)));
+                mobileLimitMap.set(mobileNumber, {
+                    allowed: Math.max(1, Number(row.allowed_registrations || 1)),
+                    reason: row.reason || null,
+                    by: row.updated_by || null,
+                    at: row.updated_at || null,
+                });
             });
 
             const customersWithLimits = customerRows.map((row: any) => {
                 const { total_count: _totalCount, ...customer } = row;
                 const mobileNumber = normalizeCustomerMobile(customer.customer_phone);
                 const usedCount = mobileNumber ? (mobileUsageMap.get(mobileNumber) || 0) : 0;
-                const hasOverride = mobileNumber ? mobileLimitMap.has(mobileNumber) : false;
-                const allowedCount = hasOverride ? (mobileLimitMap.get(mobileNumber) || 1) : 1;
+                const override = mobileNumber ? mobileLimitMap.get(mobileNumber) : undefined;
+                const hasOverride = Boolean(override);
+                const allowedCount = override?.allowed ?? 1;
 
                 // The phone is the customer, so its warranties are theirs even
                 // when the registration was filed under another account.
@@ -3092,7 +3190,10 @@ export class AdminController {
                     mobile_allowed_registrations: allowedCount,
                     mobile_used_registrations: usedCount,
                     mobile_remaining_registrations: Math.max(allowedCount - usedCount, 0),
-                    mobile_limit_override: hasOverride
+                    mobile_limit_override: hasOverride,
+                    mobile_limit_reason: override?.reason ?? null,
+                    mobile_limit_updated_by: override?.by ?? null,
+                    mobile_limit_updated_at: override?.at ?? null
                 };
             });
 
@@ -3633,7 +3734,12 @@ export class AdminController {
                 limit,
                 offset,
                 adminId,
-                actionType
+                actionType,
+                search: req.query.search as string,
+                dateFrom: req.query.dateFrom as string,
+                dateTo: req.query.dateTo as string,
+                sortField: req.query.sortField as any,
+                sortOrder: req.query.sortOrder as any,
             });
 
             const totalPages = Math.ceil(result.total / limit);
@@ -3653,6 +3759,18 @@ export class AdminController {
         } catch (error: any) {
             console.error('Get activity logs error:', error);
             res.status(500).json({ error: 'Failed to fetch activity logs' });
+        }
+    }
+
+    /** One entry, with every other action recorded against the same target. */
+    static async getActivityLogDetail(req: Request, res: Response) {
+        try {
+            const result = await ActivityLogService.getLogDetail(req.params.id);
+            if (!result) return res.status(404).json({ error: 'Activity log entry not found' });
+            res.json({ success: true, ...result });
+        } catch (error: any) {
+            console.error('Get activity log detail error:', error);
+            res.status(500).json({ error: 'Failed to fetch the activity detail' });
         }
     }
 

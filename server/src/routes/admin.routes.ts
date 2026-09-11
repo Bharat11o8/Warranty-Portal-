@@ -51,6 +51,7 @@ router.delete('/vendors/:id', ...adminAuth, requirePermission('vendors', 'write'
 router.get('/manpower', ...adminAuth, requirePermission('vendors', 'read'), AdminController.getAllManpower);
 router.put('/manpower/:id/approval', ...adminAuth, requirePermission('vendors', 'write'), AdminController.updateManpowerApproval);
 router.put('/manpower/:id/removal-review', ...adminAuth, requirePermission('vendors', 'write'), AdminController.reviewManpowerRemoval);
+router.delete('/manpower/:id', ...adminAuth, requirePermission('vendors', 'write'), AdminController.deleteManpower);
 
 // WhatsApp notification toggles
 router.get('/notification-settings', ...adminAuth, requirePermission('announcements', 'read'), AdminController.getNotificationSettings);
@@ -135,6 +136,7 @@ router.patch('/admins/:id/permissions', ...adminAuth, requirePermission('admins'
 router.delete('/admins/:id', ...adminAuth, requirePermission('admins', 'write'), AdminController.deleteAdmin);
 
 router.get('/activity-logs', ...adminAuth, requirePermission('activity_logs', 'read'), AdminController.getActivityLogs);
+router.get('/activity-logs/:id', ...adminAuth, requirePermission('activity_logs', 'read'), AdminController.getActivityLogDetail);
 router.get('/diagnostic/vendors', ...adminAuth, AdminController.getDashboardStats);
 router.post('/repair-image', ...adminAuth, requirePermission('warranties', 'write'), ImageRepairController.repairOne);
 
