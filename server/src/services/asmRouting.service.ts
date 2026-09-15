@@ -3,6 +3,13 @@ import { v4 as uuidv4 } from 'uuid';
 import { WhatsAppService } from './whatsapp.service.js';
 import { findState } from './indianStates.js';
 
+/* Re-exported so existing callers keep working; the implementation lives
+   in productMatch, which has no database import and can be tested. */
+export { normaliseProduct, PRODUCTS } from './productMatch.js';
+import { normaliseProduct } from './productMatch.js';
+import type { Product } from './productMatch.js';
+export type { Product };
+
 /**
  * Route a customer enquiry to the ASM who covers their area.
  *
@@ -30,43 +37,6 @@ export function areaKey(raw: string): string {
         .normalize('NFKD')
         .replace(/[^a-z0-9]+/g, '')
         .trim();
-}
-
-/**
- * The three product lines, and the many ways a customer names them.
- *
- * The greeting offers buttons, so most enquiries arrive as an exact label. But
- * a customer can also type instead of tapping, and the keyword that opened the
- * conversation ("mat", "seat cover") is itself a product signal worth keeping.
- * Both paths land here so the lead is filed under one of three names rather
- * than a dozen spellings — the team wants leads bifurcated by product, and that
- * only works if the value is closed.
- */
-export const PRODUCTS = ['Seat Covers', 'Mats', 'Accessories'] as const;
-export type Product = (typeof PRODUCTS)[number];
-
-const PRODUCT_PATTERNS: Array<[Product, RegExp]> = [
-    // Seat covers first: "car seat cover mat" is a seat cover enquiry, and the
-    // looser mat pattern would otherwise claim it.
-    ['Seat Covers', /seat\s*-?\s*covers?|seatcovers?|\bcovers?\b/i],
-    ['Mats', /\bmats?\b|floor\s*mats?|car\s*mats?/i],
-    ['Accessories', /accessor|\baccs?\b/i],
-];
-
-/**
- * Resolve whatever the customer sent into one of the three product lines.
- *
- * Returns null rather than guessing when nothing matches — an unlabelled lead
- * is honest, whereas defaulting to Seat Covers would quietly inflate one line's
- * numbers and make the bifurcation useless.
- */
-export function normaliseProduct(raw: string | null | undefined): Product | null {
-    const text = String(raw || '').trim();
-    if (!text) return null;
-    for (const [product, pattern] of PRODUCT_PATTERNS) {
-        if (pattern.test(text)) return product;
-    }
-    return null;
 }
 
 /** Last 10 digits — the stable part of an Indian number however it is written. */
