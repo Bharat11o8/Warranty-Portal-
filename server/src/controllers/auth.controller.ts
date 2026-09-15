@@ -7,6 +7,7 @@ import { OTPService } from '../services/otp.service.js';
 import { WhatsAppService } from '../services/whatsapp.service.js';
 import { ActivityLogService } from '../services/activity-log.service.js';
 import { RegisterData } from '../types/index.js';
+import { canonicalState } from '../services/indianStates.js';
 import dotenv from 'dotenv';
 
 dotenv.config();
@@ -15,6 +16,22 @@ dotenv.config();
 const INDIAN_MOBILE_REGEX = /^[6-9]\d{9}$/;
 const EMAIL_REGEX = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
 const PINCODE_REGEX = /^\d{6}$/;
+/** Indian GSTIN: 2-digit state code, 10-character PAN, entity digit, 'Z', checksum. */
+const GST_REGEX = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/;
+
+/**
+ * Collapse whitespace and settle the casing of a typed place name.
+ *
+ * Only whitespace and casing: correcting spelling is guesswork, and a fixed
+ * list would reject the three to five genuinely new towns that register each
+ * month — Pampore, Abohar and Dehgam were all recent first-time entries.
+ */
+const titleCasePlace = (value: string): string =>
+  String(value || '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase()
+    .replace(/\b[a-z]/g, (c) => c.toUpperCase());
 
 const getRoleBasedCookieMaxAge = (role?: string): number => {
   const roleDefaults: Record<string, number> = {
@@ -75,12 +92,19 @@ export class AuthController {
 
       // SBP-DB: Trim string lengths to prevent database overflow (Data Too Long) edge cases
       name = name?.substring(0, 100);
-      // Optional at signup — a store without a GST number can still register.
       gstNumber = gstNumber ? String(gstNumber).trim().toUpperCase().substring(0, 20) : undefined;
       email = email?.substring(0, 100);
       storeName = storeName?.substring(0, 255);
-      city = city?.substring(0, 100);
-      state = state?.substring(0, 100);
+      /*
+       * Collapse the whitespace and settle the casing before anything is stored.
+       *
+       * These arrived as free text and accumulated "Nasik ", "Madhay pradesh "
+       * and "Jammu  Kashmir" — each stray space became its own entry in every
+       * city and state filter. The state is additionally resolved to a canonical
+       * spelling, which is what ASM lead-routing matches against.
+       */
+      city = city ? titleCasePlace(city).substring(0, 100) : city;
+      state = state ? canonicalState(String(state)).substring(0, 100) : state;
       address = address?.substring(0, 1000);
       pincode = pincode?.substring(0, 20);
 
@@ -119,6 +143,20 @@ export class AuthController {
         // Validate pincode
         if (!PINCODE_REGEX.test(pincode)) {
           return res.status(400).json({ error: 'Pincode must be 6 digits' });
+        }
+
+        /*
+         * GST is required for new franchises.
+         *
+         * Existing stores are not held to this — about 39% registered before
+         * the field existed, and they are edited through the admin screens,
+         * which is why the rule lives here rather than in a shared validator.
+         */
+        if (!gstNumber) {
+          return res.status(400).json({ error: 'GST number is required' });
+        }
+        if (!GST_REGEX.test(gstNumber)) {
+          return res.status(400).json({ error: 'Please enter a valid 15-character GST number' });
         }
       }
 

@@ -14,7 +14,10 @@ import {
   getPhoneError,
   getEmailError,
   getPincodeError,
-  getGstError
+  getGstError,
+  getCityError,
+  cleanPlaceName,
+  INDIAN_STATE_NAMES
 } from "@/lib/validation";
 
 interface Manpower {
@@ -121,7 +124,14 @@ const Register = () => {
       const cleaned = value.replace(/\D/g, '').slice(0, 6);
       setVendorData(prev => ({ ...prev, [name]: cleaned }));
       setErrors(prev => ({ ...prev, pincode: getPincodeError(cleaned) }));
-    } else if (['contactName', 'storeName', 'city', 'state'].includes(name)) {
+    } else if (name === 'city') {
+      // Letters and spaces only, as before, but the run of spaces is collapsed
+      // so "Nasik  " and "Nasik" cannot become two cities. Final Title Casing
+      // happens on submit rather than here, which would fight the cursor.
+      const textOnly = value.replace(/[^A-Za-z\s]/g, '').replace(/\s{2,}/g, ' ');
+      setVendorData(prev => ({ ...prev, city: textOnly }));
+      setErrors(prev => ({ ...prev, city: textOnly.trim() ? '' : prev.city }));
+    } else if (['contactName', 'storeName'].includes(name)) {
       // Allow only letters and spaces for name and location fields
       const textOnly = value.replace(/[^A-Za-z\s]/g, '');
       setVendorData(prev => ({ ...prev, [name]: textOnly }));
@@ -218,14 +228,20 @@ const Register = () => {
       const emailError = getEmailError(vendorData.storeEmail);
       const phoneError = getPhoneError(vendorData.phoneNumber);
       const pincodeError = getPincodeError(vendorData.pincode);
-      // Empty GST returns no error — optional, so it never blocks registration.
-      const gstError = getGstError(vendorData.gstNumber);
+      // Required for new registrations. Stores already on file may have no GST,
+      // which is why the shared validator still treats empty as valid by default.
+      const gstError = getGstError(vendorData.gstNumber, true);
+      const cityError = getCityError(vendorData.city);
+      const stateError = vendorData.state ? '' : 'Please select your state';
 
-      if (emailError || phoneError || pincodeError || gstError) {
-        setErrors({ storeEmail: emailError, phoneNumber: phoneError, pincode: pincodeError, gstNumber: gstError });
+      if (emailError || phoneError || pincodeError || gstError || cityError || stateError) {
+        setErrors({
+          storeEmail: emailError, phoneNumber: phoneError, pincode: pincodeError,
+          gstNumber: gstError, city: cityError, state: stateError,
+        });
         toast({
           title: "Validation Error",
-          description: emailError || phoneError || pincodeError || gstError,
+          description: emailError || phoneError || pincodeError || gstError || cityError || stateError,
           variant: "destructive",
         });
         return;
@@ -251,6 +267,10 @@ const Register = () => {
         ? { ...customerData, role }
         : {
           ...vendorData,
+          // Tidied here as well as on the server, so what the franchise sees
+          // confirmed is exactly what gets stored.
+          city: cleanPlaceName(vendorData.city),
+          gstNumber: vendorData.gstNumber.trim().toUpperCase(),
           name: vendorData.contactName, // Map contactName to name for backend compatibility
           email: vendorData.storeEmail, // Map storeEmail to email
           manpower: manpowerList.filter(m => m.name && m.phoneNumber), // Filter empty rows
@@ -536,16 +556,29 @@ const Register = () => {
                   <div className="grid md:grid-cols-3 gap-6">
                     <div className="space-y-2">
                       <Label htmlFor="state" className="text-white">State *</Label>
-                      <Input
-                        id="state"
-                        name="state"
-                        placeholder="State"
+                      {/* A list rather than a text box: typed states arrived as
+                          "Maharastra", "Madhay pradesh " and three spellings of
+                          Jammu & Kashmir, each splitting the store into its own
+                          row in every filter and report. */}
+                      <Select
                         value={vendorData.state}
-                        onChange={handleVendorChange}
-                        required
+                        onValueChange={(value) =>
+                          setVendorData(prev => ({ ...prev, state: value }))
+                        }
                         disabled={loading}
-                        className="h-11 bg-white/10 border-white/20 text-white placeholder:text-white/40 focus:bg-white/20 border"
-                      />
+                      >
+                        <SelectTrigger
+                          id="state"
+                          className="h-11 bg-white/10 border-white/20 text-white focus:bg-white/20 border data-[placeholder]:text-white/40"
+                        >
+                          <SelectValue placeholder="Select state" />
+                        </SelectTrigger>
+                        <SelectContent className="max-h-72">
+                          {INDIAN_STATE_NAMES.map((name) => (
+                            <SelectItem key={name} value={name}>{name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="city" className="text-white">City *</Label>
@@ -555,10 +588,18 @@ const Register = () => {
                         placeholder="City"
                         value={vendorData.city}
                         onChange={handleVendorChange}
+                        onBlur={(e) =>
+                          setVendorData(prev => ({ ...prev, city: cleanPlaceName(e.target.value) }))
+                        }
                         required
                         disabled={loading}
-                        className="h-11 bg-white/10 border-white/20 text-white placeholder:text-white/40 focus:bg-white/20 border"
+                        className={`h-11 bg-white/10 border-white/20 text-white placeholder:text-white/40 focus:bg-white/20 border ${errors.city ? 'border-red-400' : ''}`}
                       />
+                      {errors.city && (
+                        <p className="text-sm text-red-300 flex items-center gap-1">
+                          <AlertCircle className="h-3 w-3" /> {errors.city}
+                        </p>
+                      )}
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="pincode" className="text-white">Pincode * <span className="text-xs text-white/60">(6-digit)</span></Label>
@@ -581,11 +622,12 @@ const Register = () => {
                     </div>
                   </div>
 
-                  {/* Optional: a store without a GST number must still be able to
-                      register, so this never blocks submission. */}
+                  {/* Required for new registrations. Franchises already on file
+                      may have none, so the shared validator keeps empty valid by
+                      default and only this form demands it. */}
                   <div className="space-y-2">
                     <Label htmlFor="gstNumber" className="text-white">
-                      GST Number <span className="text-xs text-white/60">(optional, 15 characters)</span>
+                      GST Number * <span className="text-xs text-white/60">(15 characters)</span>
                     </Label>
                     <div className="relative">
                       <FileText className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/40" />
@@ -596,6 +638,7 @@ const Register = () => {
                         value={vendorData.gstNumber}
                         onChange={handleVendorChange}
                         maxLength={15}
+                        required
                         disabled={loading}
                         className={`h-11 pl-9 font-mono tracking-wide bg-white/10 border-white/20 text-white placeholder:text-white/40 focus:bg-white/20 border ${errors.gstNumber ? 'border-red-400' : ''}`}
                       />

@@ -117,11 +117,14 @@ export const GST_REGEX = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{
 /**
  * Get validation error message for a GST number.
  *
- * Empty is valid — GST is optional, and a store without one must still be able
- * to register.
+ * Empty passes by default: about 39% of franchises on file predate the GST
+ * field, and the admin screens must still be able to save one of those without
+ * being forced to invent a number. New signups pass `required` to demand it.
  */
-export const getGstError = (gst: string): string => {
-    if (!gst || !gst.trim()) return '';
+export const getGstError = (gst: string, required = false): string => {
+    if (!gst || !gst.trim()) {
+        return required ? 'Please enter your GST number' : '';
+    }
     const value = gst.trim().toUpperCase();
     if (value.length !== 15) return `GST number must be 15 characters (this one has ${value.length})`;
     if (!GST_REGEX.test(value)) return 'That does not look like a valid GST number';
@@ -324,3 +327,82 @@ export const getVehicleRegError = (regNumber: string): string => {
     }
     return '';
 };
+
+// ============================================
+// PLACE NAMES
+// ============================================
+
+/**
+ * Tidy a typed place name before it is stored.
+ *
+ * Our `vendor_details` accumulated "Nasik ", "Madhay pradesh " and
+ * "Jammu  Kashmir" because the field was free text with nothing trimming it —
+ * each stray space created a second entry in every city and state filter. This
+ * collapses the whitespace and settles on one casing so the same town typed by
+ * two franchises lands on the same value.
+ *
+ * Deliberately only whitespace and casing: correcting spelling is guesswork and
+ * would reject real towns.
+ */
+export const cleanPlaceName = (value: string): string =>
+    String(value || '')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .toLowerCase()
+        .replace(/\b[a-z]/g, (c) => c.toUpperCase());
+
+/** Error message for a required city, or '' when it is usable. */
+export const getCityError = (city: string): string => {
+    const value = cleanPlaceName(city);
+    if (!value) return 'Please enter the city';
+    if (value.length < 2) return 'That city name looks too short';
+    if (!/[a-zA-Z]/.test(value)) return 'City must contain letters';
+    return '';
+};
+
+/**
+ * The states and union territories a franchise can register under.
+ *
+ * These are the canonical spellings from the server's `indianStates` service,
+ * which is what ASM lead-routing resolves against — keeping them identical
+ * means a franchise's stored state always matches the state a lead resolves to.
+ * Sorted for the dropdown; states first is not useful to someone scanning it.
+ */
+export const INDIAN_STATE_NAMES: string[] = [
+    'Andaman & Nicobar',
+    'Andhra Pradesh',
+    'Arunachal Pradesh',
+    'Assam',
+    'Bihar',
+    'Chandigarh',
+    'Chhattisgarh',
+    'Dadra & Nagar Haveli and Daman & Diu',
+    'Delhi',
+    'Goa',
+    'Gujarat',
+    'Haryana',
+    'Himachal Pradesh',
+    'Jammu & Kashmir',
+    'Jharkhand',
+    'Karnataka',
+    'Kerala',
+    'Ladakh',
+    'Lakshadweep',
+    'Madhya Pradesh',
+    'Maharashtra',
+    'Manipur',
+    'Meghalaya',
+    'Mizoram',
+    'Nagaland',
+    'Odisha',
+    'Puducherry',
+    'Punjab',
+    'Rajasthan',
+    'Sikkim',
+    'Tamil Nadu',
+    'Telangana',
+    'Tripura',
+    'Uttar Pradesh',
+    'Uttarakhand',
+    'West Bengal',
+];
