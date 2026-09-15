@@ -16,7 +16,8 @@ import {
 } from "@/components/ui/dialog";
 import {
     Loader2, Search, RefreshCw, Inbox, AlertTriangle, Copy,
-    Check, CheckCheck, XCircle, Pencil, Plus, MapPin, Download, CalendarDays
+    Check, CheckCheck, XCircle, Pencil, Plus, MapPin, Download, CalendarDays,
+    Store as StoreIcon, Send
 } from "lucide-react";
 
 /**
@@ -57,6 +58,25 @@ interface Lead {
     review_status: Outcome | null;
     review_reason: string | null;
     reviewed_at: string | null;
+    /* The store an admin pointed this customer at, and whether the customer
+       opened the message. Null until somebody sends one. */
+    store_id: string | null;
+    store_name: string | null;
+    store_sent_at: string | null;
+    store_msg_status: "sent" | "delivered" | "read" | "failed" | null;
+}
+
+interface Store {
+    id: string;
+    store_name: string;
+    store_code: string | null;
+    address: string | null;
+    city: string | null;
+    state: string | null;
+    pincode: string | null;
+    phone_number: string | null;
+    /* The customer's own words point at this store's city. */
+    near: boolean;
 }
 
 interface Counts {
@@ -147,6 +167,27 @@ const PRODUCT_STYLE: Record<string, string> = {
     Accessories: "bg-sky-50 text-sky-700 border-sky-200",
 };
 
+/**
+ * One address line, without repeating the city or pincode.
+ *
+ * Most stored addresses already end with their own city and pincode —
+ * "…TONK ROAD JAIPUR-302018" — so appending both again produced
+ * "…JAIPUR-302018, JAIPUR, 302018" in a message a customer reads. Mirrors the
+ * server exactly, so this preview is what actually gets sent.
+ */
+const buildAddress = (s: { address: string | null; city: string | null; pincode: string | null }) => {
+    const base = String(s.address || "").trim().replace(/[,\s]+$/, "");
+    const squashed = base.toLowerCase().replace(/[^a-z0-9]+/g, "");
+    const parts = [base];
+    for (const extra of [s.city, s.pincode]) {
+        const value = String(extra || "").trim();
+        if (!value) continue;
+        const key = value.toLowerCase().replace(/[^a-z0-9]+/g, "");
+        if (key && !squashed.includes(key)) parts.push(value);
+    }
+    return parts.filter(Boolean).join(", ");
+};
+
 /** "10 Sep, 3:45 PM" — the same shape the ASM sees on WhatsApp. */
 const formatWhen = (iso: string) => {
     const d = new Date(iso);
@@ -168,6 +209,7 @@ export const AdminLeadsList = () => {
     const [delivery, setDelivery] = useState("all");
     const [asmId, setAsmId] = useState("all");
     const [channel, setChannel] = useState("all");
+    const [review, setReview] = useState("all");
     const [dateFrom, setDateFrom] = useState("");
     const [dateTo, setDateTo] = useState("");
     const [asmOptions, setAsmOptions] = useState<
@@ -181,6 +223,13 @@ export const AdminLeadsList = () => {
         customer_name: "", raw_area: "", car_model: "",
     });
     const [saving, setSaving] = useState(false);
+
+    // Choosing a store to give the customer, from inside the edit dialog.
+    const [stores, setStores] = useState<Store[]>([]);
+    const [loadingStores, setLoadingStores] = useState(false);
+    const [storeSearch, setStoreSearch] = useState("");
+    const [chosenStore, setChosenStore] = useState<string | null>(null);
+    const [sendingStore, setSendingStore] = useState(false);
 
     // Adding a lead by hand, for IVR and website enquiries.
     const [addOpen, setAddOpen] = useState(false);
@@ -202,6 +251,7 @@ export const AdminLeadsList = () => {
             if (delivery !== "all") params.delivery = delivery;
             if (asmId !== "all") params.asm_id = asmId;
             if (channel !== "all") params.source = channel;
+            if (review !== "all") params.review = review;
             if (dateFrom) params.dateFrom = dateFrom;
             if (dateTo) params.dateTo = dateTo;
 
@@ -228,7 +278,7 @@ export const AdminLeadsList = () => {
             setLoading(false);
             setRefreshing(false);
         }
-    }, [status, product, delivery, asmId, channel, dateFrom, dateTo, toast]);
+    }, [status, product, delivery, asmId, channel, review, dateFrom, dateTo, toast]);
 
     useEffect(() => { fetchLeads(); }, [fetchLeads]);
 
@@ -271,8 +321,70 @@ export const AdminLeadsList = () => {
         );
     }, [leads, search]);
 
+    /*
+     * Load the stores that could serve this lead when the dialog opens.
+     *
+     * Fetched per lead rather than held for the whole list: the set depends on
+     * the lead's state, and most leads are never opened.
+     */
+    const loadStores = async (leadId: string) => {
+        setLoadingStores(true);
+        setStores([]);
+        try {
+            const res = await api.get(`/asm/leads/${leadId}/stores`);
+            if (res.data.success) setStores(res.data.stores || []);
+        } catch {
+            /* The dialog is still useful without them; the empty state says so. */
+        } finally {
+            setLoadingStores(false);
+        }
+    };
+
+    /*
+     * Give the customer a store.
+     *
+     * This message goes to a member of the public and cannot be recalled, so
+     * the admin confirms the store by name first — the button says who it is
+     * about to reach.
+     */
+    const sendStore = async () => {
+        if (!editing || !chosenStore) return;
+        const store = stores.find(s => s.id === chosenStore);
+        if (!store) return;
+
+        const again = editing.store_sent_at
+            ? `This customer was already sent store details on ${formatWhen(editing.store_sent_at)}.\n\n`
+            : "";
+        if (!window.confirm(
+            `${again}Send ${store.store_name} to ${editing.customer_phone}?\n\n` +
+            `This is a WhatsApp message to the customer and cannot be undone.`
+        )) return;
+
+        setSendingStore(true);
+        try {
+            const res = await api.post(`/asm/leads/${editing.id}/send-store`, { store_id: chosenStore });
+            if (res.data.success) {
+                toast({ title: "Store details sent", description: res.data.message });
+                setEditing(null);
+                setChosenStore(null);
+                fetchLeads(true);
+            }
+        } catch (error: any) {
+            toast({
+                title: "Could not send",
+                description: getErrorMessage(error, "Please try again"),
+                variant: "destructive",
+            });
+        } finally {
+            setSendingStore(false);
+        }
+    };
+
     const openEdit = (lead: Lead) => {
         setEditing(lead);
+        setChosenStore(lead.store_id || null);
+        setStoreSearch("");
+        loadStores(lead.id);
         setEditForm({
             review_status: lead.review_status || "",
             review_reason: lead.review_reason || "",
@@ -381,6 +493,9 @@ export const AdminLeadsList = () => {
             "ASM phone": lead.asm_phone || "",
             Forwarding: lead.status,
             Delivery: lead.delivery_status ? DELIVERY_LABEL[lead.delivery_status] : "",
+            "Store sent": lead.store_name || "",
+            "Store message": lead.store_msg_status ? DELIVERY_LABEL[lead.store_msg_status] : "",
+            "Store sent at": lead.store_sent_at ? formatWhen(lead.store_sent_at) : "",
             Review: lead.review_status ? OUTCOME_LABEL[lead.review_status] : "",
             "Review reason": lead.review_reason || "",
             "Reviewed at": lead.reviewed_at ? formatWhen(lead.reviewed_at) : "",
@@ -393,6 +508,7 @@ export const AdminLeadsList = () => {
         if (product !== "all") parts.push(product.replace(/\s+/g, "-").toLowerCase());
         if (delivery !== "all") parts.push(delivery);
         if (channel !== "all") parts.push(channel);
+        if (review !== "all") parts.push(`review-${review}`);
         if (asmId !== "all") {
             const asm = asmOptions.find(a => a.id === asmId);
             if (asm) parts.push(asm.name.replace(/\s+/g, "-").toLowerCase());
@@ -410,7 +526,8 @@ export const AdminLeadsList = () => {
     /** Whether anything is narrowing the list — so an empty result can say why. */
     const anyFilter = Boolean(
         search.trim() || status !== "all" || product !== "all" ||
-        delivery !== "all" || asmId !== "all" || channel !== "all" || dateFrom || dateTo
+        delivery !== "all" || asmId !== "all" || channel !== "all" ||
+        review !== "all" || dateFrom || dateTo
     );
 
     const copyPhone = (phone: string) => {
@@ -633,6 +750,22 @@ export const AdminLeadsList = () => {
                         </SelectContent>
                     </Select>
 
+                    {/* The audit. "Not reviewed" leads, because a lead nobody
+                        has called back yet is the work still outstanding — and
+                        it cannot be asked for by naming any of the outcomes. */}
+                    <Select value={review} onValueChange={setReview}>
+                        <SelectTrigger className="h-9 w-[150px] rounded-lg border-slate-200 text-xs">
+                            <SelectValue placeholder="Review" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="all">Any review</SelectItem>
+                            <SelectItem value="pending">Not reviewed</SelectItem>
+                            {OUTCOMES.map(o => (
+                                <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+
                     {asmOptions.length > 0 && (
                         <Select value={asmId} onValueChange={setAsmId}>
                             <SelectTrigger className="h-9 w-[160px] rounded-lg border-slate-200 text-xs">
@@ -659,7 +792,7 @@ export const AdminLeadsList = () => {
                             onClick={() => {
                                 setSearch(""); setStatus("all"); setProduct("all");
                                 setDelivery("all"); setAsmId("all"); setChannel("all");
-                                setDateFrom(""); setDateTo("");
+                                setReview("all"); setDateFrom(""); setDateTo("");
                             }}
                             className="h-9 px-3 rounded-lg text-xs font-semibold text-slate-500 hover:text-rose-600 hover:bg-rose-50 transition-colors"
                         >
@@ -695,7 +828,7 @@ export const AdminLeadsList = () => {
                             onClick={() => {
                                 setSearch(""); setStatus("all"); setProduct("all");
                                 setDelivery("all"); setAsmId("all"); setChannel("all");
-                                setDateFrom(""); setDateTo("");
+                                setReview("all"); setDateFrom(""); setDateTo("");
                             }}
                         >
                             Clear all filters
@@ -709,7 +842,7 @@ export const AdminLeadsList = () => {
                    under one heading is what makes that scannable. */
                 <Card className="rounded-2xl border-slate-100 overflow-hidden">
                     <div className="relative w-full overflow-auto">
-                        <table className="w-full text-sm text-left table-fixed min-w-[1400px]">
+                        <table className="w-full text-sm text-left table-fixed min-w-[1550px]">
                             <thead className="bg-slate-50 text-slate-500 border-b border-slate-100">
                                 <tr>
                                     <th className="px-3 py-3 w-[110px] font-semibold">Date</th>
@@ -720,6 +853,7 @@ export const AdminLeadsList = () => {
                                     <th className="px-3 py-3 w-[110px] font-semibold">Vehicle</th>
                                     <th className="px-3 py-3 w-[120px] font-semibold">Product</th>
                                     <th className="px-3 py-3 w-[160px] font-semibold">Forwarded to</th>
+                                    <th className="px-3 py-3 w-[150px] font-semibold">Store sent</th>
                                     <th className="px-3 py-3 w-[140px] font-semibold">Review</th>
                                     <th className="px-3 py-3 font-semibold">Review reason</th>
                                     <th className="px-3 py-3 w-[52px]"></th>
@@ -833,6 +967,30 @@ export const AdminLeadsList = () => {
                                             )}
                                         </td>
 
+                                        {/* Whether the customer was given a store,
+                                            and whether they opened it. */}
+                                        <td className="px-3 py-3 align-top">
+                                            {lead.store_name ? (
+                                                <>
+                                                    <div className="text-slate-700 truncate" title={lead.store_name}>
+                                                        {lead.store_name}
+                                                    </div>
+                                                    {lead.store_msg_status && (
+                                                        <div className={`text-[11px] flex items-center gap-1 ${DELIVERY_TONE[lead.store_msg_status] || "text-slate-400"}`}>
+                                                            {lead.store_msg_status === "read"
+                                                                ? <CheckCheck className="h-3 w-3" />
+                                                                : lead.store_msg_status === "failed"
+                                                                    ? <XCircle className="h-3 w-3" />
+                                                                    : <Check className="h-3 w-3" />}
+                                                            {DELIVERY_LABEL[lead.store_msg_status]}
+                                                        </div>
+                                                    )}
+                                                </>
+                                            ) : (
+                                                <span className="text-slate-300">—</span>
+                                            )}
+                                        </td>
+
                                         <td className="px-3 py-3 align-top">
                                             {lead.review_status ? (
                                                 <Badge
@@ -874,7 +1032,7 @@ export const AdminLeadsList = () => {
             {/* Edit one lead: its outcome, the audit of it, and corrections
                 to what was captured. */}
             <Dialog open={Boolean(editing)} onOpenChange={open => !open && setEditing(null)}>
-                <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+                <DialogContent className="max-w-3xl max-h-[88vh] overflow-y-auto overflow-x-hidden">
                     <DialogHeader>
                         <DialogTitle>Edit lead</DialogTitle>
                         <DialogDescription>
@@ -883,72 +1041,201 @@ export const AdminLeadsList = () => {
                         </DialogDescription>
                     </DialogHeader>
 
-                    <div className="space-y-4 py-1">
-                        <div className="grid grid-cols-2 gap-3">
-                            <div className="space-y-1.5">
-                                <Label htmlFor="e-name">Customer</Label>
-                                <Input
-                                    id="e-name"
-                                    value={editForm.customer_name}
-                                    onChange={e => setEditForm({ ...editForm, customer_name: e.target.value })}
-                                    placeholder="Name not shared"
-                                />
-                            </div>
-                            <div className="space-y-1.5">
-                                <Label htmlFor="e-car">Vehicle</Label>
-                                <Input
-                                    id="e-car"
-                                    value={editForm.car_model}
-                                    onChange={e => setEditForm({ ...editForm, car_model: e.target.value })}
-                                    placeholder="e.g. Creta"
-                                />
-                            </div>
+                    <div className="space-y-4 py-1 min-w-0">
+                        {/* What was captured. Editable, but not the reason anybody
+                            opened this — so it sits compact at the top rather than
+                            taking a third of the dialog. */}
+                        <div className="grid grid-cols-3 gap-3 min-w-0">
+                            {[
+                                { id: "e-name", label: "Customer", key: "customer_name", placeholder: "Not shared" },
+                                { id: "e-car", label: "Vehicle", key: "car_model", placeholder: "e.g. Creta" },
+                                { id: "e-area", label: "Area", key: "raw_area", placeholder: "e.g. Rohini Delhi" },
+                            ].map(f => (
+                                <div key={f.id} className="space-y-1 min-w-0">
+                                    <Label htmlFor={f.id} className="text-[11px] text-slate-500">{f.label}</Label>
+                                    <Input
+                                        id={f.id}
+                                        className="h-9 text-sm"
+                                        value={(editForm as any)[f.key]}
+                                        onChange={e => setEditForm({ ...editForm, [f.key]: e.target.value })}
+                                        placeholder={f.placeholder}
+                                    />
+                                </div>
+                            ))}
                         </div>
+                        <p className="text-[11px] text-slate-400">
+                            Routes by state — currently{" "}
+                            <span className="font-semibold text-slate-600">{editing?.state || "unresolved"}</span>.
+                            Editing the area can change who the lead belongs to.
+                        </p>
 
-                        <div className="space-y-1.5">
-                            <Label htmlFor="e-area">Area</Label>
-                            <Input
-                                id="e-area"
-                                value={editForm.raw_area}
-                                onChange={e => setEditForm({ ...editForm, raw_area: e.target.value })}
-                                placeholder="e.g. Rohini Delhi"
-                            />
-                            <p className="text-xs text-slate-400">
-                                Currently resolved to {editing?.state || "no state"}. Changing this
-                                re-resolves it, and can change who the lead belongs to.
+                        {/* The audit. */}
+                        <div className="rounded-xl border border-slate-200 p-3.5 space-y-3 min-w-0">
+                            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                                Review
                             </p>
+                            <div className="grid grid-cols-1 sm:grid-cols-[190px_1fr] gap-3 min-w-0">
+                                <div className="space-y-1 min-w-0">
+                                    <Label className="text-[11px] text-slate-500">Review status</Label>
+                                    <Select
+                                        value={editForm.review_status || "none"}
+                                        onValueChange={v => setEditForm({ ...editForm, review_status: v === "none" ? "" : v })}
+                                    >
+                                        <SelectTrigger className="h-9 text-sm">
+                                            <SelectValue placeholder="Not reviewed" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="none">Not reviewed</SelectItem>
+                                            {OUTCOMES.map(o => (
+                                                <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                                <div className="space-y-1 min-w-0">
+                                    <Label htmlFor="e-reason" className="text-[11px] text-slate-500">Review reason</Label>
+                                    <Input
+                                        id="e-reason"
+                                        className="h-9 text-sm"
+                                        value={editForm.review_reason}
+                                        onChange={e => setEditForm({ ...editForm, review_reason: e.target.value })}
+                                        placeholder="Why — what the customer said"
+                                    />
+                                </div>
+                            </div>
                         </div>
 
-                        <div className="border-t border-slate-100 pt-4 space-y-4">
-                            {/* Only the audit. Forwarding is automatic now, so
-                                there is no separate outcome to record before
-                                somebody has actually called the customer. */}
-                            <div className="space-y-1.5">
-                                <Label>Review status — what you found on the call</Label>
-                                <Select
-                                    value={editForm.review_status || "none"}
-                                    onValueChange={v => setEditForm({ ...editForm, review_status: v === "none" ? "" : v })}
-                                >
-                                    <SelectTrigger><SelectValue placeholder="Not reviewed" /></SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="none">Not reviewed</SelectItem>
-                                        {OUTCOMES.map(o => (
-                                            <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
+                        {/* Give the customer a store.
+                            Sent straight to them on WhatsApp, so the list carries
+                            the address and phone that would actually go out — a
+                            store picked from a name alone is picked blind. */}
+                        <div className="rounded-xl border border-slate-200 p-3.5 space-y-3 min-w-0">
+                            <div className="flex items-center justify-between gap-2">
+                                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 flex items-center gap-1.5">
+                                    <StoreIcon className="h-3 w-3" />
+                                    Send store details
+                                </p>
+                                {editing?.store_sent_at && (
+                                    <span className="text-[11px] text-slate-400 shrink-0">
+                                        Sent {formatWhen(editing.store_sent_at)}
+                                        {editing.store_msg_status && ` · ${DELIVERY_LABEL[editing.store_msg_status]}`}
+                                    </span>
+                                )}
                             </div>
 
-                            <div className="space-y-1.5">
-                                <Label htmlFor="e-reason">Review reason</Label>
-                                <Textarea
-                                    id="e-reason"
-                                    rows={3}
-                                    value={editForm.review_reason}
-                                    onChange={e => setEditForm({ ...editForm, review_reason: e.target.value })}
-                                    placeholder="What the customer said, and anything worth keeping"
-                                />
-                            </div>
+                            {loadingStores ? (
+                                <p className="text-xs text-slate-400 flex items-center gap-1.5 py-1">
+                                    <Loader2 className="h-3 w-3 animate-spin" /> Finding stores…
+                                </p>
+                            ) : stores.length === 0 ? (
+                                <p className="text-xs text-slate-400 py-1">
+                                    {editing?.state
+                                        ? `No verified franchise in ${editing.state} yet.`
+                                        : "No state could be read from this enquiry, so there is nothing to match against."}
+                                </p>
+                            ) : (
+                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 min-w-0">
+                                    {/* List on the left, what the customer receives
+                                        on the right — so picking and checking are one
+                                        glance apart rather than one scroll. */}
+                                    <div className="space-y-2 min-w-0">
+                                        <Input
+                                            value={storeSearch}
+                                            onChange={e => setStoreSearch(e.target.value)}
+                                            placeholder={`Search ${stores.length} in ${editing?.state}…`}
+                                            className="h-8 text-xs"
+                                        />
+                                        <div className="h-52 overflow-y-auto rounded-lg border border-slate-200 divide-y divide-slate-100 min-w-0">
+                                            {stores
+                                                .filter(s => {
+                                                    const q = storeSearch.trim().toLowerCase();
+                                                    if (!q) return true;
+                                                    return (
+                                                        s.store_name.toLowerCase().includes(q) ||
+                                                        (s.city || "").toLowerCase().includes(q) ||
+                                                        (s.pincode || "").includes(q)
+                                                    );
+                                                })
+                                                .map(s => {
+                                                    const picked = chosenStore === s.id;
+                                                    return (
+                                                        <button
+                                                            key={s.id}
+                                                            type="button"
+                                                            onClick={() => setChosenStore(picked ? null : s.id)}
+                                                            className={`w-full text-left px-2.5 py-2 transition-colors min-w-0 ${
+                                                                picked
+                                                                    ? "bg-orange-50 ring-1 ring-inset ring-orange-200"
+                                                                    : "hover:bg-slate-50"
+                                                            }`}
+                                                        >
+                                                            <div className="flex items-center gap-1.5 min-w-0">
+                                                                <span className="text-xs font-semibold text-slate-800 truncate">
+                                                                    {s.store_name}
+                                                                </span>
+                                                                {/* Marked, not filtered: an admin may know
+                                                                    better than the customer's own words. */}
+                                                                {s.near && (
+                                                                    <span className="text-[9px] font-black uppercase text-emerald-700 bg-emerald-50 border border-emerald-200 rounded px-1 shrink-0">
+                                                                        Near
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                            <div className="text-[11px] text-slate-500 truncate">
+                                                                {[s.city, s.pincode].filter(Boolean).join(" ")}
+                                                            </div>
+                                                            {!s.phone_number && (
+                                                                <div className="text-[10px] text-amber-600">
+                                                                    No phone — cannot be sent
+                                                                </div>
+                                                            )}
+                                                        </button>
+                                                    );
+                                                })}
+                                        </div>
+                                    </div>
+
+                                    {/* Exactly what will arrive on the customer's
+                                        phone, shown before it goes, because the
+                                        message cannot be recalled. */}
+                                    <div className="min-w-0">
+                                        {chosenStore ? (() => {
+                                            const s = stores.find(x => x.id === chosenStore);
+                                            if (!s) return null;
+                                            return (
+                                                <div className="rounded-lg bg-slate-50 border border-slate-200 p-3 space-y-2 min-w-0">
+                                                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                                                        The customer receives
+                                                    </p>
+                                                    <p className="text-[11px] text-slate-600 whitespace-pre-line leading-relaxed break-words">
+                                                        {`Thank you for your enquiry. Your nearest Autoform store is:\n\n` +
+                                                         `${s.store_name}\n` +
+                                                         `${buildAddress(s)}\n\n` +
+                                                         `Call: ${s.phone_number || "—"}\n\n` +
+                                                         `Our team there will be happy to help you.`}
+                                                    </p>
+                                                    <Button
+                                                        size="sm"
+                                                        onClick={sendStore}
+                                                        disabled={sendingStore || !s.phone_number}
+                                                        className="w-full h-8 text-xs bg-emerald-600 hover:bg-emerald-700"
+                                                    >
+                                                        {sendingStore
+                                                            ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                                            : <><Send className="h-3 w-3 mr-1.5" /> Send to {editing?.customer_phone}</>}
+                                                    </Button>
+                                                </div>
+                                            );
+                                        })() : (
+                                            <div className="h-full min-h-[13rem] rounded-lg border border-dashed border-slate-200 grid place-items-center px-4">
+                                                <p className="text-[11px] text-slate-400 text-center">
+                                                    Pick a store to see what the customer will receive.
+                                                </p>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     </div>
 
@@ -963,7 +1250,7 @@ export const AdminLeadsList = () => {
 
             {/* Add a lead by hand, for IVR and website enquiries. */}
             <Dialog open={addOpen} onOpenChange={open => { setAddOpen(open); if (!open) setAddPreview(null); }}>
-                <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+                <DialogContent className="max-w-xl max-h-[88vh] overflow-y-auto overflow-x-hidden">
                     <DialogHeader>
                         <DialogTitle>Add a lead</DialogTitle>
                         <DialogDescription>
@@ -972,9 +1259,9 @@ export const AdminLeadsList = () => {
                         </DialogDescription>
                     </DialogHeader>
 
-                    <div className="space-y-4 py-1">
-                        <div className="grid grid-cols-2 gap-3">
-                            <div className="space-y-1.5">
+                    <div className="space-y-4 py-1 min-w-0">
+                        <div className="grid grid-cols-2 gap-3 min-w-0">
+                            <div className="space-y-1.5 min-w-0">
                                 <Label htmlFor="a-phone">Phone *</Label>
                                 <Input
                                     id="a-phone"
@@ -984,7 +1271,7 @@ export const AdminLeadsList = () => {
                                     placeholder="9876543210"
                                 />
                             </div>
-                            <div className="space-y-1.5">
+                            <div className="space-y-1.5 min-w-0">
                                 <Label htmlFor="a-name">Name</Label>
                                 <Input
                                     id="a-name"
@@ -1027,8 +1314,8 @@ export const AdminLeadsList = () => {
                             ) : null}
                         </div>
 
-                        <div className="grid grid-cols-3 gap-3">
-                            <div className="space-y-1.5">
+                        <div className="grid grid-cols-3 gap-3 min-w-0">
+                            <div className="space-y-1.5 min-w-0">
                                 <Label>Channel</Label>
                                 <Select value={addForm.source} onValueChange={v => setAddForm({ ...addForm, source: v })}>
                                     <SelectTrigger><SelectValue /></SelectTrigger>

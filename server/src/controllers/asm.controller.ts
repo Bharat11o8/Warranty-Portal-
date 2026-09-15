@@ -3,7 +3,9 @@ import db from '../config/database.js';
 import { v4 as uuidv4 } from 'uuid';
 import { routeEnquiry, areaKey } from '../services/asmRouting.service.js';
 import { findState } from '../services/indianStates.js';
+import { isSamePlace, buildAddress } from '../services/placeMatch.js';
 import { ActivityLogService } from '../services/activity-log.service.js';
+import { WhatsAppService } from '../services/whatsapp.service.js';
 
 export class AsmController {
     /**
@@ -422,9 +424,201 @@ export class AsmController {
         }
     }
 
+    /**
+     * The stores that could serve this lead.
+     *
+     * Everything in the lead's state, because that is the unit an enquiry is
+     * routed by and a customer will travel within — but ordered so the ones
+     * matching what they actually typed come first. Someone who wrote "Rohini
+     * Delhi" wants Rohini at the top, not alphabetical order across forty
+     * Delhi franchises.
+     *
+     * The admin still chooses. This only saves them scrolling.
+     */
+    static async leadStores(req: Request, res: Response) {
+        try {
+            const { id } = req.params;
+
+            const [leads]: any = await db.execute(
+                'SELECT id, state, raw_area FROM leads WHERE id = ?', [id]
+            );
+            if (!leads.length) return res.status(404).json({ error: 'Lead not found' });
+            const lead = leads[0];
+
+            if (!lead.state) {
+                return res.json({
+                    success: true, stores: [], state: null,
+                    message: 'No state could be read from this enquiry, so there is nothing to match against.',
+                });
+            }
+
+            /*
+             * Matched on the canonical state, not the stored spelling: our own
+             * vendor_details holds 29 spellings for about 25 states, so
+             * comparing the strings would miss most of them. Every store is
+             * resolved through the same matcher the routing uses.
+             */
+            const [rows]: any = await db.execute(
+                `SELECT vd.id, vd.store_name, vd.store_code, vd.address, vd.city,
+                        vd.state, vd.pincode, p.phone_number
+                   FROM vendor_details vd
+                   LEFT JOIN profiles p ON p.id = vd.user_id
+                   JOIN vendor_verification vv ON vv.user_id = vd.user_id AND vv.is_verified = 1
+                  WHERE vd.is_franchise = 1`
+            );
+
+            const wanted = lead.state;
+            const inState = rows.filter((r: any) => findState(r.state || '')?.state === wanted);
+
+            /*
+             * Which of these stores the customer's own words point at.
+             *
+             * The tag is advice, not a decision — the admin still picks. But a
+             * wrong "Nearby" is worse than none, because it is the reason they
+             * would choose one store over another, and the result is a customer
+             * sent across their state. The matching itself lives in placeMatch,
+             * where it can be tested without a database.
+             */
+            const scored = inState.map((r: any) => ({
+                ...r,
+                near: isSamePlace(r.city || '', lead.raw_area || '', wanted),
+            }));
+
+            scored.sort((a: any, b: any) =>
+                (b.near ? 1 : 0) - (a.near ? 1 : 0) ||
+                String(a.city || '').localeCompare(String(b.city || '')) ||
+                String(a.store_name).localeCompare(String(b.store_name))
+            );
+
+            res.json({
+                success: true,
+                state: wanted,
+                area: lead.raw_area,
+                stores: scored,
+                near_count: scored.filter((s: any) => s.near).length,
+            });
+        } catch (error: any) {
+            console.error('Lead stores error:', error);
+            res.status(500).json({ error: 'Failed to load the stores for this lead' });
+        }
+    }
+
+    /**
+     * Send a customer the store an admin picked for them.
+     *
+     * This message goes to a member of the public and cannot be recalled, so
+     * `preview` returns exactly what would be sent without sending it, and the
+     * screen shows that before the admin commits.
+     *
+     * The lead records which store and when. Whether the customer opened it is
+     * read from message_logs afterwards, the same way the ASM's own delivery
+     * state is.
+     */
+    static async sendLeadStore(req: Request, res: Response) {
+        try {
+            const { id } = req.params;
+            const { store_id, preview } = req.body || {};
+            const admin = (req as any).user;
+
+            if (!store_id) return res.status(400).json({ error: 'Pick a store first' });
+
+            const [leads]: any = await db.execute(
+                'SELECT id, customer_phone, customer_name, store_id, store_sent_at FROM leads WHERE id = ?',
+                [id]
+            );
+            if (!leads.length) return res.status(404).json({ error: 'Lead not found' });
+            const lead = leads[0];
+
+            const [stores]: any = await db.execute(
+                `SELECT vd.id, vd.store_name, vd.address, vd.city, vd.state, vd.pincode,
+                        p.phone_number
+                   FROM vendor_details vd
+                   LEFT JOIN profiles p ON p.id = vd.user_id
+                  WHERE vd.id = ?`,
+                [store_id]
+            );
+            if (!stores.length) return res.status(404).json({ error: 'Store not found' });
+            const store = stores[0];
+
+            /*
+             * One readable line. The parts are joined rather than concatenated
+             * blindly because a missing pincode or city would otherwise leave a
+             * stray comma in a message a customer reads.
+             */
+            const address = buildAddress(store);
+
+            if (preview === true) {
+                return res.json({
+                    success: true,
+                    preview: true,
+                    store_name: store.store_name,
+                    address,
+                    store_phone: store.phone_number || null,
+                    customer_phone: lead.customer_phone,
+                    already_sent_at: lead.store_sent_at,
+                });
+            }
+
+            if (!store.phone_number) {
+                return res.status(400).json({
+                    error: `${store.store_name} has no phone number on record, so the message would tell the customer to call nothing.`,
+                });
+            }
+
+            const sent = await WhatsAppService.sendCustomerStoreDetails(
+                lead.customer_phone,
+                store.store_name,
+                address,
+                store.phone_number,
+                lead.id
+            );
+
+            if (!sent) {
+                return res.status(502).json({
+                    error: 'WhatsApp did not accept the message. Nothing was recorded — try again.',
+                });
+            }
+
+            await db.execute(
+                'UPDATE leads SET store_id = ?, store_sent_at = NOW(), store_sent_by = ? WHERE id = ?',
+                [store_id, admin?.id || null, id]
+            );
+
+            try {
+                await ActivityLogService.log({
+                    adminId: admin?.id,
+                    adminName: admin?.name,
+                    adminEmail: admin?.email,
+                    actionType: 'LEAD_STORE_SENT',
+                    targetType: 'LEAD',
+                    targetId: id,
+                    targetName: lead.customer_name || lead.customer_phone,
+                    details: {
+                        store_name: store.store_name,
+                        store_phone: store.phone_number,
+                        customer_phone: lead.customer_phone,
+                        resent: Boolean(lead.store_sent_at),
+                    },
+                    ipAddress: req.ip || req.socket?.remoteAddress,
+                });
+            } catch (e) {
+                console.error('Failed to log store send', e);
+            }
+
+            res.json({
+                success: true,
+                message: `${store.store_name} sent to the customer`,
+                store_name: store.store_name,
+            });
+        } catch (error: any) {
+            console.error('Send lead store error:', error);
+            res.status(500).json({ error: 'Failed to send the store details' });
+        }
+    }
+
     static async listLeads(req: Request, res: Response) {
         try {
-            const { status, source, asm_id, product, delivery, dateFrom, dateTo, q, limit } =
+            const { status, source, asm_id, product, delivery, review, dateFrom, dateTo, q, limit } =
                 req.query as Record<string, string>;
             const where: string[] = [];
             const params: any[] = [];
@@ -432,6 +626,17 @@ export class AsmController {
             if (source) { where.push('l.source = ?'); params.push(source); }
             if (asm_id) { where.push('l.asm_id = ?'); params.push(asm_id); }
             if (product) { where.push('l.product = ?'); params.push(product); }
+
+            /*
+             * The audit outcome. 'pending' is its own case and the one that
+             * matters most day to day — a lead nobody has called back yet is
+             * the work still to do, and it cannot be asked for by naming any
+             * of the seven outcomes.
+             */
+            if (review) {
+                if (review === 'pending') where.push('l.review_status IS NULL');
+                else { where.push('l.review_status = ?'); params.push(review); }
+            }
 
             /*
              * The date range, compared in IST rather than UTC.
@@ -512,9 +717,26 @@ export class AsmController {
                             AND ml.reference_id COLLATE utf8mb4_0900_ai_ci = l.customer_phone
                             AND ABS(TIMESTAMPDIFF(SECOND, l.sent_at, ml.created_at)) <= 15
                           ORDER BY ABS(TIMESTAMPDIFF(SECOND, l.sent_at, ml.created_at))
-                          LIMIT 1) AS delivery_updated_at
+                          LIMIT 1) AS delivery_updated_at,
+                        vd.store_name AS store_name,
+                        /*
+                         * Whether the customer opened the store details.
+                         *
+                         * Matched on the lead id, which that send passes as its
+                         * reference — unlike the ASM notification, which has no
+                         * per-lead id to key on and has to be matched on time.
+                         */
+                        (SELECT ms.status FROM message_logs ms
+                          WHERE ms.context = 'customer_store_details'
+                            AND ms.reference_id COLLATE utf8mb4_0900_ai_ci = l.id
+                          ORDER BY ms.created_at DESC LIMIT 1) AS store_msg_status
                    FROM leads l
                    LEFT JOIN asms a ON a.id = l.asm_id
+                   /* vendor_details was created with a different default
+                      collation than leads, so the ids cannot be compared
+                      without saying which one to use. */
+                   LEFT JOIN vendor_details vd
+                          ON vd.id = l.store_id COLLATE utf8mb4_unicode_ci
                    ${where.length ? 'WHERE ' + where.join(' AND ') : ''}
                   ORDER BY l.created_at DESC
                   LIMIT ${Math.min(Number(limit) || 200, 1000)}`,
@@ -557,7 +779,9 @@ export class AsmController {
                         COALESCE(SUM(source = 'whatsapp'), 0) ch_whatsapp,
                         COALESCE(SUM(source = 'instagram'), 0) ch_instagram,
                         COALESCE(SUM(source = 'ivr'), 0) ch_ivr,
-                        COALESCE(SUM(source = 'website'), 0) ch_website
+                        COALESCE(SUM(source = 'website'), 0) ch_website,
+                        COALESCE(SUM(review_status IS NULL), 0) review_pending,
+                        COALESCE(SUM(review_status IS NOT NULL), 0) review_done
                    FROM leads
                    ${countWhere.length ? 'WHERE ' + countWhere.join(' AND ') : ''}`,
                 countParams

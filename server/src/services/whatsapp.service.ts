@@ -600,6 +600,40 @@ export class WhatsAppService {
         );
     }
 
+    /**
+     * Give a customer the store nearest them.
+     *
+     * Sent by an admin from the lead screen, once they have decided which store
+     * to point the customer at. One store, not a list: this arrives on a phone
+     * and gets read in a glance, and a numbered list of three addresses is
+     * harder to act on than a single name with a number under it.
+     *
+     * Template: af_customer_store_details
+     *   {{1}} Store name
+     *   {{2}} Full address
+     *   {{3}} Phone number
+     *
+     * Returns whether it went, like every other send here. The delivery state
+     * afterwards is read from message_logs, which the Interakt webhook keeps
+     * current — so the admin can see whether the customer actually opened it.
+     */
+    static async sendCustomerStoreDetails(
+        customerPhone: string,
+        storeName: string,
+        address: string,
+        storePhone: string,
+        leadId?: string
+    ): Promise<boolean> {
+        return this.sendTemplateMessage(
+            customerPhone,
+            'af_customer_store_details',
+            [storeName, address, storePhone],
+            'customer_store_details',
+            leadId
+        );
+    }
+
+
     static async sendWarrantyRejectedCustomer(
         phone: string,
         customerName: string,

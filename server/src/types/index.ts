@@ -44,6 +44,8 @@ export interface WarrantyData {
   carMake?: string;
   carModel?: string;
   carYear: string;
+  /** Free text: car colours are endless, and a fixed list forces wrong answers. */
+  carColour?: string | null;
   registrationNumber: string;
   purchaseDate: string;
   warrantyType: string;
