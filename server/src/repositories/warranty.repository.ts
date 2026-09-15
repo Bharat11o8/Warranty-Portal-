@@ -16,6 +16,7 @@ export interface WarrantyRegistration {
     car_make?: string;
     car_model?: string;
     car_year: string;
+    car_colour?: string | null;
     registration_number: string;
     purchase_date: string;
     installer_name?: string;

@@ -300,6 +300,9 @@ export const WarrantySpecSheet = ({ isOpen, onClose, warranty, isAdmin, onRefres
                                         <SpecRow label="Car Model" value={toTitleCase(warranty.car_model || '')} editField="car_model" />
                                     </>
                                 )}
+                                {warranty.product_type !== 'seat-cover' && (warranty.car_colour || productDetails.carColour) && (
+                                    <SpecRow label="Vehicle Colour" value={toTitleCase(warranty.car_colour || productDetails.carColour)} editField="car_colour" />
+                                )}
                                 {warranty.product_type !== 'seat-cover' && (warranty.car_year || productDetails.carYear) && (
                                     <SpecRow label="Vehicle Year" value={warranty.car_year || productDetails.carYear} />
                                 )}

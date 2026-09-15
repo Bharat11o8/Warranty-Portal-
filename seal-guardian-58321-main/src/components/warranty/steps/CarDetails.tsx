@@ -20,6 +20,34 @@ interface CarDetailsProps {
   isEditing?: boolean;
 }
 
+/**
+ * The range a vehicle year may fall in.
+ *
+ * Next year is allowed because a car bought in December is often registered as
+ * the following model year. Anything outside this is a typo, not a car.
+ */
+const EARLIEST_VEHICLE_YEAR = 1980;
+const LATEST_VEHICLE_YEAR = new Date().getFullYear() + 1;
+
+/**
+ * Why a typed year is not usable, in words, or null when it is fine.
+ *
+ * This field exists because car_year was never asked for: the form defaulted it
+ * to whatever year it happened to be, so ten thousand warranties claim to be
+ * this year's model. The spec sheet and the UID screen both display that value,
+ * which means they have been showing a year nobody entered.
+ */
+export const getVehicleYearError = (value: string): string | null => {
+    const year = String(value || '').trim();
+    if (!year) return 'Please enter the vehicle year';
+    if (!/^[0-9]{4}$/.test(year)) return 'Enter the year in full, for example 2024';
+    const n = Number(year);
+    if (n < EARLIEST_VEHICLE_YEAR || n > LATEST_VEHICLE_YEAR) {
+        return `Year must be between ${EARLIEST_VEHICLE_YEAR} and ${LATEST_VEHICLE_YEAR}`;
+    }
+    return null;
+};
+
 const CarDetails = ({ formData, updateFormData, onNext, onPrev, isEditing }: CarDetailsProps) => {
   const { toast } = useToast();
   const { user } = useAuth();
@@ -96,6 +124,17 @@ const CarDetails = ({ formData, updateFormData, onNext, onPrev, isEditing }: Car
       return;
     }
 
+    const yearError = getVehicleYearError(formData.carYear || '');
+    if (yearError) {
+      toast({ title: "Vehicle Year", description: yearError, variant: "destructive" });
+      return;
+    }
+
+    if (!formData.carColour?.trim()) {
+      toast({ title: "Vehicle Colour Required", description: "Please enter the vehicle colour", variant: "destructive" });
+      return;
+    }
+
     if (!formData.carReg) {
       toast({ title: "Registration Number Required", description: "Please enter vehicle registration number", variant: "destructive" });
       return;
@@ -139,11 +178,46 @@ const CarDetails = ({ formData, updateFormData, onNext, onPrev, isEditing }: Car
           <Input
             id="carModel"
             type="text"
-            placeholder="e.g., City"
+            placeholder="e.g., City VX"
             value={formData.carModel}
             onChange={(e) => {
               updateFormData({ carModel: e.target.value });
             }}
+            required
+          />
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="carYear">
+            Vehicle Year <span className="text-destructive">*</span>
+          </Label>
+          <Input
+            id="carYear"
+            type="text"
+            inputMode="numeric"
+            maxLength={4}
+            placeholder="e.g., 2024"
+            value={formData.carYear || ''}
+            onChange={(e) => {
+              // Digits only, so "2024 model" or a stray space cannot be typed
+              // into a field the spec sheet prints verbatim.
+              updateFormData({ carYear: e.target.value.replace(/[^0-9]/g, '').slice(0, 4) });
+            }}
+            required
+          />
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="carColour">
+            Vehicle Colour <span className="text-destructive">*</span>
+          </Label>
+          <Input
+            id="carColour"
+            type="text"
+            maxLength={40}
+            placeholder="e.g., Pearl White"
+            value={formData.carColour || ''}
+            onChange={(e) => updateFormData({ carColour: e.target.value })}
             required
           />
         </div>

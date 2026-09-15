@@ -53,6 +53,7 @@ interface UIDRecord {
     installer_name?: string;
     installer_contact?: string;
     car_year?: string;
+    car_colour?: string;
     car_make?: string;
     car_model?: string;
     warranty_created_at?: string;
@@ -1044,6 +1045,10 @@ export const AdminUIDManagement = ({ onBack }: UIDManagementProps) => {
                                                         <p className="text-[10px] text-slate-400 font-bold uppercase">Year</p>
                                                         <p className="text-sm font-semibold text-slate-700">{selectedUID.car_year || 'â€”'}</p>
                                                     </div>
+                                                </div>
+                                                <div>
+                                                    <p className="text-[10px] text-slate-400 font-bold uppercase">Colour</p>
+                                                    <p className="text-sm font-semibold text-slate-700">{selectedUID.car_colour || '—'}</p>
                                                 </div>
                                                 <div>
                                                     <p className="text-[10px] text-slate-400 font-bold uppercase">Make / Model</p>

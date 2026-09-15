@@ -41,6 +41,7 @@ export interface EVFormData {
   carReg: string;
   carMake: string;
   carYear: string;
+  carColour: string;
 
   // Product Info
   product: string;
@@ -114,6 +115,7 @@ const EVProductsForm = ({ initialData, warrantyId, onSuccess, isUniversal, isEdi
     serialNumber: "",
     carMake: "",
     carYear: "",
+    carColour: "",
     installArea: "",
     lhsPhoto: null,
     rhsPhoto: null,
@@ -161,6 +163,7 @@ const EVProductsForm = ({ initialData, warrantyId, onSuccess, isUniversal, isEdi
         carReg: initialData.registration_number || "",
         carMake: initialData.car_make || "",
         carYear: initialData.car_year || "",
+        carColour: initialData.car_colour || "",
 
         product: pd.product || "",
         warrantyType: initialData.warranty_type || "1 Year",
@@ -394,7 +397,15 @@ const EVProductsForm = ({ initialData, warrantyId, onSuccess, isUniversal, isEdi
         registrationNumber: formData.carReg,
         carMake: carMake || null,
         carModel: carModelName || null,
+        /*
+         * The year is asked for and validated on the vehicle step, so this
+         * fallback should never fire. It stays because carYear is a required
+         * field on the server: were some path ever to reach here without one,
+         * a wrong year is a smaller failure than a rejected submission the
+         * installer cannot interpret.
+         */
         carYear: formData.carYear || new Date().getFullYear().toString(),
+        carColour: formData.carColour || null,
         purchaseDate: formData.installationDate,
         warrantyType: formData.warrantyType || "1 Year", // Use selected warranty type from product
         installerName: formData.storeName,

@@ -483,11 +483,11 @@ export class WarrantyController {
         await db.execute(
           `INSERT INTO warranty_resubmissions 
           (original_uid, user_id, product_type, customer_name, customer_email, customer_phone, 
-           customer_address, registration_number, car_make, car_model, car_year, 
+           customer_address, registration_number, car_make, car_model, car_year, car_colour,
            purchase_date, installer_name, installer_contact, product_details, manpower_id, warranty_type, status,
            exif_lat, exif_lng, exif_timestamp, exif_device, device_fingerprint, submission_ip, ip_city, ip_region, ip_lat, ip_lng, fraud_score, fraud_flags,
            seat_cover_photo_url, car_outer_photo_url) 
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           ON DUPLICATE KEY UPDATE
             customer_name = VALUES(customer_name),
             customer_email = VALUES(customer_email),
@@ -517,7 +517,8 @@ export class WarrantyController {
           [
             warrantyId, finalUserId, warrantyData.productType, warrantyData.customerName, warrantyData.customerEmail,
             warrantyData.customerPhone, warrantyData.customerAddress, warrantyData.registrationNumber,
-            warrantyData.carMake || null, warrantyData.carModel || null, warrantyData.carYear, warrantyData.purchaseDate,
+            warrantyData.carMake || null, warrantyData.carModel || null, warrantyData.carYear,
+            warrantyData.carColour || null, warrantyData.purchaseDate,
             warrantyData.installerName || null, warrantyData.installerContact || null, JSON.stringify(warrantyData.productDetails),
             (warrantyData.manpowerId && warrantyData.manpowerId !== 'owner') ? warrantyData.manpowerId : null,
             warrantyData.warrantyType, initialStatus, exifData.lat, exifData.lng, exifData.timestamp,
@@ -531,15 +532,16 @@ export class WarrantyController {
         const [insertResult]: any = await db.execute(
           `INSERT INTO warranty_registrations 
           (uid, user_id, product_type, customer_name, customer_email, customer_phone, 
-           customer_address, registration_number, car_make, car_model, car_year, 
+           customer_address, registration_number, car_make, car_model, car_year, car_colour,
            purchase_date, installer_name, installer_contact, product_details, manpower_id, warranty_type, status,
            exif_lat, exif_lng, exif_timestamp, exif_device, device_fingerprint, submission_ip, ip_city, ip_region, ip_lat, ip_lng, fraud_score, fraud_flags,
            seat_cover_photo_url, car_outer_photo_url) 
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             warrantyId, finalUserId, warrantyData.productType, warrantyData.customerName, warrantyData.customerEmail,
             warrantyData.customerPhone, warrantyData.customerAddress, warrantyData.registrationNumber,
-            warrantyData.carMake || null, warrantyData.carModel || null, warrantyData.carYear, warrantyData.purchaseDate,
+            warrantyData.carMake || null, warrantyData.carModel || null, warrantyData.carYear,
+            warrantyData.carColour || null, warrantyData.purchaseDate,
             warrantyData.installerName || null, warrantyData.installerContact || null, JSON.stringify(warrantyData.productDetails),
             (warrantyData.manpowerId && warrantyData.manpowerId !== 'owner') ? warrantyData.manpowerId : null,
             warrantyData.warrantyType, initialStatus, exifData.lat, exifData.lng, exifData.timestamp,
@@ -1288,7 +1290,7 @@ export class WarrantyController {
         `UPDATE warranty_registrations SET
          product_type = ?, customer_name = ?, customer_email = ?, customer_phone = ?,
          customer_address = ?, registration_number = ?, car_make = ?, car_model = ?, car_year = ?,
-         purchase_date = ?, installer_name = ?,
+         car_colour = ?, purchase_date = ?, installer_name = ?,
          installer_contact = ?, product_details = ?, manpower_id = ?, warranty_type = ?,
          seat_cover_photo_url = ?, car_outer_photo_url = ?,
          status = ?, rejection_reason = ${clearRejectionReason ? 'NULL' : 'rejection_reason'}
@@ -1303,6 +1305,7 @@ export class WarrantyController {
           warrantyData.carMake || null,
           warrantyData.carModel || null,
           warrantyData.carYear,
+          warrantyData.carColour || null,
           warrantyData.purchaseDate,
           warrantyData.installerName || null,
           warrantyData.installerContact || null,

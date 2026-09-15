@@ -398,6 +398,7 @@ const VendorDashboard = () => {
                 'UID/Lot': w.uid || productDetails.lotNumber || 'N/A',
                 'Roll No': productDetails.rollNumber || 'N/A',
                 'Vehicle': (w.car_make && String(w.car_make).toLowerCase() !== 'null' || w.car_model && String(w.car_model).toLowerCase() !== 'null') ? `${w.car_make || ''} ${w.car_model || ''} (${w.car_year || ''})`.trim() : 'N/A',
+                'Vehicle Colour': w.car_colour || '',
                 'Registration': w.registration_number || productDetails.carRegistration || w.car_reg || 'N/A',
                 'Status': w.status.toUpperCase(),
                 'Installer Name': productDetails.storeName || w.installer_name || 'N/A',
