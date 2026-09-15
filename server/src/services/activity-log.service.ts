@@ -173,7 +173,11 @@ export class ActivityLogService {
                     vd_w.store_name,
                     vd_m.store_name
                 ) AS store_name,
-                COALESCE(vd_v.store_code, vd_w.store_code, vd_m.store_code) AS store_code
+                COALESCE(vd_v.store_code, vd_w.store_code, vd_m.store_code) AS store_code,
+                /* Lets the row relabel a seat cover's "Serial Number" as the UID
+                   it really is. Same correction as getLogDetail, needed here too
+                   because the summary under each row renders the change set. */
+                wr.product_type AS target_product_type
              FROM admin_activity_log al
              ${joins}
              ${whereClause}
@@ -202,7 +206,12 @@ export class ActivityLogService {
                         JSON_UNQUOTE(JSON_EXTRACT(al.details, '$.store_name')),
                         vd_v.store_name, vd_w.store_name, vd_m.store_name
                     ) AS store_name,
-                    COALESCE(vd_v.store_code, vd_w.store_code, vd_m.store_code) AS store_code
+                    COALESCE(vd_v.store_code, vd_w.store_code, vd_m.store_code) AS store_code,
+                    /* Which identifier the edit actually touched: a seat cover
+                       carries a UID, PPF a manufacturer serial. The stored label
+                       said "Serial Number" for both until today, so the dialog
+                       corrects it on display rather than rewriting the log. */
+                    wr.product_type AS target_product_type
                FROM admin_activity_log al
                LEFT JOIN profiles p ON al.admin_id = p.id
                LEFT JOIN vendor_details vd_v

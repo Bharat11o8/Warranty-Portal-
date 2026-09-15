@@ -2337,7 +2337,7 @@ export class AdminController {
             const { uid } = req.params;
             const {
                 customer_name, customer_email, customer_phone,
-                car_make, car_model,
+                car_make, car_model, car_colour,
                 registration_number, product_name, warranty_type,
                 purchase_date, new_uid, serial_number
             } = req.body;
@@ -2408,6 +2408,7 @@ export class AdminController {
                         customer_phone = ?,
                         car_make = ?,
                         car_model = ?,
+                        car_colour = ?,
                         registration_number = ?,
                         warranty_type = ?,
                         purchase_date = ?,
@@ -2420,6 +2421,7 @@ export class AdminController {
                         customer_phone !== undefined ? customer_phone : existing.customer_phone,
                         car_make !== undefined ? car_make : existing.car_make,
                         car_model !== undefined ? car_model : existing.car_model,
+                        car_colour !== undefined ? car_colour : existing.car_colour,
                         registration_number !== undefined ? registration_number : existing.registration_number,
                         warranty_type !== undefined ? warranty_type : existing.warranty_type,
                         purchase_date !== undefined ? purchase_date : existing.purchase_date,
@@ -2460,6 +2462,7 @@ export class AdminController {
                 customer_phone: 'Customer Phone',
                 car_make: 'Car Make',
                 car_model: 'Car Model',
+                car_colour: 'Vehicle Colour',
                 registration_number: 'Registration Number',
                 warranty_type: 'Warranty Type',
                 purchase_date: 'Purchase Date',
@@ -2486,7 +2489,23 @@ export class AdminController {
                     prevSerial = pd.serialNumber ?? null;
                 } catch { /* leave prevSerial null */ }
                 if (String(serial_number) !== String(prevSerial ?? '')) {
-                    changes['Serial Number'] = { before: prevSerial, after: serial_number };
+                    /*
+                     * The same input box means two different things.
+                     *
+                     * A seat cover carries a pre-printed UID and has no serial
+                     * number at all; PPF carries a manufacturer serial read off
+                     * the product. The spec sheet sends both as `serial_number`,
+                     * so labelling every edit "Serial Number" told an admin that
+                     * somebody had changed a seat cover's serial — a field that
+                     * does not exist — when what they changed was the UID.
+                     */
+                    const identifierLabel =
+                        existing.product_type === 'seat-cover' ? 'UID' : 'Serial Number';
+                    // The UID may already have its own entry from the check above.
+                    // Two changes under one key would silently discard the first.
+                    if (!(identifierLabel in changes)) {
+                        changes[identifierLabel] = { before: prevSerial, after: serial_number };
+                    }
                 }
             }
 

@@ -151,6 +151,18 @@ export const AdminActivityLogs = () => {
     };
 
     /*
+     * The name to print for a changed field.
+     *
+     * A seat cover carries a UID; PPF carries a manufacturer serial. Edits were
+     * logged as "Serial Number" for both until today, so the label is corrected
+     * on display rather than by rewriting history.
+     */
+    const fieldLabel = (field: string, productType?: string | null): string =>
+        field === "Serial Number" && productType === "seat-cover"
+            ? "UID"
+            : field.replace(/_/g, " ");
+
+    /*
      * A one-line summary of what an action actually did.
      *
      * At component scope so the detail dialog and each timeline entry show the
@@ -241,7 +253,9 @@ export const AdminActivityLogs = () => {
                 <div className="mt-1.5 space-y-0.5">
                     {Object.entries(details.changes).map(([field, val]: [string, any]) => (
                         <div key={field} className="text-xs flex items-center gap-1.5 flex-wrap">
-                            <span className="font-medium text-slate-600">{field}:</span>
+                            <span className="font-medium text-slate-600 capitalize">
+                                {fieldLabel(field, log.target_product_type)}:
+                            </span>
                             <span className="line-through text-red-400">{String(val.before ?? '—')}</span>
                             <span className="text-slate-400">→</span>
                             <span className="text-green-600 font-medium">{String(val.after ?? '—')}</span>
@@ -552,20 +566,71 @@ export const AdminActivityLogs = () => {
                                         What changed
                                     </p>
                                     <div className="rounded-xl border border-slate-200 divide-y divide-slate-100">
-                                        {Object.entries(parseDetails(detailLog.details) || {}).map(([key, value]) => (
-                                            <div key={key} className="flex justify-between gap-4 px-3 py-2 text-sm">
-                                                <span className="text-slate-500 capitalize">
-                                                    {key.replace(/_/g, " ")}
-                                                </span>
-                                                <span className="text-slate-800 text-right break-all max-w-[60%]">
-                                                    {value === null || value === ""
-                                                        ? "—"
-                                                        : typeof value === "object"
-                                                            ? JSON.stringify(value)
-                                                            : String(value)}
-                                                </span>
-                                            </div>
-                                        ))}
+                                        {Object.entries(parseDetails(detailLog.details) || {}).map(([key, value]) => {
+                                            /*
+                                             * A warranty edit nests its fields under "changes", each as
+                                             * {before, after}. Printing that object raw turned the most
+                                             * useful row in the dialog into a wall of JSON, while the
+                                             * strikethrough summary above it showed the same thing
+                                             * legibly. Rendered here as its own rows instead.
+                                             */
+                                            const isChangeSet = key === "changes" &&
+                                                value && typeof value === "object" && !Array.isArray(value);
+
+                                            if (isChangeSet) {
+                                                const entries = Object.entries(value as Record<string, any>);
+                                                if (!entries.length) return null;
+                                                return entries.map(([field, change]) => {
+                                                    const before = change?.before ?? null;
+                                                    const after = change?.after ?? null;
+
+
+                                                    /*
+                                                     * One input box, two meanings: a seat cover carries a
+                                                     * pre-printed UID, PPF a manufacturer serial read off
+                                                     * the product. Every edit was logged as "Serial Number"
+                                                     * until today, which told an admin somebody had changed
+                                                     * a seat cover's serial — a field seat covers do not
+                                                     * have. Corrected here rather than by rewriting the
+                                                     * stored rows: an audit trail should record what was
+                                                     * written, not be edited afterwards.
+                                                     */
+                                                    const label = fieldLabel(field, detailLog.target_product_type);
+
+                                                    return (
+                                                        <div key={`${key}.${field}`} className="px-3 py-2 text-sm">
+                                                            <span className="text-slate-500 capitalize">
+                                                                {label}
+                                                            </span>
+                                                            <div className="flex items-center gap-2 flex-wrap mt-0.5">
+                                                                <span className="line-through text-rose-400 break-all">
+                                                                    {before === null || before === "" ? "—" : String(before)}
+                                                                </span>
+                                                                <span className="text-slate-300">→</span>
+                                                                <span className="text-emerald-600 font-medium break-all">
+                                                                    {after === null || after === "" ? "—" : String(after)}
+                                                                </span>
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                });
+                                            }
+
+                                            return (
+                                                <div key={key} className="flex justify-between gap-4 px-3 py-2 text-sm">
+                                                    <span className="text-slate-500 capitalize">
+                                                        {key.replace(/_/g, " ")}
+                                                    </span>
+                                                    <span className="text-slate-800 text-right break-all max-w-[60%]">
+                                                        {value === null || value === ""
+                                                            ? "—"
+                                                            : typeof value === "object"
+                                                                ? JSON.stringify(value)
+                                                                : String(value)}
+                                                    </span>
+                                                </div>
+                                            );
+                                        })}
                                     </div>
                                 </div>
                             )}
