@@ -2,6 +2,7 @@
 import db, { getISTTimestamp } from '../config/database.js';
 import { EmailService } from '../services/email.service.js';
 import { ActivityLogService } from '../services/activity-log.service.js';
+import { listMonths, roundsInMonth, storesInMonth, allCampaignsInMonth } from '../services/auditMonth.service.js';
 import { parseContacts, matchContacts, saveContacts, syncRoundTargets } from '../services/auditContacts.service.js';
 import { NotificationService } from '../services/notification.service.js';
 import { WhatsAppService } from '../services/whatsapp.service.js';
@@ -4672,20 +4673,30 @@ export class AdminController {
                 roundId = openRound.length > 0 ? openRound[0].id : null;
             }
 
+            /*
+             * The month a call belongs to.
+             *
+             * A call closes a store out for the month rather than for one
+             * campaign — an admin ringing round does not care which reminder
+             * the store ignored. Recorded independently of the round, so the
+             * month view still counts the call when no round matches.
+             */
+            const auditMonth: string = b.month || new Date().toISOString().slice(0, 7);
+
             await db.execute(
                 `INSERT INTO store_audits
-                 (id, round_id, vendor_details_id, submitted_phone, channel, audited_by, audited_by_name,
+                 (id, round_id, audit_month, vendor_details_id, submitted_phone, channel, audited_by, audited_by_name,
                   flow_id, flow_name, flow_version,
                   audit_date, franchise_name, store_contact_no, contact_person, city, state,
                   zone, asm, brands, category,
                   signage_status, online_presence, online_presence_other, footfall,
                   seat_covers_stock, products_stocked, last_month_business, staff_training,
                   warranty_registration, support_needed, support_details)
-                 VALUES (?, ?, ?, ?, 'call', ?, ?, NULL, 'call', NULL,
+                 VALUES (?, ?, ?, ?, ?, 'call', ?, ?, NULL, 'call', NULL,
                          ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
                          ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                 [
-                    id, roundId, v.id, v.phone_number || '',
+                    id, roundId, auditMonth, v.id, v.phone_number || '',
                     admin?.id || null, admin?.name || admin?.email || null,
                     new Date().toISOString().slice(0, 10),
                     v.store_name || null,
@@ -4953,6 +4964,97 @@ export class AdminController {
         } catch (error: any) {
             console.error('Upload audit contacts error:', error);
             res.status(500).json({ error: 'Failed to save the store list' });
+        }
+    }
+
+    /**
+     * The months that have audit activity, for the year/month picker.
+     */
+    static async getAuditMonths(req: Request, res: Response) {
+        try {
+            res.json({ success: true, months: await listMonths() });
+        } catch (error: any) {
+            console.error('Get audit months error:', error);
+            res.status(500).json({ error: 'Failed to load audit months' });
+        }
+    }
+
+    /**
+     * One month: its rounds, and one row per store across all of them.
+     *
+     * The consolidated list is the point. A store chased twice appears once,
+     * counted done if it answered any round or was audited by phone, so the
+     * admin working the list is not ringing stores that already replied.
+     */
+    static async getAuditMonth(req: Request, res: Response) {
+        try {
+            const month = String(req.params.month || '');
+            if (!/^\d{4}-\d{2}$/.test(month)) {
+                return res.status(400).json({ error: 'Month must look like 2026-09' });
+            }
+            const status = req.query.status as string | undefined;
+            const [rounds, campaigns, stores] = await Promise.all([
+                roundsInMonth(month),
+                allCampaignsInMonth(month),
+                storesInMonth(month, { status }),
+            ]);
+            const done = stores.filter((s: any) => s.done).length;
+            res.json({
+                success: true,
+                month,
+                summary: {
+                    stores: stores.length,
+                    done,
+                    outstanding: stores.length - done,
+                    compliance: stores.length ? Number(((done / stores.length) * 100).toFixed(1)) : 0,
+                },
+                rounds,
+                campaigns,
+                stores,
+            });
+        } catch (error: any) {
+            console.error('Get audit month error:', error);
+            res.status(500).json({ error: 'Failed to load the month' });
+        }
+    }
+
+    /**
+     * Tick a campaign in or out of the audit figures.
+     *
+     * Interakt sends campaigns that have nothing to do with auditing, and one
+     * of them opened a round here. Rather than guess from the template name,
+     * an admin says which campaigns count.
+     */
+    static async setRoundCounted(req: Request, res: Response) {
+        try {
+            const roundId = req.params.id;
+            const counted = req.body?.include ? 1 : 0;
+            const [round]: any = await db.execute(
+                `SELECT id, name FROM audit_rounds WHERE id = ? LIMIT 1`, [roundId]
+            );
+            if (round.length === 0) return res.status(404).json({ error: 'Round not found' });
+
+            await db.execute(
+                `UPDATE audit_rounds SET include_in_stats = ? WHERE id = ?`, [counted, roundId]
+            );
+
+            const admin = (req as any).user;
+            await ActivityLogService.log({
+                adminId: admin?.id,
+                adminName: admin?.name,
+                adminEmail: admin?.email,
+                actionType: 'AUDIT_ROUND_COUNTED',
+                targetType: 'AUDIT_ROUND',
+                targetId: roundId,
+                targetName: round[0].name,
+                details: { include_in_stats: counted },
+                ipAddress: req.ip || req.socket?.remoteAddress,
+            });
+
+            res.json({ success: true, include_in_stats: counted });
+        } catch (error: any) {
+            console.error('Set round counted error:', error);
+            res.status(500).json({ error: 'Failed to update the campaign' });
         }
     }
 

@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { AuditRoundBar, type AuditRound } from "./AuditRoundBar";
 import { AuditChaseList } from "./AuditChaseList";
+import { AuditMonthBar } from "./AuditMonthBar";
 import { AuditContactsUpload } from "./AuditContactsUpload";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import api, { getErrorMessage } from "@/lib/api";
@@ -112,6 +113,16 @@ export const AdminAudits = () => {
     const [rounds, setRounds] = useState<AuditRound[]>([]);
     const [roundsLoading, setRoundsLoading] = useState(true);
     const [roundId, setRoundId] = useState<string | null>(null);
+    /*
+     * Month or campaign.
+     *
+     * A month holds several campaigns and the same store is chased by more
+     * than one of them, so read per campaign a store shows up twice — pending
+     * in the first, done in the second. The month view counts each store once,
+     * which is the list an admin actually rings round.
+     */
+    const [scope, setScope] = useState<"month" | "round">("month");
+    const [month, setMonth] = useState<string | null>(null);
     const [view, setView] = useState<"done" | "not_done">("done");
     const [chaseKey, setChaseKey] = useState(0);
 
@@ -134,8 +145,37 @@ export const AdminAudits = () => {
     const isMulti = (key: string) =>
         AUDIT_QUESTIONS.find(q => q.key === (key as AuditFieldKey))?.type === "multi";
 
+    /**
+     * The audits belonging to whatever period is selected.
+     *
+     * By month: submitted in that month, or answering a campaign sent in it —
+     * a call audit carries a month and no round, a reply carries a round whose
+     * month is the one that counts. By campaign: the round alone decides.
+     *
+     * Shared by the table, the tab counts and the filter options, so a tab can
+     * never claim rows the table does not show.
+     */
+    const inScope = useMemo(() => {
+        if (scope === "month" && month) {
+            const roundsOfMonth = new Set(
+                rounds.filter(r => String(r.first_sent_at || "").slice(0, 7) === month)
+                      .map(r => r.id)
+            );
+            return audits.filter(a => {
+                const am = (a as any).audit_month;
+                if (am) return am === month;
+                const rid = (a as any).round_id;
+                return rid ? roundsOfMonth.has(rid) : false;
+            });
+        }
+        if (scope === "round" && roundId) {
+            return audits.filter(a => (a as any).round_id === roundId);
+        }
+        return audits;
+    }, [audits, scope, month, roundId, rounds]);
+
     const facetOptions = useMemo(() => {
-        const scoped = roundId ? audits.filter(a => (a as any).round_id === roundId) : audits;
+        const scoped = inScope;
         const uniq = (vals: (string | null | undefined)[]) =>
             Array.from(new Set(vals.filter(Boolean).map(v => String(v).trim()))).sort();
 
@@ -144,7 +184,7 @@ export const AdminAudits = () => {
             state: uniq(scoped.map(a => a.state)),
             asm: uniq(scoped.map(a => a.asm)),
         } as Record<string, string[]>;
-    }, [audits, roundId]);
+    }, [inScope]);
 
     const setFacet = (key: string, value: string) =>
         setFacets(prev => {
@@ -191,9 +231,7 @@ export const AdminAudits = () => {
     // Counted from the rows this round actually contains, so a tab never claims
     // more than the table can show.
     const scopedCounts = useMemo(() => {
-        const rows = roundId
-            ? audits.filter(a => (a as any).round_id === roundId)
-            : audits;
+        const rows = inScope;
         return {
             total: rows.length,
             whatsapp: rows.filter(a => a.channel === "whatsapp").length,
@@ -203,13 +241,10 @@ export const AdminAudits = () => {
             reviewed: rows.filter(a => a.review_status === "reviewed").length,
             unmatched: rows.filter(a => !a.vendor_details_id).length,
         };
-    }, [audits, roundId]);
+    }, [inScope]);
 
     const visible = useMemo(() => {
-        let list = audits;
-        // Scope to the selected round; older audits predate rounds and carry no
-        // round_id, so they only appear when no round is selected.
-        if (roundId) list = list.filter(a => (a as any).round_id === roundId);
+        let list = inScope;
         if (filter === "unmatched") list = list.filter(a => !a.vendor_details_id);
         else if (filter === "whatsapp" || filter === "call") list = list.filter(a => a.channel === filter);
         else if (filter !== "all") list = list.filter(a => a.review_status === filter);
@@ -238,7 +273,7 @@ export const AdminAudits = () => {
             );
         }
         return list;
-    }, [audits, filter, search, roundId, facets]);
+    }, [inScope, filter, search, facets]);
 
     const tabs: { k: Filter; label: string; n: number; tone: string; bar: string }[] = [
         { k: "all",       label: "All",       n: scopedCounts.total,      tone: "text-slate-700",   bar: "bg-slate-700" },
@@ -342,6 +377,29 @@ export const AdminAudits = () => {
 
     return (
         <div className="space-y-4">
+            <div className="flex gap-1 bg-slate-50 p-1 rounded-2xl border border-slate-200/60 w-fit">
+                {([["month", "By month"], ["round", "By campaign"]] as const).map(([k, lbl]) => (
+                    <button
+                        key={k}
+                        onClick={() => setScope(k)}
+                        className={
+                            "h-9 px-4 rounded-xl text-xs font-black transition-colors " +
+                            (scope === k ? "bg-white shadow-sm text-slate-800" : "text-slate-400 hover:text-slate-600")
+                        }
+                    >
+                        {lbl}
+                    </button>
+                ))}
+            </div>
+
+            {scope === "month" ? (
+                <AuditMonthBar
+                    selected={month}
+                    onSelect={setMonth}
+                    refreshKey={chaseKey}
+                    onCounted={() => { fetchAudits(true); setChaseKey(k => k + 1); }}
+                />
+            ) : (
             <AuditRoundBar
                 rounds={rounds}
                 loading={roundsLoading}
@@ -349,11 +407,12 @@ export const AdminAudits = () => {
                 onSelect={setRoundId}
                 onSeeded={() => { fetchRounds(); setChaseKey(k => k + 1); }}
             />
+            )}
 
             {/* Done vs not done. The submissions table can only show replies, so
                 "not done" is a different list entirely, built from who the audit
                 was sent to. */}
-            {roundId && (
+            {(roundId || (scope === "month" && month)) && (
                 <div className="flex gap-2">
                     <button
                         onClick={() => setView("done")}
@@ -364,7 +423,7 @@ export const AdminAudits = () => {
                                 : "bg-white border-slate-200 text-slate-500 hover:bg-slate-50")
                         }
                     >
-                        Done{activeRound ? ` · ${activeRound.responded_count}` : ""}
+                        Done{scope === "round" && activeRound ? ` · ${activeRound.responded_count}` : ""}
                     </button>
                     <button
                         onClick={() => setView("not_done")}
@@ -375,7 +434,7 @@ export const AdminAudits = () => {
                                 : "bg-white border-slate-200 text-slate-500 hover:bg-slate-50")
                         }
                     >
-                        Not done{activeRound ? ` · ${activeRound.outstanding_count}` : ""}
+                        Not done{scope === "round" && activeRound ? ` · ${activeRound.outstanding_count}` : ""}
                     </button>
                 </div>
             )}
@@ -489,10 +548,11 @@ export const AdminAudits = () => {
                 </div>
             )}
 
-            {view === "not_done" && roundId ? (
+            {view === "not_done" && (scope === "month" ? month : roundId) ? (
                 <div className="bg-white rounded-3xl border border-orange-50 shadow-sm p-5">
                     <AuditChaseList
-                        roundId={roundId}
+                        roundId={scope === "month" ? null : roundId}
+                        month={scope === "month" ? month : null}
                         responded="no"
                         refreshKey={chaseKey}
                         onAudit={(t) => {
@@ -774,7 +834,8 @@ export const AdminAudits = () => {
             <AuditCallForm
                 open={callFormOpen}
                 presetTarget={callPresetTarget}
-                roundId={roundId}
+                roundId={scope === "month" ? null : roundId}
+                month={scope === "month" ? month : null}
                 onClose={() => { setCallFormOpen(false); setCallPresetTarget(null); }}
                 onSaved={() => {
                     fetchAudits();

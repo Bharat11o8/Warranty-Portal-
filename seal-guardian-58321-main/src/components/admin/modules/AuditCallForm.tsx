@@ -47,6 +47,8 @@ interface AuditCallFormProps {
      * campaign, say.
      */
     roundId?: string | null;
+    /** The month being worked on, when the call comes from the month view. */
+    month?: string | null;
 }
 
 interface StoreOption {
@@ -56,7 +58,7 @@ interface StoreOption {
     city: string | null;
 }
 
-export const AuditCallForm = ({ open, onClose, onSaved, presetTarget = null, roundId = null }: AuditCallFormProps) => {
+export const AuditCallForm = ({ open, onClose, onSaved, presetTarget = null, roundId = null, month = null }: AuditCallFormProps) => {
     const { toast } = useToast();
     const [stores, setStores] = useState<StoreOption[]>([]);
     const [storeSearch, setStoreSearch] = useState("");
@@ -155,6 +157,10 @@ export const AuditCallForm = ({ open, onClose, onSaved, presetTarget = null, rou
                     ? { targetId: presetTarget!.targetId }
                     : { vendorDetailsId: vendorId }),
                 ...(roundId ? { roundId } : {}),
+                // A call closes a store out for the month being worked, which is
+                // not always the month the call is made in — chasing September
+                // in early October must still count for September.
+                ...(month ? { month } : {}),
                 ...answers,
             });
             toast({

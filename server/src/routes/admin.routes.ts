@@ -100,6 +100,11 @@ router.get('/audit-contacts', ...adminAuth, requirePermission('audits', 'read'),
 router.post('/audit-contacts/preview', ...adminAuth, requirePermission('audits', 'write'), AdminController.previewAuditContacts);
 router.post('/audit-contacts', ...adminAuth, requirePermission('audits', 'write'), AdminController.uploadAuditContacts);
 router.get('/audit-rounds', ...adminAuth, requirePermission('audits', 'read'), AdminController.getAuditRounds);
+// The month view: audits repeat within a month, so compliance is counted per
+// store per month rather than per campaign.
+router.get('/audit-months', ...adminAuth, requirePermission('audits', 'read'), AdminController.getAuditMonths);
+router.get('/audit-months/:month', ...adminAuth, requirePermission('audits', 'read'), AdminController.getAuditMonth);
+router.patch('/audit-rounds/:id/counted', ...adminAuth, requirePermission('audits', 'write'), AdminController.setRoundCounted);
 router.post('/audit-rounds/:id/seed', ...adminAuth, requirePermission('audits', 'write'), AdminController.seedAuditRoundTargets);
 router.put('/audit-rounds/:id/close', ...adminAuth, requirePermission('audits', 'write'), AdminController.closeAuditRound);
 router.delete('/audit-rounds/:id', ...adminAuth, requirePermission('audits', 'write'), AdminController.deleteAuditRound);

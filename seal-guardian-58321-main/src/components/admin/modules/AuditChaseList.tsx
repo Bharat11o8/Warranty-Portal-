@@ -24,10 +24,25 @@ interface Target {
     state: string | null;
     phone_number: string | null;
     contact_person: string | null;
+    /* Present only in the month view, where a store can be reached by more
+       than one campaign. */
+    rounds_sent?: number;
+    round_names?: string | null;
+    done?: boolean;
+    done_by?: 'whatsapp' | 'call' | null;
 }
 
 interface Props {
     roundId: string | null;
+    /**
+     * A month instead of a round.
+     *
+     * The same stores are chased by several campaigns in a month, so read
+     * round by round a store appears twice — outstanding in one, done in
+     * another. Given a month the list asks for the consolidated view, where a
+     * store is counted once and is done if it answered any of them.
+     */
+    month?: string | null;
     responded: "yes" | "no";
     /** Bumped by the parent to force a refetch. */
     refreshKey?: number;
@@ -38,21 +53,27 @@ interface Props {
 const fmtDay = (d: string | null) =>
     d ? new Date(d).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "—";
 
-export const AuditChaseList = ({ roundId, responded, refreshKey = 0, onAudit }: Props) => {
+export const AuditChaseList = ({ roundId, month = null, responded, refreshKey = 0, onAudit }: Props) => {
     const [targets, setTargets] = useState<Target[]>([]);
     const [loading, setLoading] = useState(false);
     const [search, setSearch] = useState("");
 
     useEffect(() => {
-        if (!roundId) { setTargets([]); return; }
+        if (!month && !roundId) { setTargets([]); return; }
         let cancelled = false;
         setLoading(true);
-        api.get(`/admin/audit-rounds/${roundId}/targets`, { params: { responded } })
-            .then(res => { if (!cancelled) setTargets(res.data.targets || []); })
+        const request = month
+            ? api.get(`/admin/audit-months/${month}`, {
+                params: { status: responded === "no" ? "outstanding" : "done" },
+            }).then(res => res.data.stores || [])
+            : api.get(`/admin/audit-rounds/${roundId}/targets`, { params: { responded } })
+                .then(res => res.data.targets || []);
+        request
+            .then((rows: Target[]) => { if (!cancelled) setTargets(rows); })
             .catch(() => { if (!cancelled) setTargets([]); })
             .finally(() => { if (!cancelled) setLoading(false); });
         return () => { cancelled = true; };
-    }, [roundId, responded, refreshKey]);
+    }, [roundId, month, responded, refreshKey]);
 
     const filtered = useMemo(() => {
         const q = search.trim().toLowerCase();
@@ -67,7 +88,8 @@ export const AuditChaseList = ({ roundId, responded, refreshKey = 0, onAudit }: 
     }, [targets, search]);
 
     const exportCsv = () => {
-        const headers = ["Store", "Code", "City", "State", "Contact", "Phone", "Audit sent", "Responded"];
+        const headers = ["Store", "Code", "City", "State", "Contact", "Phone", "Audit sent",
+            ...(month ? ["Campaigns sent"] : []), "Responded"];
         const rows = filtered.map(t => [
             t.store_name || "Unmatched",
             t.store_code || "",
@@ -76,18 +98,19 @@ export const AuditChaseList = ({ roundId, responded, refreshKey = 0, onAudit }: 
             t.contact_person || "",
             t.phone_number || t.sent_phone || "",
             fmtDay(t.sent_at),
-            t.responded_at ? fmtDay(t.responded_at) : "Not yet",
+            ...(month ? [t.round_names || ""] : []),
+            t.responded_at ? fmtDay(t.responded_at) : t.done ? "By call" : "Not yet",
         ].map(v => `"${String(v).replace(/"/g, '""')}"`).join(","));
 
         const blob = new Blob([[headers.join(","), ...rows].join("\n")], { type: "text/csv;charset=utf-8;" });
         const a = document.createElement("a");
         a.href = URL.createObjectURL(blob);
-        a.download = `audit_${responded === "no" ? "not_done" : "done"}_${new Date().toISOString().slice(0, 10)}.csv`;
+        a.download = `audit_${month || "round"}_${responded === "no" ? "not_done" : "done"}_${new Date().toISOString().slice(0, 10)}.csv`;
         a.click();
         URL.revokeObjectURL(a.href);
     };
 
-    if (!roundId) {
+    if (!month && !roundId) {
         return <p className="text-sm text-slate-400 text-center py-12">Choose a round to see its stores.</p>;
     }
 
@@ -151,6 +174,8 @@ export const AuditChaseList = ({ roundId, responded, refreshKey = 0, onAudit }: 
                                 <th className="sticky top-0 z-10 bg-slate-50 p-4">Contact</th>
                                 <th className="sticky top-0 z-10 bg-slate-50 p-4">Phone</th>
                                 <th className="sticky top-0 z-10 bg-slate-50 p-4">Audit sent</th>
+                                {/* Only the month view can reach a store twice. */}
+                                {month && <th className="sticky top-0 z-10 bg-slate-50 p-4">Sent in</th>}
                                 <th className="sticky top-0 z-10 bg-slate-50 p-4">{responded === "no" ? "Status" : "Responded"}</th>
                                 <th className="sticky top-0 z-10 bg-slate-50 p-4"><span className="sr-only">Actions</span></th>
                             </tr>
@@ -180,10 +205,27 @@ export const AuditChaseList = ({ roundId, responded, refreshKey = 0, onAudit }: 
                                         ) : "—"}
                                     </td>
                                     <td className="p-4 text-slate-500 text-xs">{fmtDay(t.sent_at)}</td>
+                                    {month && (
+                                        <td className="p-4">
+                                            {/* How many times this store has already been
+                                                asked — worth knowing before ringing them. */}
+                                            <span
+                                                title={t.round_names || ""}
+                                                className="text-[10px] font-black uppercase tracking-wider text-slate-500 bg-slate-100 border border-slate-200 px-2 py-1 rounded-full"
+                                            >
+                                                {t.rounds_sent === 1 ? "1 campaign" : `${t.rounds_sent || 0} campaigns`}
+                                            </span>
+                                        </td>
+                                    )}
                                     <td className="p-4">
                                         {t.responded_at ? (
                                             <span className="text-[10px] font-black uppercase tracking-wider text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-1 rounded-full">
                                                 {fmtDay(t.responded_at)}
+                                            </span>
+                                        ) : t.done ? (
+                                            /* Closed out by a call rather than a reply. */
+                                            <span className="text-[10px] font-black uppercase tracking-wider text-blue-700 bg-blue-50 border border-blue-200 px-2 py-1 rounded-full">
+                                                By call
                                             </span>
                                         ) : (
                                             <span className="text-[10px] font-black uppercase tracking-wider text-amber-700 bg-amber-50 border border-amber-200 px-2 py-1 rounded-full">
@@ -196,7 +238,7 @@ export const AuditChaseList = ({ roundId, responded, refreshKey = 0, onAudit }: 
                                         rather than sending you back to search for
                                         a store you are already looking at. */}
                                     <td className="p-4 text-right">
-                                        {!t.responded_at && onAudit && (
+                                        {!t.responded_at && !t.done && onAudit && (
                                             <Button
                                                 variant="outline"
                                                 size="sm"
