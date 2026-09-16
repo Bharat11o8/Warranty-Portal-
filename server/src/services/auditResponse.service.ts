@@ -414,9 +414,11 @@ export async function ingestFlowAuditResponse(payload: any): Promise<AuditIngest
             const roundId = await ensureRound(payload);
             await db.execute(
                 `INSERT INTO store_audits
-                   (id, round_id, vendor_details_id, submitted_phone, channel, flow_name, raw_response, review_status)
-                 VALUES (?, ?, NULL, ?, 'whatsapp', 'af_store_audit_2', ?, 'follow_up')`,
-                [id, roundId, phone || '', JSON.stringify(payload)]
+                   (id, round_id, audit_month, vendor_details_id, submitted_phone, channel, flow_name, raw_response, review_status)
+                 VALUES (?, ?, (SELECT DATE_FORMAT(COALESCE(first_sent_at, created_at), '%Y-%m')
+                                  FROM audit_rounds WHERE id = ?),
+                         NULL, ?, 'whatsapp', 'af_store_audit_2', ?, 'follow_up')`,
+                [id, roundId, roundId, phone || '', JSON.stringify(payload)]
             );
             // The store did reply, even if the payload could not be read, so it
             // must not stay on the chase list.
@@ -441,7 +443,7 @@ export async function ingestFlowAuditResponse(payload: any): Promise<AuditIngest
 
         await db.execute(
             `INSERT INTO store_audits
-               (id, round_id, vendor_details_id, submitted_phone, channel, audited_by, audited_by_name,
+               (id, round_id, audit_month, vendor_details_id, submitted_phone, channel, audited_by, audited_by_name,
                 flow_id, flow_name, flow_version,
                 audit_date, franchise_name, store_contact_no, contact_person, city, state,
                 zone, asm, brands, category,
@@ -449,13 +451,19 @@ export async function ingestFlowAuditResponse(payload: any): Promise<AuditIngest
                 seat_covers_stock, products_stocked, last_month_business, staff_training,
                 warranty_registration, support_needed, support_details,
                 raw_response, review_status)
-             VALUES (?, ?, ?, ?, 'whatsapp', NULL, NULL,
+             VALUES (?, ?,
+                     /* The month the campaign went out, so the month view need
+                        not resolve a round to place a reply. */
+                     (SELECT DATE_FORMAT(COALESCE(first_sent_at, created_at), '%Y-%m')
+                        FROM audit_rounds WHERE id = ?),
+                     ?, ?, 'whatsapp', NULL, NULL,
                      ?, 'af_store_audit_2', ?,
                      ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
                      ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
                      ?, ?)`,
             [
                 id,
+                roundId,
                 roundId,
                 vendorId,
                 phone || '',
