@@ -50,6 +50,13 @@ export const registerSchema = z.object({
     state: z.string().optional(),
     city: z.string().optional(),
     pincode: z.string().optional(),
+    /*
+     * Declared even though the controller is what enforces it: this schema
+     * strips keys it does not know, so an undeclared gstNumber never reached
+     * the controller and every registration was refused for a GST the
+     * franchise had in fact typed correctly.
+     */
+    gstNumber: z.string().optional(),
     manpower: z.array(manpowerSchema).optional(),
 }).refine(
     data => {
