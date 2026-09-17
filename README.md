@@ -1,6 +1,6 @@
 # Franchise Management & Warranty Portal
 
-A full-stack, production-grade franchise management system serving **400+ franchises** and **3,000+ customers monthly**. Built entirely in TypeScript, deployed and actively used in production.
+A full-stack, production-grade franchise management system serving **450+ franchises** and **4,000+ customers monthly** and **Multiple Independently working admins across Plant and Head Office**. Built entirely in TypeScript, deployed and actively used in production.
 
 🔗 **Live System:** https://warranty2.autoformindia.co.in/
 
