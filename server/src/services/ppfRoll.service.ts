@@ -1,4 +1,5 @@
 import db from '../config/database.js';
+import { AppError, ErrorCode } from '../utils/errors.js';
 import type { PoolConnection } from 'mysql2/promise';
 
 /**
@@ -47,6 +48,22 @@ export async function getRollCapacitySqft(): Promise<number> {
 
 export function clearRollCapacityCache() {
     cached = null;
+}
+
+/**
+ * A roll cannot cover what the submission asked of it.
+ *
+ * Extends AppError because withTransaction re-throws those unchanged and
+ * rewrites everything else into a generic database failure — which would
+ * replace the one message that tells the installer what to correct.
+ */
+export class RollUnavailableError extends AppError {
+    public readonly failedSerial?: string;
+
+    constructor(message: string, failedSerial?: string) {
+        super(ErrorCode.VALIDATION_ERROR, message, 400, { failedSerial });
+        this.failedSerial = failedSerial;
+    }
 }
 
 /** One roll drawn on by a warranty. */

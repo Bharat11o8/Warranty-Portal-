@@ -90,7 +90,11 @@ function warrantyFileName(
                 typeof req.body.productDetails === 'string'
                     ? JSON.parse(req.body.productDetails)
                     : req.body.productDetails;
-            uid = pd.uid || pd.serialNumber || 'NO_UID';
+            // A seat cover's UID, else the PPF roll the photos belong to. PPF
+            // sends its rolls as a list now, and the warranty's own id does not
+            // exist yet at upload time, so the first serial is what names the
+            // file — the same value the single serialNumber field used to give.
+            uid = pd.uid || pd.rolls?.[0]?.serial || pd.serialNumber || 'NO_UID';
         }
     } catch (_e) { /* ignore parse errors */ }
 
