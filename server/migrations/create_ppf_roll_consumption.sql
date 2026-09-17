@@ -14,6 +14,17 @@
 -- Seat covers do not have serial numbers and never appear here.
 -- ============================================
 
+-- One row per roll, created the first time that serial is registered.
+--
+-- It exists to be locked. A submission takes this row before reading the
+-- ledger, so two submissions drawing on the same roll cannot both be told
+-- there is space for them; submissions for different rolls take different
+-- rows and never wait on each other.
+CREATE TABLE IF NOT EXISTS ppf_rolls (
+    serial_number VARCHAR(32) NOT NULL PRIMARY KEY,
+    first_seen_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE IF NOT EXISTS ppf_roll_consumption (
     id            INT AUTO_INCREMENT PRIMARY KEY,
     roll_serial   VARCHAR(32) NOT NULL,

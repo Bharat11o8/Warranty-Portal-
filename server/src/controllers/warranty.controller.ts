@@ -12,7 +12,7 @@ import { calculateFraudScore } from '../utils/fraudScoring.js';
 import { matchFallbackUidSequence, resolveFallbackUid, FALLBACK_UID_YEAR } from '../utils/customerMobileLimits.js';
 import { recordRegistrationEvent } from '../services/analyticsEvents.service.js';
 import { checkPurchaseDate } from '../services/purchaseDateWindow.service.js';
-import { parseRolls, reserveRolls, nextWarrantyUidForRoll, RollUnavailableError } from '../services/ppfRoll.service.js';
+import { parseRolls, reserveRolls, nextWarrantyUidForRoll, RollUnavailableError, withRollRetry } from '../services/ppfRoll.service.js';
 import { withTransaction } from '../utils/transaction.js';
 
 
@@ -585,7 +585,7 @@ export class WarrantyController {
          * statement below is the one that always ran; only its connection
          * differs.
          */
-        const { insertResult, warrantyId: insertedWarrantyId } = await withTransaction(async (conn) => {
+        const { insertResult, warrantyId: insertedWarrantyId } = await withRollRetry(() => withTransaction(async (conn) => {
           let uidForInsert = warrantyId;
 
           if (isPPF) {
@@ -624,7 +624,7 @@ export class WarrantyController {
           }
 
           return { insertResult: ins, warrantyId: uidForInsert };
-        });
+        }));
 
         // PPF's id was only decided inside the transaction; everything below
         // refers to this one.

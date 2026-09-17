@@ -10,7 +10,7 @@ import { WhatsAppService } from '../services/whatsapp.service.js';
 import { getMobileRegistrationUsage, normalizeCustomerMobile, matchFallbackUidSequence, resolveFallbackUid, FALLBACK_UID_YEAR } from '../utils/customerMobileLimits.js';
 import { checkPurchaseDate } from '../services/purchaseDateWindow.service.js';
 import { recordRegistrationEvent } from '../services/analyticsEvents.service.js';
-import { parseRolls, reserveRolls, nextWarrantyUidForRoll, RollUnavailableError } from '../services/ppfRoll.service.js';
+import { parseRolls, reserveRolls, nextWarrantyUidForRoll, RollUnavailableError, withRollRetry } from '../services/ppfRoll.service.js';
 import { withTransaction } from '../utils/transaction.js';
 
 export class PublicController {
@@ -830,7 +830,7 @@ export class PublicController {
              * never called, and the statement executed is the one that always was
              * -- only the connection it runs on differs.
              */
-            const { insertResult, warrantyId: insertedWarrantyId } = await withTransaction(async (conn) => {
+            const { insertResult, warrantyId: insertedWarrantyId } = await withRollRetry(() => withTransaction(async (conn) => {
                 let uidForInsert = warrantyId;
 
                 if (isPPF) {
@@ -893,7 +893,7 @@ export class PublicController {
                 }
 
                 return { insertResult: ins, warrantyId: uidForInsert };
-            });
+            }));
 
             // PPF's id was only decided inside the transaction; everything below
             // (notifications, the response, the certificate) refers to this one.

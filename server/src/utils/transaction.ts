@@ -61,7 +61,11 @@ export async function withTransaction<T>(callback: TransactionCallback<T>): Prom
             ErrorCode.DATABASE_ERROR,
             'Database operation failed',
             500,
-            { originalError: error.message }
+            // The driver's code is kept because some callers retry on it:
+            // a deadlock is InnoDB asking for the transaction to be tried
+            // again, which is indistinguishable from any other failure once
+            // the code has been discarded.
+            { originalError: error.message, originalCode: error.code }
         );
     } finally {
         connection.release();

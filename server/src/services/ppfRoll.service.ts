@@ -113,14 +113,31 @@ export function parseRolls(productDetails: any): RollDraw[] {
 /**
  * Validate the declared rolls and, on success, record the draws.
  *
- * Runs inside the caller's transaction and locks each roll's ledger rows with
- * FOR UPDATE. Without that lock two submissions checking the same roll at the
- * same moment would both see room and both be allowed, overdrawing it — the
- * likeliest way this rule gets broken in practice, since a busy franchise
- * files several registrations in a row.
+ * Runs inside the caller's transaction, so the draws and the warranty they
+ * belong to land together or not at all.
  *
- * `warrantyUid` is the row this draw belongs to; it must already be decided by
- * the caller so the ledger and the warranty land together or not at all.
+ * Concurrency is the whole difficulty here. Two submissions drawing on one roll
+ * at the same moment must not both be told there is room, or the roll gives out
+ * more than it holds. The guard is a lock row per roll, taken in a fixed order:
+ *
+ *  - Each roll gets a row in ppf_rolls, and the transaction locks that single
+ *    row before reading the ledger. The lock is one row, so submissions for
+ *    *different* rolls never wait on each other — only genuine contention for
+ *    the same roll serialises, which is the point.
+ *
+ *  - Rolls are locked in sorted order. Two vehicles each drawing on rolls A and
+ *    B, one submitted as [A,B] and the other as [B,A], would otherwise take the
+ *    two locks in opposite orders and deadlock. Sorting gives every transaction
+ *    the same order, so one simply waits.
+ *
+ * An earlier version locked the ledger rows with SELECT ... FOR UPDATE over a
+ * join to warranty_registrations. That locked rows in *both* tables, including
+ * the warranty row the same transaction had just inserted, and ten concurrent
+ * submissions on one roll deadlocked rather than queueing. The lesson is in the
+ * design above: lock one known row, in a known order, and keep the warranty
+ * table out of it.
+ *
+ * `warrantyUid` is the row this draw belongs to; the caller decides it first.
  */
 export async function reserveRolls(
     connection: PoolConnection,
@@ -148,6 +165,8 @@ export async function reserveRolls(
 
     const capacity = await getRollCapacitySqft();
 
+    // Everything that can be judged without touching the database first, so a
+    // plainly wrong submission never takes a lock at all.
     for (const roll of rolls) {
         if (!Number.isFinite(roll.sqft) || roll.sqft < MIN_DRAW_SQFT) {
             return {
@@ -164,17 +183,54 @@ export async function reserveRolls(
                 error: `Serial ${roll.serial} cannot be used for ${roll.sqft} sq.ft. Please check the serial number and the area entered.`,
             };
         }
+    }
 
-        // Locks this roll's existing draws for the rest of the transaction.
-        // Rejected warranties are excluded, which is how a rejection returns
-        // its area to the roll without anything having to write it back.
+    // Same order for every transaction — see the note on deadlocks above.
+    const ordered = [...rolls].sort((a, b) => a.serial.localeCompare(b.serial));
+
+    for (const roll of ordered) {
+        /*
+         * Take this roll's lock, creating its row only if this is the first time
+         * the serial has been seen. Held until the caller commits or rolls back,
+         * which is what makes the read below authoritative.
+         *
+         * The lock is attempted BEFORE any insert. Running INSERT IGNORE first
+         * looked equivalent and was not: on a row that already exists it still
+         * takes a shared lock, and several transactions then tried to upgrade
+         * shared to exclusive on the same row at once — the textbook deadlock,
+         * and one that only appeared under real concurrency.
+         */
+        const [locked]: any = await connection.execute(
+            'SELECT serial_number FROM ppf_rolls WHERE serial_number = ? FOR UPDATE',
+            [roll.serial]
+        );
+
+        if (locked.length === 0) {
+            // First use of this serial. Two submissions can reach here together;
+            // the primary key lets exactly one create the row and the other is
+            // told it already exists, after which both lock it normally.
+            try {
+                await connection.execute(
+                    'INSERT INTO ppf_rolls (serial_number) VALUES (?)',
+                    [roll.serial]
+                );
+            } catch (error: any) {
+                if (error?.code !== 'ER_DUP_ENTRY') throw error;
+                await connection.execute(
+                    'SELECT serial_number FROM ppf_rolls WHERE serial_number = ? FOR UPDATE',
+                    [roll.serial]
+                );
+            }
+        }
+
+        // Rejected warranties are excluded, which is how a rejection returns its
+        // area to the roll without anything having to write it back.
         const [rows]: any = await connection.execute(
             `SELECT COALESCE(SUM(c.sqft_used), 0) AS used
                FROM ppf_roll_consumption c
                JOIN warranty_registrations w ON w.uid = c.warranty_uid
               WHERE c.roll_serial = ?
-                AND w.status != 'rejected'
-              FOR UPDATE`,
+                AND w.status != 'rejected'`,
             [roll.serial]
         );
 
@@ -186,9 +242,7 @@ export async function reserveRolls(
                 error: `Serial ${roll.serial} cannot be used for ${roll.sqft} sq.ft. Please check the serial number and the area entered.`,
             };
         }
-    }
 
-    for (const roll of rolls) {
         await connection.execute(
             `INSERT INTO ppf_roll_consumption (roll_serial, warranty_uid, sqft_used)
              VALUES (?, ?, ?)`,
@@ -197,6 +251,49 @@ export async function reserveRolls(
     }
 
     return { ok: true };
+}
+
+/**
+ * Run a roll-reserving transaction, retrying if the database deadlocks.
+ *
+ * InnoDB resolves a deadlock by killing one transaction and telling it to try
+ * again; under load that is a normal outcome, not a fault, and the work is safe
+ * to repeat because a rolled-back transaction leaves nothing behind. Without
+ * this a busy franchise would see submissions fail for a reason nobody could
+ * act on — and the roll would look full when it was not.
+ *
+ * Lock-wait timeouts are retried for the same reason. Anything else — a roll
+ * that genuinely cannot cover the area, a serial that is not usable — is a real
+ * answer and is passed straight back.
+ */
+const CONTENTION_CODES = new Set(['ER_LOCK_DEADLOCK', 'ER_LOCK_WAIT_TIMEOUT']);
+const MAX_ATTEMPTS = 4;
+
+export async function withRollRetry<T>(run: () => Promise<T>): Promise<T> {
+    let lastError: any;
+
+    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+        try {
+            return await run();
+        } catch (error: any) {
+            // withTransaction rewrites driver errors into an AppError, so the
+            // original code may be a level down.
+            const code = error?.code ?? error?.details?.originalCode;
+            const isContention = CONTENTION_CODES.has(code)
+                || /deadlock|lock wait timeout/i.test(String(error?.details?.originalError ?? ''));
+
+            if (!isContention || attempt === MAX_ATTEMPTS) throw error;
+
+            lastError = error;
+            // A short, growing, jittered pause so the retries do not collide
+            // with each other in the same order all over again.
+            const backoff = 25 * attempt + Math.floor(Math.random() * 25);
+            console.warn(`[PPFRoll] contention on attempt ${attempt}, retrying in ${backoff}ms`);
+            await new Promise((resolve) => setTimeout(resolve, backoff));
+        }
+    }
+
+    throw lastError;
 }
 
 /**
