@@ -43,6 +43,7 @@ interface Draw {
     installerName: string;
     purchaseDate: string;
     countsAgainstRoll: boolean;
+    installArea: string;
 }
 
 /** How full a roll is, as a bar. Red once there is nothing useful left. */
@@ -249,6 +250,11 @@ export const AdminPPFRolls = () => {
 
                                     <p className="text-sm font-semibold text-slate-800">
                                         {draw.sqftUsed} sq.ft
+                                        {draw.installArea && (
+                                            <span className="font-normal text-slate-500">
+                                                {' '}on {draw.installArea}
+                                            </span>
+                                        )}
                                         {!draw.countsAgainstRoll && (
                                             <span className="font-normal text-xs text-slate-500">
                                                 {' '}— returned to the roll

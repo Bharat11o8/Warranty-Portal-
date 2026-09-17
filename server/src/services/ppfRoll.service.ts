@@ -70,6 +70,15 @@ export class RollUnavailableError extends AppError {
 export interface RollDraw {
     serial: string;
     sqft: number;
+    /**
+     * The part of the car this roll's film went on.
+     *
+     * Recorded per roll rather than per vehicle: film from two rolls goes on two
+     * different panels, which one area for the whole job could not describe.
+     * Not part of the availability rule — it is carried so the warranty says
+     * where each roll's film ended up.
+     */
+    installArea?: string;
 }
 
 export interface RollCheck {
@@ -101,6 +110,7 @@ export function parseRolls(productDetails: any): RollDraw[] {
             .map((r: any) => ({
                 serial: String(r?.serial ?? '').trim().toUpperCase(),
                 sqft: Number(r?.sqft),
+                installArea: String(r?.installArea ?? '').trim(),
             }))
             .filter((r) => r.serial !== '');
     }

@@ -5859,6 +5859,28 @@ export class AdminController {
         }
     }
 
+    /**
+     * Where one roll's film went on a given warranty.
+     *
+     * The ledger records how much area a warranty took from a roll; the
+     * warranty itself records which panel it went on. Older PPF records kept a
+     * single area for the whole job, which is used when there is no per-roll
+     * entry to read.
+     */
+    private static rollAreaFor(productDetails: any, serial: string): string {
+        try {
+            const pd = typeof productDetails === 'string'
+                ? JSON.parse(productDetails || '{}')
+                : (productDetails || {});
+            const match = Array.isArray(pd.rolls)
+                ? pd.rolls.find((r: any) => String(r?.serial || '').toUpperCase() === serial)
+                : null;
+            return match?.installArea || pd.installArea || '';
+        } catch {
+            return '';
+        }
+    }
+
     /** The individual registrations a single roll's film went to. */
     static async getPPFRollDetail(req: Request, res: Response) {
         try {
@@ -5877,7 +5899,8 @@ export class AdminController {
                         w.customer_name,
                         w.registration_number,
                         w.installer_name,
-                        w.purchase_date
+                        w.purchase_date,
+                        w.product_details
                    FROM ppf_roll_consumption c
                    LEFT JOIN warranty_registrations w ON w.uid = c.warranty_uid
                   WHERE c.roll_serial = ?
@@ -5907,6 +5930,10 @@ export class AdminController {
                     installerName: row.installer_name,
                     purchaseDate: row.purchase_date,
                     countsAgainstRoll: row.status !== 'rejected',
+                    // Which panel this roll's film went on, read back out of the
+                    // warranty: the ledger records how much was taken, the
+                    // warranty records where it went.
+                    installArea: AdminController.rollAreaFor(row.product_details, serial),
                 })),
             });
         } catch (error: any) {

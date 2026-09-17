@@ -124,7 +124,7 @@ const ProductInfo = ({ formData, updateFormData, onPrev, onSubmit, loading, exis
     updateFormData({ rolls: next });
   };
 
-  const addRoll = () => updateFormData({ rolls: [...formData.rolls, { serial: "", sqft: "" }] });
+  const addRoll = () => updateFormData({ rolls: [...formData.rolls, { serial: "", sqft: "", installArea: "" }] });
 
   const removeRoll = (index: number) =>
     updateFormData({ rolls: formData.rolls.filter((_, i) => i !== index) });
@@ -218,11 +218,6 @@ const ProductInfo = ({ formData, updateFormData, onPrev, onSubmit, loading, exis
       return;
     }
 
-    if (!formData.installArea) {
-      toast({ title: "Installation Area Required", description: "Please enter the area of installation", variant: "destructive" });
-      return;
-    }
-
     const rollError = getRollsError(formData.rolls);
     if (rollError) {
       toast({ title: "Roll Details", description: rollError, variant: "destructive" });
@@ -298,32 +293,20 @@ const ProductInfo = ({ formData, updateFormData, onPrev, onSubmit, loading, exis
 
 
 
-        <div className="space-y-2">
-          <Label htmlFor="installArea">
-            Area of Installation <span className="text-destructive">*</span>
-          </Label>
-          <Input
-            id="installArea"
-            type="text"
-            placeholder="e.g., Full Body, Hood, etc."
-            value={formData.installArea}
-            onChange={(e) => updateFormData({ installArea: e.target.value })}
-            required
-            disabled={loading}
-          />
-        </div>
       </div>
 
       {/* Rolls — a roll is fitted across several vehicles, and one vehicle may
-          take film from more than one roll, so each entry pairs the serial with
-          the area taken from it. */}
+          take film from more than one roll, so each entry records a serial, the
+          area taken from it, and the part of the car that film went on. The
+          area belongs to the roll: film from two rolls goes to two different
+          panels, which one field for the whole job could not describe. */}
       <div className="space-y-3">
         <div>
           <Label>
             Roll Serial Number & Usage <span className="text-destructive">*</span>
           </Label>
           <p className="text-xs text-muted-foreground mt-1">
-            Enter the serial number of each roll used on this vehicle and how many sq.ft came from it.
+            For each roll used on this vehicle: its serial number, how many sq.ft came from it, and where that film was fitted.
           </p>
         </div>
 
@@ -332,62 +315,95 @@ const ProductInfo = ({ formData, updateFormData, onPrev, onSubmit, loading, exis
           const isFailed = failedSerial != null && roll.serial === failedSerial;
 
           return (
-            <div key={index} className="grid md:grid-cols-[1fr_180px_auto] gap-3 items-start">
-              <div className="space-y-1">
-                <Input
-                  aria-label={`Serial number ${index + 1}`}
-                  type="text"
-                  placeholder="8–10 character serial number"
-                  value={roll.serial}
-                  onChange={(e) => updateRoll(index, { serial: normalizeSerial(e.target.value) })}
-                  maxLength={SERIAL_MAX_LENGTH}
-                  disabled={loading}
-                  className={serialTooShort || isFailed ? 'border-red-400 focus-visible:ring-red-300' : ''}
-                />
-                <div className="flex justify-between text-xs px-0.5">
-                  <span className={serialTooShort ? 'text-red-500' : 'text-muted-foreground'}>
-                    {serialTooShort
-                      ? `${SERIAL_MIN_LENGTH - roll.serial.length} more characters needed`
-                      : 'Alphanumeric only'}
-                  </span>
-                  <span className="text-muted-foreground">{roll.serial.length}/{SERIAL_MAX_LENGTH}</span>
-                </div>
-              </div>
-
-              <div className="space-y-1">
-                <div className="relative">
-                  <Input
-                    aria-label={`Square feet used from serial ${index + 1}`}
-                    type="text"
-                    inputMode="decimal"
-                    placeholder="e.g., 150"
-                    value={roll.sqft}
-                    onChange={(e) => updateRoll(index, { sqft: normalizeSqft(e.target.value) })}
-                    disabled={loading}
-                    className={`pr-14 ${isFailed ? 'border-red-400 focus-visible:ring-red-300' : ''}`}
-                  />
-                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground pointer-events-none">
-                    sq.ft
-                  </span>
-                </div>
-                <span className="text-xs text-muted-foreground px-0.5">Used on this vehicle</span>
-              </div>
-
-              {/* The first row is the entry itself, not an addition, so there is
-                  nothing to remove until a second roll is added. */}
+            <div
+              key={index}
+              className={`rounded-xl border p-4 space-y-3 ${isFailed ? 'border-red-300 bg-red-50/40' : 'border-slate-200 bg-slate-50/40'}`}
+            >
+              {/* Numbered only once there is more than one roll to tell apart. */}
               {formData.rolls.length > 1 && (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => removeRoll(index)}
-                  disabled={loading}
-                  aria-label={`Remove roll ${index + 1}`}
-                  className="text-muted-foreground hover:text-destructive"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-muted-foreground">
+                    Roll {index + 1}
+                  </span>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => removeRoll(index)}
+                    disabled={loading}
+                    aria-label={`Remove roll ${index + 1}`}
+                    className="h-7 px-2 text-muted-foreground hover:text-destructive"
+                  >
+                    <Trash2 className="h-3.5 w-3.5 mr-1" />
+                    Remove
+                  </Button>
+                </div>
               )}
+
+              <div className="grid md:grid-cols-[1fr_150px] gap-3 items-start">
+                <div className="space-y-1">
+                  <Label htmlFor={`roll-serial-${index}`} className="text-xs text-muted-foreground">
+                    Serial number
+                  </Label>
+                  <Input
+                    id={`roll-serial-${index}`}
+                    type="text"
+                    placeholder="8–10 character serial number"
+                    value={roll.serial}
+                    onChange={(e) => updateRoll(index, { serial: normalizeSerial(e.target.value) })}
+                    maxLength={SERIAL_MAX_LENGTH}
+                    disabled={loading}
+                    className={`bg-white ${serialTooShort || isFailed ? 'border-red-400 focus-visible:ring-red-300' : ''}`}
+                  />
+                  <div className="flex justify-between text-xs px-0.5">
+                    <span className={serialTooShort ? 'text-red-500' : 'text-muted-foreground'}>
+                      {serialTooShort
+                        ? `${SERIAL_MIN_LENGTH - roll.serial.length} more characters needed`
+                        : 'Alphanumeric only'}
+                    </span>
+                    <span className="text-muted-foreground">{roll.serial.length}/{SERIAL_MAX_LENGTH}</span>
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <Label htmlFor={`roll-sqft-${index}`} className="text-xs text-muted-foreground">
+                    Film used
+                  </Label>
+                  <div className="relative">
+                    <Input
+                      id={`roll-sqft-${index}`}
+                      type="text"
+                      inputMode="decimal"
+                      placeholder="e.g., 150"
+                      value={roll.sqft}
+                      onChange={(e) => updateRoll(index, { sqft: normalizeSqft(e.target.value) })}
+                      disabled={loading}
+                      className={`pr-14 bg-white ${isFailed ? 'border-red-400 focus-visible:ring-red-300' : ''}`}
+                    />
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground pointer-events-none">
+                      sq.ft
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <Label htmlFor={`roll-area-${index}`} className="text-xs text-muted-foreground">
+                  Area of installation
+                </Label>
+                <Input
+                  id={`roll-area-${index}`}
+                  type="text"
+                  placeholder="e.g., Full Body, Bonnet, Front Bumper"
+                  value={roll.installArea}
+                  onChange={(e) => updateRoll(index, { installArea: e.target.value })}
+                  disabled={loading}
+                  className="bg-white"
+                />
+                <span className="text-xs text-muted-foreground px-0.5">
+                  Where this roll's film was fitted
+                </span>
+              </div>
             </div>
           );
         })}

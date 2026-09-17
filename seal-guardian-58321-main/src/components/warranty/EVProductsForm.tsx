@@ -19,6 +19,14 @@ export interface PPFRoll {
   serial: string;
   /** Kept as text so a half-typed value is not coerced to 0 while editing. */
   sqft: string;
+  /**
+   * The part of the car this roll's film went on.
+   *
+   * Belongs to the roll rather than the vehicle: film from two rolls goes on
+   * two different parts, and a single area for the whole job cannot say which
+   * roll covered what.
+   */
+  installArea: string;
 }
 
 export interface EVFormData {
@@ -63,7 +71,6 @@ export interface EVFormData {
    * taken from it.
    */
   rolls: PPFRoll[];
-  installArea: string;
   lhsPhoto: File | null;
   rhsPhoto: File | null;
   frontRegPhoto: File | null;
@@ -128,11 +135,10 @@ const EVProductsForm = ({ initialData, warrantyId, onSuccess, isUniversal, isEdi
     carReg: "",
     product: "",
     warrantyType: "",
-    rolls: [{ serial: "", sqft: "" }],
+    rolls: [{ serial: "", sqft: "", installArea: "" }],
     carMake: "",
     carYear: "",
     carColour: "",
-    installArea: "",
     lhsPhoto: null,
     rhsPhoto: null,
     frontRegPhoto: null,
@@ -185,13 +191,17 @@ const EVProductsForm = ({ initialData, warrantyId, onSuccess, isUniversal, isEdi
         warrantyType: initialData.warranty_type || "1 Year",
         /*
          * Warranties filed before rolls were tracked carry a single serial and
-         * no area, so the area is left blank for the installer to supply rather
-         * than invented here.
+         * one area for the whole job. That area is carried onto the single roll
+         * row, which is what it described; the sq.ft was never asked for, so it
+         * is left blank for the installer to supply.
          */
         rolls: Array.isArray(pd.rolls) && pd.rolls.length > 0
-          ? pd.rolls.map((r: any) => ({ serial: r.serial || "", sqft: r.sqft != null ? String(r.sqft) : "" }))
-          : [{ serial: pd.serialNumber || "", sqft: "" }],
-        installArea: pd.installArea || "",
+          ? pd.rolls.map((r: any) => ({
+            serial: r.serial || "",
+            sqft: r.sqft != null ? String(r.sqft) : "",
+            installArea: r.installArea || "",
+          }))
+          : [{ serial: pd.serialNumber || "", sqft: "", installArea: pd.installArea || "" }],
 
         // Photos are URLs in edit mode, need to handle this in ProductInfo or just show them
         // For now, we keep them null as we can't convert URL to File easily here without fetching
@@ -360,11 +370,6 @@ const EVProductsForm = ({ initialData, warrantyId, onSuccess, isUniversal, isEdi
       return;
     }
 
-    if (!formData.installArea) {
-      toast({ title: "Installation Area Required", description: "Please enter the area of installation", variant: "destructive" });
-      return;
-    }
-
     const rollError = getRollsError(formData.rolls);
     if (rollError) {
       toast({ title: "Roll Details", description: rollError, variant: "destructive" });
@@ -438,7 +443,6 @@ const EVProductsForm = ({ initialData, warrantyId, onSuccess, isUniversal, isEdi
         ...(warrantyId ? { warrantyId } : {}),
         productDetails: {
           product: formData.product,
-          installArea: formData.installArea,
           rolls: toRollPayload(formData.rolls),
           manpowerId: formData.manpowerId,
           manpowerName: formData.installerName,

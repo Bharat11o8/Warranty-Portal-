@@ -58,6 +58,10 @@ export const getRollsError = (rolls: PPFRoll[]): string | null => {
         if (!roll.sqft || !Number.isFinite(sqft) || sqft <= 0) {
             return `Please enter how many sq.ft were used from serial ${serial}.`;
         }
+
+        if (!(roll.installArea || '').trim()) {
+            return `Please enter where the film from serial ${serial} was fitted.`;
+        }
     }
 
     return null;
@@ -68,6 +72,7 @@ export const toRollPayload = (rolls: PPFRoll[]) =>
     rolls.map((roll) => ({
         serial: roll.serial.trim().toUpperCase(),
         sqft: Number(roll.sqft),
+        installArea: roll.installArea.trim(),
     }));
 
 /**
@@ -86,14 +91,19 @@ export const displaySerial = (productDetails: any, warrantyUid?: string): string
     return productDetails?.serialNumber || warrantyUid || 'N/A';
 };
 
-/** The same, with each roll's area — for detail views that have room for it. */
-export const displayRollUsage = (productDetails: any, warrantyUid?: string): string => {
+/**
+ * Where the film went, for a warranty however it was stored.
+ *
+ * Reads the per-roll areas that warranties now carry, and falls back to the
+ * single area older records kept for the whole job.
+ */
+export const displayInstallArea = (productDetails: any): string => {
     const rolls = productDetails?.rolls;
     if (Array.isArray(rolls) && rolls.length > 0) {
-        return rolls
-            .map((r: any) => (r?.sqft != null ? `${r.serial} (${r.sqft} sq.ft)` : r?.serial))
-            .filter(Boolean)
-            .join(', ') || 'N/A';
+        // Several rolls fitted to the same place read better as that place named
+        // once than as the same word repeated.
+        const unique = [...new Set(rolls.map((r: any) => r?.installArea).filter(Boolean))];
+        if (unique.length > 0) return unique.join(', ');
     }
-    return productDetails?.serialNumber || warrantyUid || 'N/A';
+    return productDetails?.installArea || '';
 };
