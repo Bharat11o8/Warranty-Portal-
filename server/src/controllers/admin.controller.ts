@@ -7,6 +7,7 @@ import { parseContacts, matchContacts, saveContacts, syncRoundTargets } from '..
 import { NotificationService } from '../services/notification.service.js';
 import { WhatsAppService } from '../services/whatsapp.service.js';
 import { v4 as uuidv4 } from 'uuid';
+import { getRollCapacitySqft } from '../services/ppfRoll.service.js';
 import {
     getMobileRegistrationUsage,
     normalizeCustomerMobile
@@ -5799,6 +5800,118 @@ export class AdminController {
         } catch (error: any) {
             console.error('Unassign distributor from franchise error:', error);
             res.status(500).json({ error: 'Failed to unassign distributor' });
+        }
+    }
+
+    /**
+     * Every PPF roll that has been drawn on, and how much of each is left.
+     *
+     * Installers are never told a roll's balance — it is what stops a serial
+     * being probed for how much it can still absorb — but an admin needs it to
+     * answer "why was this refused?" and to see a roll that is nearly spent.
+     */
+    static async getPPFRolls(req: Request, res: Response) {
+        try {
+            const search = String(req.query.search || '').trim();
+            const capacity = await getRollCapacitySqft();
+
+            const params: any[] = [];
+            let where = '';
+            if (search) {
+                where = 'WHERE r.serial_number LIKE ?';
+                params.push(`%${search}%`);
+            }
+
+            const [rows]: any = await db.execute(
+                `SELECT r.serial_number,
+                        r.first_seen_at,
+                        COALESCE(SUM(CASE WHEN w.status != 'rejected' THEN c.sqft_used ELSE 0 END), 0) AS used_sqft,
+                        COUNT(CASE WHEN w.status != 'rejected' THEN 1 END) AS draws,
+                        COUNT(CASE WHEN w.status = 'rejected' THEN 1 END) AS rejected_draws
+                   FROM ppf_rolls r
+                   LEFT JOIN ppf_roll_consumption c ON c.roll_serial = r.serial_number
+                   LEFT JOIN warranty_registrations w ON w.uid = c.warranty_uid
+                   ${where}
+                  GROUP BY r.serial_number, r.first_seen_at
+                  ORDER BY r.first_seen_at DESC
+                  LIMIT 500`,
+                params
+            );
+
+            res.json({
+                success: true,
+                capacity,
+                rolls: rows.map((row: any) => {
+                    const used = Number(row.used_sqft);
+                    return {
+                        serialNumber: row.serial_number,
+                        firstSeenAt: row.first_seen_at,
+                        usedSqft: used,
+                        remainingSqft: Math.max(0, capacity - used),
+                        draws: Number(row.draws),
+                        rejectedDraws: Number(row.rejected_draws),
+                    };
+                }),
+            });
+        } catch (error: any) {
+            console.error('Get PPF rolls error:', error);
+            res.status(500).json({ error: 'Failed to fetch PPF rolls' });
+        }
+    }
+
+    /** The individual registrations a single roll's film went to. */
+    static async getPPFRollDetail(req: Request, res: Response) {
+        try {
+            const serial = String(req.params.serial || '').trim().toUpperCase();
+            if (!serial) {
+                return res.status(400).json({ error: 'Serial number is required' });
+            }
+
+            const capacity = await getRollCapacitySqft();
+
+            const [rows]: any = await db.execute(
+                `SELECT c.warranty_uid,
+                        c.sqft_used,
+                        c.created_at,
+                        w.status,
+                        w.customer_name,
+                        w.registration_number,
+                        w.installer_name,
+                        w.purchase_date
+                   FROM ppf_roll_consumption c
+                   LEFT JOIN warranty_registrations w ON w.uid = c.warranty_uid
+                  WHERE c.roll_serial = ?
+                  ORDER BY c.created_at ASC`,
+                [serial]
+            );
+
+            // A rejected draw is listed but does not count against the roll, the
+            // same rule the availability check applies when a roll is used again.
+            const used = rows
+                .filter((row: any) => row.status !== 'rejected')
+                .reduce((total: number, row: any) => total + Number(row.sqft_used), 0);
+
+            res.json({
+                success: true,
+                serialNumber: serial,
+                capacity,
+                usedSqft: used,
+                remainingSqft: Math.max(0, capacity - used),
+                draws: rows.map((row: any) => ({
+                    warrantyUid: row.warranty_uid,
+                    sqftUsed: Number(row.sqft_used),
+                    createdAt: row.created_at,
+                    status: row.status,
+                    customerName: row.customer_name,
+                    registrationNumber: row.registration_number,
+                    installerName: row.installer_name,
+                    purchaseDate: row.purchase_date,
+                    countsAgainstRoll: row.status !== 'rejected',
+                })),
+            });
+        } catch (error: any) {
+            console.error('Get PPF roll detail error:', error);
+            res.status(500).json({ error: 'Failed to fetch roll detail' });
         }
     }
 }

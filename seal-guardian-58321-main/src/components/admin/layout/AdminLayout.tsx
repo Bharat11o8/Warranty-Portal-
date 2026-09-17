@@ -35,6 +35,7 @@ const AdminWarrantyProducts = lazy(() => import("../modules/AdminWarrantyProduct
 const AdminPOSM = lazy(() => import("../modules/AdminPOSM").then(({ AdminPOSM }) => ({ default: AdminPOSM })));
 const AdminECatalogue = lazy(() => import("../modules/AdminECatalogue").then(({ AdminECatalogue }) => ({ default: AdminECatalogue })));
 const AdminUIDManagement = lazy(() => import("../modules/AdminUIDManagement"));
+const AdminPPFRolls = lazy(() => import("../modules/AdminPPFRolls"));
 const AdminAnalytics = lazy(() => import("../modules/AdminAnalytics").then(({ AdminAnalytics }) => ({ default: AdminAnalytics })));
 const AdminOrderManagement = lazy(() => import("../modules/AdminOrderManagement").then(({ AdminOrderManagement }) => ({ default: AdminOrderManagement })));
 
@@ -105,6 +106,8 @@ export const AdminLayout = () => {
                 return <AdminPOSM />;
             case 'uid-management':
                 return <AdminUIDManagement />;
+            case 'ppf-rolls':
+                return <AdminPPFRolls />;
             case 'ecatalogue':
                 return <AdminECatalogue />;
             case 'order-management':
@@ -136,6 +139,7 @@ export const AdminLayout = () => {
             'notification-settings': 'WhatsApp Message Controls',
             'posm': 'POSM Requirements',
             'uid-management': 'Product UID Management',
+            'ppf-rolls': 'PPF Rolls',
             'ecatalogue': 'E-Catalogue CMS',
             'order-management': 'B2B Order Hierarchy',
             'franchise-distributor-map': 'Franchise Sourcing Map',

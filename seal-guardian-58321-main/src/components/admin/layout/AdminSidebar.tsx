@@ -54,6 +54,7 @@ export type AdminModule =
     | 'notification-settings'
     | 'posm'
     | 'uid-management'
+    | 'ppf-rolls'
     | 'ecatalogue'
     | 'analytics'
     | 'order-management'
@@ -141,6 +142,9 @@ const moduleToPermKey: Record<string, string> = {
     'warranties': 'warranties',
     'warranty-products': 'warranty_products',
     'uid-management': 'uid_management',
+    // Roll usage is warranty data, so it follows the warranties permission
+    // rather than introducing a key nobody has been granted yet.
+    'ppf-rolls': 'warranties',
     'warranty-form': 'warranty_form',
     'vendors': 'vendors',
     'manpower': 'vendors',
@@ -210,6 +214,7 @@ export const SidebarContent = ({
 
                 { id: 'warranty-products' as const, label: "Warranty Products", icon: Store },
                 { id: 'uid-management' as const, label: "UID Management", icon: Package },
+                { id: 'ppf-rolls' as const, label: "PPF Rolls", icon: Layers },
                 { id: 'warranty-form' as const, label: "New Registration", icon: PenTool },
                 { id: 'old-warranties' as const, label: "Old Warranties", icon: Archive },
             ]

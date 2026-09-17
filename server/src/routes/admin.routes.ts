@@ -114,6 +114,10 @@ router.get('/audit-rounds/:id/targets', ...adminAuth, requirePermission('audits'
 // Warranties
 router.get('/warranties', ...adminAuth, requirePermission('warranties', 'read'), AdminController.getAllWarranties);
 router.get('/warranties/resubmissions', ...adminAuth, requirePermission('warranties', 'read'), AdminController.getResubmissions);
+// Where a PPF roll's film went. Declared above /warranties/:id, which would
+// otherwise match "ppf-rolls" and look the roll up as a warranty id.
+router.get('/warranties/ppf-rolls', ...adminAuth, requirePermission('warranties', 'read'), AdminController.getPPFRolls);
+router.get('/warranties/ppf-rolls/:serial', ...adminAuth, requirePermission('warranties', 'read'), AdminController.getPPFRollDetail);
 router.post('/warranties/resubmissions/:id/approve', ...adminAuth, requirePermission('warranties', 'write'), AdminController.approveResubmission);
 router.post('/warranties/resubmissions/:id/reject', ...adminAuth, requirePermission('warranties', 'write'), AdminController.rejectResubmission);
 router.get('/warranties/:id', ...adminAuth, requirePermission('warranties', 'read'), AdminController.getWarrantyById);
