@@ -11,7 +11,15 @@ import CarDetails from "./steps/CarDetails";
 import ProductInfo from "./steps/ProductInfo";
 import { CheckCircle2, Car, User, Settings, ShieldCheck } from "lucide-react";
 import { getISTTodayISO, formatToISTDateISO } from "@/lib/utils";
+import { getRollsError, toRollPayload } from "@/lib/ppfRolls";
 import fpPromise from '@fingerprintjs/fingerprintjs';
+
+/** One PPF roll drawn on by an installation. */
+export interface PPFRoll {
+  serial: string;
+  /** Kept as text so a half-typed value is not coerced to 0 while editing. */
+  sqft: string;
+}
 
 export interface EVFormData {
   // Installer Details
@@ -46,7 +54,15 @@ export interface EVFormData {
   // Product Info
   product: string;
   warrantyType: string;
-  serialNumber: string;
+  /**
+   * The roll(s) this installation drew on, and how much of each it used.
+   *
+   * PPF is sold as a roll of a fixed area and is rarely used up on one car, so
+   * a single roll is registered across several vehicles and one vehicle may
+   * take film from more than one roll. Each entry is a serial and the area
+   * taken from it.
+   */
+  rolls: PPFRoll[];
   installArea: string;
   lhsPhoto: File | null;
   rhsPhoto: File | null;
@@ -112,7 +128,7 @@ const EVProductsForm = ({ initialData, warrantyId, onSuccess, isUniversal, isEdi
     carReg: "",
     product: "",
     warrantyType: "",
-    serialNumber: "",
+    rolls: [{ serial: "", sqft: "" }],
     carMake: "",
     carYear: "",
     carColour: "",
@@ -167,7 +183,14 @@ const EVProductsForm = ({ initialData, warrantyId, onSuccess, isUniversal, isEdi
 
         product: pd.product || "",
         warrantyType: initialData.warranty_type || "1 Year",
-        serialNumber: pd.serialNumber || "",
+        /*
+         * Warranties filed before rolls were tracked carry a single serial and
+         * no area, so the area is left blank for the installer to supply rather
+         * than invented here.
+         */
+        rolls: Array.isArray(pd.rolls) && pd.rolls.length > 0
+          ? pd.rolls.map((r: any) => ({ serial: r.serial || "", sqft: r.sqft != null ? String(r.sqft) : "" }))
+          : [{ serial: pd.serialNumber || "", sqft: "" }],
         installArea: pd.installArea || "",
 
         // Photos are URLs in edit mode, need to handle this in ProductInfo or just show them
@@ -342,13 +365,9 @@ const EVProductsForm = ({ initialData, warrantyId, onSuccess, isUniversal, isEdi
       return;
     }
 
-    if (!formData.serialNumber) {
-      toast({ title: "Serial Number Required", description: "Please enter the product serial number", variant: "destructive" });
-      return;
-    }
-
-    if (formData.serialNumber.length < 8 || formData.serialNumber.length > 10) {
-      toast({ title: "Invalid Serial Number", description: "Serial number must be 8–10 alphanumeric characters", variant: "destructive" });
+    const rollError = getRollsError(formData.rolls);
+    if (rollError) {
+      toast({ title: "Roll Details", description: rollError, variant: "destructive" });
       return;
     }
 
@@ -411,10 +430,16 @@ const EVProductsForm = ({ initialData, warrantyId, onSuccess, isUniversal, isEdi
         installerName: formData.storeName,
         installerContact: formData.storeEmail,
         manpowerId: formData.manpowerId || null,
+        /*
+         * Which registration a correction is replacing. A PPF serial names the
+         * roll rather than one registration now that a roll covers several
+         * vehicles, so the server matches a resubmission on this instead.
+         */
+        ...(warrantyId ? { warrantyId } : {}),
         productDetails: {
           product: formData.product,
           installArea: formData.installArea,
-          serialNumber: formData.serialNumber,
+          rolls: toRollPayload(formData.rolls),
           manpowerId: formData.manpowerId,
           manpowerName: formData.installerName,
           storeName: formData.storeName,
@@ -487,7 +512,7 @@ const EVProductsForm = ({ initialData, warrantyId, onSuccess, isUniversal, isEdi
         result = response;
         toast({
           title: "Warranty Registered",
-          description: `Success! Serial No: ${formData.serialNumber}, Vehicle Reg: ${formData.carReg}`,
+          description: `Success! Serial No: ${formData.rolls.map(r => r.serial).join(', ')}, Vehicle Reg: ${formData.carReg}`,
         });
       }
 

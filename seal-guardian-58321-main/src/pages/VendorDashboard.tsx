@@ -19,6 +19,7 @@ import { getWarrantyFormComponent, getEditFormProps } from "@/lib/warrantyFormRe
 import { WarrantySpecSheet } from "@/components/warranty/WarrantySpecSheet";
 import { ProductCatalog } from "@/components/vendor/ProductCatalog";
 import VendorGrievances from "@/components/fms/VendorGrievances";
+import { displaySerial } from "@/lib/ppfRolls";
 
 // WarrantyList Component - Modern card design matching Customer Dashboard
 const WarrantyList = ({ items, showReason = false, user, onEditWarranty, onVerify, onReject, isPendingVerification = false, onSelectWarranty }: {
@@ -111,7 +112,7 @@ const WarrantyList = ({ items, showReason = false, user, onEditWarranty, onVerif
                                 <p className="text-xs text-muted-foreground mt-0.5">
                                     👤 {warranty.customer_name} • {warranty.customer_phone}
                                     {warranty.product_type !== 'seat-cover' && (
-                                        <span className="ml-2">• <span className="font-mono ml-1">Serial: {productDetails.serialNumber || warranty.uid}</span></span>
+                                        <span className="ml-2">• <span className="font-mono ml-1">Serial: {displaySerial(productDetails, warranty.uid)}</span></span>
                                     )}
                                 </p>
                             </div>
@@ -1213,7 +1214,7 @@ const VendorDashboard = () => {
                                                         {w.product_type === 'seat-cover' ? 'UID' : 'Serial No'}
                                                     </p>
                                                     <p className="font-mono text-xs">
-                                                        {w.product_type === 'seat-cover' ? w.uid : (pd.serialNumber || 'N/A')}
+                                                        {w.product_type === 'seat-cover' ? w.uid : displaySerial(pd, w.uid)}
                                                     </p>
                                                 </div>
                                                 <div>

@@ -15,6 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import api, { getErrorMessage } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
+import { displaySerial, displayRollUsage } from "@/lib/ppfRolls";
 
 interface WarrantySpecSheetProps {
     isOpen: boolean;
@@ -319,7 +320,15 @@ export const WarrantySpecSheet = ({ isOpen, onClose, warranty, isAdmin, onRefres
                                 {/* EV/PPF Specific Fields */}
                                 {warranty.product_type !== 'seat-cover' && (
                                     <>
-                                        <SpecRow label="Serial Number" value={productDetails.serialNumber || warranty.uid || "N/A"} mono editField="serial_number" />
+                                        {/* A warranty that draws on rolls shows them read-only: the
+                                            serials are recorded in the roll ledger, so editing one
+                                            here would leave the two disagreeing about which roll
+                                            gave up the film. */}
+                                        {Array.isArray(productDetails.rolls) && productDetails.rolls.length > 0 ? (
+                                            <SpecRow label="Roll Usage" value={displayRollUsage(productDetails, warranty.uid)} mono />
+                                        ) : (
+                                            <SpecRow label="Serial Number" value={displaySerial(productDetails, warranty.uid)} mono editField="serial_number" />
+                                        )}
                                         {productDetails.installArea && (
                                             <SpecRow label="Installation Area" value={productDetails.installArea} />
                                         )}

@@ -1,16 +1,23 @@
 import { useState, useEffect } from "react";
 import api from "@/lib/api";
 import { Button } from "@/components/ui/button";
-import { Loader2, CheckCircle2, FileText, AlertTriangle } from "lucide-react";
+import { Loader2, CheckCircle2, FileText, AlertTriangle, Plus, Trash2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Combobox } from "@/components/ui/combobox";
 import { Checkbox } from "@/components/ui/checkbox";
-import { EVFormData } from "../EVProductsForm";
+import { EVFormData, PPFRoll } from "../EVProductsForm";
 import { useToast } from "@/hooks/use-toast";
 import { TermsModal } from "../TermsModal";
 import { compressImage, isCompressibleImage } from "@/lib/imageCompression";
+import {
+  getRollsError,
+  normalizeSerial,
+  normalizeSqft,
+  SERIAL_MIN_LENGTH,
+  SERIAL_MAX_LENGTH,
+} from "@/lib/ppfRolls";
 
 interface ProductInfoProps {
   formData: EVFormData;
@@ -102,6 +109,25 @@ const ProductInfo = ({ formData, updateFormData, onPrev, onSubmit, loading, exis
   const [termsModalOpen, setTermsModalOpen] = useState(false);
   const [compressing, setCompressing] = useState(false);
   const [disclaimer, setDisclaimer] = useState("");
+  /**
+   * The serial the server last refused, so its row can be marked.
+   *
+   * Only the server knows how much of a roll is left, and it does not say —
+   * the form can show which entry was rejected but never what remains.
+   */
+  const [failedSerial, setFailedSerial] = useState<string | null>(null);
+
+  const updateRoll = (index: number, changes: Partial<PPFRoll>) => {
+    const next = formData.rolls.map((roll, i) => (i === index ? { ...roll, ...changes } : roll));
+    // The marking is stale the moment the installer edits either field.
+    setFailedSerial(null);
+    updateFormData({ rolls: next });
+  };
+
+  const addRoll = () => updateFormData({ rolls: [...formData.rolls, { serial: "", sqft: "" }] });
+
+  const removeRoll = (index: number) =>
+    updateFormData({ rolls: formData.rolls.filter((_, i) => i !== index) });
 
   useEffect(() => {
     api.get('/settings/public/ppf_disclaimer')
@@ -196,6 +222,13 @@ const ProductInfo = ({ formData, updateFormData, onPrev, onSubmit, loading, exis
       toast({ title: "Installation Area Required", description: "Please enter the area of installation", variant: "destructive" });
       return;
     }
+
+    const rollError = getRollsError(formData.rolls);
+    if (rollError) {
+      toast({ title: "Roll Details", description: rollError, variant: "destructive" });
+      return;
+    }
+
     if (!formData.lhsPhoto && !existingPhotos?.lhs) {
       toast({ title: "LHS Photo Required", description: "Please upload left hand side photo", variant: "destructive" });
       return;
@@ -266,32 +299,6 @@ const ProductInfo = ({ formData, updateFormData, onPrev, onSubmit, loading, exis
 
 
         <div className="space-y-2">
-          <Label htmlFor="serialNumber">
-            Serial Number <span className="text-destructive">*</span>
-          </Label>
-          <Input
-            id="serialNumber"
-            type="text"
-            placeholder="8–10 character serial number"
-            value={formData.serialNumber}
-            onChange={(e) => {
-              const val = e.target.value.replace(/[^a-zA-Z0-9]/g, '').slice(0, 10);
-              updateFormData({ serialNumber: val });
-            }}
-            required
-            maxLength={10}
-            disabled={loading}
-            className={formData.serialNumber.length > 0 && (formData.serialNumber.length < 8 || formData.serialNumber.length > 10) ? 'border-red-400 focus-visible:ring-red-300' : ''}
-          />
-          <div className="flex justify-between text-xs px-0.5">
-            <span className={formData.serialNumber.length > 0 && formData.serialNumber.length < 8 ? 'text-red-500' : 'text-muted-foreground'}>
-              {formData.serialNumber.length > 0 && formData.serialNumber.length < 8 ? `${8 - formData.serialNumber.length} more characters needed` : 'Alphanumeric only'}
-            </span>
-            <span className="text-muted-foreground">{formData.serialNumber.length}/10</span>
-          </div>
-        </div>
-
-        <div className="space-y-2">
           <Label htmlFor="installArea">
             Area of Installation <span className="text-destructive">*</span>
           </Label>
@@ -300,14 +307,102 @@ const ProductInfo = ({ formData, updateFormData, onPrev, onSubmit, loading, exis
             type="text"
             placeholder="e.g., Full Body, Hood, etc."
             value={formData.installArea}
-            onChange={(e) => {
-              const val = e.target.value.replace(/[0-9]/g, '');
-              updateFormData({ installArea: val });
-            }}
+            onChange={(e) => updateFormData({ installArea: e.target.value })}
             required
             disabled={loading}
           />
         </div>
+      </div>
+
+      {/* Rolls — a roll is fitted across several vehicles, and one vehicle may
+          take film from more than one roll, so each entry pairs the serial with
+          the area taken from it. */}
+      <div className="space-y-3">
+        <div>
+          <Label>
+            Roll Serial Number & Usage <span className="text-destructive">*</span>
+          </Label>
+          <p className="text-xs text-muted-foreground mt-1">
+            Enter the serial number of each roll used on this vehicle and how many sq.ft came from it.
+          </p>
+        </div>
+
+        {formData.rolls.map((roll, index) => {
+          const serialTooShort = roll.serial.length > 0 && roll.serial.length < SERIAL_MIN_LENGTH;
+          const isFailed = failedSerial != null && roll.serial === failedSerial;
+
+          return (
+            <div key={index} className="grid md:grid-cols-[1fr_180px_auto] gap-3 items-start">
+              <div className="space-y-1">
+                <Input
+                  aria-label={`Serial number ${index + 1}`}
+                  type="text"
+                  placeholder="8–10 character serial number"
+                  value={roll.serial}
+                  onChange={(e) => updateRoll(index, { serial: normalizeSerial(e.target.value) })}
+                  maxLength={SERIAL_MAX_LENGTH}
+                  disabled={loading}
+                  className={serialTooShort || isFailed ? 'border-red-400 focus-visible:ring-red-300' : ''}
+                />
+                <div className="flex justify-between text-xs px-0.5">
+                  <span className={serialTooShort ? 'text-red-500' : 'text-muted-foreground'}>
+                    {serialTooShort
+                      ? `${SERIAL_MIN_LENGTH - roll.serial.length} more characters needed`
+                      : 'Alphanumeric only'}
+                  </span>
+                  <span className="text-muted-foreground">{roll.serial.length}/{SERIAL_MAX_LENGTH}</span>
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <div className="relative">
+                  <Input
+                    aria-label={`Square feet used from serial ${index + 1}`}
+                    type="text"
+                    inputMode="decimal"
+                    placeholder="e.g., 150"
+                    value={roll.sqft}
+                    onChange={(e) => updateRoll(index, { sqft: normalizeSqft(e.target.value) })}
+                    disabled={loading}
+                    className={`pr-14 ${isFailed ? 'border-red-400 focus-visible:ring-red-300' : ''}`}
+                  />
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground pointer-events-none">
+                    sq.ft
+                  </span>
+                </div>
+                <span className="text-xs text-muted-foreground px-0.5">Used on this vehicle</span>
+              </div>
+
+              {/* The first row is the entry itself, not an addition, so there is
+                  nothing to remove until a second roll is added. */}
+              {formData.rolls.length > 1 && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => removeRoll(index)}
+                  disabled={loading}
+                  aria-label={`Remove roll ${index + 1}`}
+                  className="text-muted-foreground hover:text-destructive"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              )}
+            </div>
+          );
+        })}
+
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={addRoll}
+          disabled={loading}
+          className="gap-1.5"
+        >
+          <Plus className="h-4 w-4" />
+          Add another roll
+        </Button>
       </div>
 
       {/* Disclaimer — full width, shown once a product is selected */}
