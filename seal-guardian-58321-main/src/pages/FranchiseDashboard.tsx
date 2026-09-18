@@ -649,6 +649,7 @@ const FranchiseDashboard = () => {
                                         <Card className="border-orange-100 rounded-3xl shadow-xl">
                                             <CardContent className="p-2 md:p-8">
                                                 <EVProductsForm
+                                                    embedded
                                                     vendorDirect={true}
                                                     onSuccess={() => { fetchAllData(); setActiveModule('warranty'); }}
                                                 />
@@ -957,7 +958,7 @@ const FranchiseDashboard = () => {
                             </DialogTitle>
                         </DialogHeader>
                         {registrationType === 'ev' ? (
-                            <EVProductsForm onSuccess={() => { setRegistrationType(null); fetchAllData(); }} />
+                            <EVProductsForm embedded onSuccess={() => { setRegistrationType(null); fetchAllData(); }} />
                         ) : (
                             <SeatCoverForm onSuccess={() => { setRegistrationType(null); fetchAllData(); }} />
                         )}

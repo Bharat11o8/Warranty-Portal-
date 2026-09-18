@@ -353,9 +353,9 @@ const InstallerDetails = ({ formData, updateFormData, onNext, isPublic, isEditin
         </>)}
       </div>
 
-      <div className="flex justify-end">
-        <Button type="submit" size="lg">
-          Next Step →
+      <div className="flex justify-end pt-2">
+        <Button type="submit" className="w-full sm:w-auto h-10 rounded-lg px-5 text-sm font-medium bg-slate-900 text-white transition-colors hover:bg-slate-800">
+          Next Step
         </Button>
       </div>
     </form>

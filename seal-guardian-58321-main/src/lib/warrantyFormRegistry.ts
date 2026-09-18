@@ -37,5 +37,9 @@ export function getEditFormProps(warranty: any, onSuccess: () => void) {
         onSuccess,
         // EVProductsForm needs isUniversal — safe to pass for all forms (ignored by SeatCoverForm)
         isUniversal: false,
+        // Every edit form is opened in a dialog, which supplies its own title,
+        // padding and surface. Without this the form draws a second card
+        // inside the first and its own heading under the dialog's.
+        embedded: true,
     };
 }

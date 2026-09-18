@@ -156,12 +156,17 @@ const CustomerDetails = ({ formData, updateFormData, onNext, onPrev, isCustomer 
         </div>
       </div>
 
-      <div className="flex justify-between">
-        <Button type="button" variant="outline" size="lg" onClick={onPrev}>
-          ← Previous
+      <div className="flex items-center justify-between gap-3 pt-2">
+        <Button
+          type="button"
+          variant="outline"
+          onClick={onPrev}
+          className="flex-1 sm:flex-none h-10 rounded-lg px-4 text-sm font-medium border-slate-200 bg-transparent text-slate-500 shadow-none transition-colors hover:bg-slate-50 hover:text-slate-900"
+        >
+          Previous
         </Button>
-        <Button type="submit" size="lg">
-          Next Step →
+        <Button type="submit" className="flex-1 sm:flex-none h-10 rounded-lg px-5 text-sm font-medium bg-slate-900 text-white transition-colors hover:bg-slate-800">
+          Next Step
         </Button>
       </div>
     </form >

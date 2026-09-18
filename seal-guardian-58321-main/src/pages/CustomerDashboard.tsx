@@ -745,6 +745,7 @@ const CustomerDashboard = () => {
                         <DialogDescription>Enter the details for your new paint protection film warranty.</DialogDescription>
                     </DialogHeader>
                     <EVProductsForm
+                        embedded
                         isUniversal={false}
                         onSuccess={() => {
                             setCreatingWarranty(null);
