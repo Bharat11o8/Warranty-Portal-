@@ -121,6 +121,11 @@ export class POSMRepository extends BaseRepository<POSMRequest> {
             `SELECT 
                 r.*,
                 vd.store_name,
+                vd.store_code,
+                vd.address AS store_address,
+                vd.city AS store_city,
+                vd.state AS store_state,
+                vd.pincode AS store_pincode,
                 p.name as contact_name,
                 p.email as contact_email,
                 creator.name as created_by_name

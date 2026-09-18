@@ -262,20 +262,32 @@ export const AdminPOSM = () => {
             return;
         }
 
-        const headers = ["Date", "Ticket ID", "Franchise", "Contact Name", "Contact Email", "Requirement", "Status", "Raised By", "Raised By Name", "Last Update"];
+        const headers = ["Date", "Ticket ID", "Franchise", "Store Code", "Address", "City",
+            "State", "Pincode", "Contact Name", "Contact Email", "Requirement", "Status",
+            "Raised By", "Raised By Name", "Last Update"];
+
+        /* A CSV cell has to survive quotes, commas and newlines alike, and an
+           address is the field most likely to hold all three. */
+        const cell = (value: unknown) =>
+            `"${String(value ?? "").replace(/"/g, '""').replace(/[\r\n]+/g, " ").trim()}"`;
 
         const csvContent = [
             headers.join(","),
             ...dataToExport.map(r => [
                 `"${formatToIST(r.created_at)}"`,
                 `"${r.ticket_id}"`,
-                `"${r.store_name.replace(/"/g, '""')}"`,
-                `"${r.contact_name.replace(/"/g, '""')}"`,
-                `"${r.contact_email}"`,
-                `"${r.requirement.replace(/"/g, '""').replace(/\n/g, ' ')}"`,
-                `"${r.status.replace("_", " ")}"`,
-                `"${r.created_by_role === 'admin' ? 'Admin (on behalf)' : 'Franchise'}"`,
-                `"${(r.created_by_name || "").replace(/"/g, '""')}"`,
+                cell(r.store_name),
+                cell(r.store_code),
+                cell(r.store_address),
+                cell(r.store_city),
+                cell(r.store_state),
+                cell(r.store_pincode),
+                cell(r.contact_name),
+                cell(r.contact_email),
+                cell(r.requirement),
+                cell(r.status.replace("_", " ")),
+                cell(r.created_by_role === 'admin' ? 'Admin (on behalf)' : 'Franchise'),
+                cell(r.created_by_name),
                 `"${formatToIST(r.updated_at)}"`
             ].join(","))
         ].join("\n");
