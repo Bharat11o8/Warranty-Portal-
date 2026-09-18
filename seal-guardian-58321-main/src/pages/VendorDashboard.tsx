@@ -397,7 +397,16 @@ const VendorDashboard = () => {
                 'Customer': w.customer_name,
                 'Phone': w.customer_phone,
                 'UID/Lot': w.uid || productDetails.lotNumber || 'N/A',
-                'Roll No': productDetails.rollNumber || 'N/A',
+                /*
+                 * This column read productDetails.rollNumber, a field nothing
+                 * has ever written, so every row printed N/A. PPF now records
+                 * the rolls it drew on, which is what it was asking for.
+                 */
+                'Roll No': Array.isArray(productDetails.rolls) && productDetails.rolls.length > 0
+                    ? productDetails.rolls
+                        .map((r: any) => `${r.serial} (${r.sqft} sq.ft${r.installArea ? ` - ${r.installArea}` : ''})`)
+                        .join('; ')
+                    : (productDetails.serialNumber || 'N/A'),
                 'Vehicle': (w.car_make && String(w.car_make).toLowerCase() !== 'null' || w.car_model && String(w.car_model).toLowerCase() !== 'null') ? `${w.car_make || ''} ${w.car_model || ''} (${w.car_year || ''})`.trim() : 'N/A',
                 'Vehicle Colour': w.car_colour || '',
                 'Registration': w.registration_number || productDetails.carRegistration || w.car_reg || 'N/A',

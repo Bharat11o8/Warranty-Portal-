@@ -5,6 +5,27 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 /**
+ * The serial number(s) to print for a PPF warranty.
+ *
+ * A warranty now names every roll it drew on, so there can be more than one and
+ * the old single `serialNumber` field is absent. Reading only that field made
+ * every new PPF email say "Serial Number: N/A" — the one detail the customer is
+ * told to quote when claiming.
+ *
+ * Falls back to the old field, and then to the warranty id, which begins with
+ * the serial, so warranties from before rolls were tracked still print
+ * something a person can act on.
+ */
+const serialsForEmail = (productDetails: any, uid?: string): string => {
+    const rolls = productDetails?.rolls;
+    if (Array.isArray(rolls) && rolls.length > 0) {
+        const serials = rolls.map((r: any) => r?.serial).filter(Boolean);
+        if (serials.length > 0) return serials.join(', ');
+    }
+    return productDetails?.serialNumber || uid || 'N/A';
+};
+
+/**
  * Service for handling all email communications
  * Optimized to reduce duplication and ensure consistent styling
  */
@@ -402,7 +423,7 @@ export class EmailService {
         ${(productType !== 'seat-cover' && ((carMake && String(carMake).toLowerCase() !== 'null') || (carModel && String(carModel).toLowerCase() !== 'null'))) ? `<p><strong>Vehicle:</strong> ${carMake || ''} ${carModel || ''}</p>` : ''}
         ${productType === 'seat-cover' ? `<p><strong>UID:</strong> ${uid}</p>` : ''}
         ${productType === 'ev-products' ? `
-          <p><strong>Serial Number:</strong> ${productDetails?.serialNumber || 'N/A'}</p>
+          <p><strong>Serial Number:</strong> ${serialsForEmail(productDetails, uid)}</p>
         ` : ''}
         <p><strong>Product:</strong> ${String(productName).replace(/-/g, ' ').toUpperCase()}</p>
         <p><strong>Product Type:</strong> ${productType}</p>
@@ -478,7 +499,7 @@ export class EmailService {
         <p style="margin: 0 0 10px 0; font-weight: bold; color: #0088cc;">Warranty Details:</p>
         ${productType === 'seat-cover' ? `<p><strong>UID:</strong> ${uid}</p>` : ''}
         ${productType === 'ev-products' ? `
-          <p><strong>Serial Number:</strong> ${productDetails?.serialNumber || 'N/A'}</p>
+          <p><strong>Serial Number:</strong> ${serialsForEmail(productDetails, uid)}</p>
         ` : ''}
         <p><strong>Product:</strong> ${String(productName).replace(/-/g, ' ').toUpperCase()}</p>
         <p><strong>Product Type:</strong> ${productType}</p>
@@ -579,7 +600,7 @@ export class EmailService {
         <p><strong>Product:</strong> ${String(productName).replace(/-/g, ' ').toUpperCase()}</p>
         ${productType === 'seat-cover' ? `<p><strong>UID:</strong> ${uid}</p>` : ''}
         ${productType === 'ev-products' ? `
-          <p><strong>Serial Number:</strong> ${productDetails?.serialNumber || 'N/A'}</p>
+          <p><strong>Serial Number:</strong> ${serialsForEmail(productDetails, uid)}</p>
         ` : ''}
         <p><strong>Product Type:</strong> ${productType}</p>
         <p><strong>Vehicle Registration:</strong> ${registrationNumber || productDetails?.carRegistration || 'N/A'}</p>
@@ -885,7 +906,7 @@ export class EmailService {
         <p><strong>Product:</strong> ${String(productName).replace(/-/g, ' ').toUpperCase()}</p>
         ${productType === 'seat-cover' ? `<p><strong>UID:</strong> ${productDetails?.uid || 'N/A'}</p>` : ''}
         ${productType === 'ev-products' ? `
-          <p><strong>Serial Number:</strong> ${productDetails?.serialNumber || 'N/A'}</p>
+          <p><strong>Serial Number:</strong> ${serialsForEmail(productDetails, productDetails?.uid)}</p>
         ` : ''}
         <p><strong>Date:</strong> ${formatDateIST()}</p>
       </div>

@@ -214,7 +214,7 @@ export const SidebarContent = ({
 
                 { id: 'warranty-products' as const, label: "Warranty Products", icon: Store },
                 { id: 'uid-management' as const, label: "UID Management", icon: Package },
-                { id: 'ppf-rolls' as const, label: "PPF Rolls", icon: Layers },
+                { id: 'ppf-rolls' as const, label: "Serial Number Management", icon: Layers },
                 { id: 'warranty-form' as const, label: "New Registration", icon: PenTool },
                 { id: 'old-warranties' as const, label: "Old Warranties", icon: Archive },
             ]

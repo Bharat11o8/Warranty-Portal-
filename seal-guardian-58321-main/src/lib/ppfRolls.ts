@@ -13,11 +13,25 @@ import type { PPFRoll } from "@/components/warranty/EVProductsForm";
  */
 
 export const SERIAL_MIN_LENGTH = 8;
-export const SERIAL_MAX_LENGTH = 10;
+/**
+ * Long enough for an issued serial.
+ *
+ * Serials an admin issues to a store read YYYYMMDD + store code + _ + a
+ * counter, so 20260917FAB064_12 is 18 characters — the old cap of 10 would have
+ * refused the very numbers the system hands out. Serials printed on a roll are
+ * still their own shorter length; this is a ceiling, not a target.
+ */
+export const SERIAL_MAX_LENGTH = 32;
 
-/** Keeps a typed serial to the characters a serial can contain. */
+/**
+ * Keeps a typed serial to the characters a serial can contain.
+ *
+ * The underscore is allowed because issued serials separate their counter with
+ * one; everything else is still stripped, so a pasted serial carrying a stray
+ * space or dash arrives clean.
+ */
 export const normalizeSerial = (value: string) =>
-    value.replace(/[^a-zA-Z0-9]/g, '').toUpperCase().slice(0, SERIAL_MAX_LENGTH);
+    value.replace(/[^a-zA-Z0-9_]/g, '').toUpperCase().slice(0, SERIAL_MAX_LENGTH);
 
 /**
  * Keeps a typed area numeric while still allowing a decimal point mid-edit.
@@ -45,8 +59,13 @@ export const getRollsError = (rolls: PPFRoll[]): string | null => {
             return 'Please enter the serial number for every roll, or remove the empty one.';
         }
 
-        if (serial.length < SERIAL_MIN_LENGTH || serial.length > SERIAL_MAX_LENGTH) {
-            return `Serial ${serial} must be ${SERIAL_MIN_LENGTH}–${SERIAL_MAX_LENGTH} alphanumeric characters.`;
+        if (serial.length < SERIAL_MIN_LENGTH) {
+            // The maximum is a ceiling for issued serials rather than a shape
+            // anyone should aim at, so only the minimum is worth naming.
+            return `Serial ${serial} is too short — it needs at least ${SERIAL_MIN_LENGTH} characters.`;
+        }
+        if (serial.length > SERIAL_MAX_LENGTH) {
+            return `Serial ${serial} is too long — the most a serial number can be is ${SERIAL_MAX_LENGTH} characters.`;
         }
 
         if (seen.has(serial)) {

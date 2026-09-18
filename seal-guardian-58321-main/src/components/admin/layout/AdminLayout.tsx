@@ -139,7 +139,7 @@ export const AdminLayout = () => {
             'notification-settings': 'WhatsApp Message Controls',
             'posm': 'POSM Requirements',
             'uid-management': 'Product UID Management',
-            'ppf-rolls': 'PPF Rolls',
+            'ppf-rolls': 'Serial Number Management',
             'ecatalogue': 'E-Catalogue CMS',
             'order-management': 'B2B Order Hierarchy',
             'franchise-distributor-map': 'Franchise Sourcing Map',

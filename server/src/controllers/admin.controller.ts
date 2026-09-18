@@ -7,7 +7,8 @@ import { parseContacts, matchContacts, saveContacts, syncRoundTargets } from '..
 import { NotificationService } from '../services/notification.service.js';
 import { WhatsAppService } from '../services/whatsapp.service.js';
 import { v4 as uuidv4 } from 'uuid';
-import { getRollCapacitySqft } from '../services/ppfRoll.service.js';
+import { getRollCapacitySqft, issueSerials, parseRolls, reserveRolls } from '../services/ppfRoll.service.js';
+import { withTransaction } from '../utils/transaction.js';
 import {
     getMobileRegistrationUsage,
     normalizeCustomerMobile
@@ -2446,6 +2447,19 @@ export class AdminController {
                     );
                 }
 
+                /*
+                 * PPF's equivalent: the roll ledger records its draws against the
+                 * warranty id, so renaming the warranty without moving them would
+                 * leave the rolls charged to an id that no longer exists — the film
+                 * still consumed, but by nothing anyone can find.
+                 */
+                if (!isSeatCover && targetUid !== uid) {
+                    await connection.execute(
+                        'UPDATE ppf_roll_consumption SET warranty_uid = ? WHERE warranty_uid = ?',
+                        [targetUid, uid]
+                    );
+                }
+
                 await connection.commit();
             } catch (txErr) {
                 await connection.rollback();
@@ -3881,6 +3895,49 @@ export class AdminController {
 
             // 2. Mark staging as approved
             await connection.execute('UPDATE warranty_resubmissions SET status = "approved" WHERE id = ?', [id]);
+
+            /*
+             * 2b. Re-point the roll ledger at what was just approved.
+             *
+             * The update above replaces product_details wholesale, so a PPF
+             * correction that changed a serial or a sq.ft figure would leave the
+             * warranty saying one thing and the ledger another — and the ledger
+             * is what decides whether a roll has room left. Redrawing it from the
+             * approved details is the only way the two stay honest.
+             *
+             * Seat covers declare no rolls, so nothing here runs for them.
+             */
+            if (staging.product_type === 'ev-products') {
+                let approvedDetails: any = {};
+                try {
+                    approvedDetails = typeof staging.product_details === 'string'
+                        ? JSON.parse(staging.product_details || '{}')
+                        : (staging.product_details || {});
+                } catch {
+                    approvedDetails = {};
+                }
+
+                const rolls = parseRolls(approvedDetails);
+                if (rolls.length > 0) {
+                    await connection.execute(
+                        'DELETE FROM ppf_roll_consumption WHERE warranty_uid = ?',
+                        [staging.original_uid]
+                    );
+
+                    const check = await reserveRolls(connection, rolls, staging.original_uid);
+                    if (!check.ok) {
+                        // The correction asks for more film than the roll still
+                        // holds. Rolling back leaves the warranty rejected and the
+                        // ledger as it was, which is the honest outcome — approving
+                        // it would overdraw a roll on the admin's behalf.
+                        await connection.rollback();
+                        return res.status(400).json({
+                            error: `Cannot approve: ${check.error}`,
+                            failedSerial: check.failedSerial,
+                        });
+                    }
+                }
+            }
 
             // 3. Mark UID as used in pre_generated_uids if it's a seat cover
             if (staging.product_type === 'seat-cover') {
@@ -5813,49 +5870,179 @@ export class AdminController {
     static async getPPFRolls(req: Request, res: Response) {
         try {
             const search = String(req.query.search || '').trim();
+            const status = String(req.query.status || 'all');
             const capacity = await getRollCapacitySqft();
 
+            /*
+             * Two kinds of serial sit side by side here, and both have to show.
+             *
+             * One was issued to a store ahead of the roll being fitted, and may
+             * never have been used — it exists only in ppf_serials. The other
+             * appeared the first time an installer typed it, and exists only in
+             * ppf_rolls. A UNION over both, rather than a join from either side,
+             * is what stops an issued-but-unused serial disappearing from the
+             * screen it was created on.
+             */
             const params: any[] = [];
-            let where = '';
+            let searchClause = '';
             if (search) {
-                where = 'WHERE r.serial_number LIKE ?';
+                searchClause = 'WHERE s.serial_number LIKE ?';
                 params.push(`%${search}%`);
             }
 
             const [rows]: any = await db.execute(
-                `SELECT r.serial_number,
-                        r.first_seen_at,
+                `SELECT s.serial_number,
+                        MIN(s.seen_at) AS first_seen_at,
+                        MAX(s.store_code) AS store_code,
+                        MAX(s.store_name) AS store_name,
+                        MAX(s.issued_at) AS issued_at,
                         COALESCE(SUM(CASE WHEN w.status != 'rejected' THEN c.sqft_used ELSE 0 END), 0) AS used_sqft,
                         COUNT(CASE WHEN w.status != 'rejected' THEN 1 END) AS draws,
                         COUNT(CASE WHEN w.status = 'rejected' THEN 1 END) AS rejected_draws
-                   FROM ppf_rolls r
-                   LEFT JOIN ppf_roll_consumption c ON c.roll_serial = r.serial_number
+                   FROM (
+                        SELECT serial_number, first_seen_at AS seen_at,
+                               NULL AS store_code, NULL AS store_name, NULL AS issued_at
+                          FROM ppf_rolls
+                        UNION ALL
+                        SELECT serial_number, issued_at AS seen_at,
+                               store_code, store_name, issued_at
+                          FROM ppf_serials
+                   ) s
+                   LEFT JOIN ppf_roll_consumption c ON c.roll_serial = s.serial_number
                    LEFT JOIN warranty_registrations w ON w.uid = c.warranty_uid
-                   ${where}
-                  GROUP BY r.serial_number, r.first_seen_at
-                  ORDER BY r.first_seen_at DESC
+                   ${searchClause}
+                  GROUP BY s.serial_number
+                  ORDER BY first_seen_at DESC
                   LIMIT 500`,
                 params
             );
 
+            const rolls = rows.map((row: any) => {
+                const used = Number(row.used_sqft);
+                const draws = Number(row.draws);
+                return {
+                    serialNumber: row.serial_number,
+                    firstSeenAt: row.first_seen_at,
+                    storeCode: row.store_code,
+                    storeName: row.store_name,
+                    // Issued by an admin ahead of use, rather than first seen on
+                    // a submission. The two are told apart so the screen can say
+                    // which serials were handed out and never came back.
+                    isIssued: row.issued_at !== null,
+                    usedSqft: used,
+                    remainingSqft: Math.max(0, capacity - used),
+                    draws,
+                    rejectedDraws: Number(row.rejected_draws),
+                    status: draws === 0 ? 'available' : (used >= capacity ? 'spent' : 'partial'),
+                };
+            });
+
+            const filtered = status === 'all'
+                ? rolls
+                : rolls.filter((roll: any) => roll.status === status);
+
             res.json({
                 success: true,
                 capacity,
-                rolls: rows.map((row: any) => {
-                    const used = Number(row.used_sqft);
-                    return {
-                        serialNumber: row.serial_number,
-                        firstSeenAt: row.first_seen_at,
-                        usedSqft: used,
-                        remainingSqft: Math.max(0, capacity - used),
-                        draws: Number(row.draws),
-                        rejectedDraws: Number(row.rejected_draws),
-                    };
-                }),
+                rolls: filtered,
+                stats: {
+                    total: rolls.length,
+                    available: rolls.filter((r: any) => r.status === 'available').length,
+                    partial: rolls.filter((r: any) => r.status === 'partial').length,
+                    spent: rolls.filter((r: any) => r.status === 'spent').length,
+                    issued: rolls.filter((r: any) => r.isIssued).length,
+                },
             });
         } catch (error: any) {
             console.error('Get PPF rolls error:', error);
             res.status(500).json({ error: 'Failed to fetch PPF rolls' });
+        }
+    }
+
+    /**
+     * Stores that can be issued serial numbers.
+     *
+     * Its own endpoint rather than the public store list, which deliberately
+     * does not carry store codes — that list feeds the public warranty form,
+     * and widening a public payload to serve an admin screen is the wrong way
+     * round. A store with no code cannot be issued a serial, since the code is
+     * part of the number, so those are filtered out here rather than silently
+     * producing a malformed serial.
+     */
+    static async getStoresForSerials(req: Request, res: Response) {
+        try {
+            const [stores]: any = await db.execute(`
+                SELECT vd.store_code, vd.store_name, vd.city
+                  FROM vendor_details vd
+                  JOIN vendor_verification vv ON vd.user_id = vv.user_id
+                 WHERE vv.is_verified = TRUE
+                   AND COALESCE(vv.is_active, TRUE) = TRUE
+                   AND vd.store_code IS NOT NULL
+                   AND vd.store_code != ''
+                 ORDER BY vd.store_name ASC
+            `);
+
+            res.json({ success: true, stores });
+        } catch (error: any) {
+            console.error('Get stores for serials error:', error);
+            res.status(500).json({ error: 'Failed to fetch stores' });
+        }
+    }
+
+    /**
+     * Issue serial numbers to a store.
+     *
+     * The admin picks a store and a quantity; each number is stamped with
+     * today's date, the store's code, and a counter that continues from that
+     * store's last one. Handing these out with the rolls is what stops a
+     * mistyped serial opening a roll that never existed.
+     */
+    static async generatePPFSerials(req: Request, res: Response) {
+        try {
+            const { storeCode, quantity } = req.body;
+            const code = String(storeCode || '').trim().toUpperCase();
+            const count = Number(quantity ?? 1);
+
+            if (!code) {
+                return res.status(400).json({ error: 'Please choose a store' });
+            }
+            if (!Number.isInteger(count) || count < 1 || count > 100) {
+                return res.status(400).json({ error: 'Choose between 1 and 100 serial numbers' });
+            }
+
+            const [stores]: any = await db.execute(
+                'SELECT store_name FROM vendor_details WHERE UPPER(store_code) = ? LIMIT 1',
+                [code]
+            );
+            if (stores.length === 0) {
+                return res.status(404).json({ error: 'That store code does not match any franchise' });
+            }
+
+            const admin = (req as any).user;
+            const issued = await withTransaction((conn) =>
+                issueSerials(conn, code, stores[0].store_name || null, count, admin?.email || null)
+            );
+
+            await ActivityLogService.log({
+                adminId: admin?.id,
+                adminName: admin?.name,
+                adminEmail: admin?.email,
+                actionType: 'PPF_SERIALS_GENERATED',
+                targetType: 'PPF_SERIAL',
+                targetId: code,
+                targetName: stores[0].store_name,
+                details: { count, serials: issued.map((s) => s.serialNumber) },
+                ipAddress: req.ip || req.socket?.remoteAddress,
+            });
+
+            res.json({
+                success: true,
+                message: `Issued ${issued.length} serial number${issued.length === 1 ? '' : 's'} to ${stores[0].store_name}`,
+                serials: issued,
+            });
+        } catch (error: any) {
+            console.error('Generate PPF serials error:', error);
+            res.status(500).json({ error: 'Failed to generate serial numbers' });
         }
     }
 
@@ -5878,6 +6065,74 @@ export class AdminController {
             return match?.installArea || pd.installArea || '';
         } catch {
             return '';
+        }
+    }
+
+    /**
+     * The roll context for one warranty being reviewed.
+     *
+     * Nothing pre-registers a PPF roll: the serial the installer types is what
+     * creates it, so a typo quietly opens a fresh roll with a full allowance
+     * rather than drawing on the real one. The admin approving the registration
+     * is the only thing standing between that and the ledger, so the review
+     * screen has to say whether each serial has been seen before — a roll that
+     * is brand new on a submission is the shape a typo takes.
+     */
+    static async getWarrantyRollContext(req: Request, res: Response) {
+        try {
+            const uid = String(req.params.uid || '').trim();
+            if (!uid) return res.status(400).json({ error: 'Warranty id is required' });
+
+            const [warranties]: any = await db.execute(
+                'SELECT uid, product_details FROM warranty_registrations WHERE uid = ? LIMIT 1',
+                [uid]
+            );
+            if (warranties.length === 0) {
+                return res.status(404).json({ error: 'Warranty not found' });
+            }
+
+            const capacity = await getRollCapacitySqft();
+            const [draws]: any = await db.execute(
+                'SELECT roll_serial, sqft_used FROM ppf_roll_consumption WHERE warranty_uid = ?',
+                [uid]
+            );
+
+            const rolls = [];
+            for (const draw of draws) {
+                // Everything else this roll has given out, this warranty aside.
+                const [others]: any = await db.execute(
+                    `SELECT COALESCE(SUM(c.sqft_used), 0) AS used,
+                            COUNT(*) AS draws
+                       FROM ppf_roll_consumption c
+                       JOIN warranty_registrations w ON w.uid = c.warranty_uid
+                      WHERE c.roll_serial = ?
+                        AND c.warranty_uid != ?
+                        AND w.status != 'rejected'`,
+                    [draw.roll_serial, uid]
+                );
+
+                const usedElsewhere = Number(others[0]?.used ?? 0);
+                const drawsElsewhere = Number(others[0]?.draws ?? 0);
+                const thisDraw = Number(draw.sqft_used);
+
+                rolls.push({
+                    serialNumber: draw.roll_serial,
+                    sqftUsed: thisDraw,
+                    installArea: AdminController.rollAreaFor(warranties[0].product_details, draw.roll_serial),
+                    // No other registration has ever drawn on this serial. Either
+                    // a genuinely new roll or a mistyped one, and only the person
+                    // holding the roll can tell which.
+                    isFirstUse: drawsElsewhere === 0,
+                    otherDraws: drawsElsewhere,
+                    usedElsewhere,
+                    remainingSqft: Math.max(0, capacity - usedElsewhere - thisDraw),
+                });
+            }
+
+            res.json({ success: true, capacity, rolls });
+        } catch (error: any) {
+            console.error('Get warranty roll context error:', error);
+            res.status(500).json({ error: 'Failed to fetch roll context' });
         }
     }
 

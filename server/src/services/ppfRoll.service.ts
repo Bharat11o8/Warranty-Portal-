@@ -307,6 +307,92 @@ export async function withRollRetry<T>(run: () => Promise<T>): Promise<T> {
 }
 
 /**
+ * Issue serial numbers to a store, ahead of the rolls being fitted.
+ *
+ * Format: YYYYMMDD + store code + _ + a per-store counter that never resets, so
+ * 20260917FAB064_7 is the seventh roll ever issued to that store and says when
+ * it was issued. The counter is per store rather than per day because a store
+ * asking "which roll is this?" counts its own rolls, not the calendar's.
+ *
+ * The number is reserved, not yet a roll: it becomes one in ppf_rolls the first
+ * time a warranty is registered against it. That is what lets the tab show a
+ * serial that was handed out but never used.
+ *
+ * Runs in one transaction with the store's existing serials locked, so two
+ * admins generating at the same moment cannot both take the same number.
+ */
+export interface IssuedSerial {
+    serialNumber: string;
+    sequenceNumber: number;
+}
+
+export async function issueSerials(
+    connection: PoolConnection,
+    storeCode: string,
+    storeName: string | null,
+    quantity: number,
+    issuedBy: string | null
+): Promise<IssuedSerial[]> {
+    /*
+     * Only the characters a serial may contain.
+     *
+     * One store's code was set to a truncated UUID with hyphens in it, and the
+     * serial built from it could never have been registered: the form strips
+     * anything that is not a letter, digit or underscore, so what the installer
+     * typed would not equal what was issued. Stripping here means the issued
+     * number is one that can actually come back.
+     */
+    const code = storeCode.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+    if (!code) {
+        throw new AppError(
+            ErrorCode.VALIDATION_ERROR,
+            'That store has no usable store code — set one on the franchise record first.',
+            400
+        );
+    }
+
+    /*
+     * Locks this store's issued serials for the rest of the transaction. Read
+     * without the lock, two admins clicking together would both see the same
+     * highest number and both try to take the one after it — the primary key
+     * would refuse the second, failing a click that should simply have queued.
+     */
+    const [rows]: any = await connection.execute(
+        `SELECT COALESCE(MAX(sequence_number), 0) AS last
+           FROM ppf_serials
+          WHERE store_code = ?
+          FOR UPDATE`,
+        [code]
+    );
+
+    const last = Number(rows[0]?.last ?? 0);
+    const today = new Date();
+    // Local date, not UTC: a serial issued at 1am IST belongs to that day as the
+    // admin sees it, and toISOString would call it the day before.
+    const datePart = [
+        today.getFullYear(),
+        String(today.getMonth() + 1).padStart(2, '0'),
+        String(today.getDate()).padStart(2, '0'),
+    ].join('');
+
+    const issued: IssuedSerial[] = [];
+    for (let i = 1; i <= quantity; i++) {
+        const sequenceNumber = last + i;
+        const serialNumber = `${datePart}${code}_${sequenceNumber}`;
+
+        await connection.execute(
+            `INSERT INTO ppf_serials (serial_number, store_code, store_name, sequence_number, issued_by)
+             VALUES (?, ?, ?, ?, ?)`,
+            [serialNumber, code, storeName, sequenceNumber, issuedBy]
+        );
+
+        issued.push({ serialNumber, sequenceNumber });
+    }
+
+    return issued;
+}
+
+/**
  * The warranty id for a PPF submission.
  *
  * The serial alone can no longer identify a warranty: one roll now covers
