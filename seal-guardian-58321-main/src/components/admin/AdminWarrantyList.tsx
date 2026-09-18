@@ -6,6 +6,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn, getWarrantyExpiration, formatToIST } from "@/lib/utils";
 import { WarrantySpecSheet } from "@/components/warranty/WarrantySpecSheet";
+import { displaySerial } from "@/lib/ppfRolls";
 import {
     Check,
     Download,
@@ -387,7 +388,7 @@ export const AdminWarrantyList = ({
                                 {warranty.product_type !== 'seat-cover' && (
                                     <div>
                                         <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-1">Serial Number</p>
-                                        <p className="font-mono text-sm font-semibold">{productDetails.serialNumber || warranty.uid || 'N/A'}</p>
+                                        <p className="font-mono text-sm font-semibold">{displaySerial(productDetails, warranty.uid)}</p>
                                     </div>
                                 )}
 

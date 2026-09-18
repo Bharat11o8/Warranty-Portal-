@@ -21,9 +21,10 @@ const requireSettingPermission = (req: express.Request, res: express.Response, n
         return requirePermission('content_manager', 'write')(req, res, next);
     }
 
-    // How far back a customer may date a purchase on the QR flow. It governs
-    // what the warranty form accepts, so it sits with the form content.
-    if (key === 'purchase_date_window_days') {
+    // How far back a customer may date a purchase on the QR flow, and how much
+    // film a PPF roll holds. Both govern what the warranty form accepts, so
+    // they sit with the form content.
+    if (key === 'purchase_date_window_days' || key === 'ppf_roll_capacity_sqft') {
         return requireAnyPermission(['content_manager', 'warranties'], 'write')(req, res, next);
     }
 

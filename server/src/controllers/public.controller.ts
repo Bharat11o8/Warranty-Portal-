@@ -10,6 +10,8 @@ import { WhatsAppService } from '../services/whatsapp.service.js';
 import { getMobileRegistrationUsage, normalizeCustomerMobile, matchFallbackUidSequence, resolveFallbackUid, FALLBACK_UID_YEAR } from '../utils/customerMobileLimits.js';
 import { checkPurchaseDate } from '../services/purchaseDateWindow.service.js';
 import { recordRegistrationEvent } from '../services/analyticsEvents.service.js';
+import { parseRolls, reserveRolls, nextWarrantyUidForRoll, RollUnavailableError, withRollRetry } from '../services/ppfRoll.service.js';
+import { withTransaction } from '../utils/transaction.js';
 
 export class PublicController {
     static async getStores(req: Request, res: Response) {
@@ -560,6 +562,20 @@ export class PublicController {
                 return res.status(400).json({ error: 'UID is required for seat-cover products' });
             }
 
+            /*
+             * PPF declares which roll(s) it drew on and how much of each it used.
+             * Parsed up front so a bad submission is refused before it creates a
+             * customer profile, and so every later branch can ask one question
+             * rather than re-deriving the product type.
+             */
+            const isPPF = warrantyData.productType === 'ev-products';
+            const rolls = isPPF ? parseRolls(warrantyData.productDetails) : [];
+            if (isPPF && rolls.length === 0) {
+                return res.status(400).json({
+                    error: 'Please enter at least one serial number and the area used.'
+                });
+            }
+
             // ===== UID Pre-Validation for Seat Covers (against pre_generated_uids table) =====
             let uid = warrantyData.productDetails?.uid || null;
             let isCustomerAddedUid = false;
@@ -697,7 +713,14 @@ export class PublicController {
             }
 
             // Step 2: Check UID/Serial duplication AND conditional uniqueness (phone/reg)
-            const checkId = warrantyData.productDetails.uid || warrantyData.productDetails.serialNumber;
+            //
+            // A PPF roll is deliberately registered more than once — it is fitted
+            // across several vehicles — so a repeated serial is expected there and
+            // the roll ledger decides whether it may be used. Every other product
+            // keeps the identifier check exactly as it was.
+            const checkId = isPPF
+                ? null
+                : (warrantyData.productDetails.uid || warrantyData.productDetails.serialNumber);
             if (checkId) {
                 const [existingWarranty]: any = await db.execute(
                     'SELECT uid FROM warranty_registrations WHERE uid = ?',
@@ -738,7 +761,12 @@ export class PublicController {
             // Step 3: Insert warranty
             // For public submissions, it goes to pending_vendor (Franchise needs to verify)
             const initialStatus = 'pending_vendor';
-            const warrantyId = warrantyData.productDetails.uid || warrantyData.productDetails.serialNumber || uuidv4();
+            // PPF gets its id inside the transaction below, where the roll's draw
+            // count is read under lock; a serial alone no longer identifies one
+            // warranty now that a roll covers several vehicles.
+            let warrantyId = isPPF
+                ? ''
+                : (warrantyData.productDetails.uid || warrantyData.productDetails.serialNumber || uuidv4());
 
             // --- FRAUD DETECTION: Calculate fraud score ---
             let fraudScore = 0;
@@ -792,8 +820,27 @@ export class PublicController {
             // Inject submission source for UI display
             warrantyData.productDetails.submissionSource = 'QR Scan';
 
-            const [insertResult]: any = await db.execute(
-                `INSERT INTO warranty_registrations 
+            /*
+             * The warranty row and the roll draws it creates have to land
+             * together. Charging a roll for a warranty that then fails to insert
+             * would quietly consume area no vehicle ever used, and inserting the
+             * warranty without the draw would let the roll be spent twice.
+             *
+             * Seat covers declare no rolls, so `rolls` is empty, reserveRolls is
+             * never called, and the statement executed is the one that always was
+             * -- only the connection it runs on differs.
+             */
+            const { insertResult, warrantyId: insertedWarrantyId } = await withRollRetry(() => withTransaction(async (conn) => {
+                let uidForInsert = warrantyId;
+
+                if (isPPF) {
+                    // Numbered by draw on the first roll, read under the same lock
+                    // reserveRolls takes, so two submissions cannot pick one id.
+                    uidForInsert = await nextWarrantyUidForRoll(conn, rolls[0].serial);
+                }
+
+                const [ins]: any = await conn.execute(
+                `INSERT INTO warranty_registrations
                 (uid, user_id, product_type, customer_name, customer_email, customer_phone, 
                  customer_address, registration_number, car_make, car_model, car_year, car_colour,
                  purchase_date, installer_name, installer_contact, product_details, manpower_id, warranty_type, status,
@@ -801,7 +848,7 @@ export class PublicController {
                  seat_cover_photo_url, car_outer_photo_url) 
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                 [
-                    warrantyId,
+                    uidForInsert,
                     userId,
                     warrantyData.productType,
                     customerName,
@@ -835,7 +882,22 @@ export class PublicController {
                     warrantyData.productDetails?.photos?.seatCover || null,
                     warrantyData.productDetails?.photos?.carOuter || null
                 ]
-            );
+                );
+
+                if (isPPF) {
+                    const check = await reserveRolls(conn, rolls, uidForInsert);
+                    if (!check.ok) {
+                        // Unwinds the warranty insert above with it.
+                        throw new RollUnavailableError(check.error!, check.failedSerial);
+                    }
+                }
+
+                return { insertResult: ins, warrantyId: uidForInsert };
+            }));
+
+            // PPF's id was only decided inside the transaction; everything below
+            // (notifications, the response, the certificate) refers to this one.
+            warrantyId = insertedWarrantyId;
 
             // The trend chart counts registrations from analytics_events, so a
             // warranty that never lands an event is invisible on that graph even
@@ -979,6 +1041,12 @@ export class PublicController {
             });
 
         } catch (error: any) {
+            // A roll that cannot cover the area asked of it is the installer's
+            // to correct, not an internal fault — it has to keep its own message
+            // and status rather than becoming a generic failure.
+            if (error instanceof RollUnavailableError) {
+                return res.status(400).json({ error: error.message, failedSerial: error.failedSerial });
+            }
             console.error('Public warranty submission error:', error);
             res.status(500).json({ error: 'Failed to submit warranty', details: 'An internal error occurred while processing your request.' });
         }

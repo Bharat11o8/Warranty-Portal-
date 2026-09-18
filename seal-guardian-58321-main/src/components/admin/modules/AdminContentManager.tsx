@@ -222,6 +222,51 @@ const FormTypeEditor = ({ config, canWrite }: { config: FormTypeConfig; canWrite
       .catch(() => { /* keep the default */ });
   }, []);
 
+  // How much film a PPF roll holds. Governs every roll, so it is read back
+  // rather than assumed — a wrong figure here silently changes who can register.
+  const [rollCapacity, setRollCapacity] = useState<string>("250");
+  const [savingCapacity, setSavingCapacity] = useState(false);
+  const [loadedCapacity, setLoadedCapacity] = useState<string>("250");
+
+  useEffect(() => {
+    api.get('/settings/public/ppf_roll_capacity_sqft')
+      .then(res => {
+        const v = String(res.data?.value ?? '250');
+        setRollCapacity(v);
+        setLoadedCapacity(v);
+      })
+      .catch(() => { /* keep the default */ });
+  }, []);
+
+  const saveRollCapacity = async () => {
+    const n = Number(rollCapacity);
+    if (!Number.isFinite(n) || n <= 0 || n > 100000) {
+      toast({
+        title: "Enter a roll size",
+        description: "A number of square feet between 1 and 100000.",
+        variant: "destructive",
+      });
+      return;
+    }
+    setSavingCapacity(true);
+    try {
+      await api.put('/settings/admin/ppf_roll_capacity_sqft', { value: String(n) });
+      setLoadedCapacity(String(n));
+      toast({
+        title: "Saved",
+        description: `PPF rolls are now treated as ${n} sq.ft.`,
+      });
+    } catch (error: any) {
+      toast({
+        title: "Could not save",
+        description: getErrorMessage(error, "Failed to update the roll size"),
+        variant: "destructive",
+      });
+    } finally {
+      setSavingCapacity(false);
+    }
+  };
+
   const saveWindow = async () => {
     const n = Number(windowDays);
     if (!Number.isFinite(n) || n < 1 || n > 3650) {
@@ -313,6 +358,49 @@ const FormTypeEditor = ({ config, canWrite }: { config: FormTypeConfig; canWrite
             Currently <span className="font-bold text-slate-600">{loadedWindow} day{loadedWindow === '1' ? '' : 's'}</span>.
             Admins filing on a store's behalf have no limit, so tightening this
             does not stop you registering or correcting an older sale.
+          </p>
+        </div>
+
+        <div className="rounded-2xl border border-orange-100 bg-white p-6 max-w-2xl">
+          <h3 className="text-sm font-bold text-slate-800">PPF roll size</h3>
+          <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+            How many square feet a PPF roll holds. A roll is fitted across several
+            vehicles, and each registration records the area it used; once a
+            serial number has given out this much, it cannot be registered again.
+          </p>
+
+          <div className="flex items-end gap-3 mt-5">
+            <div>
+              <label className="text-[11px] font-bold text-slate-500">Sq.ft per roll</label>
+              <Input
+                type="number"
+                min={1}
+                max={100000}
+                value={rollCapacity}
+                onChange={(e) => setRollCapacity(e.target.value)}
+                disabled={!canWrite}
+                className="h-10 w-28 text-sm mt-1"
+              />
+            </div>
+            {canWrite && (
+              <Button
+                onClick={saveRollCapacity}
+                disabled={savingCapacity || rollCapacity === loadedCapacity}
+                className="h-10 bg-orange-600 hover:bg-orange-700"
+              >
+                {savingCapacity
+                  ? <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-t-transparent mr-1.5" />
+                  : <Save className="h-3.5 w-3.5 mr-1.5" />}
+                Save
+              </Button>
+            )}
+          </div>
+
+          <p className="text-[11px] text-slate-400 mt-4 leading-relaxed">
+            Currently <span className="font-bold text-slate-600">{loadedCapacity} sq.ft</span>.
+            This applies to every roll and takes effect on the next registration.
+            Rolls already part-used are measured against the new size, so lowering
+            it can leave a roll with nothing left to give.
           </p>
         </div>
       </TabsContent>

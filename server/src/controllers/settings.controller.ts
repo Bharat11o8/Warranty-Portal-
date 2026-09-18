@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import pool from '../config/database.js';
 import { ActivityLogService } from '../services/activity-log.service.js';
 import { clearPurchaseDateWindowCache } from '../services/purchaseDateWindow.service.js';
+import { clearRollCapacityCache } from '../services/ppfRoll.service.js';
 
 export const getSetting = async (req: Request, res: Response) => {
     try {
@@ -36,9 +37,10 @@ export const updateSetting = async (req: Request, res: Response) => {
             [key, value, user?.email || 'admin', value, user?.email || 'admin']
         );
 
-        // The window is cached for 30s to keep submissions cheap; drop it here
+        // Both are cached for 30s to keep submissions cheap; drop the cache here
         // so an admin's change applies to the very next registration.
         if (key === 'purchase_date_window_days') clearPurchaseDateWindowCache();
+        if (key === 'ppf_roll_capacity_sqft') clearRollCapacityCache();
 
         res.json({ success: true, message: 'Setting updated successfully' });
 

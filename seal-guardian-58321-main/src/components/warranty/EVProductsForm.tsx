@@ -11,7 +11,23 @@ import CarDetails from "./steps/CarDetails";
 import ProductInfo from "./steps/ProductInfo";
 import { CheckCircle2, Car, User, Settings, ShieldCheck } from "lucide-react";
 import { getISTTodayISO, formatToISTDateISO } from "@/lib/utils";
+import { getRollsError, toRollPayload } from "@/lib/ppfRolls";
 import fpPromise from '@fingerprintjs/fingerprintjs';
+
+/** One PPF roll drawn on by an installation. */
+export interface PPFRoll {
+  serial: string;
+  /** Kept as text so a half-typed value is not coerced to 0 while editing. */
+  sqft: string;
+  /**
+   * The part of the car this roll's film went on.
+   *
+   * Belongs to the roll rather than the vehicle: film from two rolls goes on
+   * two different parts, and a single area for the whole job cannot say which
+   * roll covered what.
+   */
+  installArea: string;
+}
 
 export interface EVFormData {
   // Installer Details
@@ -46,8 +62,15 @@ export interface EVFormData {
   // Product Info
   product: string;
   warrantyType: string;
-  serialNumber: string;
-  installArea: string;
+  /**
+   * The roll(s) this installation drew on, and how much of each it used.
+   *
+   * PPF is sold as a roll of a fixed area and is rarely used up on one car, so
+   * a single roll is registered across several vehicles and one vehicle may
+   * take film from more than one roll. Each entry is a serial and the area
+   * taken from it.
+   */
+  rolls: PPFRoll[];
   lhsPhoto: File | null;
   rhsPhoto: File | null;
   frontRegPhoto: File | null;
@@ -112,11 +135,10 @@ const EVProductsForm = ({ initialData, warrantyId, onSuccess, isUniversal, isEdi
     carReg: "",
     product: "",
     warrantyType: "",
-    serialNumber: "",
+    rolls: [{ serial: "", sqft: "", installArea: "" }],
     carMake: "",
     carYear: "",
     carColour: "",
-    installArea: "",
     lhsPhoto: null,
     rhsPhoto: null,
     frontRegPhoto: null,
@@ -167,8 +189,19 @@ const EVProductsForm = ({ initialData, warrantyId, onSuccess, isUniversal, isEdi
 
         product: pd.product || "",
         warrantyType: initialData.warranty_type || "1 Year",
-        serialNumber: pd.serialNumber || "",
-        installArea: pd.installArea || "",
+        /*
+         * Warranties filed before rolls were tracked carry a single serial and
+         * one area for the whole job. That area is carried onto the single roll
+         * row, which is what it described; the sq.ft was never asked for, so it
+         * is left blank for the installer to supply.
+         */
+        rolls: Array.isArray(pd.rolls) && pd.rolls.length > 0
+          ? pd.rolls.map((r: any) => ({
+            serial: r.serial || "",
+            sqft: r.sqft != null ? String(r.sqft) : "",
+            installArea: r.installArea || "",
+          }))
+          : [{ serial: pd.serialNumber || "", sqft: "", installArea: pd.installArea || "" }],
 
         // Photos are URLs in edit mode, need to handle this in ProductInfo or just show them
         // For now, we keep them null as we can't convert URL to File easily here without fetching
@@ -337,18 +370,9 @@ const EVProductsForm = ({ initialData, warrantyId, onSuccess, isUniversal, isEdi
       return;
     }
 
-    if (!formData.installArea) {
-      toast({ title: "Installation Area Required", description: "Please enter the area of installation", variant: "destructive" });
-      return;
-    }
-
-    if (!formData.serialNumber) {
-      toast({ title: "Serial Number Required", description: "Please enter the product serial number", variant: "destructive" });
-      return;
-    }
-
-    if (formData.serialNumber.length < 8 || formData.serialNumber.length > 10) {
-      toast({ title: "Invalid Serial Number", description: "Serial number must be 8–10 alphanumeric characters", variant: "destructive" });
+    const rollError = getRollsError(formData.rolls);
+    if (rollError) {
+      toast({ title: "Roll Details", description: rollError, variant: "destructive" });
       return;
     }
 
@@ -411,10 +435,15 @@ const EVProductsForm = ({ initialData, warrantyId, onSuccess, isUniversal, isEdi
         installerName: formData.storeName,
         installerContact: formData.storeEmail,
         manpowerId: formData.manpowerId || null,
+        /*
+         * Which registration a correction is replacing. A PPF serial names the
+         * roll rather than one registration now that a roll covers several
+         * vehicles, so the server matches a resubmission on this instead.
+         */
+        ...(warrantyId ? { warrantyId } : {}),
         productDetails: {
           product: formData.product,
-          installArea: formData.installArea,
-          serialNumber: formData.serialNumber,
+          rolls: toRollPayload(formData.rolls),
           manpowerId: formData.manpowerId,
           manpowerName: formData.installerName,
           storeName: formData.storeName,
@@ -487,7 +516,7 @@ const EVProductsForm = ({ initialData, warrantyId, onSuccess, isUniversal, isEdi
         result = response;
         toast({
           title: "Warranty Registered",
-          description: `Success! Serial No: ${formData.serialNumber}, Vehicle Reg: ${formData.carReg}`,
+          description: `Success! Serial No: ${formData.rolls.map(r => r.serial).join(', ')}, Vehicle Reg: ${formData.carReg}`,
         });
       }
 

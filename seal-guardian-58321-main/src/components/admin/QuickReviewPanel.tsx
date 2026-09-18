@@ -18,7 +18,8 @@ import {
     Clock,
     ShieldAlert,
     MapPin,
-    Wifi
+    Wifi,
+    Layers
 } from "lucide-react";
 import { cn, formatToIST } from "@/lib/utils";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -91,6 +92,38 @@ export const QuickReviewPanel = ({
     useEffect(() => {
         setIsEditing(false);
     }, [warranty?.uid, warranty?.id]);
+
+    /**
+     * The rolls this registration draws on, and whether anyone has used those
+     * serials before.
+     *
+     * Fetched per warranty rather than carried in the list: it needs a count
+     * across every other registration on each roll, which would be a join too
+     * far for a page of warranties where most are seat covers.
+     */
+    const [rollContext, setRollContext] = useState<any[]>([]);
+    const [capacity, setCapacity] = useState(250);
+
+    useEffect(() => {
+        const uid = warranty?.uid;
+        if (!uid || warranty?.product_type === 'seat-cover') {
+            setRollContext([]);
+            return;
+        }
+
+        let cancelled = false;
+        api.get(`/admin/warranties/${encodeURIComponent(uid)}/roll-context`)
+            .then(res => {
+                if (cancelled || !res.data.success) return;
+                setRollContext(res.data.rolls || []);
+                setCapacity(res.data.capacity ?? 250);
+            })
+            // A warranty filed before rolls were tracked has none; that is not
+            // an error worth interrupting the reviewer over.
+            .catch(() => { if (!cancelled) setRollContext([]); });
+
+        return () => { cancelled = true; };
+    }, [warranty?.uid, warranty?.product_type]);
 
     useEffect(() => {
         if (isEditing && products.length === 0) {
@@ -718,6 +751,64 @@ export const QuickReviewPanel = ({
                             </div>
                         </div>
                     </div>
+
+                    {/* Rolls — PPF only.
+
+                        Nothing pre-registers a roll: the serial the installer
+                        types is what creates it, so a mistyped serial opens a
+                        fresh roll with a full allowance instead of drawing on
+                        the real one. This admin is the only check on that, so
+                        a serial nobody has used before is called out here. */}
+                    {warranty.product_type !== 'seat-cover' && rollContext.length > 0 && (
+                        <div className="bg-slate-50/50 border border-slate-100 rounded-2xl p-4 space-y-3">
+                            <div className="flex items-center gap-2 border-b border-slate-100 pb-2">
+                                <Layers className="h-4 w-4 text-orange-500" />
+                                <span className="text-xs font-black text-slate-500 uppercase tracking-wider">
+                                    Roll{rollContext.length > 1 ? 's' : ''} Used
+                                </span>
+                            </div>
+
+                            <div className="space-y-2.5">
+                                {rollContext.map((roll) => (
+                                    <div key={roll.serialNumber} className="rounded-xl bg-white border border-slate-100 p-3">
+                                        <div className="flex items-start justify-between gap-3">
+                                            <div className="min-w-0">
+                                                <p className="font-mono font-bold text-sm text-slate-800 truncate">
+                                                    {roll.serialNumber}
+                                                </p>
+                                                <p className="text-xs text-slate-500 mt-0.5">
+                                                    {roll.sqftUsed} sq.ft
+                                                    {roll.installArea ? ` · ${roll.installArea}` : ''}
+                                                </p>
+                                            </div>
+                                            <div className="text-right shrink-0">
+                                                <p className="text-xs font-bold text-slate-700">
+                                                    {roll.remainingSqft} sq.ft left
+                                                </p>
+                                                <p className="text-[11px] text-slate-400">
+                                                    of {capacity} on this roll
+                                                </p>
+                                            </div>
+                                        </div>
+
+                                        {roll.isFirstUse ? (
+                                            <p className="flex items-start gap-1.5 text-[11px] text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-2 py-1.5 mt-2">
+                                                <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-px" />
+                                                <span>
+                                                    First use of this serial — no other registration has drawn on it.
+                                                    Check it matches the roll before approving.
+                                                </span>
+                                            </p>
+                                        ) : (
+                                            <p className="text-[11px] text-slate-400 mt-2">
+                                                Also used on {roll.otherDraws} other registration{roll.otherDraws === 1 ? '' : 's'} ({roll.usedElsewhere} sq.ft)
+                                            </p>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
 
                     {/* Store */}
                     <div className="bg-slate-50/50 border border-slate-100 rounded-2xl p-4 space-y-3">

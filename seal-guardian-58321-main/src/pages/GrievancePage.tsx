@@ -14,6 +14,7 @@ import api, { getErrorMessage } from "@/lib/api";
 import { formatToIST, cn } from "@/lib/utils";
 import { compressImage, isCompressibleImage } from "@/lib/imageCompression";
 import { compressVideo, isCompressibleVideo, canCompressVideo } from "@/lib/videoCompression";
+import { displaySerial } from "@/lib/ppfRolls";
 
 interface Grievance {
     id: number;
@@ -223,7 +224,7 @@ const GrievancePage = () => {
                     const productDetails = typeof warranty.product_details === 'string'
                         ? JSON.parse(warranty.product_details || '{}')
                         : warranty.product_details || {};
-                    const serialBtn = warranty.product_type === 'seat-cover' ? `UID: ${productDetails.uid || warranty.uid}` : `Serial: ${productDetails.serialNumber || warranty.uid}`;
+                    const serialBtn = warranty.product_type === 'seat-cover' ? `UID: ${productDetails.uid || warranty.uid}` : `Serial: ${displaySerial(productDetails, warranty.uid)}`;
 
                     finalDescription += `\n\n[Related Warranty: ${warranty.car_make} ${warranty.car_model} - ${warranty.product_type} (${serialBtn})]\nWarranty ID: ${warranty.id}`;
 
@@ -707,7 +708,7 @@ const GrievancePage = () => {
                                                                 ? JSON.parse(w.product_details || '{}')
                                                                 : w.product_details || {};
                                                             const title = `${w.car_make} ${w.car_model} - ${w.product_type}`;
-                                                            const sub = w.product_type === 'seat-cover' ? `UID: ${productDetails.uid || w.uid}` : `Serial: ${productDetails.serialNumber || w.uid}`;
+                                                            const sub = w.product_type === 'seat-cover' ? `UID: ${productDetails.uid || w.uid}` : `Serial: ${displaySerial(productDetails, w.uid)}`;
 
                                                             return (
                                                                 <SelectItem key={w.id} value={w.id.toString()}>
