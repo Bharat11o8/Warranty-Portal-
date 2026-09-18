@@ -56,15 +56,22 @@ const STATUS_COLORS: Record<string, string> = {
     rejected: "bg-red-500"
 };
 
+/*
+ * The statuses an admin may set.
+ *
+ * Approved, Delivered and Action Required (stored as `rejected`) are not
+ * offered: the stages in between already say where a request stands, and no
+ * request has ever been put into any of the three. They remain in the enum
+ * and in STATUS_COLORS so that a row carrying one — set before this list was
+ * trimmed, or by another part of the system — still renders with its own
+ * colour rather than falling through as an unknown status.
+ */
 const STATUS_OPTIONS = [
     { value: 'open', label: 'Open' },
     { value: 'under_review', label: 'Under Review' },
-    { value: 'approved', label: 'Approved' },
     { value: 'in_production', label: 'In Production' },
     { value: 'dispatched', label: 'Dispatched' },
-    { value: 'delivered', label: 'Delivered' },
-    { value: 'closed', label: 'Closed' },
-    { value: 'rejected', label: 'Action Required' }
+    { value: 'closed', label: 'Closed' }
 ];
 
 export const AdminPOSM = () => {
