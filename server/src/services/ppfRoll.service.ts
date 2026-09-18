@@ -1,6 +1,11 @@
 import db from '../config/database.js';
 import { AppError, ErrorCode } from '../utils/errors.js';
 import type { PoolConnection } from 'mysql2/promise';
+import {
+    serialsToCheck,
+    pickSerialIssuedElsewhere,
+    type IssuedSerialRow,
+} from './ppfSerialOwnership.js';
 
 /**
  * How much of a PPF roll is left, and whether a submission may draw on it.
@@ -404,6 +409,44 @@ export async function issueSerials(
  * Counts every draw, rejected ones included: a rejected warranty keeps its row
  * and therefore its id, so reusing its number would collide.
  */
+/**
+ * Refuse a serial that was issued to a different store.
+ *
+ * Only applies to serials an admin generated and handed to a store: those are
+ * recorded in ppf_serials against the store they went to, so using one
+ * elsewhere means the number was copied rather than read off a roll in the
+ * shop. A serial nobody issued is not checked at all — installers typed their
+ * own long before serials were issued, and refusing those would stop stores
+ * registering warranties they are entitled to.
+ *
+ * The caller decides who this applies to. It guards the QR flow, where anyone
+ * with the link can submit; an admin filing a warranty is trusted and skips it.
+ *
+ * Returns the offending serial, or null when every serial is acceptable.
+ */
+export async function findSerialNotIssuedToStore(
+    serials: string[],
+    storeCode: string | null | undefined
+): Promise<string | null> {
+    const code = String(storeCode || '').trim();
+    /*
+     * No store code, no check. Twenty-odd franchises carry no code at all, and
+     * they cannot be issued serials either — so there is nothing yet to
+     * protect, and refusing them would block registrations that are fine.
+     */
+    if (!code) return null;
+
+    const wanted = serialsToCheck(serials);
+    if (wanted.length === 0) return null;
+
+    const [rows]: any = await db.query(
+        `SELECT serial_number, store_code FROM ppf_serials WHERE serial_number IN (?)`,
+        [wanted]
+    );
+
+    return pickSerialIssuedElsewhere(rows as IssuedSerialRow[], code);
+}
+
 export async function nextWarrantyUidForRoll(
     connection: PoolConnection,
     serial: string

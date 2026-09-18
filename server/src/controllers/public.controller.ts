@@ -10,7 +10,7 @@ import { WhatsAppService } from '../services/whatsapp.service.js';
 import { getMobileRegistrationUsage, normalizeCustomerMobile, matchFallbackUidSequence, resolveFallbackUid, FALLBACK_UID_YEAR } from '../utils/customerMobileLimits.js';
 import { checkPurchaseDate } from '../services/purchaseDateWindow.service.js';
 import { recordRegistrationEvent } from '../services/analyticsEvents.service.js';
-import { parseRolls, reserveRolls, nextWarrantyUidForRoll, RollUnavailableError, withRollRetry } from '../services/ppfRoll.service.js';
+import { parseRolls, reserveRolls, nextWarrantyUidForRoll, RollUnavailableError, withRollRetry, findSerialNotIssuedToStore } from '../services/ppfRoll.service.js';
 import { withTransaction } from '../utils/transaction.js';
 
 export class PublicController {
@@ -574,6 +574,34 @@ export class PublicController {
                 return res.status(400).json({
                     error: 'Please enter at least one serial number and the area used.'
                 });
+            }
+
+            /*
+             * A serial an admin issued belongs to one store.
+             *
+             * This route is open to anyone holding the link, so a serial read
+             * off someone else's paperwork would otherwise draw down their roll.
+             * Only issued serials are checked — one an installer typed himself
+             * was never tied to a store and stays as it was.
+             *
+             * The message says nothing about which store: the customer filling
+             * this in cannot act on that, and it would confirm to anybody
+             * guessing that the number is real.
+             */
+            if (isPPF) {
+                const wrongSerial = await findSerialNotIssuedToStore(
+                    rolls.map(r => r.serial),
+                    warrantyData.storeCode
+                );
+                if (wrongSerial) {
+                    console.warn(
+                        `[PPF] serial ${wrongSerial} is issued to another store — ` +
+                        `refused for store ${warrantyData.storeCode}`
+                    );
+                    return res.status(400).json({
+                        error: `Serial number ${wrongSerial} is not valid. Please contact the admin.`
+                    });
+                }
             }
 
             // ===== UID Pre-Validation for Seat Covers (against pre_generated_uids table) =====
