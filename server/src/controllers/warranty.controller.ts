@@ -6,6 +6,8 @@ import { AuthRequest } from '../middleware/auth.js';
 import { WarrantyData } from '../types/index.js';
 import jwt from 'jsonwebtoken';
 import { NotificationService } from '../services/notification.service.js';
+import { ActivityLogService } from '../services/activity-log.service.js';
+import { diffSubmission, summariseChanges } from '../services/warrantyDiff.js';
 import { WhatsAppService } from '../services/whatsapp.service.js';
 import { geolocateIP, getClientIP } from '../utils/ipGeolocation.js';
 import { calculateFraudScore } from '../utils/fraudScoring.js';
@@ -1405,6 +1407,66 @@ export class WarrantyController {
           warrantyRecordId
         ]
       );
+
+      /*
+       * Record a resubmission, so the rejection and the fix read as one chain.
+       *
+       * Only when the warranty was rejected: an ordinary edit to a pending
+       * warranty is not somebody answering an objection, and logging those
+       * here would bury the ones that are.
+       *
+       * The rejection reason is copied onto this entry. The UPDATE above
+       * clears it from the warranty row — correctly, it no longer applies —
+       * so without carrying it here a reader would see what changed but not
+       * what was asked for.
+       */
+      if (warranty.status === 'rejected') {
+        try {
+          const changes = diffSubmission(
+            warranty,
+            {
+              customer_name: warrantyData.customerName,
+              customer_email: warrantyData.customerEmail,
+              customer_phone: warrantyData.customerPhone,
+              customer_address: warrantyData.customerAddress,
+              registration_number: warrantyData.registrationNumber,
+              car_make: warrantyData.carMake,
+              car_model: warrantyData.carModel,
+              car_year: warrantyData.carYear,
+              car_colour: warrantyData.carColour,
+              purchase_date: warrantyData.purchaseDate,
+              installer_name: warrantyData.installerName,
+              installer_contact: warrantyData.installerContact,
+              warranty_type: warrantyData.warrantyType,
+              product_details: warrantyData.productDetails,
+            },
+            warranty.product_type
+          );
+
+          const who = req.user?.role === 'customer' ? 'The customer' : 'The franchise';
+
+          await ActivityLogService.log({
+            adminId: req.user?.id || 'unknown',
+            adminName: req.user?.name || undefined,
+            adminEmail: req.user?.email || undefined,
+            actionType: 'WARRANTY_RESUBMITTED',
+            targetType: 'WARRANTY',
+            targetId: warranty.uid,
+            targetName: `${warranty.customer_name} (${warranty.uid})`,
+            details: {
+              summary: summariseChanges(changes, who),
+              rejectionReason: warranty.rejection_reason || null,
+              rejectedBy: warranty.rejected_by || null,
+              resubmittedBy: req.user?.role || 'unknown',
+              changes,
+            },
+            ipAddress: req.ip || req.socket?.remoteAddress
+          });
+        } catch (err: any) {
+          // Never let the record-keeping fail the correction itself.
+          console.error('[Resubmission] Could not log the change set:', err?.message);
+        }
+      }
 
       // --- Notifications ---
       const warrantyUid = warranty.uid;

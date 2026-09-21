@@ -125,6 +125,9 @@ router.post('/warranties/ppf-serials/generate', ...adminAuth, requirePermission(
 router.get('/warranties/:uid/roll-context', ...adminAuth, requirePermission('warranties', 'read'), AdminController.getWarrantyRollContext);
 router.post('/warranties/resubmissions/:id/approve', ...adminAuth, requirePermission('warranties', 'write'), AdminController.approveResubmission);
 router.post('/warranties/resubmissions/:id/reject', ...adminAuth, requirePermission('warranties', 'write'), AdminController.rejectResubmission);
+// The rejection-and-fix chain for one warranty. Declared above /warranties/:id
+// for the same reason as roll-context: :id would otherwise swallow it.
+router.get('/warranties/:uid/history', ...adminAuth, requirePermission('warranties', 'read'), AdminController.getWarrantyHistory);
 router.get('/warranties/:id', ...adminAuth, requirePermission('warranties', 'read'), AdminController.getWarrantyById);
 router.put('/warranties/:uid/status', ...adminAuth, requirePermission('warranties', 'write'), AdminController.updateWarrantyStatus);
 router.put('/warranties/:uid/details', ...adminAuth, requirePermission('warranties', 'write'), AdminController.updateWarrantyDetails);

@@ -6069,6 +6069,59 @@ export class AdminController {
     }
 
     /**
+     * What has happened to one warranty, in order.
+     *
+     * A rejection and the correction answering it are two entries in the
+     * activity log, and nothing tied them together on screen. The rejection
+     * reason is read from the log rather than the warranty row: resubmitting
+     * clears it from the row, correctly, since it no longer applies — so the
+     * row is the one place it is guaranteed not to be.
+     */
+    static async getWarrantyHistory(req: Request, res: Response) {
+        try {
+            const uid = String(req.params.uid || '').trim();
+            if (!uid) return res.status(400).json({ error: 'A warranty id is required' });
+
+            const [rows]: any = await db.execute(
+                `SELECT id, admin_name, admin_email, action_type, details, created_at
+                   FROM admin_activity_log
+                  WHERE target_id = ?
+                    AND action_type IN ('WARRANTY_REJECTED', 'WARRANTY_RESUBMITTED',
+                                        'WARRANTY_APPROVED', 'WARRANTY_UPDATED',
+                                        'WARRANTY_OVERRIDDEN')
+                  ORDER BY created_at ASC`,
+                [uid]
+            );
+
+            const history = rows.map((row: any) => {
+                let details: any = {};
+                try {
+                    details = typeof row.details === 'string'
+                        ? JSON.parse(row.details)
+                        : (row.details || {});
+                } catch { /* an entry written before this shape existed */ }
+
+                return {
+                    id: row.id,
+                    action: row.action_type,
+                    by: row.admin_name || row.admin_email || 'Unknown',
+                    at: row.created_at,
+                    summary: details.summary || null,
+                    // Written as rejection_reason by the reject path and
+                    // rejectionReason by the resubmission entry that carries it.
+                    rejectionReason: details.rejection_reason || details.rejectionReason || null,
+                    changes: details.changes || null,
+                };
+            });
+
+            res.json({ success: true, uid, history });
+        } catch (error: any) {
+            console.error('[Warranty History] Failed:', error?.message);
+            res.status(500).json({ error: 'Could not load this warranty history' });
+        }
+    }
+
+    /**
      * The roll context for one warranty being reviewed.
      *
      * Nothing pre-registers a PPF roll: the serial the installer types is what
