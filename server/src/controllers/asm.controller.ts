@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import db from '../config/database.js';
 import { v4 as uuidv4 } from 'uuid';
+import { hasAutoReplyContent } from '../services/autoReply.js';
 import { routeEnquiry, areaKey } from '../services/asmRouting.service.js';
 import { findState } from '../services/indianStates.js';
 import { isSamePlace, buildAddress } from '../services/placeMatch.js';
@@ -26,6 +27,31 @@ export class AsmController {
 
         if (!phone || !area) {
             return res.status(400).json({ error: 'phone and area are required' });
+        }
+
+        /*
+         * An auto-responder answering on the customer's behalf is not an
+         * enquiry. Apps like WhatAuto reply to every message we send, and the
+         * workflow passes that canned line through as the area — one number
+         * filed eleven junk leads in three minutes this way.
+         *
+         * Answered 200 with the usual keys rather than 400: Interakt disables
+         * a webhook after five failures in ten minutes, and an auto-responder
+         * produces exactly the rapid burst that would trip it.
+         */
+        if (hasAutoReplyContent([area, car, name])) {
+            console.log(`[ASM] auto-reply ignored from ${String(phone).slice(-10)}`);
+            // Every key the normal path returns, for the reason given there.
+            return res.json({
+                received: true,
+                matched: false,
+                status: 'ignored',
+                asm_name: '',
+                asm_phone: '',
+                area: '',
+                product: '',
+                car: '',
+            });
         }
 
         const routing = routeEnquiry({
