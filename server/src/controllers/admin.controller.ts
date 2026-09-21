@@ -75,21 +75,6 @@ const REPLACEABLE_PHOTO_FIELDS = new Set([
     'lhs', 'rhs', 'frontReg', 'backReg', 'warranty',
 ]);
 
-/**
- * A warranty that was rejected, corrected, and is waiting to be looked at again.
- *
- * There is no status of its own for this. Resubmitting returns the warranty to
- * the ordinary queue — 'pending' when a franchise fixed it, 'pending_vendor'
- * when the customer did — and what distinguishes it is `rejected_at` surviving
- * that move. The row remembers it was rejected while waiting again, and the
- * pair is the definition.
- *
- * Declared once and used by both the list filter and the tab count, so the two
- * can never disagree about what the tab contains.
- */
-const RESUBMITTED_CONDITION =
-    "wr.rejected_at IS NOT NULL AND wr.status IN ('pending', 'pending_vendor')";
-
 export class AdminController {
     static async getDashboardStats(_req: Request, res: Response) {
         try {
@@ -2746,21 +2731,6 @@ export class AdminController {
                     conditions.push("wr.status = 'pending'");
                 } else if (status === 'quick_review') {
                     conditions.push("wr.status IN ('pending', 'pending_vendor')");
-                } else if (status === 'resubmitted') {
-                    /*
-                     * Rejected once, corrected, and sent back for review.
-                     *
-                     * There is no 'resubmitted' status to filter on: a
-                     * resubmission returns the warranty to the ordinary queue.
-                     * What marks it out is rejected_at surviving that move —
-                     * the row remembers it was rejected while waiting again,
-                     * and that pair is the whole definition.
-                     *
-                     * Worth its own tab because these are not new work. Someone
-                     * already looked, said what was wrong, and is owed a second
-                     * look at whether it was fixed.
-                     */
-                    conditions.push(RESUBMITTED_CONDITION);
                 } else {
                     conditions.push('wr.status = ?');
                     params.push(status);
@@ -2846,24 +2816,10 @@ export class AdminController {
                 ${summaryWhereClause}
                 GROUP BY wr.status
             `;
-            /*
-             * Counted separately because it cuts across the statuses rather
-             * than being one of them: a resubmitted warranty is also counted
-             * under pending or pending_vendor, which is correct — it really is
-             * waiting in that queue, and this tab only says why.
-             */
-            const resubmittedQuery = `
-                SELECT COUNT(*) as count
-                FROM warranty_registrations wr
-                ${joins}
-                ${summaryWhereClause ? `${summaryWhereClause} AND ${RESUBMITTED_CONDITION}`
-                                     : `WHERE ${RESUBMITTED_CONDITION}`}
-            `;
 
-            const [[countResult], [statusSummaryResult], [resubmittedResult], [makeResult], [modelResult]]: any = await Promise.all([
+            const [[countResult], [statusSummaryResult], [makeResult], [modelResult]]: any = await Promise.all([
                 db.execute(countQuery, params),
                 db.execute(statusSummaryQuery, summaryParams),
-                db.execute(resubmittedQuery, summaryParams),
                 db.execute(`
                     SELECT DISTINCT car_make
                     FROM warranty_registrations
@@ -2883,13 +2839,12 @@ export class AdminController {
             ]);
             const totalCount = countResult[0].total;
             const totalPages = Math.ceil(totalCount / limit);
-            const statusCounts = { validated: 0, pending: 0, pending_vendor: 0, rejected: 0, resubmitted: 0 };
+            const statusCounts = { validated: 0, pending: 0, pending_vendor: 0, rejected: 0 };
             statusSummaryResult.forEach((row: any) => {
                 if (row.status in statusCounts) {
                     statusCounts[row.status as keyof typeof statusCounts] = Number(row.count);
                 }
             });
-            statusCounts.resubmitted = Number(resubmittedResult?.[0]?.count ?? 0);
 
             const allowedSortFields: Record<string, string> = {
                 created_at: 'wr.created_at',

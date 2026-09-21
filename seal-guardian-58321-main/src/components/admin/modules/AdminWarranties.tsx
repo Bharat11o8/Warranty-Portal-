@@ -120,11 +120,7 @@ export const AdminWarranties = () => {
         validated: 0,
         pending: 0,
         pending_vendor: 0,
-        rejected: 0,
-        /* Rejected once, corrected, waiting again. Overlaps pending and
-           pending_vendor rather than replacing them, so it is not part of the
-           total below. */
-        resubmitted: 0
+        rejected: 0
     });
     const [filterOptions, setFilterOptions] = useState<{ makes: string[]; models: string[] }>({
         makes: [],
@@ -423,7 +419,6 @@ export const AdminWarranties = () => {
                         <SelectItem value="validated">Approved</SelectItem>
                         <SelectItem value="pending">Pending Approval</SelectItem>
                         <SelectItem value="pending_vendor">Pending Vendor</SelectItem>
-                        <SelectItem value="resubmitted">Resubmitted</SelectItem>
                         <SelectItem value="rejected">Action Required</SelectItem>
                         <SelectItem value="quick_review">Quick Review (Workstation)</SelectItem>
 
@@ -433,15 +428,11 @@ export const AdminWarranties = () => {
 
             {/* Desktop Status Tabs */}
             <Tabs value={statusFilter} onValueChange={handleStatusFilterChange} className="hidden md:block w-full xl:w-auto">
-                <TabsList className="grid w-full grid-cols-3 md:grid-cols-7 xl:inline-flex h-auto bg-white border border-orange-100 p-1">
+                <TabsList className="grid w-full grid-cols-3 md:grid-cols-6 xl:inline-flex h-auto bg-white border border-orange-100 p-1">
                     <TabsTrigger value="all" className="data-[state=active]:bg-orange-50 data-[state=active]:text-orange-700 gap-2">
                         All
                         <Badge variant="secondary" className="bg-slate-100 text-slate-600 border-none px-1.5 py-0 h-4 text-[10px] font-bold">
-                            {/* The four real statuses only. `resubmitted` is a view of
-                                pending and pending_vendor, not a status beside them, so
-                                summing every value would count those warranties twice. */}
-                            {statusCounts.validated + statusCounts.pending
-                                + statusCounts.pending_vendor + statusCounts.rejected}
+                            {Object.values(statusCounts).reduce((total, count) => total + count, 0)}
                         </Badge>
                     </TabsTrigger>
                     <TabsTrigger value="validated" className="data-[state=active]:bg-green-50 data-[state=active]:text-green-700 gap-2">
@@ -460,12 +451,6 @@ export const AdminWarranties = () => {
                         Vendor
                         <Badge variant="secondary" className="bg-orange-100/50 text-orange-700 border-none px-1.5 py-0 h-4 text-[10px] font-bold">
                             {statusCounts.pending_vendor}
-                        </Badge>
-                    </TabsTrigger>
-                    <TabsTrigger value="resubmitted" className="data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700 gap-2">
-                        Resubmitted
-                        <Badge variant="secondary" className="bg-blue-100/50 text-blue-700 border-none px-1.5 py-0 h-4 text-[10px] font-bold">
-                            {statusCounts.resubmitted}
                         </Badge>
                     </TabsTrigger>
                     <TabsTrigger value="rejected" className="data-[state=active]:bg-red-50 data-[state=active]:text-red-700 gap-2">
