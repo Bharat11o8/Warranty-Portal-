@@ -401,7 +401,7 @@ const EVProductsForm = ({ initialData, warrantyId, onSuccess, isUniversal, isEdi
       return;
     }
     if (!formData.warrantyPhoto) {
-      toast({ title: "Warranty Card Required", description: "Please upload warranty card photo with dealer stamp", variant: "destructive" });
+      toast({ title: "Invoice Required", description: "Please upload the invoice photo with the dealer stamp", variant: "destructive" });
       return;
     }
 

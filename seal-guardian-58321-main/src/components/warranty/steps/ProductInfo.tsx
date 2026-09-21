@@ -39,7 +39,10 @@ const PHOTO_FIELDS = [
   { field: 'rhsPhoto', photoKey: 'rhs', label: 'Right Hand Side' },
   { field: 'frontRegPhoto', photoKey: 'frontReg', label: 'Front with Reg. No.' },
   { field: 'backRegPhoto', photoKey: 'backReg', label: 'Back with Reg. No.' },
-  { field: 'warrantyPhoto', photoKey: 'warranty', label: 'Warranty Card (Dealer Stamp)' },
+  /* The field and storage key stay `warranty`: they name the column this photo
+     has always been kept in, and renaming them would orphan every warranty
+     already holding one. Only what the installer reads has changed. */
+  { field: 'warrantyPhoto', photoKey: 'warranty', label: 'Invoice with Dealer Stamp' },
 ] as const;
 
 /** Existing photos are stored either as a full URL or a bare filename. */
@@ -321,7 +324,7 @@ const ProductInfo = ({ formData, updateFormData, onPrev, onSubmit, loading, exis
       return;
     }
     if (!formData.warrantyPhoto && !existingPhotos?.warranty) {
-      toast({ title: "Warranty Card Required", description: "Please upload warranty card photo with dealer stamp", variant: "destructive" });
+      toast({ title: "Invoice Required", description: "Please upload the invoice photo with the dealer stamp", variant: "destructive" });
       return;
     }
     if (!formData.termsAccepted) {
