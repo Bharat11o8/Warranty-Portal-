@@ -572,6 +572,76 @@ export class WarrantyController {
             (warrantyData.productDetails as any)?.photos?.vehicle || (warrantyData.productDetails as any)?.photos?.carOuter || null
           ]
         );
+
+        /*
+         * Record what the resubmission changed.
+         *
+         * This is the path a store or customer takes through the form itself,
+         * as opposed to updateWarranty which the dashboards use — both end in
+         * a warranty waiting to be looked at again, so both have to say what
+         * was corrected or the review screen shows a rejection with nothing
+         * under it.
+         *
+         * The rejection reason is copied on because the original row keeps it
+         * only until the warranty moves on.
+         */
+        try {
+          const [priorRows]: any = await db.execute(
+            `SELECT customer_name, customer_email, customer_phone, customer_address,
+                    registration_number, car_make, car_model, car_year, car_colour,
+                    purchase_date, installer_name, installer_contact, warranty_type,
+                    product_details, product_type, rejection_reason, rejected_by
+               FROM warranty_registrations WHERE uid = ? LIMIT 1`,
+            [warrantyId]
+          );
+          const prior = priorRows?.[0];
+
+          if (prior) {
+            const changes = diffSubmission(
+              prior,
+              {
+                customer_name: warrantyData.customerName,
+                customer_email: warrantyData.customerEmail,
+                customer_phone: warrantyData.customerPhone,
+                customer_address: warrantyData.customerAddress,
+                registration_number: warrantyData.registrationNumber,
+                car_make: warrantyData.carMake,
+                car_model: warrantyData.carModel,
+                car_year: warrantyData.carYear,
+                car_colour: warrantyData.carColour,
+                purchase_date: warrantyData.purchaseDate,
+                installer_name: warrantyData.installerName,
+                installer_contact: warrantyData.installerContact,
+                warranty_type: warrantyData.warrantyType,
+                product_details: warrantyData.productDetails,
+              },
+              prior.product_type
+            );
+
+            const who = req.user?.role === 'customer' ? 'The customer' : 'The franchise';
+
+            await ActivityLogService.log({
+              adminId: req.user?.id || finalUserId || 'unknown',
+              adminName: req.user?.name || undefined,
+              adminEmail: req.user?.email || undefined,
+              actionType: 'WARRANTY_RESUBMITTED',
+              targetType: 'WARRANTY',
+              targetId: warrantyId,
+              targetName: `${warrantyData.customerName} (${warrantyId})`,
+              details: {
+                summary: summariseChanges(changes, who),
+                rejectionReason: prior.rejection_reason || null,
+                rejectedBy: prior.rejected_by || null,
+                resubmittedBy: req.user?.role || 'unknown',
+                changes,
+              },
+              ipAddress: clientIP
+            });
+          }
+        } catch (err: any) {
+          // Never let the record-keeping fail the correction itself.
+          console.error('[Resubmission] Could not log the change set:', err?.message);
+        }
       } else {
         /*
          * The warranty row and the roll draws it creates have to land together:
