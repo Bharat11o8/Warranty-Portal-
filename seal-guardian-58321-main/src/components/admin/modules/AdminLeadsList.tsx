@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { downloadCSV } from "@/lib/utils";
+import { getPhoneError, getCityError, cleanPlaceName } from "@/lib/validation";
 import { Textarea } from "@/components/ui/textarea";
 import {
     Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle
@@ -233,6 +234,13 @@ export const AdminLeadsList = () => {
 
     // Adding a lead by hand, for IVR and website enquiries.
     const [addOpen, setAddOpen] = useState(false);
+    /* Stores for the area typed into the add form, loaded before any lead
+       exists so the customer can be given one in the same step. */
+    const [addStores, setAddStores] = useState<any[]>([]);
+    const [addStore, setAddStore] = useState<string | null>(null);
+    const [addStoreSearch, setAddStoreSearch] = useState("");
+    const [loadingAddStores, setLoadingAddStores] = useState(false);
+
     const [addForm, setAddForm] = useState({
         name: "", phone: "", area: "", product: "", car: "", source: "ivr",
     });
@@ -241,6 +249,14 @@ export const AdminLeadsList = () => {
     } | null>(null);
     const [previewing, setPreviewing] = useState(false);
     const [adding, setAdding] = useState(false);
+    /* The same validators the public forms use. A lead with an unusable
+       number is one nobody can ever call back, which is the whole point of
+       capturing it. */
+    const addPhoneError = getPhoneError(addForm.phone);
+    const addAreaError = getCityError(addForm.area);
+    const addValid = Boolean(addForm.phone.trim()) && !addPhoneError
+        && Boolean(addForm.area.trim()) && !addAreaError;
+
 
     const fetchLeads = useCallback(async (silent = false) => {
         silent ? setRefreshing(true) : setLoading(true);
@@ -423,7 +439,7 @@ export const AdminLeadsList = () => {
      * the admin confirms it.
      */
     const previewLead = async () => {
-        if (!addForm.area.trim() || !addForm.phone.trim()) return;
+        if (!addValid) return;
         setPreviewing(true);
         try {
             const res = await api.post("/asm/leads", { ...addForm, preview: true });
@@ -439,19 +455,78 @@ export const AdminLeadsList = () => {
         } finally {
             setPreviewing(false);
         }
+        loadAddStores(addForm.area);
     };
 
+    /*
+     * The stores that could serve this area, while the form is still open.
+     *
+     * Keyed on the typed area rather than a lead, since there is no lead yet.
+     * A previously chosen store is cleared whenever the area changes — it
+     * belonged to the old state, and silently sending it would be worse than
+     * making the admin pick again.
+     */
+    const loadAddStores = async (area: string) => {
+        const q = String(area || "").trim();
+        setAddStore(null);
+        setAddStoreSearch("");
+        if (!q) { setAddStores([]); return; }
+
+        setLoadingAddStores(true);
+        try {
+            const res = await api.get("/asm/stores-for-area", { params: { area: q } });
+            setAddStores(res.data?.success ? (res.data.stores || []) : []);
+        } catch {
+            /* The form still works without them; the empty state says so. */
+            setAddStores([]);
+        } finally {
+            setLoadingAddStores(false);
+        }
+    };
+
+    /*
+     * Add the lead, and give the customer a store in the same step.
+     *
+     * A lead taken over the phone is the moment the customer is still on the
+     * line, so the store list sits in the form itself rather than behind a
+     * second dialog. The lead is created first regardless — if the send fails,
+     * the lead is still saved and the store can go from the row like any other.
+     */
     const submitLead = async () => {
         setAdding(true);
         try {
             const res = await api.post("/asm/leads", addForm);
-            if (res.data.success) {
-                toast({ title: "Lead added", description: res.data.message });
-                setAddOpen(false);
-                setAddForm({ name: "", phone: "", area: "", product: "", car: "", source: "ivr" });
-                setAddPreview(null);
-                fetchLeads(true);
+            if (!res.data.success) return;
+
+            const created = res.data.id;
+            let storeNote = "";
+
+            if (addStore && created) {
+                const store = addStores.find(s => s.id === addStore);
+                try {
+                    const sent = await api.post(`/asm/leads/${created}/send-store`, { store_id: addStore });
+                    storeNote = sent.data.success
+                        ? ` · ${store?.store_name} sent to the customer`
+                        : "";
+                } catch (err: any) {
+                    // The lead exists either way; say so rather than implying
+                    // the whole thing failed.
+                    toast({
+                        title: "Lead saved, store not sent",
+                        description: getErrorMessage(err, "Send it from the lead row instead"),
+                        variant: "destructive",
+                    });
+                }
             }
+
+            toast({ title: "Lead added", description: res.data.message + storeNote });
+            setAddOpen(false);
+            setAddForm({ name: "", phone: "", area: "", product: "", car: "", source: "ivr" });
+            setAddPreview(null);
+            setAddStores([]);
+            setAddStore(null);
+            setAddStoreSearch("");
+            fetchLeads(true);
         } catch (error: any) {
             toast({
                 title: "Could not add the lead",
@@ -1249,121 +1324,300 @@ export const AdminLeadsList = () => {
             </Dialog>
 
             {/* Add a lead by hand, for IVR and website enquiries. */}
-            <Dialog open={addOpen} onOpenChange={open => { setAddOpen(open); if (!open) setAddPreview(null); }}>
-                <DialogContent className="max-w-xl max-h-[88vh] overflow-y-auto overflow-x-hidden">
-                    <DialogHeader>
-                        <DialogTitle>Add a lead</DialogTitle>
-                        <DialogDescription>
-                            This forwards to the ASM covering the area, exactly as an
-                            automatic enquiry would.
+            {/* Cancelling clears the store too: reopening the form with a
+                store still picked from a previous area would send it. */}
+            <Dialog open={addOpen} onOpenChange={open => {
+                setAddOpen(open);
+                if (!open) { setAddPreview(null); setAddStores([]); setAddStore(null); setAddStoreSearch(""); }
+            }}>
+                <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto overflow-x-hidden">
+                    <DialogHeader className="space-y-1">
+                        <DialogTitle className="text-lg">Add a lead</DialogTitle>
+                        <DialogDescription className="text-xs">
+                            Forwarded to the ASM covering the area, exactly as an automatic
+                            enquiry would be.
                         </DialogDescription>
                     </DialogHeader>
 
-                    <div className="space-y-4 py-1 min-w-0">
-                        <div className="grid grid-cols-2 gap-3 min-w-0">
+                    {/* Two columns on a desktop: the enquiry on the left, the store
+                        and what the customer would receive on the right — so picking
+                        and checking are one glance apart rather than one scroll.
+                        Stacks on a narrow screen. */}
+                    <div className="grid lg:grid-cols-2 gap-4 py-1 min-w-0">
+
+                        {/* ── The enquiry ── */}
+                        <div className="space-y-3.5 min-w-0">
+                            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                                Enquiry
+                            </p>
+
                             <div className="space-y-1.5 min-w-0">
-                                <Label htmlFor="a-phone">Phone *</Label>
+                                <Label htmlFor="a-phone" className="text-xs">Phone *</Label>
                                 <Input
                                     id="a-phone"
                                     inputMode="numeric"
                                     value={addForm.phone}
-                                    onChange={e => { setAddForm({ ...addForm, phone: e.target.value }); setAddPreview(null); }}
+                                    /* Digits only, capped at 12 so a country code still
+                                       fits. Anything else was never going to be dialled. */
+                                    onChange={e => {
+                                        setAddForm({ ...addForm, phone: e.target.value.replace(/\D/g, "").slice(0, 12) });
+                                        setAddPreview(null);
+                                    }}
                                     placeholder="9876543210"
+                                    className={`h-9 ${addPhoneError ? "border-red-300 focus-visible:ring-red-200" : ""}`}
                                 />
+                                {addPhoneError && (
+                                    <p className="text-[11px] text-red-600 leading-snug">{addPhoneError}</p>
+                                )}
                             </div>
+
                             <div className="space-y-1.5 min-w-0">
-                                <Label htmlFor="a-name">Name</Label>
+                                <Label htmlFor="a-area" className="text-xs">Area *</Label>
+                                <Input
+                                    id="a-area"
+                                    value={addForm.area}
+                                    onChange={e => { setAddForm({ ...addForm, area: e.target.value }); setAddPreview(null); }}
+                                    /* Tidied on leaving the field, not while typing —
+                                       collapsing spaces mid-word fights the typist. */
+                                    onBlur={e => {
+                                        const tidy = cleanPlaceName(e.target.value);
+                                        if (tidy !== addForm.area) setAddForm({ ...addForm, area: tidy });
+                                        previewLead();
+                                    }}
+                                    placeholder="e.g. Rohini Delhi"
+                                    className={`h-9 ${addAreaError ? "border-red-300 focus-visible:ring-red-200" : ""}`}
+                                />
+                                {addAreaError ? (
+                                    <p className="text-[11px] text-red-600 leading-snug">{addAreaError}</p>
+                                ) : previewing ? (
+                                    <p className="text-[11px] text-slate-400 flex items-center gap-1.5">
+                                        <Loader2 className="h-3 w-3 animate-spin" /> Checking…
+                                    </p>
+                                ) : addPreview ? (
+                                    /* Who this is about to reach. A mistyped area costs a
+                                       real message to a real ASM, so it is shown before
+                                       the send rather than discovered after it. */
+                                    addPreview.matched ? (
+                                        <p className="text-[11px] text-emerald-700 flex items-start gap-1">
+                                            <Check className="h-3 w-3 mt-0.5 shrink-0" />
+                                            <span>{addPreview.state} — goes to <b>{addPreview.asm_name}</b></span>
+                                        </p>
+                                    ) : (
+                                        <p className="text-[11px] text-amber-700 leading-snug">
+                                            {addPreview.state
+                                                ? `${addPreview.state} — no ASM covers this state yet.`
+                                                : "No state could be read from this."}
+                                            {" "}Saved and queued as unmatched.
+                                        </p>
+                                    )
+                                ) : null}
+                            </div>
+
+                            <div className="space-y-1.5 min-w-0">
+                                <Label htmlFor="a-name" className="text-xs">Name</Label>
                                 <Input
                                     id="a-name"
                                     value={addForm.name}
                                     onChange={e => setAddForm({ ...addForm, name: e.target.value })}
                                     placeholder="Optional"
+                                    className="h-9"
                                 />
                             </div>
-                        </div>
 
-                        <div className="space-y-1.5">
-                            <Label htmlFor="a-area">Area *</Label>
-                            <Input
-                                id="a-area"
-                                value={addForm.area}
-                                onChange={e => { setAddForm({ ...addForm, area: e.target.value }); setAddPreview(null); }}
-                                onBlur={previewLead}
-                                placeholder="e.g. Rohini Delhi"
-                            />
-                            {/* Who this is about to reach. A mistyped area costs a
-                                real message to a real ASM, so it is shown before
-                                the send rather than discovered after it. */}
-                            {previewing ? (
-                                <p className="text-xs text-slate-400 flex items-center gap-1.5">
-                                    <Loader2 className="h-3 w-3 animate-spin" /> Checking…
-                                </p>
-                            ) : addPreview ? (
-                                addPreview.matched ? (
-                                    <p className="text-xs text-emerald-600">
-                                        {addPreview.state} — goes to {addPreview.asm_name}
-                                    </p>
-                                ) : (
-                                    <p className="text-xs text-amber-600">
-                                        {addPreview.state
-                                            ? `${addPreview.state} — no ASM covers this state yet`
-                                            : "No state could be read from this"}
-                                        . The lead will be saved and queued as unmatched.
-                                    </p>
-                                )
-                            ) : null}
-                        </div>
+                            <div className="grid grid-cols-2 gap-2.5 min-w-0">
+                                <div className="space-y-1.5 min-w-0">
+                                    <Label className="text-xs">Channel</Label>
+                                    <Select value={addForm.source} onValueChange={v => setAddForm({ ...addForm, source: v })}>
+                                        <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="ivr">IVR</SelectItem>
+                                            <SelectItem value="website">Website</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                                <div className="space-y-1.5 min-w-0">
+                                    <Label className="text-xs">Product</Label>
+                                    <Select
+                                        value={addForm.product || "none"}
+                                        onValueChange={v => setAddForm({ ...addForm, product: v === "none" ? "" : v })}
+                                    >
+                                        <SelectTrigger className="h-9"><SelectValue placeholder="—" /></SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="none">Not specified</SelectItem>
+                                            <SelectItem value="Seat Covers">Seat Covers</SelectItem>
+                                            <SelectItem value="Mats">Mats</SelectItem>
+                                            <SelectItem value="Accessories">Accessories</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                            </div>
 
-                        <div className="grid grid-cols-3 gap-3 min-w-0">
                             <div className="space-y-1.5 min-w-0">
-                                <Label>Channel</Label>
-                                <Select value={addForm.source} onValueChange={v => setAddForm({ ...addForm, source: v })}>
-                                    <SelectTrigger><SelectValue /></SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="ivr">IVR</SelectItem>
-                                        <SelectItem value="website">Website</SelectItem>
-                                    </SelectContent>
-                                </Select>
-                            </div>
-                            <div className="space-y-1.5">
-                                <Label>Product</Label>
-                                <Select
-                                    value={addForm.product || "none"}
-                                    onValueChange={v => setAddForm({ ...addForm, product: v === "none" ? "" : v })}
-                                >
-                                    <SelectTrigger><SelectValue placeholder="—" /></SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="none">Not specified</SelectItem>
-                                        <SelectItem value="Seat Covers">Seat Covers</SelectItem>
-                                        <SelectItem value="Mats">Mats</SelectItem>
-                                        <SelectItem value="Accessories">Accessories</SelectItem>
-                                    </SelectContent>
-                                </Select>
-                            </div>
-                            <div className="space-y-1.5">
-                                <Label htmlFor="a-car">Vehicle</Label>
+                                <Label htmlFor="a-car" className="text-xs">Vehicle</Label>
                                 <Input
                                     id="a-car"
                                     value={addForm.car}
                                     onChange={e => setAddForm({ ...addForm, car: e.target.value })}
                                     placeholder="e.g. Creta"
+                                    className="h-9"
                                 />
                             </div>
                         </div>
+
+                        {/* ── The store, and what the customer would receive ── */}
+                        <div className="space-y-2 min-w-0 lg:border-l lg:border-slate-100 lg:pl-4">
+                            <div className="flex items-baseline gap-2">
+                                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                                    Store details
+                                </p>
+                                <span className="text-[10px] text-slate-300">optional</span>
+                                {!loadingAddStores && addStores.length > 0 && (
+                                    <span className="ml-auto text-[10px] font-semibold text-slate-400 shrink-0">
+                                        {addStores.length} in {addPreview?.state}
+                                    </span>
+                                )}
+                            </div>
+
+                            {loadingAddStores ? (
+                                <p className="text-xs text-slate-400 flex items-center gap-1.5 py-6 justify-center">
+                                    <Loader2 className="h-3 w-3 animate-spin" /> Finding stores…
+                                </p>
+                            ) : addStores.length === 0 ? (
+                                /* Nothing to show yet, but the column keeps its place so
+                                   the dialog does not jump when the area is typed. */
+                                <div className="rounded-xl border border-dashed border-slate-200 grid place-items-center px-4 py-10">
+                                    <p className="text-[11px] text-slate-400 text-center leading-relaxed">
+                                        {addForm.area.trim()
+                                            ? `No verified franchise in ${addPreview?.state || "that state"} yet.`
+                                            : "Enter an area to see the stores that could serve this customer."}
+                                    </p>
+                                </div>
+                            ) : (() => {
+                                const picked = addStores.find(s => s.id === addStore);
+                                const q = addStoreSearch.trim().toLowerCase();
+                                const shown = addStores.filter(s => !q
+                                    || s.store_name.toLowerCase().includes(q)
+                                    || (s.city || "").toLowerCase().includes(q)
+                                    || (s.pincode || "").includes(q));
+
+                                if (picked) {
+                                    return (
+                                        <div className="space-y-2 min-w-0">
+                                            <div className="rounded-xl border border-orange-200 bg-orange-50/60 p-3 min-w-0">
+                                                <div className="flex items-start gap-2 min-w-0">
+                                                    <StoreIcon className="h-4 w-4 text-orange-600 shrink-0 mt-0.5" />
+                                                    <div className="min-w-0 flex-1">
+                                                        <p className="text-sm font-bold text-slate-800 truncate">
+                                                            {picked.store_name}
+                                                        </p>
+                                                        <p className="text-[11px] text-slate-500 leading-snug">
+                                                            {buildAddress(picked)}
+                                                        </p>
+                                                    </div>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setAddStore(null)}
+                                                        className="text-[11px] font-semibold text-slate-400 hover:text-slate-700 shrink-0"
+                                                    >
+                                                        Change
+                                                    </button>
+                                                </div>
+                                            </div>
+
+                                            {/* Exactly what will arrive on the customer's
+                                                phone, shown before it goes, because the
+                                                message cannot be recalled. */}
+                                            <div className="rounded-xl bg-slate-50 border border-slate-200 p-3 space-y-1.5 min-w-0">
+                                                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                                                    The customer receives
+                                                </p>
+                                                <p className="text-[11px] text-slate-600 whitespace-pre-line leading-relaxed break-words">
+                                                    {`Thank you for your enquiry. Your nearest Autoform store is:\n\n` +
+                                                     `${picked.store_name}\n` +
+                                                     `${buildAddress(picked)}\n\n` +
+                                                     `Call: ${picked.phone_number || "—"}\n\n` +
+                                                     `Our team there will be happy to help you.`}
+                                                </p>
+                                            </div>
+
+                                            {!picked.phone_number && (
+                                                <p className="text-[11px] text-amber-700 leading-snug px-0.5">
+                                                    This store has no phone on record, so the message would
+                                                    name nobody to call. Pick another, or add the number first.
+                                                </p>
+                                            )}
+                                        </div>
+                                    );
+                                }
+
+                                return (
+                                    <div className="space-y-2 min-w-0">
+                                        <Input
+                                            value={addStoreSearch}
+                                            onChange={e => setAddStoreSearch(e.target.value)}
+                                            placeholder="Search by store, city or pincode…"
+                                            className="h-8 text-xs"
+                                        />
+                                        <div className="h-64 overflow-y-auto rounded-xl border border-slate-200 divide-y divide-slate-100 min-w-0">
+                                            {shown.length === 0 ? (
+                                                <p className="text-xs text-slate-400 px-3 py-6 text-center">
+                                                    No store matches that search.
+                                                </p>
+                                            ) : shown.map(s => (
+                                                <button
+                                                    key={s.id}
+                                                    type="button"
+                                                    onClick={() => setAddStore(s.id)}
+                                                    className="w-full text-left px-3 py-2.5 hover:bg-orange-50/60 transition-colors min-w-0"
+                                                >
+                                                    <div className="flex items-center gap-1.5 min-w-0">
+                                                        <span className="text-xs font-semibold text-slate-800 truncate">
+                                                            {s.store_name}
+                                                        </span>
+                                                        {/* Advice, not a decision — the admin still picks. */}
+                                                        {s.near && (
+                                                            <span className="text-[9px] font-bold uppercase tracking-wide text-emerald-700 bg-emerald-50 px-1 py-0.5 rounded shrink-0">
+                                                                Nearby
+                                                            </span>
+                                                        )}
+                                                        {!s.phone_number && (
+                                                            <span className="text-[9px] font-bold uppercase tracking-wide text-amber-700 bg-amber-50 px-1 py-0.5 rounded shrink-0">
+                                                                No phone
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    <p className="text-[11px] text-slate-400 truncate mt-0.5">
+                                                        {[s.city, s.pincode].filter(Boolean).join(" · ")}
+                                                    </p>
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                );
+                            })()}
+                        </div>
                     </div>
 
-                    <DialogFooter>
+                    <DialogFooter className="border-t border-slate-100 pt-3">
+                        {/* Everything about to happen, in words: an ASM messaged, a
+                            customer messaged, or neither. Both are real WhatsApps
+                            that cannot be recalled. */}
+                        <p className="mr-auto text-[11px] text-slate-400 leading-snug hidden sm:block">
+                            {(() => {
+                                const store = addStores.find(s => s.id === addStore);
+                                const parts = [];
+                                if (addPreview?.matched) parts.push(`${addPreview.asm_name} is notified`);
+                                if (store) parts.push(`${addForm.phone || "the customer"} gets ${store.store_name}`);
+                                return parts.length ? parts.join(" · ") : "Saved without notifying anyone.";
+                            })()}
+                        </p>
                         <Button variant="outline" onClick={() => setAddOpen(false)}>Cancel</Button>
                         <Button
-                            onClick={submitLead}
-                            disabled={adding || !addForm.phone.trim() || !addForm.area.trim()}
+                            onClick={() => submitLead()}
+                            disabled={adding || !addValid}
                             className="bg-orange-500 hover:bg-orange-600"
                         >
-                            {adding
-                                ? <Loader2 className="h-4 w-4 animate-spin" />
-                                : addPreview?.matched
-                                    ? `Add and forward to ${addPreview.asm_name}`
-                                    : "Add lead"}
+                            {adding ? <Loader2 className="h-4 w-4 animate-spin" /> : "Add lead"}
                         </Button>
                     </DialogFooter>
                 </DialogContent>

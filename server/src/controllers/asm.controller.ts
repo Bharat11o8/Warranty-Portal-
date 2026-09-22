@@ -8,6 +8,45 @@ import { isSamePlace, buildAddress } from '../services/placeMatch.js';
 import { ActivityLogService } from '../services/activity-log.service.js';
 import { WhatsAppService } from '../services/whatsapp.service.js';
 
+/**
+ * The verified franchises in a state, with the ones the customer's own words
+ * point at marked and sorted first.
+ *
+ * Shared by the lead screen and the manual add form: the add form needs this
+ * before a lead exists, keyed on the typed area rather than a stored row, and
+ * two copies of the matching would drift apart.
+ *
+ * Matched on the canonical state, not the stored spelling: vendor_details holds
+ * 29 spellings for about 25 states, so comparing strings would miss most of
+ * them. The "near" tag is advice and the admin still picks — but a wrong one is
+ * worse than none, since it is the reason they would choose one store over
+ * another, and the result is a customer sent across their state.
+ */
+async function storesForArea(state: string | null, rawArea: string): Promise<any[]> {
+    if (!state) return [];
+
+    const [rows]: any = await db.execute(
+        `SELECT vd.id, vd.store_name, vd.store_code, vd.address, vd.city,
+                vd.state, vd.pincode, p.phone_number
+           FROM vendor_details vd
+           LEFT JOIN profiles p ON p.id = vd.user_id
+           JOIN vendor_verification vv ON vv.user_id = vd.user_id AND vv.is_verified = 1
+          WHERE vd.is_franchise = 1`
+    );
+
+    const scored = rows
+        .filter((r: any) => findState(r.state || '')?.state === state)
+        .map((r: any) => ({ ...r, near: isSamePlace(r.city || '', rawArea, state) }));
+
+    scored.sort((a: any, b: any) =>
+        (b.near ? 1 : 0) - (a.near ? 1 : 0) ||
+        String(a.city || '').localeCompare(String(b.city || '')) ||
+        String(a.store_name).localeCompare(String(b.store_name))
+    );
+
+    return scored;
+}
+
 export class AsmController {
     /**
      * Called by the Interakt workflow when a customer has given their area.
@@ -270,9 +309,20 @@ export class AsmController {
             if (!phone || !area) {
                 return res.status(400).json({ error: 'Phone number and area are required' });
             }
-            const digits = String(phone).replace(/\D/g, '');
-            if (digits.length < 10) {
-                return res.status(400).json({ error: 'That phone number does not look complete' });
+            /*
+             * An Indian mobile, not merely ten or more digits.
+             *
+             * The old check passed anything long enough, so a keyboard mash
+             * like 23423423432432423 was accepted and filed as a lead nobody
+             * could ever call. The last ten digits are taken so a country code
+             * or a leading zero is accepted, then those ten are required to
+             * look like a real number.
+             */
+            const digits = String(phone).replace(/\D/g, '').slice(-10);
+            if (digits.length !== 10 || !/^[6-9]\d{9}$/.test(digits)) {
+                return res.status(400).json({
+                    error: 'That is not a valid Indian mobile number — 10 digits starting 6, 7, 8 or 9.',
+                });
             }
 
             // Only the manual channels: an entry claiming to be from WhatsApp
@@ -461,6 +511,35 @@ export class AsmController {
      *
      * The admin still chooses. This only saves them scrolling.
      */
+    /**
+     * The stores that could serve a typed area, before any lead exists.
+     *
+     * The manual add form needs this while the admin is still filling it in —
+     * a customer phoning in is usually still on the line, and making them wait
+     * while the lead is saved and reopened is the difference between sending a
+     * store now and not sending one at all.
+     */
+    static async storesForEnquiry(req: Request, res: Response) {
+        try {
+            const area = String(req.query.area || '').trim();
+            if (!area) return res.json({ success: true, state: null, stores: [], near_count: 0 });
+
+            const state = findState(area)?.state || null;
+            const stores = await storesForArea(state, area);
+
+            res.json({
+                success: true,
+                state,
+                area,
+                stores,
+                near_count: stores.filter((s: any) => s.near).length,
+            });
+        } catch (error: any) {
+            console.error('Stores for enquiry error:', error);
+            res.status(500).json({ error: 'Failed to load stores for that area' });
+        }
+    }
+
     static async leadStores(req: Request, res: Response) {
         try {
             const { id } = req.params;
@@ -478,47 +557,11 @@ export class AsmController {
                 });
             }
 
-            /*
-             * Matched on the canonical state, not the stored spelling: our own
-             * vendor_details holds 29 spellings for about 25 states, so
-             * comparing the strings would miss most of them. Every store is
-             * resolved through the same matcher the routing uses.
-             */
-            const [rows]: any = await db.execute(
-                `SELECT vd.id, vd.store_name, vd.store_code, vd.address, vd.city,
-                        vd.state, vd.pincode, p.phone_number
-                   FROM vendor_details vd
-                   LEFT JOIN profiles p ON p.id = vd.user_id
-                   JOIN vendor_verification vv ON vv.user_id = vd.user_id AND vv.is_verified = 1
-                  WHERE vd.is_franchise = 1`
-            );
-
-            const wanted = lead.state;
-            const inState = rows.filter((r: any) => findState(r.state || '')?.state === wanted);
-
-            /*
-             * Which of these stores the customer's own words point at.
-             *
-             * The tag is advice, not a decision — the admin still picks. But a
-             * wrong "Nearby" is worse than none, because it is the reason they
-             * would choose one store over another, and the result is a customer
-             * sent across their state. The matching itself lives in placeMatch,
-             * where it can be tested without a database.
-             */
-            const scored = inState.map((r: any) => ({
-                ...r,
-                near: isSamePlace(r.city || '', lead.raw_area || '', wanted),
-            }));
-
-            scored.sort((a: any, b: any) =>
-                (b.near ? 1 : 0) - (a.near ? 1 : 0) ||
-                String(a.city || '').localeCompare(String(b.city || '')) ||
-                String(a.store_name).localeCompare(String(b.store_name))
-            );
+            const scored = await storesForArea(lead.state, lead.raw_area || '');
 
             res.json({
                 success: true,
-                state: wanted,
+                state: lead.state,
                 area: lead.raw_area,
                 stores: scored,
                 near_count: scored.filter((s: any) => s.near).length,
