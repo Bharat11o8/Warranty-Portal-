@@ -2707,7 +2707,7 @@ export class AdminController {
             const offset = (page - 1) * limit;
 
             // Extract Filters
-            const { status, search, product_type, make, date_from, date_to, model } = req.query;
+            const { status, search, product_type, make, date_from, date_to, model, resubmitted } = req.query;
 
             let conditions: string[] = [];
             let params: any[] = [];
@@ -2735,6 +2735,20 @@ export class AdminController {
                     conditions.push('wr.status = ?');
                     params.push(status);
                 }
+            }
+
+            /*
+             * Rejected once, corrected, and waiting again.
+             *
+             * There is no status for it: a resubmission returns the warranty to
+             * whichever queue it came from, so what marks it out is rejected_at
+             * surviving that move. Added through addCondition rather than the
+             * status branch above, so it narrows whatever tab is open instead
+             * of replacing it — "the resubmitted ones among the vendor's", not
+             * "resubmitted instead of vendor".
+             */
+            if (resubmitted === 'true') {
+                addCondition("wr.rejected_at IS NOT NULL AND wr.status IN ('pending', 'pending_vendor')");
             }
 
             // Product Type
