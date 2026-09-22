@@ -344,6 +344,19 @@ export async function routeEnquiry(input: EnquiryInput): Promise<RouteResult> {
     ];
 
     if (!asm) {
+        /*
+         * A dry run must not write, whatever the outcome.
+         *
+         * The dryRun guard further down is only reached once an ASM has been
+         * found, so an unmatched area fell straight through to this insert and
+         * every preview of it filed a real lead. Six appeared in one afternoon
+         * of somebody typing into the add form without ever pressing Add.
+         */
+        if (input.dryRun) {
+            console.log(`[ASM] dry run: "${rawArea}" matches no ASM`);
+            return { leadId, status: 'dry-run', product, car };
+        }
+
         await db.execute(
             `INSERT INTO leads
                (id, source, product, car_model, state, customer_name,
@@ -353,6 +366,25 @@ export async function routeEnquiry(input: EnquiryInput): Promise<RouteResult> {
         );
         console.log(`[ASM] no ASM covers "${rawArea}" — lead ${leadId} queued as unmatched`);
         return { leadId, status: 'unmatched', product, car };
+    }
+
+    /*
+     * Matching is the part worth checking; sending is not. A dry run reports
+     * who would be messaged without putting anything on their phone.
+     *
+     * Placed here, above the throttle and duplicate checks, because those
+     * record a lead of their own — a preview that tripped either one used to
+     * file a real row and then report a dry run.
+     */
+    if (input.dryRun) {
+        console.log(`[ASM] dry run: "${rawArea}" would go to ${asm.name}`);
+        return {
+            leadId, status: 'dry-run',
+            asm: { id: asm.id, name: asm.name, phone_number: asm.phone_number },
+            matchedArea: asm.area_label || rawArea,
+            product,
+            car,
+        };
     }
 
     /*
@@ -424,19 +456,6 @@ export async function routeEnquiry(input: EnquiryInput): Promise<RouteResult> {
         console.log(`[ASM] repeat enquiry from ${phone} for ${asm.name} — not re-sent`);
         return {
             leadId, status: 'duplicate',
-            asm: { id: asm.id, name: asm.name, phone_number: asm.phone_number },
-            matchedArea: asm.area_label || rawArea,
-            product,
-            car,
-        };
-    }
-
-    // Matching is the part worth checking; sending is not. A dry run reports
-    // who would be messaged without putting anything on their phone.
-    if (input.dryRun) {
-        console.log(`[ASM] dry run: "${rawArea}" would go to ${asm.name}`);
-        return {
-            leadId, status: 'dry-run',
             asm: { id: asm.id, name: asm.name, phone_number: asm.phone_number },
             matchedArea: asm.area_label || rawArea,
             product,
