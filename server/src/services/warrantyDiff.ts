@@ -26,6 +26,10 @@ export type ChangeSet = Record<string, FieldChange>;
  * Only fields a person deliberately fills in. Timestamps, internal ids and
  * derived columns change on every save and would bury the two or three edits
  * that actually matter.
+ *
+ * car_year is deliberately absent for the same reason: the form defaults it to
+ * the current year rather than leaving it blank, so it reads as a correction on
+ * submissions where nobody touched it.
  */
 const TRACKED: Array<[string, string]> = [
     ['customer_name', 'Customer Name'],
@@ -35,7 +39,6 @@ const TRACKED: Array<[string, string]> = [
     ['registration_number', 'Registration Number'],
     ['car_make', 'Vehicle Make'],
     ['car_model', 'Vehicle Model'],
-    ['car_year', 'Vehicle Year'],
     ['car_colour', 'Vehicle Colour'],
     ['purchase_date', 'Purchase Date'],
     ['installer_name', 'Installer'],

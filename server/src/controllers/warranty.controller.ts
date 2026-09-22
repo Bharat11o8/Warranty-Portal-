@@ -1285,11 +1285,15 @@ export class WarrantyController {
       if (isNumericId) {
         // Could be a seat-cover UID (numeric string) OR an EV numeric id.
         // Match uid as an exact string and id as an exact integer — no coercion.
-        checkQuery = 'SELECT id, uid, user_id, status, product_details, manpower_id, installer_name, installer_contact FROM warranty_registrations WHERE uid = CAST(? AS CHAR) OR id = ?';
+        // Every field the resubmission diff compares against, not just the
+        // ones the update itself needs: selecting eight columns left the
+        // rest undefined, so a correction reported every field as having
+        // been empty before it.
+        checkQuery = 'SELECT id, uid, user_id, status, product_details, manpower_id, installer_name, installer_contact, customer_name, customer_email, customer_phone, customer_address, registration_number, car_make, car_model, car_year, car_colour, purchase_date, warranty_type, product_type, rejection_reason, rejected_by FROM warranty_registrations WHERE uid = CAST(? AS CHAR) OR id = ?';
         checkParams = [String(uid), Number(uid)];
       } else {
         // Non-numeric identifier can only be a uid/serial string.
-        checkQuery = 'SELECT id, uid, user_id, status, product_details, manpower_id, installer_name, installer_contact FROM warranty_registrations WHERE uid = ?';
+        checkQuery = 'SELECT id, uid, user_id, status, product_details, manpower_id, installer_name, installer_contact, customer_name, customer_email, customer_phone, customer_address, registration_number, car_make, car_model, car_year, car_colour, purchase_date, warranty_type, product_type, rejection_reason, rejected_by FROM warranty_registrations WHERE uid = ?';
         checkParams = [String(uid)];
       }
 
