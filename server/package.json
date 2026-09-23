@@ -6,7 +6,7 @@
     "dev": "tsx watch src/index.ts",
     "build": "npx tsc",
     "start": "node dist/index.js",
-    "db:add-customer-indexes": "tsx src/scripts/add_customer_query_indexes.ts",
+    "db:add-customer-indexes": "tsx scripts/migrations/2026-07-14_add_customer_query_indexes.ts",
     "test": "tsx --test src/**/__tests__/*.test.ts",
     "test:watch": "tsx --test --watch src/**/__tests__/*.test.ts"
   },

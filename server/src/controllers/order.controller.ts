@@ -27,7 +27,7 @@ export class OrderController {
     private static getApiUrl(): string {
         if (process.env.API_URL) return process.env.API_URL.replace(/\/$/, '');
         const isProduction = process.env.NODE_ENV === 'production' || process.env.VERCEL === '1';
-        if (isProduction) return 'https://server-bharat-maheshwaris-projects.vercel.app';
+        if (isProduction) return 'https://api.autoformindia.co.in';
         return `http://localhost:${process.env.PORT || 3000}`;
     }
 

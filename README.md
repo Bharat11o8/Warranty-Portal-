@@ -109,7 +109,7 @@ npm run dev
 
 The backend requires a `.env` with database credentials, `JWT_SECRET`, SMTP settings, and — for the WhatsApp, UID sync, and IP geolocation integrations — `INTERAKT_API_KEY`, `UID_SYNC_API_KEY`, and `IPINFO_TOKEN`. The server refuses to start without `JWT_SECRET`.
 
-Database changes are applied through one-off setup scripts in `server/src/scripts/`, run with `tsx`. Some of them drop and recreate live tables; read a script before running it.
+Database changes are hand-run scripts in `server/scripts/migrations/`, prefixed with the date they were introduced and run with `npx tsx`. Some drop and recreate live tables; read a script before running it. Reusable admin tools (promote an admin, generate store QR codes, bulk-map franchises) are in `server/scripts/tools/`. Neither folder is part of the build.
 
 ---
 

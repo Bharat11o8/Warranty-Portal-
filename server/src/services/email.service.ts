@@ -55,7 +55,7 @@ export class EmailService {
     // Priority 2: Use known production backend if in production mode
     const isProduction = process.env.NODE_ENV === 'production' || process.env.VERCEL === '1';
     if (isProduction) {
-      return 'https://server-bharat-maheshwaris-projects.vercel.app';
+      return 'https://api.autoformindia.co.in';
     }
 
     // Default to localhost for development

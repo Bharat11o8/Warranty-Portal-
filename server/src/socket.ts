@@ -21,7 +21,6 @@ export const initSocket = (server: HttpServer) => {
                     'http://localhost:8080',
                     'http://localhost:8081',
                     'http://127.0.0.1:8080',
-                    'https://server-bharat-maheshwaris-projects.vercel.app',
                     'https://warranty2.autoformindia.co.in'
                   ],
             methods: ["GET", "POST"],

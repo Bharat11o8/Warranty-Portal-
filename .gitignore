@@ -53,6 +53,7 @@ scratch/
 *.xlsx
 *.csv
 *.sql
+!server/scripts/migrations/*.sql
 *.docx
 *.local
 *.backup
@@ -72,19 +73,12 @@ Fixing Date Type Mismatch Warranty.md
 rejection_wording_audit.md
 seal-guardian-58321-main/SeatCoverForm-threat-model.md
 
-# Utility / Audit Scripts (One-off fixes)
-server/src/audit_duplicates.ts
-server/src/check_data.ts
-server/src/check_emails.ts
-server/src/check_uid_mappings.ts
-server/src/scripts/audit_all_duplicates.ts
-server/src/scripts/audit_uid_full.ts
-server/src/scripts/debug_manpower.ts
-server/src/scripts/fix_aniruddha_warranty.ts
-server/src/scripts/resend_approval_emails.ts
-server/src/scripts/update_installer.ts
-server/src/scripts/verify_email_fix.ts
-server/src/scripts/verify_kota.ts
+# One-off scripts — data fixes, audits, targeted sends. These usually carry
+# real names, phones and emails, and this repo is public, so they live in
+# server/scripts/local/ and never get committed. Schema changes go in
+# server/scripts/migrations/ (tracked); reusable admin tools in
+# server/scripts/tools/ (tracked).
+server/scripts/local/
 cols.txt
 package-lock.json
 package.json
