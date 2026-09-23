@@ -2,7 +2,7 @@ import { Request, Response } from 'express';
 import fs from 'fs';
 import db from '../config/database.js';
 import { v4 as uuidv4 } from 'uuid';
-import jwt from 'jsonwebtoken';
+import { signActionToken, verifyActionToken } from '../utils/actionToken.js';
 import PDFDocument from 'pdfkit';
 import path from 'path';
 import { transporter } from '../config/email.js';
@@ -1003,110 +1003,6 @@ export class OrderController {
     }
 
     // ═══════════════════════════════════════════════════════════
-    //  CONFIRM EXTERNAL (Distributor clicks email link)
-    // ═══════════════════════════════════════════════════════════
-    static async confirmExternal(req: Request, res: Response) {
-        try {
-            const { token } = req.query;
-
-            if (!token) {
-                return res.status(400).send(OrderController.renderStatusPage('Invalid Link', 'No confirmation token provided.', false));
-            }
-
-            const decoded = jwt.verify(token as string, process.env.JWT_SECRET as string) as any;
-
-            if (decoded.action !== 'confirm') {
-                return res.status(400).send(OrderController.renderStatusPage('Invalid Action', 'This link is not valid.', false));
-            }
-
-            // Reuse the confirm logic
-            const connection = await db.getConnection();
-            try {
-                await connection.beginTransaction();
-
-                const [orderRows]: any = await connection.execute(
-                    'SELECT * FROM store_orders WHERE id = ?', [decoded.orderId]
-                );
-
-                if (orderRows.length === 0) {
-                    await connection.rollback();
-                    return res.send(OrderController.renderStatusPage('Order Not Found', 'This order no longer exists.', false));
-                }
-
-                const order = orderRows[0];
-
-                if (order.status !== 'pending') {
-                    await connection.rollback();
-                    return res.send(OrderController.renderStatusPage(
-                        'Already Processed',
-                        `This order has already been ${order.status}. No further action is needed.`,
-                        order.status === 'processing'
-                    ));
-                }
-
-                // Fetch items and deduct stock before moving the order forward
-                const [itemRows]: any = await connection.execute(
-                    'SELECT * FROM store_order_items WHERE order_id = ?', [decoded.orderId]
-                );
-
-                try {
-                    await OrderController.deductStockForOrderItems(connection, order.distributor_id, itemRows);
-                } catch (stockError: any) {
-                    await connection.rollback();
-                    return res.send(OrderController.renderStatusPage('Insufficient Stock', stockError.message, false));
-                }
-
-                await connection.execute(
-                    "UPDATE store_orders SET status = 'processing' WHERE id = ?",
-                    [decoded.orderId]
-                );
-
-                await connection.commit();
-
-                return res.send(OrderController.renderStatusPage(
-                    'Order Confirmed!',
-                    `Order #${decoded.orderId} has been confirmed. The franchise partner has been notified.`,
-                    true
-                ));
-
-            } catch (innerErr) {
-                await connection.rollback();
-                throw innerErr;
-            } finally {
-                connection.release();
-            }
-
-        } catch (error: any) {
-            if (error.name === 'TokenExpiredError') {
-                return res.status(400).send(OrderController.renderStatusPage('Link Expired', 'This confirmation link has expired. Please contact the franchise partner.', false));
-            }
-            console.error('External confirm error:', error);
-            return res.status(500).send(OrderController.renderStatusPage('Error', 'Something went wrong. Please try again later.', false));
-        }
-    }
-
-    // ─── Helper: Render a nice HTML status page for distributor ──
-    private static renderStatusPage(title: string, message: string, success: boolean): string {
-        return `<!DOCTYPE html>
-        <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-        <title>${title} — Autoform India</title>
-        <style>
-            body { font-family: 'Segoe UI', Arial, sans-serif; background: #f4f4f4; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; }
-            .card { background: #fff; border-radius: 16px; box-shadow: 0 8px 32px rgba(0,0,0,0.08); max-width: 480px; width: 90%; padding: 40px; text-align: center; }
-            .icon { font-size: 64px; margin-bottom: 16px; }
-            h1 { font-size: 24px; color: ${success ? '#11998e' : '#d32f2f'}; margin: 0 0 12px; }
-            p { color: #666; font-size: 15px; line-height: 1.6; }
-            .badge { display: inline-block; background: ${success ? '#e8f5e9' : '#ffebee'}; color: ${success ? '#2e7d32' : '#c62828'}; padding: 6px 16px; border-radius: 20px; font-weight: 600; font-size: 13px; margin-top: 16px; }
-        </style></head>
-        <body><div class="card">
-            <div class="icon">${success ? '✅' : '⚠️'}</div>
-            <h1>${title}</h1>
-            <p>${message}</p>
-            <div class="badge">${success ? 'Confirmed' : 'Action Required'}</div>
-        </div></body></html>`;
-    }
-
-    // ═══════════════════════════════════════════════════════════
     //  DECLINE OUTGOING ORDER (admin only)
     // ═══════════════════════════════════════════════════════════
     static async cancelOrder(req: Request, res: Response) {
@@ -1905,11 +1801,7 @@ export class OrderController {
      * without a login session — used for the "Download Invoice" link in WhatsApp/email.
      */
     static signInvoiceToken(orderId: string, expiresIn: string = '30d'): string {
-        return jwt.sign(
-            { purpose: 'invoice', orderId },
-            process.env.JWT_SECRET as string,
-            { expiresIn } as jwt.SignOptions
-        );
+        return signActionToken('invoice', { orderId }, expiresIn);
     }
 
     static async downloadOrderPDF(req: Request, res: Response) {
@@ -1974,14 +1866,11 @@ export class OrderController {
                 return res.status(400).send('Missing invoice token.');
             }
 
-            let decoded: any;
-            try {
-                decoded = jwt.verify(token, process.env.JWT_SECRET as string);
-            } catch {
+            const decoded: any = verifyActionToken('invoice', token);
+            if (!decoded) {
                 return res.status(401).send('This invoice link is invalid or has expired.');
             }
-
-            if (decoded.purpose !== 'invoice' || !decoded.orderId) {
+            if (!decoded.orderId) {
                 return res.status(403).send('This invoice link is not valid.');
             }
 

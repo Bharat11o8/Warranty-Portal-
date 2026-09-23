@@ -11,7 +11,8 @@ dotenv.config({ path: path.join(__dirname, '../../.env') });
 
 const PORT = process.env.PORT || 3000;
 const WEBHOOK_URL = `http://localhost:${PORT}/api/webhooks/interakt`;
-const SECRET = process.env.INTERAKT_WEBHOOK_SECRET || 'a04bedd5-8471-4487-9009-e8aa32632d46';
+const SECRET: string = process.env.INTERAKT_WEBHOOK_SECRET || '';
+if (!SECRET) { console.error('Set INTERAKT_WEBHOOK_SECRET in server/.env first.'); process.exit(1); }
 
 async function sendReadWebhook() {
     const realMsgId = '8e94037d-719e-4e87-9eae-9b72265a0d5c';

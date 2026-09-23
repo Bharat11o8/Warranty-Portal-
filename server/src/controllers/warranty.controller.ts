@@ -4,7 +4,7 @@ import db, { getISTTimestamp } from '../config/database.js';
 import { EmailService } from '../services/email.service.js';
 import { AuthRequest } from '../middleware/auth.js';
 import { WarrantyData } from '../types/index.js';
-import jwt from 'jsonwebtoken';
+import { signActionToken } from '../utils/actionToken.js';
 import { NotificationService } from '../services/notification.service.js';
 import { WhatsAppService } from '../services/whatsapp.service.js';
 import { geolocateIP, getClientIP } from '../utils/ipGeolocation.js';
@@ -609,10 +609,10 @@ export class WarrantyController {
         // 2. Email fallback — only if WhatsApp didn't send
         if (!franchiseWaSent) {
           try {
-            const token = jwt.sign(
+            const token = signActionToken(
+              'warranty_vendor_action',
               { warrantyId: warrantyId, vendorEmail: warrantyData.installerContact },
-              process.env.JWT_SECRET!,
-              { expiresIn: '7d' }
+              '7d'
             );
             await EmailService.sendVendorConfirmationEmail(
               vendorEmail,

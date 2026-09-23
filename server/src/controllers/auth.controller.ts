@@ -319,8 +319,17 @@ export class AuthController {
           });
         }
 
-        // Note: We allow login for deactivated vendors but return isActive=false
-        // Frontend will handle showing deactivation message
+        // Deactivated stores are refused here, before an OTP is spent. They
+        // used to be let in on the promise that the frontend would show a
+        // deactivation message; it never did, so a deactivated store kept full
+        // access. authenticateToken now rejects them anyway, and this gives
+        // them a reason instead of a login that bounces.
+        const activeVal = verification[0].is_active;
+        if (!(activeVal === 1 || activeVal === true || activeVal === '1')) {
+          return res.status(403).json({
+            error: 'This store account has been deactivated. Please contact Autoform support.'
+          });
+        }
       }
 
       // Invalidate any previous unused OTPs for this user before generating a new one

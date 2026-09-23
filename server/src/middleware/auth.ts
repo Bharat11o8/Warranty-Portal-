@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import dotenv from 'dotenv';
+import db from '../config/database.js';
 
 dotenv.config();
 
@@ -42,7 +43,86 @@ export const isSessionToken = (decoded: any): boolean => {
     && typeof decoded.role === 'string' && SESSION_ROLES.has(decoded.role);
 };
 
-export const authenticateToken = (req: AuthRequest, res: Response, next: NextFunction) => {
+/**
+ * A valid session token is not a live account either.
+ *
+ * A JWT is a snapshot taken at login, and vendor cookies last 30 days. Without
+ * a look at the database, deactivating a store, un-verifying it, deleting an
+ * admin or narrowing their permissions changed nothing until that snapshot
+ * expired — the store kept ordering and approving warranties, and the admin
+ * kept every module they had at login.
+ *
+ * So every authenticated request resolves the account's current state: the
+ * role must still be held, a vendor must still be verified and active, and an
+ * admin's permissions are read fresh rather than trusted from the token.
+ * Cached per user for a minute so it costs one query per active user per
+ * minute, not one per request; the admin screens that change these call
+ * invalidateSessionState() so their effect is immediate on this process.
+ */
+export interface SessionState {
+  active: boolean;
+  isSuperAdmin?: boolean;
+  permissions?: ModulePermissions;
+}
+
+const SESSION_STATE_TTL_MS = 60 * 1000;
+const SESSION_STATE_CACHE_MAX = 5000;
+const sessionStateCache = new Map<string, { state: SessionState; expires: number }>();
+
+export const invalidateSessionState = (userId: string) => {
+  sessionStateCache.delete(userId);
+};
+
+const isTruthyFlag = (v: any) => v === 1 || v === true || v === '1';
+
+async function loadSessionState(userId: string, role: string): Promise<SessionState> {
+  const [roles]: any = await db.execute(
+    'SELECT 1 FROM user_roles WHERE user_id = ? AND role = ? LIMIT 1',
+    [userId, role]
+  );
+  if (roles.length === 0) return { active: false };
+
+  if (role === 'vendor') {
+    const [rows]: any = await db.execute(
+      'SELECT is_verified, is_active FROM vendor_verification WHERE user_id = ?',
+      [userId]
+    );
+    const active = rows.length > 0 && isTruthyFlag(rows[0].is_verified) && isTruthyFlag(rows[0].is_active);
+    return { active };
+  }
+
+  if (role === 'admin') {
+    const [rows]: any = await db.execute(
+      'SELECT is_super_admin, permissions FROM admin_permissions WHERE admin_id = ?',
+      [userId]
+    );
+    // An admin with no permissions row is what login issues too: signed in,
+    // no modules.
+    if (rows.length === 0) return { active: true, isSuperAdmin: false, permissions: {} };
+    const raw = rows[0].permissions;
+    let permissions: ModulePermissions = {};
+    try {
+      permissions = typeof raw === 'string' ? JSON.parse(raw) : (raw || {});
+    } catch {
+      permissions = {};
+    }
+    return { active: true, isSuperAdmin: isTruthyFlag(rows[0].is_super_admin), permissions };
+  }
+
+  return { active: true };
+}
+
+export async function getSessionState(userId: string, role: string): Promise<SessionState> {
+  const cached = sessionStateCache.get(userId);
+  if (cached && cached.expires > Date.now()) return cached.state;
+
+  const state = await loadSessionState(userId, role);
+  if (sessionStateCache.size >= SESSION_STATE_CACHE_MAX) sessionStateCache.clear();
+  sessionStateCache.set(userId, { state, expires: Date.now() + SESSION_STATE_TTL_MS });
+  return state;
+}
+
+export const authenticateToken = async (req: AuthRequest, res: Response, next: NextFunction) => {
   // SBP-006: Read token from HttpOnly cookie first, then fall back to Authorization header
   const cookieToken = req.cookies?.auth_token;
   const authHeader = req.headers['authorization'];
@@ -53,18 +133,9 @@ export const authenticateToken = (req: AuthRequest, res: Response, next: NextFun
     return res.status(401).json({ error: 'Access token required' });
   }
 
+  let decoded: any;
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as any;
-
-    if (!isSessionToken(decoded)) {
-      if (cookieToken) {
-        res.clearCookie('auth_token', { path: '/' });
-      }
-      return res.status(401).json({ error: 'Access token required' });
-    }
-
-    req.user = decoded;
-    next();
+    decoded = jwt.verify(token, process.env.JWT_SECRET!, { algorithms: ['HS256'] }) as any;
   } catch (error) {
     // Clear invalid cookie if present
     if (cookieToken) {
@@ -72,6 +143,35 @@ export const authenticateToken = (req: AuthRequest, res: Response, next: NextFun
     }
     return res.status(403).json({ error: 'Invalid or expired token' });
   }
+
+  if (!isSessionToken(decoded)) {
+    if (cookieToken) {
+      res.clearCookie('auth_token', { path: '/' });
+    }
+    return res.status(401).json({ error: 'Access token required' });
+  }
+
+  let state: SessionState;
+  try {
+    state = await getSessionState(decoded.id, decoded.role);
+  } catch (error) {
+    // The account could not be checked, which is not the same as the account
+    // being gone — keep the cookie and let the client retry.
+    console.error('[auth] Session state lookup failed:', error);
+    return res.status(503).json({ error: 'Service temporarily unavailable. Please retry.' });
+  }
+
+  if (!state.active) {
+    if (cookieToken) {
+      res.clearCookie('auth_token', { path: '/' });
+    }
+    return res.status(401).json({ error: 'This account is no longer active.', code: 'ACCOUNT_INACTIVE' });
+  }
+
+  req.user = decoded.role === 'admin'
+    ? { ...decoded, isSuperAdmin: state.isSuperAdmin, permissions: state.permissions }
+    : decoded;
+  next();
 };
 
 export const requireRole = (roles: string | string[]) => {

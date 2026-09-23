@@ -7,6 +7,7 @@ import { parseContacts, matchContacts, saveContacts, syncRoundTargets } from '..
 import { NotificationService } from '../services/notification.service.js';
 import { WhatsAppService } from '../services/whatsapp.service.js';
 import { v4 as uuidv4 } from 'uuid';
+import { invalidateSessionState } from '../middleware/auth.js';
 import {
     getMobileRegistrationUsage,
     normalizeCustomerMobile
@@ -542,6 +543,7 @@ export class AdminController {
                     id
                 ]
             );
+            invalidateSessionState(id);
 
             // Send email notification
             try {
@@ -1285,6 +1287,7 @@ export class AdminController {
                 'UPDATE vendor_verification SET is_active = ? WHERE user_id = ?',
                 [is_active, id]
             );
+            invalidateSessionState(id);
 
             // Send real-time notification
             try {
@@ -3654,6 +3657,7 @@ export class AdminController {
                 'UPDATE admin_permissions SET permissions = ? WHERE admin_id = ?',
                 [JSON.stringify(normalized), id]
             );
+            invalidateSessionState(id);
 
             // Get admin name for log
             const [adminProfile]: any = await db.execute(
@@ -3719,6 +3723,7 @@ export class AdminController {
 
             // Delete â€” CASCADE handles admin_permissions row
             await db.execute('DELETE FROM profiles WHERE id = ?', [id]);
+            invalidateSessionState(id);
 
             await ActivityLogService.log({
                 adminId: actor.id,
