@@ -25,6 +25,13 @@ interface POSMRequest {
     ticket_id: string;
     franchise_id: string;
     store_name: string;
+    // From vendor_details via a LEFT JOIN in posm.repository — null when the
+    // franchise has no store row.
+    store_code?: string | null;
+    store_address?: string | null;
+    store_city?: string | null;
+    store_state?: string | null;
+    store_pincode?: string | null;
     contact_name: string;
     contact_email: string;
     requirement: string;
