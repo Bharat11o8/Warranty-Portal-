@@ -12,6 +12,22 @@ import { Settings, Search } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { ADMIN_MENU_GROUPS, canSeeAdminModule, type AdminModule } from "./layout/adminModules";
 
+/*
+ * cmdk's default scoring matches letters in order anywhere, so "ppf" also
+ * offered Manpower, POSM and Sourcing Map. Here every typed word has to appear
+ * in the label or its keywords; labels that start with the first word rank
+ * above ones that merely contain it.
+ */
+const wordFilter = (value: string, search: string, keywords?: string[]): number => {
+    const words = search.toLowerCase().trim().split(/\s+/).filter(Boolean);
+    if (words.length === 0) return 1;
+    const label = value.toLowerCase();
+    const haystack = [label, ...(keywords || []).map(k => k.toLowerCase())].join(' ');
+    if (!words.every(w => haystack.includes(w))) return 0;
+    if (label.startsWith(words[0])) return 1;
+    return label.includes(words[0]) ? 0.8 : 0.5;
+};
+
 interface AdminCommandPaletteProps {
     onNavigate: (module: AdminModule) => void;
 }
@@ -58,7 +74,7 @@ export const AdminCommandPalette = ({ onNavigate }: AdminCommandPaletteProps) =>
                 </kbd>
             </div>
 
-            <CommandDialog open={open} onOpenChange={setOpen}>
+            <CommandDialog open={open} onOpenChange={setOpen} commandProps={{ filter: wordFilter }}>
                 <CommandInput placeholder="Type a command or search..." />
                 <CommandList>
                     <CommandEmpty>No results found.</CommandEmpty>

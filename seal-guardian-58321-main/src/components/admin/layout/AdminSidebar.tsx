@@ -1,13 +1,15 @@
+import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 import {
     LogOut,
     ChevronRight,
     ChevronLeft,
+    ChevronDown,
     User,
     Crown
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
-import { ADMIN_MENU_GROUPS, canSeeAdminModule, type AdminModule } from "./adminModules";
+import { ADMIN_MENU_GROUPS, adminModuleGroup, canSeeAdminModule, type AdminModule } from "./adminModules";
 import { useNotifications } from "@/contexts/NotificationContext";
 import { Button } from "@/components/ui/button";
 import {
@@ -121,6 +123,28 @@ export const SidebarContent = ({
         }))
         .filter(group => group.items.length > 0);
 
+    /*
+     * Groups fold to their heading. The one holding the open module is always
+     * expanded — including when a module is opened from Ctrl+K or a link — and
+     * the rest stay however the admin left them.
+     */
+    const [openGroups, setOpenGroups] = useState<Set<string>>(() => {
+        const g = adminModuleGroup(activeModule);
+        return new Set(g ? [g] : []);
+    });
+
+    useEffect(() => {
+        const g = adminModuleGroup(activeModule);
+        if (g) setOpenGroups(prev => (prev.has(g) ? prev : new Set(prev).add(g)));
+    }, [activeModule]);
+
+    const toggleGroup = (label: string) =>
+        setOpenGroups(prev => {
+            const next = new Set(prev);
+            if (next.has(label)) next.delete(label); else next.add(label);
+            return next;
+        });
+
     return (
         <TooltipProvider>
             <div className="flex flex-col h-full bg-white">
@@ -156,15 +180,36 @@ export const SidebarContent = ({
                 </div>
 
                 {/* Nav Items - Always scrollable now */}
-                <nav className="flex-1 px-4 py-8 space-y-10 overflow-y-auto custom-scrollbar">
+                <nav className={cn("flex-1 px-4 py-8 overflow-y-auto custom-scrollbar", isCollapsed ? "space-y-10" : "space-y-4")}>
                     {menuGroups.map((group) => (
-                        <div key={group.label} className="space-y-4">
-                            {!isCollapsed && (
-                                <h2 className="px-4 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 animate-in-fade">
-                                    {group.label}
-                                </h2>
-                            )}
-                            <div className="space-y-2">
+                        <div key={group.label} className="space-y-2">
+                            {!isCollapsed && (() => {
+                                const open = openGroups.has(group.label);
+                                // A folded group still shows that something inside wants attention.
+                                const pending = group.items.reduce((n, i) => n + (Number(i.badge) || 0), 0);
+                                return (
+                                    <button
+                                        type="button"
+                                        onClick={() => toggleGroup(group.label)}
+                                        aria-expanded={open}
+                                        className="w-full flex items-center justify-between gap-2 px-4 py-1 rounded-lg text-left text-slate-400 hover:text-slate-600 transition-colors animate-in-fade"
+                                    >
+                                        <h2 className="min-w-0 truncate whitespace-nowrap text-[10px] font-black uppercase tracking-[0.14em]">
+                                            {group.label}
+                                        </h2>
+                                        <span className="flex shrink-0 items-center gap-2">
+                                            {!open && pending > 0 && (
+                                                <span className="flex h-4 min-w-[16px] items-center justify-center rounded-full bg-orange-500 px-1 text-[9px] font-black text-white">
+                                                    {pending}
+                                                </span>
+                                            )}
+                                            <ChevronDown className={cn("h-3.5 w-3.5 transition-transform duration-200", !open && "-rotate-90")} />
+                                        </span>
+                                    </button>
+                                );
+                            })()}
+                            {/* Icon-only mode has no headings to unfold, so every item shows. */}
+                            <div className="space-y-2" hidden={!isCollapsed && !openGroups.has(group.label)}>
                                 {group.items.map((item: any) => (
                                     <SidebarItem
                                         key={item.id}
