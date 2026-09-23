@@ -114,8 +114,20 @@ router.get('/audit-rounds/:id/targets', ...adminAuth, requirePermission('audits'
 // Warranties
 router.get('/warranties', ...adminAuth, requirePermission('warranties', 'read'), AdminController.getAllWarranties);
 router.get('/warranties/resubmissions', ...adminAuth, requirePermission('warranties', 'read'), AdminController.getResubmissions);
+// Where a PPF roll's film went. Declared above /warranties/:id, which would
+// otherwise match "ppf-rolls" and look the roll up as a warranty id.
+router.get('/warranties/ppf-rolls', ...adminAuth, requirePermission('warranties', 'read'), AdminController.getPPFRolls);
+router.get('/warranties/ppf-rolls/:serial', ...adminAuth, requirePermission('warranties', 'read'), AdminController.getPPFRollDetail);
+// Issue serial numbers to a store ahead of the rolls being fitted.
+router.get('/warranties/ppf-serials/stores', ...adminAuth, requirePermission('warranties', 'read'), AdminController.getStoresForSerials);
+router.post('/warranties/ppf-serials/generate', ...adminAuth, requirePermission('warranties', 'write'), AdminController.generatePPFSerials);
+// The rolls one warranty drew on, for the reviewer approving it.
+router.get('/warranties/:uid/roll-context', ...adminAuth, requirePermission('warranties', 'read'), AdminController.getWarrantyRollContext);
 router.post('/warranties/resubmissions/:id/approve', ...adminAuth, requirePermission('warranties', 'write'), AdminController.approveResubmission);
 router.post('/warranties/resubmissions/:id/reject', ...adminAuth, requirePermission('warranties', 'write'), AdminController.rejectResubmission);
+// The rejection-and-fix chain for one warranty. Declared above /warranties/:id
+// for the same reason as roll-context: :id would otherwise swallow it.
+router.get('/warranties/:uid/history', ...adminAuth, requirePermission('warranties', 'read'), AdminController.getWarrantyHistory);
 router.get('/warranties/:id', ...adminAuth, requirePermission('warranties', 'read'), AdminController.getWarrantyById);
 router.put('/warranties/:uid/status', ...adminAuth, requirePermission('warranties', 'write'), AdminController.updateWarrantyStatus);
 router.put('/warranties/:uid/details', ...adminAuth, requirePermission('warranties', 'write'), AdminController.updateWarrantyDetails);

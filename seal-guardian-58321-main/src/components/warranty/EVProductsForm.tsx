@@ -9,9 +9,25 @@ import InstallerDetails from "./steps/InstallerDetails";
 import CustomerDetails from "./steps/CustomerDetails";
 import CarDetails from "./steps/CarDetails";
 import ProductInfo from "./steps/ProductInfo";
-import { CheckCircle2, Car, User, Settings, ShieldCheck } from "lucide-react";
+import { Check, ShieldCheck } from "lucide-react";
 import { getISTTodayISO, formatToISTDateISO } from "@/lib/utils";
+import { getRollsError, toRollPayload } from "@/lib/ppfRolls";
 import fpPromise from '@fingerprintjs/fingerprintjs';
+
+/** One PPF roll drawn on by an installation. */
+export interface PPFRoll {
+  serial: string;
+  /** Kept as text so a half-typed value is not coerced to 0 while editing. */
+  sqft: string;
+  /**
+   * The part of the car this roll's film went on.
+   *
+   * Belongs to the roll rather than the vehicle: film from two rolls goes on
+   * two different parts, and a single area for the whole job cannot say which
+   * roll covered what.
+   */
+  installArea: string;
+}
 
 export interface EVFormData {
   // Installer Details
@@ -46,8 +62,15 @@ export interface EVFormData {
   // Product Info
   product: string;
   warrantyType: string;
-  serialNumber: string;
-  installArea: string;
+  /**
+   * The roll(s) this installation drew on, and how much of each it used.
+   *
+   * PPF is sold as a roll of a fixed area and is rarely used up on one car, so
+   * a single roll is registered across several vehicles and one vehicle may
+   * take film from more than one roll. Each entry is a serial and the area
+   * taken from it.
+   */
+  rolls: PPFRoll[];
   lhsPhoto: File | null;
   rhsPhoto: File | null;
   frontRegPhoto: File | null;
@@ -65,6 +88,13 @@ interface EVProductsFormProps {
   isEditing?: boolean;
   isPublic?: boolean;
   vendorDirect?: boolean;
+  /**
+   * Rendered inside a dialog that already has its own padding, title and
+   * surface. The form then drops its page header and its card, which would
+   * otherwise be a second card inside the first — on a phone that nesting
+   * costs about 48px of width before a single field is drawn.
+   */
+  embedded?: boolean;
   storeDetails?: {
     id: number;
     store_name: string;
@@ -81,7 +111,7 @@ interface EVProductsFormProps {
   installers?: any[];
 }
 
-const EVProductsForm = ({ initialData, warrantyId, onSuccess, isUniversal, isEditing, isPublic, vendorDirect, storeDetails, installers }: EVProductsFormProps) => {
+const EVProductsForm = ({ initialData, warrantyId, onSuccess, isUniversal, isEditing, isPublic, vendorDirect, embedded, storeDetails, installers }: EVProductsFormProps) => {
   const { toast } = useToast();
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -112,11 +142,10 @@ const EVProductsForm = ({ initialData, warrantyId, onSuccess, isUniversal, isEdi
     carReg: "",
     product: "",
     warrantyType: "",
-    serialNumber: "",
+    rolls: [{ serial: "", sqft: "", installArea: "" }],
     carMake: "",
     carYear: "",
     carColour: "",
-    installArea: "",
     lhsPhoto: null,
     rhsPhoto: null,
     frontRegPhoto: null,
@@ -167,8 +196,19 @@ const EVProductsForm = ({ initialData, warrantyId, onSuccess, isUniversal, isEdi
 
         product: pd.product || "",
         warrantyType: initialData.warranty_type || "1 Year",
-        serialNumber: pd.serialNumber || "",
-        installArea: pd.installArea || "",
+        /*
+         * Warranties filed before rolls were tracked carry a single serial and
+         * one area for the whole job. That area is carried onto the single roll
+         * row, which is what it described; the sq.ft was never asked for, so it
+         * is left blank for the installer to supply.
+         */
+        rolls: Array.isArray(pd.rolls) && pd.rolls.length > 0
+          ? pd.rolls.map((r: any) => ({
+            serial: r.serial || "",
+            sqft: r.sqft != null ? String(r.sqft) : "",
+            installArea: r.installArea || "",
+          }))
+          : [{ serial: pd.serialNumber || "", sqft: "", installArea: pd.installArea || "" }],
 
         // Photos are URLs in edit mode, need to handle this in ProductInfo or just show them
         // For now, we keep them null as we can't convert URL to File easily here without fetching
@@ -337,18 +377,9 @@ const EVProductsForm = ({ initialData, warrantyId, onSuccess, isUniversal, isEdi
       return;
     }
 
-    if (!formData.installArea) {
-      toast({ title: "Installation Area Required", description: "Please enter the area of installation", variant: "destructive" });
-      return;
-    }
-
-    if (!formData.serialNumber) {
-      toast({ title: "Serial Number Required", description: "Please enter the product serial number", variant: "destructive" });
-      return;
-    }
-
-    if (formData.serialNumber.length < 8 || formData.serialNumber.length > 10) {
-      toast({ title: "Invalid Serial Number", description: "Serial number must be 8–10 alphanumeric characters", variant: "destructive" });
+    const rollError = getRollsError(formData.rolls);
+    if (rollError) {
+      toast({ title: "Roll Details", description: rollError, variant: "destructive" });
       return;
     }
 
@@ -370,7 +401,7 @@ const EVProductsForm = ({ initialData, warrantyId, onSuccess, isUniversal, isEdi
       return;
     }
     if (!formData.warrantyPhoto) {
-      toast({ title: "Warranty Card Required", description: "Please upload warranty card photo with dealer stamp", variant: "destructive" });
+      toast({ title: "Invoice Required", description: "Please upload the invoice photo with the dealer stamp", variant: "destructive" });
       return;
     }
 
@@ -411,10 +442,24 @@ const EVProductsForm = ({ initialData, warrantyId, onSuccess, isUniversal, isEdi
         installerName: formData.storeName,
         installerContact: formData.storeEmail,
         manpowerId: formData.manpowerId || null,
+        /*
+         * Which store this was filled in at, taken from the QR link rather than
+         * anything typed. The server uses it to refuse a serial issued to a
+         * different store; store names are retyped and repeat across branches,
+         * so the code is what identifies a store exactly.
+         */
+        ...(isPublic && storeDetails?.store_code
+          ? { storeCode: storeDetails.store_code }
+          : {}),
+        /*
+         * Which registration a correction is replacing. A PPF serial names the
+         * roll rather than one registration now that a roll covers several
+         * vehicles, so the server matches a resubmission on this instead.
+         */
+        ...(warrantyId ? { warrantyId } : {}),
         productDetails: {
           product: formData.product,
-          installArea: formData.installArea,
-          serialNumber: formData.serialNumber,
+          rolls: toRollPayload(formData.rolls),
           manpowerId: formData.manpowerId,
           manpowerName: formData.installerName,
           storeName: formData.storeName,
@@ -487,7 +532,7 @@ const EVProductsForm = ({ initialData, warrantyId, onSuccess, isUniversal, isEdi
         result = response;
         toast({
           title: "Warranty Registered",
-          description: `Success! Serial No: ${formData.serialNumber}, Vehicle Reg: ${formData.carReg}`,
+          description: `Success! Serial No: ${formData.rolls.map(r => r.serial).join(', ')}, Vehicle Reg: ${formData.carReg}`,
         });
       }
 
@@ -551,11 +596,11 @@ const EVProductsForm = ({ initialData, warrantyId, onSuccess, isUniversal, isEdi
   const progress = (currentStep / 4) * 100;
 
   return (
-    <div className="max-w-5xl mx-auto space-y-8">
+    <div className={embedded ? "space-y-4" : "max-w-5xl mx-auto space-y-8"}>
       {/* Header Section — hidden on the QR flow, where the page above already
           names the store and states what the form is for. Repeating it pushes
           the actual fields below the fold on a phone. */}
-      <div className={`text-center space-y-2 mb-8 ${isPublic && storeDetails ? "hidden" : ""}`}>
+      <div className={`text-center space-y-2 mb-8 ${(isPublic && storeDetails) || embedded ? "hidden" : ""}`}>
         <div className="inline-flex items-center justify-center p-3 bg-blue-100 rounded-full mb-4 ring-8 ring-blue-50">
           <ShieldCheck className="h-8 w-8 text-blue-600" />
         </div>
@@ -567,55 +612,69 @@ const EVProductsForm = ({ initialData, warrantyId, onSuccess, isUniversal, isEdi
         </p>
       </div>
 
-      <Card className="border-0 shadow-xl bg-white/90 backdrop-blur-sm ring-1 ring-slate-100">
-        <div className="bg-slate-50/50 border-b px-6 py-8 rounded-t-xl">
-          {/* Enhanced Progress Steps */}
-          <div className="relative">
-            {/* Connecting Line */}
-            <div className="absolute top-5 left-0 w-full h-1 bg-slate-200 rounded-full -z-10">
-              <div
-                className="h-full bg-blue-600 rounded-full transition-all duration-500 ease-in-out"
-                style={{ width: `${((currentStep - 1) / 3) * 100}%` }}
-              />
-            </div>
+      <Card className={embedded
+        ? "border-0 shadow-none bg-transparent ring-0"
+        : "border-0 shadow-xl bg-white/90 backdrop-blur-sm ring-1 ring-slate-100"}>
+        <div className={embedded ? "border-b border-slate-100 pb-4" : "border-b border-slate-100 px-5 py-5 sm:px-8 sm:py-6"}>
+          {/*
+           * Where you are in the form, in one line.
+           *
+           * The previous version gave every step a 40px ring-haloed circle in
+           * three colours and a full label underneath, which on a phone left
+           * four captions competing for the width and wrapping into each
+           * other. Done steps no longer need their name — they are done — so
+           * only the current one is named, and the rest become marks on a rule.
+           */}
+          <div className="flex items-center gap-2 sm:gap-3">
+            {steps.map((step, i) => {
+              const isActive = step.number === currentStep;
+              const isCompleted = step.number < currentStep;
 
-            <div className="flex justify-between relative z-0">
-              {steps.map((step) => {
-                const isActive = step.number === currentStep;
-                const isCompleted = step.number < currentStep;
+              return (
+                <div key={step.number} className="flex items-center gap-2 sm:gap-3 min-w-0">
+                  <div
+                    className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold transition-colors ${
+                      isActive
+                        ? 'bg-slate-900 text-white'
+                        : isCompleted
+                          ? 'bg-slate-900/10 text-slate-500'
+                          : 'bg-slate-100 text-slate-400'
+                    }`}
+                  >
+                    {isCompleted ? <Check className="h-3.5 w-3.5" /> : step.number}
+                  </div>
 
-                return (
-                  <div key={step.number} className="flex flex-col items-center group">
-                    <div
-                      className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm transition-all duration-300 ring-4 
-                                    ${isActive ? 'bg-blue-600 text-white ring-blue-100 scale-110' :
-                          isCompleted ? 'bg-green-500 text-white ring-green-100' :
-                            'bg-white border-2 border-slate-200 text-slate-400 ring-transparent'}`}
-                    >
-                      {isCompleted ? <CheckCircle2 className="h-6 w-6" /> : step.number}
-                    </div>
-                    <span className={`mt-3 text-xs md:text-sm font-medium transition-colors duration-300 ${isActive ? 'text-blue-700' : isCompleted ? 'text-green-600' : 'text-slate-400'}`}>
+                  {/* Only the step you are on is named. The others are numbered
+                      already, and four labels do not fit a phone. */}
+                  {isActive && (
+                    <span className="text-sm font-semibold text-slate-900 truncate">
                       {step.label}
                     </span>
-                  </div>
-                );
-              })}
-            </div>
+                  )}
+
+                  {i < steps.length - 1 && (
+                    <span
+                      aria-hidden
+                      className={`h-px w-4 sm:w-8 shrink-0 rounded-full transition-colors ${
+                        isCompleted ? 'bg-slate-300' : 'bg-slate-200'
+                      }`}
+                    />
+                  )}
+                </div>
+              );
+            })}
+
+            <span className="ml-auto shrink-0 text-xs font-medium text-slate-400 tabular-nums">
+              {currentStep}/{steps.length}
+            </span>
           </div>
         </div>
 
-        <CardContent className="p-6 md:p-10 min-h-[400px]">
+        <CardContent className={embedded ? "p-0 pt-5 min-h-0" : "p-6 md:p-10 min-h-[400px]"}>
           {/* Step Content with Transitions */}
           <div className="animate-in fade-in slide-in-from-right-4 duration-300">
             {currentStep === 1 && (
               <div className="space-y-6">
-                <div className="text-center mb-6">
-                  <div className="inline-flex bg-blue-50 p-2 rounded-lg mb-3">
-                    <Settings className="h-6 w-6 text-blue-600" />
-                  </div>
-                  <h2 className="text-xl font-semibold">Installer Details</h2>
-                  <p className="text-sm text-muted-foreground">Select the store and installer for this job</p>
-                </div>
                 <InstallerDetails
                   formData={formData}
                   updateFormData={updateFormData}
@@ -630,13 +689,6 @@ const EVProductsForm = ({ initialData, warrantyId, onSuccess, isUniversal, isEdi
 
             {currentStep === 2 && (
               <div className="space-y-6">
-                <div className="text-center mb-6">
-                  <div className="inline-flex bg-blue-50 p-2 rounded-lg mb-3">
-                    <User className="h-6 w-6 text-blue-600" />
-                  </div>
-                  <h2 className="text-xl font-semibold">Customer Details</h2>
-                  <p className="text-sm text-muted-foreground">Enter customer contact information</p>
-                </div>
                 <CustomerDetails
                   formData={formData}
                   updateFormData={updateFormData}
@@ -650,13 +702,6 @@ const EVProductsForm = ({ initialData, warrantyId, onSuccess, isUniversal, isEdi
 
             {currentStep === 3 && (
               <div className="space-y-6">
-                <div className="text-center mb-6">
-                  <div className="inline-flex bg-blue-50 p-2 rounded-lg mb-3">
-                    <Car className="h-6 w-6 text-blue-600" />
-                  </div>
-                  <h2 className="text-xl font-semibold">Vehicle Details</h2>
-                  <p className="text-sm text-muted-foreground">Registered vehicle information</p>
-                </div>
                 <CarDetails
                   formData={formData}
                   updateFormData={updateFormData}
@@ -669,13 +714,6 @@ const EVProductsForm = ({ initialData, warrantyId, onSuccess, isUniversal, isEdi
 
             {currentStep === 4 && (
               <div className="space-y-6">
-                <div className="text-center mb-6">
-                  <div className="inline-flex bg-blue-50 p-2 rounded-lg mb-3">
-                    <ShieldCheck className="h-6 w-6 text-blue-600" />
-                  </div>
-                  <h2 className="text-xl font-semibold">Product & Proof</h2>
-                  <p className="text-sm text-muted-foreground">Upload photos and product details</p>
-                </div>
                 <ProductInfo
                   formData={formData}
                   updateFormData={updateFormData}

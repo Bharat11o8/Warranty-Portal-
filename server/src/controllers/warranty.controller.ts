@@ -6,18 +6,31 @@ import { AuthRequest } from '../middleware/auth.js';
 import { WarrantyData } from '../types/index.js';
 import { signActionToken } from '../utils/actionToken.js';
 import { NotificationService } from '../services/notification.service.js';
+import { ActivityLogService } from '../services/activity-log.service.js';
+import { diffSubmission, summariseChanges } from '../services/warrantyDiff.js';
 import { WhatsAppService } from '../services/whatsapp.service.js';
 import { geolocateIP, getClientIP } from '../utils/ipGeolocation.js';
 import { calculateFraudScore } from '../utils/fraudScoring.js';
 import { matchFallbackUidSequence, resolveFallbackUid, FALLBACK_UID_YEAR } from '../utils/customerMobileLimits.js';
 import { recordRegistrationEvent } from '../services/analyticsEvents.service.js';
 import { checkPurchaseDate } from '../services/purchaseDateWindow.service.js';
+import { parseRolls, reserveRolls, nextWarrantyUidForRoll, RollUnavailableError, withRollRetry } from '../services/ppfRoll.service.js';
+import { withTransaction } from '../utils/transaction.js';
 
 
 // Extending WarrantyData interface locally if not updated in types file yet
 interface ExtendedWarrantyData extends WarrantyData {
   manpowerId?: string;
   vendorDirect?: boolean;
+  /**
+   * The warranty being corrected, on a resubmission.
+   *
+   * PPF cannot be identified by its serial number any more — one roll is fitted
+   * across several vehicles, so the serial names the roll rather than the
+   * registration — and a correction has to say which registration it is
+   * replacing.
+   */
+  warrantyId?: string;
 }
 
 export class WarrantyController {
@@ -152,6 +165,19 @@ export class WarrantyController {
         return res.status(400).json({ error: 'UID is required for seat-cover products' });
       }
 
+      /*
+       * PPF declares which roll(s) it drew on and how much of each it used.
+       * Parsed up front so every later branch asks one question rather than
+       * re-deriving the product type.
+       */
+      const isPPF = warrantyData.productType === 'ev-products';
+      const rolls = isPPF ? parseRolls(warrantyData.productDetails) : [];
+      if (isPPF && rolls.length === 0) {
+        return res.status(400).json({
+          error: 'Please enter at least one serial number and the area used.'
+        });
+      }
+
       // Role-based validation: Customers can only register warranties under their own email
       if (req.user.role === 'customer') {
         const customerEmail = (warrantyData.customerEmail || '').trim().toLowerCase();
@@ -193,7 +219,19 @@ export class WarrantyController {
       // ===== UID Pre-Validation for Seat Covers =====
       // --- RESUBMISSION DETECTION (must run BEFORE is_used check) ---
       let isResubmission = false;
-      const checkId = uid || warrantyData.productDetails.serialNumber;
+      /*
+       * What identifies the warranty being filed.
+       *
+       * A seat cover is its UID. PPF used to be its serial number, but a roll is
+       * now fitted across several vehicles, so the serial identifies the roll and
+       * no longer one registration — the warranty carries its own id instead
+       * (the serial plus which draw from that roll it was). A correction sends
+       * that id back, so it is what a resubmission is matched on; a fresh PPF
+       * submission has none yet and must not match anything.
+       */
+      const checkId = isPPF
+        ? (warrantyData.warrantyId || warrantyData.productDetails.warrantyUid || null)
+        : (uid || warrantyData.productDetails.serialNumber);
       if (checkId) {
         const [existingWarranty]: any = await db.execute(
           'SELECT uid, user_id, status, product_details, manpower_id, installer_name, installer_contact FROM warranty_registrations WHERE uid = ?',
@@ -337,9 +375,15 @@ export class WarrantyController {
       // (the staging table enum only supports: pending_review, approved, rejected)
       let initialStatus = isResubmission ? 'pending_review' : baseStatus;
 
-      // Use provided UID (for seat covers), Serial Number (for EV products), 
+      // Use provided UID (for seat covers), Serial Number (for EV products),
       // original checkId (for edits), or generate a new UUID (fallback)
-      const warrantyId = isResubmission ? checkId : (warrantyData.productDetails.uid || warrantyData.productDetails.serialNumber || uuidv4());
+      //
+      // A fresh PPF warranty has no id until the transaction below reads its
+      // roll's draw count under lock. A PPF resubmission keeps the id the
+      // original was filed under, like every other resubmission.
+      let warrantyId = isResubmission
+        ? checkId
+        : (isPPF ? '' : (warrantyData.productDetails.uid || warrantyData.productDetails.serialNumber || uuidv4()));
 
       // --- FRAUD DETECTION: Calculate fraud score ---
       let fraudScore = 0;
@@ -528,17 +572,108 @@ export class WarrantyController {
             (warrantyData.productDetails as any)?.photos?.vehicle || (warrantyData.productDetails as any)?.photos?.carOuter || null
           ]
         );
+
+        /*
+         * Record what the resubmission changed.
+         *
+         * This is the path a store or customer takes through the form itself,
+         * as opposed to updateWarranty which the dashboards use — both end in
+         * a warranty waiting to be looked at again, so both have to say what
+         * was corrected or the review screen shows a rejection with nothing
+         * under it.
+         *
+         * The rejection reason is copied on because the original row keeps it
+         * only until the warranty moves on.
+         */
+        try {
+          const [priorRows]: any = await db.execute(
+            `SELECT customer_name, customer_email, customer_phone, customer_address,
+                    registration_number, car_make, car_model, car_year, car_colour,
+                    purchase_date, installer_name, installer_contact, warranty_type,
+                    product_details, product_type, rejection_reason, rejected_by
+               FROM warranty_registrations WHERE uid = ? LIMIT 1`,
+            [warrantyId]
+          );
+          const prior = priorRows?.[0];
+
+          if (prior) {
+            const changes = diffSubmission(
+              prior,
+              {
+                customer_name: warrantyData.customerName,
+                customer_email: warrantyData.customerEmail,
+                customer_phone: warrantyData.customerPhone,
+                customer_address: warrantyData.customerAddress,
+                registration_number: warrantyData.registrationNumber,
+                car_make: warrantyData.carMake,
+                car_model: warrantyData.carModel,
+                car_year: warrantyData.carYear,
+                car_colour: warrantyData.carColour,
+                purchase_date: warrantyData.purchaseDate,
+                installer_name: warrantyData.installerName,
+                installer_contact: warrantyData.installerContact,
+                warranty_type: warrantyData.warrantyType,
+                product_details: warrantyData.productDetails,
+              },
+              prior.product_type
+            );
+
+            const who = req.user?.role === 'customer' ? 'The customer' : 'The franchise';
+
+            await ActivityLogService.log({
+              adminId: req.user?.id || finalUserId || 'unknown',
+              adminName: req.user?.name || undefined,
+              adminEmail: req.user?.email || undefined,
+              actionType: 'WARRANTY_RESUBMITTED',
+              targetType: 'WARRANTY',
+              targetId: warrantyId,
+              targetName: `${warrantyData.customerName} (${warrantyId})`,
+              details: {
+                summary: summariseChanges(changes, who),
+                rejectionReason: prior.rejection_reason || null,
+                rejectedBy: prior.rejected_by || null,
+                resubmittedBy: req.user?.role || 'unknown',
+                changes,
+              },
+              ipAddress: clientIP
+            });
+          }
+        } catch (err: any) {
+          // Never let the record-keeping fail the correction itself.
+          console.error('[Resubmission] Could not log the change set:', err?.message);
+        }
       } else {
-        const [insertResult]: any = await db.execute(
-          `INSERT INTO warranty_registrations 
-          (uid, user_id, product_type, customer_name, customer_email, customer_phone, 
+        /*
+         * The warranty row and the roll draws it creates have to land together:
+         * charging a roll for a warranty that then fails to insert would consume
+         * area no vehicle ever used, and the reverse would let a roll be spent
+         * twice.
+         *
+         * A resubmission never reaches here — it goes to the staging table
+         * above and draws nothing, because the original already charged the
+         * roll and is still holding that area.
+         *
+         * Seat covers declare no rolls, so reserveRolls is never called and the
+         * statement below is the one that always ran; only its connection
+         * differs.
+         */
+        const { insertResult, warrantyId: insertedWarrantyId } = await withRollRetry(() => withTransaction(async (conn) => {
+          let uidForInsert = warrantyId;
+
+          if (isPPF) {
+            uidForInsert = await nextWarrantyUidForRoll(conn, rolls[0].serial);
+          }
+
+          const [ins]: any = await conn.execute(
+          `INSERT INTO warranty_registrations
+          (uid, user_id, product_type, customer_name, customer_email, customer_phone,
            customer_address, registration_number, car_make, car_model, car_year, car_colour,
            purchase_date, installer_name, installer_contact, product_details, manpower_id, warranty_type, status,
            exif_lat, exif_lng, exif_timestamp, exif_device, device_fingerprint, submission_ip, ip_city, ip_region, ip_lat, ip_lng, fraud_score, fraud_flags,
-           seat_cover_photo_url, car_outer_photo_url) 
+           seat_cover_photo_url, car_outer_photo_url)
           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
-            warrantyId, finalUserId, warrantyData.productType, warrantyData.customerName, warrantyData.customerEmail,
+            uidForInsert, finalUserId, warrantyData.productType, warrantyData.customerName, warrantyData.customerEmail,
             warrantyData.customerPhone, warrantyData.customerAddress, warrantyData.registrationNumber,
             warrantyData.carMake || null, warrantyData.carModel || null, warrantyData.carYear,
             warrantyData.carColour || null, warrantyData.purchaseDate,
@@ -550,7 +685,22 @@ export class WarrantyController {
             JSON.stringify(fraudFlags), (warrantyData.productDetails as any)?.photos?.seatCover || null,
             (warrantyData.productDetails as any)?.photos?.vehicle || (warrantyData.productDetails as any)?.photos?.carOuter || null
           ]
-        );
+          );
+
+          if (isPPF) {
+            const check = await reserveRolls(conn, rolls, uidForInsert);
+            if (!check.ok) {
+              // Unwinds the warranty insert above with it.
+              throw new RollUnavailableError(check.error!, check.failedSerial);
+            }
+          }
+
+          return { insertResult: ins, warrantyId: uidForInsert };
+        }));
+
+        // PPF's id was only decided inside the transaction; everything below
+        // refers to this one.
+        warrantyId = insertedWarrantyId;
 
         // Log the action to the immutable analytics_events table. Shared with the
         // QR path so both registration routes record the event the same way.
@@ -734,10 +884,19 @@ export class WarrantyController {
       res.status(201).json({
         success: true,
         message: 'Warranty registration submitted successfully',
-        uid,
-        registrationNumber: uid
+        // `uid` is the seat cover's pre-printed identifier and is null for PPF,
+        // whose identifier is the warranty id decided at insert. Falling back to
+        // it lets both products report what was actually registered.
+        uid: uid || warrantyId,
+        registrationNumber: uid || warrantyId,
+        warrantyId
       });
     } catch (error: any) {
+      // A roll that cannot cover the area asked of it is the installer's to
+      // correct, not an internal fault — it keeps its own message and status.
+      if (error instanceof RollUnavailableError) {
+        return res.status(400).json({ error: error.message, failedSerial: error.failedSerial });
+      }
       console.error('Warranty submission error:', error);
       res.status(500).json({ error: 'Failed to submit warranty registration' });
     }
@@ -1126,11 +1285,15 @@ export class WarrantyController {
       if (isNumericId) {
         // Could be a seat-cover UID (numeric string) OR an EV numeric id.
         // Match uid as an exact string and id as an exact integer — no coercion.
-        checkQuery = 'SELECT id, uid, user_id, status, product_details, manpower_id, installer_name, installer_contact FROM warranty_registrations WHERE uid = CAST(? AS CHAR) OR id = ?';
+        // Every field the resubmission diff compares against, not just the
+        // ones the update itself needs: selecting eight columns left the
+        // rest undefined, so a correction reported every field as having
+        // been empty before it.
+        checkQuery = 'SELECT id, uid, user_id, status, product_details, manpower_id, installer_name, installer_contact, customer_name, customer_email, customer_phone, customer_address, registration_number, car_make, car_model, car_year, car_colour, purchase_date, warranty_type, product_type, rejection_reason, rejected_by FROM warranty_registrations WHERE uid = CAST(? AS CHAR) OR id = ?';
         checkParams = [String(uid), Number(uid)];
       } else {
         // Non-numeric identifier can only be a uid/serial string.
-        checkQuery = 'SELECT id, uid, user_id, status, product_details, manpower_id, installer_name, installer_contact FROM warranty_registrations WHERE uid = ?';
+        checkQuery = 'SELECT id, uid, user_id, status, product_details, manpower_id, installer_name, installer_contact, customer_name, customer_email, customer_phone, customer_address, registration_number, car_make, car_model, car_year, car_colour, purchase_date, warranty_type, product_type, rejection_reason, rejected_by FROM warranty_registrations WHERE uid = ?';
         checkParams = [String(uid)];
       }
 
@@ -1318,6 +1481,66 @@ export class WarrantyController {
           warrantyRecordId
         ]
       );
+
+      /*
+       * Record a resubmission, so the rejection and the fix read as one chain.
+       *
+       * Only when the warranty was rejected: an ordinary edit to a pending
+       * warranty is not somebody answering an objection, and logging those
+       * here would bury the ones that are.
+       *
+       * The rejection reason is copied onto this entry. The UPDATE above
+       * clears it from the warranty row — correctly, it no longer applies —
+       * so without carrying it here a reader would see what changed but not
+       * what was asked for.
+       */
+      if (warranty.status === 'rejected') {
+        try {
+          const changes = diffSubmission(
+            warranty,
+            {
+              customer_name: warrantyData.customerName,
+              customer_email: warrantyData.customerEmail,
+              customer_phone: warrantyData.customerPhone,
+              customer_address: warrantyData.customerAddress,
+              registration_number: warrantyData.registrationNumber,
+              car_make: warrantyData.carMake,
+              car_model: warrantyData.carModel,
+              car_year: warrantyData.carYear,
+              car_colour: warrantyData.carColour,
+              purchase_date: warrantyData.purchaseDate,
+              installer_name: warrantyData.installerName,
+              installer_contact: warrantyData.installerContact,
+              warranty_type: warrantyData.warrantyType,
+              product_details: warrantyData.productDetails,
+            },
+            warranty.product_type
+          );
+
+          const who = req.user?.role === 'customer' ? 'The customer' : 'The franchise';
+
+          await ActivityLogService.log({
+            adminId: req.user?.id || 'unknown',
+            adminName: req.user?.name || undefined,
+            adminEmail: req.user?.email || undefined,
+            actionType: 'WARRANTY_RESUBMITTED',
+            targetType: 'WARRANTY',
+            targetId: warranty.uid,
+            targetName: `${warranty.customer_name} (${warranty.uid})`,
+            details: {
+              summary: summariseChanges(changes, who),
+              rejectionReason: warranty.rejection_reason || null,
+              rejectedBy: warranty.rejected_by || null,
+              resubmittedBy: req.user?.role || 'unknown',
+              changes,
+            },
+            ipAddress: req.ip || req.socket?.remoteAddress
+          });
+        } catch (err: any) {
+          // Never let the record-keeping fail the correction itself.
+          console.error('[Resubmission] Could not log the change set:', err?.message);
+        }
+      }
 
       // --- Notifications ---
       const warrantyUid = warranty.uid;

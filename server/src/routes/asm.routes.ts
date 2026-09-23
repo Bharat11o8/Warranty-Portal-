@@ -35,6 +35,8 @@ router.get('/known-areas', ...adminAuth, requirePermission('leads', 'read'), Asm
 router.get('/leads/list', ...adminAuth, requirePermission('leads', 'read'), AsmController.listLeads);
 router.post('/leads', ...adminAuth, requirePermission('leads', 'write'), AsmController.createLead);
 router.put('/leads/:id', ...adminAuth, requirePermission('leads', 'write'), AsmController.updateLead);
+// Stores for a typed area, for the add form — before a lead exists to key on.
+router.get('/stores-for-area', ...adminAuth, requirePermission('leads', 'read'), AsmController.storesForEnquiry);
 router.get('/leads/:id/stores', ...adminAuth, requirePermission('leads', 'read'), AsmController.leadStores);
 router.post('/leads/:id/send-store', ...adminAuth, requirePermission('leads', 'write'), AsmController.sendLeadStore);
 router.post('/areas', ...adminAuth, requirePermission('leads', 'write'), AsmController.addArea);

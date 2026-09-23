@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import pool from '../config/database.js';
 import { ActivityLogService } from '../services/activity-log.service.js';
 import { clearPurchaseDateWindowCache } from '../services/purchaseDateWindow.service.js';
+import { clearRollCapacityCache } from '../services/ppfRoll.service.js';
 
 export const getSetting = async (req: Request, res: Response) => {
     try {
@@ -42,6 +43,14 @@ const validateSettingValue = (key: string, value: unknown): string | null => {
     if (key === 'purchase_date_window_days' && !/^\d{1,4}$/.test(value.trim())) {
         return 'Purchase date window must be a whole number of days';
     }
+    // Same bounds getRollCapacitySqft() accepts — anything outside them is
+    // silently replaced by the default there, so refuse it here instead.
+    if (key === 'ppf_roll_capacity_sqft') {
+        const n = Number(value.trim());
+        if (value.trim() === '' || !Number.isFinite(n) || n <= 0 || n > 100_000) {
+            return 'Roll capacity must be a number of square feet between 0 and 100,000';
+        }
+    }
     return null;
 };
 
@@ -64,9 +73,10 @@ export const updateSetting = async (req: Request, res: Response) => {
             [key, value, user?.email || 'admin', value, user?.email || 'admin']
         );
 
-        // The window is cached for 30s to keep submissions cheap; drop it here
+        // Both are cached for 30s to keep submissions cheap; drop the cache here
         // so an admin's change applies to the very next registration.
         if (key === 'purchase_date_window_days') clearPurchaseDateWindowCache();
+        if (key === 'ppf_roll_capacity_sqft') clearRollCapacityCache();
 
         res.json({ success: true, message: 'Setting updated successfully' });
 

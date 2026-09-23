@@ -27,9 +27,11 @@ const SETTING_WRITERS: Record<string, express.RequestHandler> = {
     ppf_disclaimer: requirePermission('content_manager', 'write'),
     ppf_claim_process: requirePermission('content_manager', 'write'),
 
-    // How far back a customer may date a purchase on the QR flow. It governs
-    // what the warranty form accepts, so it sits with the form content.
+    // How far back a customer may date a purchase on the QR flow, and how much
+    // film a PPF roll holds. Both govern what the warranty form accepts, so
+    // they sit with the form content.
     purchase_date_window_days: requireAnyPermission(['content_manager', 'warranties'], 'write'),
+    ppf_roll_capacity_sqft: requireAnyPermission(['content_manager', 'warranties'], 'write'),
 
     ecatalogue_flipbook_url: requirePermission('ecatalogue', 'write'),
     ecatalogue_download_url: requirePermission('ecatalogue', 'write'),

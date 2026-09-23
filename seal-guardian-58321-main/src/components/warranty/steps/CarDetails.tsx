@@ -152,11 +152,17 @@ const CarDetails = ({ formData, updateFormData, onNext, onPrev, isEditing }: Car
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
       <div>
-        <h3 className="text-2xl font-semibold mb-2">🚗 Vehicle Information</h3>
-        <p className="text-muted-foreground mb-6">Provide installation and vehicle details</p>
+        <h3 className="text-xl sm:text-2xl font-semibold mb-1 sm:mb-2">🚗 Vehicle Information</h3>
+        <p className="text-sm sm:text-base text-muted-foreground mb-4 sm:mb-6">Provide installation and vehicle details</p>
       </div>
 
-      <div className="grid md:grid-cols-2 gap-4">
+      {/* Two columns on a phone as well as a desktop. Everything here used to
+          stack below md, which put six full-width rows on a screen that shows
+          about three. The registration number and the installation date keep
+          the full width: the first carries a checkbox and a validation line
+          under it, the second a calendar, and neither reads well squeezed into
+          half a phone screen. */}
+      <div className="grid grid-cols-2 items-start gap-x-3 gap-y-4 sm:gap-4">
         <div className="space-y-2">
           <Label htmlFor="carMake">
             Vehicle Make <span className="text-destructive">*</span>
@@ -222,12 +228,12 @@ const CarDetails = ({ formData, updateFormData, onNext, onPrev, isEditing }: Car
           />
         </div>
 
-        <div className="space-y-2">
+        <div className="space-y-2 col-span-2 md:col-span-1">
           <Label htmlFor="carReg">
             Vehicle Registration Number <span className="text-destructive">*</span>
           </Label>
 
-          <div className="flex items-center space-x-2 pb-2">
+          <div className="flex items-start sm:items-center gap-2 pb-2">
             <input
               type="checkbox"
               id="isBrandNewCar"
@@ -240,9 +246,9 @@ const CarDetails = ({ formData, updateFormData, onNext, onPrev, isEditing }: Car
                   updateFormData({ carReg: '' });
                 }
               }}
-              className="w-4 h-4 text-emerald-600 border-gray-300 rounded focus:ring-emerald-500"
+              className="w-4 h-4 shrink-0 mt-0.5 sm:mt-0 text-emerald-600 border-gray-300 rounded focus:ring-emerald-500"
             />
-            <Label htmlFor="isBrandNewCar" className="text-sm font-normal text-slate-600 cursor-pointer">
+            <Label htmlFor="isBrandNewCar" className="text-sm font-normal text-slate-600 cursor-pointer leading-snug">
               Brand new car (No registration number yet)
             </Label>
           </div>
@@ -277,7 +283,7 @@ const CarDetails = ({ formData, updateFormData, onNext, onPrev, isEditing }: Car
           )}
         </div>
 
-        <div className="space-y-2">
+        <div className="space-y-2 col-span-2 md:col-span-1">
           <Label htmlFor="installationDate" className="flex items-center gap-1">
             Installation Date <span className="text-destructive">*</span>
           </Label>
@@ -299,12 +305,20 @@ const CarDetails = ({ formData, updateFormData, onNext, onPrev, isEditing }: Car
         </div>
       </div>
 
-      <div className="flex justify-between">
-        <Button type="button" variant="outline" size="lg" onClick={onPrev}>
-          ← Previous
+      <div className="flex items-center justify-between gap-3 pt-2">
+        <Button
+          type="button"
+          variant="outline"
+          onClick={onPrev}
+          className="flex-1 sm:flex-none h-10 rounded-lg px-4 text-sm font-medium border-slate-200 bg-transparent text-slate-500 shadow-none transition-colors hover:bg-slate-50 hover:text-slate-900"
+        >
+          Previous
         </Button>
-        <Button type="submit" size="lg">
-          Next Step →
+        <Button
+          type="submit"
+          className="flex-1 sm:flex-none h-10 rounded-lg px-5 text-sm font-medium bg-slate-900 text-white transition-colors hover:bg-slate-800"
+        >
+          Next Step
         </Button>
       </div>
     </form>

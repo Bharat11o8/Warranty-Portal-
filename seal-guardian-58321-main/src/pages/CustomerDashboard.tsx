@@ -24,6 +24,7 @@ import {
     PaginationPrevious,
 } from "@/components/ui/pagination";
 import { WarrantySpecSheet } from "@/components/warranty/WarrantySpecSheet";
+import { displaySerial } from "@/lib/ppfRolls";
 
 const CustomerDashboard = () => {
     const { user, loading } = useAuth();
@@ -277,7 +278,7 @@ const CustomerDashboard = () => {
                                             {warranty.product_type === 'seat-cover' ? 'UID' : 'Serial'}
                                         </span>
                                         <span className="font-mono font-bold text-sm text-slate-700">
-                                            {warranty.product_type === 'seat-cover' ? (productDetails.uid || warranty.uid || 'N/A') : (productDetails.serialNumber || warranty.uid || 'N/A')}
+                                            {warranty.product_type === 'seat-cover' ? (productDetails.uid || warranty.uid || 'N/A') : displaySerial(productDetails, warranty.uid)}
                                         </span>
                                     </div>
                                     <div className="flex items-center justify-between p-3 rounded-xl bg-orange-50/50 border border-orange-100">
@@ -744,6 +745,7 @@ const CustomerDashboard = () => {
                         <DialogDescription>Enter the details for your new paint protection film warranty.</DialogDescription>
                     </DialogHeader>
                     <EVProductsForm
+                        embedded
                         isUniversal={false}
                         onSuccess={() => {
                             setCreatingWarranty(null);

@@ -10,6 +10,7 @@ export const WARRANTY_EXPORT_FIELDS = [
     { id: 'productType', label: 'Product Category' },
     { id: 'warrantyType', label: 'Warranty Type' },
     { id: 'uid', label: 'UID / Serial' },
+    { id: 'rollUsage', label: 'PPF Roll Usage' },
     { id: 'status', label: 'Status' },
     { id: 'customerName', label: 'Customer Name' },
     { id: 'customerPhone', label: 'Customer Phone' },
@@ -62,6 +63,18 @@ export const formatWarrantyForExport = (w: any, selectedFields?: string[]) => {
         purchaseDate: w.purchase_date ? formatToIST(w.purchase_date) : 'N/A',
         approvedDate: w.validated_at ? formatToIST(w.validated_at) : 'N/A',
         rejectionReason: w.rejection_reason || 'N/A',
+        /*
+         * Which rolls a PPF job drew on, how much came from each, and where it
+         * went. A seat cover has none, and a PPF warranty filed before rolls
+         * were tracked falls back to the single serial and area it recorded.
+         */
+        rollUsage: Array.isArray(productDetails.rolls) && productDetails.rolls.length > 0
+            ? productDetails.rolls
+                .map((r: any) => `${r.serial} (${r.sqft} sq.ft${r.installArea ? ` - ${r.installArea}` : ''})`)
+                .join('; ')
+            : (w.product_type === 'ev-products'
+                ? [productDetails.serialNumber, productDetails.installArea].filter(Boolean).join(' - ') || 'N/A'
+                : 'N/A'),
     };
 
     // Documentation Links

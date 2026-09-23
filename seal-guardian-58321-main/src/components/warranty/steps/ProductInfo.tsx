@@ -1,16 +1,23 @@
 import { useState, useEffect } from "react";
 import api from "@/lib/api";
 import { Button } from "@/components/ui/button";
-import { Loader2, CheckCircle2, FileText, AlertTriangle } from "lucide-react";
+import { Loader2, AlertTriangle, Plus, Trash2, Check, Camera, Image as ImageIcon } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Combobox } from "@/components/ui/combobox";
 import { Checkbox } from "@/components/ui/checkbox";
-import { EVFormData } from "../EVProductsForm";
+import { EVFormData, PPFRoll } from "../EVProductsForm";
 import { useToast } from "@/hooks/use-toast";
 import { TermsModal } from "../TermsModal";
 import { compressImage, isCompressibleImage } from "@/lib/imageCompression";
+import {
+  getRollsError,
+  normalizeSerial,
+  normalizeSqft,
+  SERIAL_MIN_LENGTH,
+  SERIAL_MAX_LENGTH,
+} from "@/lib/ppfRolls";
 
 interface ProductInfoProps {
   formData: EVFormData;
@@ -32,7 +39,10 @@ const PHOTO_FIELDS = [
   { field: 'rhsPhoto', photoKey: 'rhs', label: 'Right Hand Side' },
   { field: 'frontRegPhoto', photoKey: 'frontReg', label: 'Front with Reg. No.' },
   { field: 'backRegPhoto', photoKey: 'backReg', label: 'Back with Reg. No.' },
-  { field: 'warrantyPhoto', photoKey: 'warranty', label: 'Warranty Card (Dealer Stamp)', fullWidth: true },
+  /* The field and storage key stay `warranty`: they name the column this photo
+     has always been kept in, and renaming them would orphan every warranty
+     already holding one. Only what the installer reads has changed. */
+  { field: 'warrantyPhoto', photoKey: 'warranty', label: 'Invoice with Dealer Stamp' },
 ] as const;
 
 /** Existing photos are stored either as a full URL or a bare filename. */
@@ -62,35 +72,115 @@ const PhotoField = ({
 }) => {
   const keepingExisting = Boolean(existingUrl) && !file;
 
+  /*
+   * The browser's own file input renders "Choose File" plus the filename, and
+   * neither can be styled or shortened. In a half-width column on a phone that
+   * came out as "Choose File  No...sen" — a control that says nothing. The
+   * inputs are therefore hidden and driven by the labels that point at them.
+   *
+   * There are two, because `capture` is a property of the input and not of the
+   * click: an input carrying it opens the camera, one without it opens the
+   * gallery, and a single input cannot do both. The installer is standing at
+   * the car with the film just fitted, so the camera is offered first.
+   */
+  const chosenName = file?.name ?? null;
+  const cameraId = `${field}-camera`;
+  const galleryId = `${field}-gallery`;
+
   return (
-    <div className={`space-y-2 ${fullWidth ? 'md:col-span-2' : ''}`}>
-      <Label htmlFor={field}>
+    <div className={`space-y-1.5 ${fullWidth ? 'col-span-2' : ''}`}>
+      <Label className="text-xs sm:text-sm">
         {label} {!existingUrl && <span className="text-destructive">*</span>}
       </Label>
 
       {keepingExisting && (
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
           <a
             href={photoSrc(existingUrl!)}
             target="_blank"
             rel="noopener noreferrer"
-            className="w-24 h-24 rounded-lg overflow-hidden border-2 border-emerald-100 shadow-sm shrink-0"
+            className="w-10 h-10 rounded-lg overflow-hidden border-2 border-emerald-100 shadow-sm shrink-0"
           >
             <img src={photoSrc(existingUrl!)} alt={`Existing ${label}`} className="w-full h-full object-cover" />
           </a>
-          <p className="text-xs text-emerald-600 font-medium">
-            ✓ Already uploaded — only choose a file if you want to replace it.
+          <p className="text-[11px] text-emerald-600 font-medium leading-snug">
+            Uploaded — add a photo only to replace it.
           </p>
         </div>
       )}
 
-      <Input
-        id={field}
+      {/* Once a photo is chosen the name of it is worth more than the two
+          buttons, so the tile becomes a single control that reopens the
+          camera; the gallery stays available beside it. */}
+      {chosenName ? (
+        <div className="flex items-center gap-1.5">
+          <label
+            htmlFor={cameraId}
+            className={`flex h-10 min-w-0 flex-1 items-center gap-2 rounded-md border border-emerald-300 bg-emerald-50/50 px-2.5 ${
+              loading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:bg-emerald-50'
+            }`}
+          >
+            <Check className="h-4 w-4 text-emerald-600 shrink-0" />
+            <span className="text-xs font-medium text-emerald-700 truncate">{chosenName}</span>
+          </label>
+          <label
+            htmlFor={galleryId}
+            aria-label={`Choose a different file for ${label}`}
+            className={`flex h-10 w-9 shrink-0 items-center justify-center rounded-md border border-input bg-background ${
+              loading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:bg-slate-50'
+            }`}
+          >
+            <ImageIcon className="h-4 w-4 text-slate-400" />
+          </label>
+        </div>
+      ) : (
+        <div className="flex items-center gap-1.5">
+          <label
+            htmlFor={cameraId}
+            className={`flex h-10 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-md border border-input bg-background ${
+              loading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:bg-slate-50'
+            }`}
+          >
+            <Camera className="h-4 w-4 text-slate-500 shrink-0" />
+            <span className="text-xs text-muted-foreground">Camera</span>
+          </label>
+          <label
+            htmlFor={galleryId}
+            className={`flex h-10 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-md border border-input bg-background ${
+              loading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:bg-slate-50'
+            }`}
+          >
+            <ImageIcon className="h-4 w-4 text-slate-500 shrink-0" />
+            <span className="text-xs text-muted-foreground">Gallery</span>
+          </label>
+        </div>
+      )}
+
+      {/*
+       * `capture` asks a phone for the camera directly. A desktop browser has
+       * no camera to open and ignores it, falling back to the file dialog, so
+       * the pair is safe to render everywhere.
+       *
+       * Neither input is `required`: they are visually hidden, and a hidden
+       * required field makes Chrome refuse to submit the form without showing
+       * why. handleSubmit checks all five photos and names the missing one.
+       */}
+      <input
+        id={cameraId}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        onChange={(e) => onChange(field, e.target.files?.[0] || null)}
+        disabled={loading}
+        className="sr-only"
+      />
+      <input
+        id={galleryId}
         type="file"
         accept="image/*"
         onChange={(e) => onChange(field, e.target.files?.[0] || null)}
-        required={!existingUrl}
         disabled={loading}
+        className="sr-only"
       />
     </div>
   );
@@ -102,6 +192,25 @@ const ProductInfo = ({ formData, updateFormData, onPrev, onSubmit, loading, exis
   const [termsModalOpen, setTermsModalOpen] = useState(false);
   const [compressing, setCompressing] = useState(false);
   const [disclaimer, setDisclaimer] = useState("");
+  /**
+   * The serial the server last refused, so its row can be marked.
+   *
+   * Only the server knows how much of a roll is left, and it does not say —
+   * the form can show which entry was rejected but never what remains.
+   */
+  const [failedSerial, setFailedSerial] = useState<string | null>(null);
+
+  const updateRoll = (index: number, changes: Partial<PPFRoll>) => {
+    const next = formData.rolls.map((roll, i) => (i === index ? { ...roll, ...changes } : roll));
+    // The marking is stale the moment the installer edits either field.
+    setFailedSerial(null);
+    updateFormData({ rolls: next });
+  };
+
+  const addRoll = () => updateFormData({ rolls: [...formData.rolls, { serial: "", sqft: "", installArea: "" }] });
+
+  const removeRoll = (index: number) =>
+    updateFormData({ rolls: formData.rolls.filter((_, i) => i !== index) });
 
   useEffect(() => {
     api.get('/settings/public/ppf_disclaimer')
@@ -192,10 +301,12 @@ const ProductInfo = ({ formData, updateFormData, onPrev, onSubmit, loading, exis
       return;
     }
 
-    if (!formData.installArea) {
-      toast({ title: "Installation Area Required", description: "Please enter the area of installation", variant: "destructive" });
+    const rollError = getRollsError(formData.rolls);
+    if (rollError) {
+      toast({ title: "Roll Details", description: rollError, variant: "destructive" });
       return;
     }
+
     if (!formData.lhsPhoto && !existingPhotos?.lhs) {
       toast({ title: "LHS Photo Required", description: "Please upload left hand side photo", variant: "destructive" });
       return;
@@ -213,7 +324,7 @@ const ProductInfo = ({ formData, updateFormData, onPrev, onSubmit, loading, exis
       return;
     }
     if (!formData.warrantyPhoto && !existingPhotos?.warranty) {
-      toast({ title: "Warranty Card Required", description: "Please upload warranty card photo with dealer stamp", variant: "destructive" });
+      toast({ title: "Invoice Required", description: "Please upload the invoice photo with the dealer stamp", variant: "destructive" });
       return;
     }
     if (!formData.termsAccepted) {
@@ -227,11 +338,15 @@ const ProductInfo = ({ formData, updateFormData, onPrev, onSubmit, loading, exis
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
       <div>
-        <h3 className="text-2xl font-semibold mb-2">📦 Product & Documentation</h3>
-        <p className="text-muted-foreground mb-6">Select product details and upload required photos</p>
+        <h3 className="text-xl sm:text-2xl font-semibold mb-1 sm:mb-2">📦 Product & Documentation</h3>
+        <p className="text-sm sm:text-base text-muted-foreground mb-4 sm:mb-6">Select product details and upload required photos</p>
       </div>
 
-      <div className="grid md:grid-cols-2 gap-4">
+      {/* The warranty type is read-only and reads "7 years", so it sits beside
+          the product rather than taking a row of its own. The split is uneven
+          on a phone: the product name is long enough to truncate at half a
+          screen, and the type has nothing to do with the spare width. */}
+      <div className="grid grid-cols-[1.6fr_1fr] sm:grid-cols-2 gap-x-3 gap-y-4 sm:gap-4">
         <div className="space-y-2">
           <Label htmlFor="product">
             Select Product <span className="text-destructive">*</span>
@@ -258,55 +373,143 @@ const ProductInfo = ({ formData, updateFormData, onPrev, onSubmit, loading, exis
             readOnly
             className="bg-muted"
           />
-          <p className="text-xs text-muted-foreground">
-            Default warranty period for PPF products
+        </div>
+
+
+
+      </div>
+
+      {/* Rolls — a roll is fitted across several vehicles, and one vehicle may
+          take film from more than one roll, so each entry records a serial, the
+          area taken from it, and the part of the car that film went on. The
+          area belongs to the roll: film from two rolls goes to two different
+          panels, which one field for the whole job could not describe. */}
+      <div className="space-y-2">
+        <div>
+          <Label>
+            Roll Serial Number & Usage <span className="text-destructive">*</span>
+          </Label>
+          <p className="text-xs text-muted-foreground mt-1">
+            Add one entry per roll used on this vehicle.
           </p>
         </div>
 
-
-
-        <div className="space-y-2">
-          <Label htmlFor="serialNumber">
-            Serial Number <span className="text-destructive">*</span>
-          </Label>
-          <Input
-            id="serialNumber"
-            type="text"
-            placeholder="8–10 character serial number"
-            value={formData.serialNumber}
-            onChange={(e) => {
-              const val = e.target.value.replace(/[^a-zA-Z0-9]/g, '').slice(0, 10);
-              updateFormData({ serialNumber: val });
-            }}
-            required
-            maxLength={10}
-            disabled={loading}
-            className={formData.serialNumber.length > 0 && (formData.serialNumber.length < 8 || formData.serialNumber.length > 10) ? 'border-red-400 focus-visible:ring-red-300' : ''}
-          />
-          <div className="flex justify-between text-xs px-0.5">
-            <span className={formData.serialNumber.length > 0 && formData.serialNumber.length < 8 ? 'text-red-500' : 'text-muted-foreground'}>
-              {formData.serialNumber.length > 0 && formData.serialNumber.length < 8 ? `${8 - formData.serialNumber.length} more characters needed` : 'Alphanumeric only'}
-            </span>
-            <span className="text-muted-foreground">{formData.serialNumber.length}/10</span>
-          </div>
+        {/* Column headings, so the three inputs below need no labels of their
+            own. Hidden once the rows stack, where each field is full width and
+            its placeholder is the label. */}
+        <div className="hidden md:grid gap-2 md:grid-cols-[minmax(0,15rem)_minmax(0,8.5rem)_minmax(0,1.2fr)_2.5rem] px-0.5">
+          <span className="text-xs font-medium text-muted-foreground">Serial number</span>
+          <span className="text-xs font-medium text-muted-foreground">Film used</span>
+          <span className="text-xs font-medium text-muted-foreground">Area of installation</span>
+          <span aria-hidden />
         </div>
 
-        <div className="space-y-2">
-          <Label htmlFor="installArea">
-            Area of Installation <span className="text-destructive">*</span>
-          </Label>
-          <Input
-            id="installArea"
-            type="text"
-            placeholder="e.g., Full Body, Hood, etc."
-            value={formData.installArea}
-            onChange={(e) => {
-              const val = e.target.value.replace(/[0-9]/g, '');
-              updateFormData({ installArea: val });
-            }}
-            required
+        {formData.rolls.map((roll, index) => {
+          const serialTooShort = roll.serial.length > 0 && roll.serial.length < SERIAL_MIN_LENGTH;
+          const isFailed = failedSerial != null && roll.serial === failedSerial;
+
+          return (
+            <div key={index} className="space-y-1">
+              {/* One row on a desktop: serial, area used, panel, and the delete
+                  control at the end rather than on a line of its own. On a
+                  phone it folds to two — the serial and the sq.ft it gave up
+                  on top, the panel that film went on beneath — which keeps
+                  every field wide enough to read what was typed into it. */}
+              <div className="grid grid-cols-[minmax(0,1fr)_7rem_auto] items-center gap-2 md:grid-cols-[minmax(0,15rem)_minmax(0,8.5rem)_minmax(0,1.2fr)_2.5rem]">
+                <Input
+                  id={`roll-serial-${index}`}
+                  aria-label={`Serial number${formData.rolls.length > 1 ? ` for roll ${index + 1}` : ''}`}
+                  type="text"
+                  placeholder="Serial number"
+                  value={roll.serial}
+                  onChange={(e) => updateRoll(index, { serial: normalizeSerial(e.target.value) })}
+                  maxLength={SERIAL_MAX_LENGTH}
+                  disabled={loading}
+                  className={`font-mono ${serialTooShort || isFailed ? 'border-red-400 focus-visible:ring-red-300' : ''}`}
+                />
+
+                {/* The unit is attached to the field rather than floated over
+                    it: overlaid, a long enough number slides underneath the
+                    word and both become unreadable. */}
+                <div
+                  className={`flex h-10 items-center rounded-md border bg-background ring-offset-background overflow-hidden focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2 ${
+                    isFailed ? 'border-red-400 focus-within:ring-red-300' : 'border-input'
+                  } ${loading ? 'opacity-50' : ''}`}
+                >
+                  <Input
+                    id={`roll-sqft-${index}`}
+                    aria-label={`Square feet used${formData.rolls.length > 1 ? ` from roll ${index + 1}` : ''}`}
+                    type="text"
+                    inputMode="decimal"
+                    placeholder="Used"
+                    value={roll.sqft}
+                    onChange={(e) => updateRoll(index, { sqft: normalizeSqft(e.target.value) })}
+                    disabled={loading}
+                    className="border-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 text-right pr-1.5 min-w-0"
+                  />
+                  <span className="pr-3 pl-0 text-xs text-muted-foreground shrink-0 select-none">
+                    sq.ft
+                  </span>
+                </div>
+
+                <Input
+                  id={`roll-area-${index}`}
+                  aria-label={`Area of installation${formData.rolls.length > 1 ? ` for roll ${index + 1}` : ''}`}
+                  type="text"
+                  placeholder="Where was it applied?"
+                  value={roll.installArea}
+                  onChange={(e) => updateRoll(index, { installArea: e.target.value })}
+                  disabled={loading}
+                  className="col-span-3 row-start-2 md:col-span-1 md:row-start-auto"
+                />
+
+                {/* The first row is the entry itself, not an addition, so there
+                    is nothing to remove until a second roll is added. The slot
+                    is still reserved, or every row would shift sideways the
+                    moment one appeared. */}
+                {formData.rolls.length > 1 ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => removeRoll(index)}
+                    disabled={loading}
+                    aria-label={`Remove roll ${index + 1}`}
+                    className="h-9 w-9 shrink-0 text-muted-foreground hover:text-destructive justify-self-center col-start-3 row-start-1 md:col-start-auto md:row-start-auto"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                ) : <span className="col-start-3 row-start-1 w-0 md:col-start-auto md:row-start-auto md:w-auto" aria-hidden />}
+              </div>
+
+              {/* Only speaks up when the serial is short of its minimum — a
+                  character counter under every row is noise once the habit is
+                  formed. */}
+              {serialTooShort && (
+                <p className="text-xs text-red-500 px-0.5">
+                  Serial needs {SERIAL_MIN_LENGTH - roll.serial.length} more character{SERIAL_MIN_LENGTH - roll.serial.length === 1 ? '' : 's'}
+                </p>
+              )}
+            </div>
+          );
+        })}
+
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={addRoll}
             disabled={loading}
-          />
+            className="gap-1.5 mt-1 shrink-0"
+          >
+            <Plus className="h-4 w-4" />
+            Add another roll
+          </Button>
+          <p className="text-xs text-muted-foreground mt-1 leading-snug">
+            Using more than one roll? Enter the sq.ft taken from each one — the
+            amounts are deducted from that roll separately.
+          </p>
         </div>
       </div>
 
@@ -321,10 +524,13 @@ const ProductInfo = ({ formData, updateFormData, onPrev, onSubmit, loading, exis
         </div>
       )}
 
-      <div className="space-y-4 mt-8">
-        <h4 className="text-lg font-semibold">📸 Photo Documentation</h4>
+      <div className="space-y-3 sm:space-y-4 mt-6 sm:mt-8">
+        <h4 className="text-base sm:text-lg font-semibold">📸 Photo Documentation</h4>
 
-        <div className="grid md:grid-cols-2 gap-4">
+        {/* Two across at every width. Five full-width pickers, each with a
+            label above it, ran well past the bottom of a phone screen; paired,
+            the five take three rows. */}
+        <div className="grid grid-cols-2 gap-x-3 gap-y-3 sm:gap-4">
           {PHOTO_FIELDS.map(({ field, photoKey, label, fullWidth }) => (
             <PhotoField
               key={field}
@@ -339,8 +545,8 @@ const ProductInfo = ({ formData, updateFormData, onPrev, onSubmit, loading, exis
           ))}
         </div>
 
-        <p className="text-sm text-muted-foreground">
-          Maximum file size: 5 MB per image. Accepted formats: JPG, PNG, HEIC
+        <p className="text-xs text-muted-foreground leading-snug">
+          Max 5 MB per image · JPG, PNG or HEIC
         </p>
       </div>
 
@@ -368,17 +574,31 @@ const ProductInfo = ({ formData, updateFormData, onPrev, onSubmit, loading, exis
         </div>
       </div>
 
-      <div className="flex justify-between">
-        <Button type="button" variant="outline" size="lg" onClick={onPrev}>
-          ← Previous
+      <div className="flex items-center justify-between gap-3 pt-2">
+        <Button
+          type="button"
+          variant="outline"
+          onClick={onPrev}
+          className="flex-1 sm:flex-none h-10 rounded-lg px-4 text-sm font-medium border-slate-200 bg-transparent text-slate-500 shadow-none transition-colors hover:bg-slate-50 hover:text-slate-900"
+        >
+          Previous
         </Button>
-        <Button type="submit" size="lg" disabled={loading || !formData.termsAccepted}>
+        <Button
+          type="submit"
+          disabled={loading || !formData.termsAccepted}
+          className="flex-[1.6] sm:flex-none h-10 rounded-lg px-5 text-sm font-medium bg-slate-900 text-white transition-colors hover:bg-slate-800 disabled:bg-slate-200 disabled:text-slate-400"
+        >
           {loading ? (
             <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Submitting...
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Submitting…
             </>
-          ) : "Submit Registration"}
+          ) : (
+            <>
+              Submit
+              <span className="hidden sm:inline">Registration</span>
+            </>
+          )}
         </Button>
       </div>
 

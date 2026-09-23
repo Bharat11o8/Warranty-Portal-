@@ -15,6 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import api, { getErrorMessage } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
+import { displaySerial } from "@/lib/ppfRolls";
 
 interface WarrantySpecSheetProps {
     isOpen: boolean;
@@ -319,9 +320,37 @@ export const WarrantySpecSheet = ({ isOpen, onClose, warranty, isAdmin, onRefres
                                 {/* EV/PPF Specific Fields */}
                                 {warranty.product_type !== 'seat-cover' && (
                                     <>
-                                        <SpecRow label="Serial Number" value={productDetails.serialNumber || warranty.uid || "N/A"} mono editField="serial_number" />
-                                        {productDetails.installArea && (
-                                            <SpecRow label="Installation Area" value={productDetails.installArea} />
+                                        {/* A warranty that draws on rolls shows them read-only: the
+                                            serials are recorded in the roll ledger, so editing one
+                                            here would leave the two disagreeing about which roll
+                                            gave up the film. */}
+                                        {Array.isArray(productDetails.rolls) && productDetails.rolls.length > 0 ? (
+                                            /* One line per roll. A comma-joined list would lose which
+                                               area belongs to which serial, and that pairing is the
+                                               point of recording the area per roll. */
+                                            <SpecRow
+                                                label={productDetails.rolls.length > 1 ? "Rolls Used" : "Roll Used"}
+                                                value={
+                                                    <span className="flex flex-col items-end gap-1">
+                                                        {productDetails.rolls.map((roll: any, i: number) => (
+                                                            <span key={i} className="flex flex-wrap justify-end gap-x-1.5">
+                                                                <span className="font-mono tracking-tight">{roll.serial}</span>
+                                                                <span className="text-muted-foreground">
+                                                                    · {roll.sqft} sq.ft
+                                                                    {roll.installArea ? ` · ${roll.installArea}` : ''}
+                                                                </span>
+                                                            </span>
+                                                        ))}
+                                                    </span>
+                                                }
+                                            />
+                                        ) : (
+                                            <>
+                                                <SpecRow label="Serial Number" value={displaySerial(productDetails, warranty.uid)} mono editField="serial_number" />
+                                                {productDetails.installArea && (
+                                                    <SpecRow label="Installation Area" value={productDetails.installArea} />
+                                                )}
+                                            </>
                                         )}
                                     </>
                                 )}

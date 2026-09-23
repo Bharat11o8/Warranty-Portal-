@@ -21,7 +21,8 @@ import {
     ArrowUpDown,
     Check,
     X,
-    Loader2
+    Loader2,
+    RotateCcw
 } from "lucide-react";
 import {
     Select,
@@ -108,6 +109,10 @@ export const AdminWarranties = () => {
 
     // Advanced Filter State
     const [productTypeFilter, setProductTypeFilter] = useState("all");
+    /* Narrows whatever tab is open to the ones already rejected once, rather
+       than being a tab of its own — a resubmitted warranty is genuinely
+       pending, and moving it out would make the count disagree with the list. */
+    const [resubmittedOnly, setResubmittedOnly] = useState(false);
     const [selectedMake, setSelectedMake] = useState<string>('all');
     const [selectedModel, setSelectedModel] = useState<string>('all');
     const [dateRange, setDateRange] = useState<DateRange | undefined>();
@@ -169,6 +174,7 @@ export const AdminWarranties = () => {
         setSelectedMake('all');
         setSelectedModel('all');
         setDateRange(undefined);
+        setResubmittedOnly(false);
         setSearch("");
         setCurrentPage(1);
     };
@@ -176,7 +182,7 @@ export const AdminWarranties = () => {
     // Reset pagination when filters change
     useEffect(() => {
         setCurrentPage(1);
-    }, [statusFilter, productTypeFilter, selectedMake, selectedModel, dateRange, search]);
+    }, [statusFilter, productTypeFilter, selectedMake, selectedModel, dateRange, search, resubmittedOnly]);
 
     useEffect(() => {
         const timer = window.setTimeout(() => setDebouncedSearch(search.trim()), 350);
@@ -194,6 +200,8 @@ export const AdminWarranties = () => {
             sort_by: sortConfig.field,
             sort_order: sortConfig.order
         });
+
+        if (resubmittedOnly) params.set('resubmitted', 'true');
 
         if (debouncedSearch) params.set('search', debouncedSearch);
         if (dateRange?.from) {
@@ -233,7 +241,7 @@ export const AdminWarranties = () => {
         fetchWarranties();
         // The individual values intentionally drive a new server request.
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [currentPage, statusFilter, productTypeFilter, selectedMake, selectedModel, dateRange, debouncedSearch, sortConfig.field, sortConfig.order]);
+    }, [currentPage, statusFilter, productTypeFilter, selectedMake, selectedModel, dateRange, debouncedSearch, resubmittedOnly, sortConfig.field, sortConfig.order]);
 
     const fetchWarranties = async (isRefresh = false) => {
         setLoading(true);
@@ -521,6 +529,26 @@ export const AdminWarranties = () => {
                                 ))}
                             </SelectContent>
                         </Select>
+                    </div>
+
+                    {/* Resubmitted — a toggle rather than a dropdown: there are
+                        only two answers, and the off state is "everything",
+                        which is what every other filter here already means. */}
+                    <div className="relative z-10">
+                        <Button
+                            variant="outline"
+                            onClick={() => setResubmittedOnly(v => !v)}
+                            aria-pressed={resubmittedOnly}
+                            className={cn(
+                                "h-11 justify-start text-left font-bold text-xs rounded-2xl shadow-sm transition-colors",
+                                resubmittedOnly
+                                    ? "bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-50 hover:border-blue-300"
+                                    : "bg-white border-orange-100 text-slate-500 hover:bg-white hover:border-orange-200"
+                            )}
+                        >
+                            <RotateCcw className={cn("mr-3 h-4 w-4", resubmittedOnly ? "text-blue-600" : "text-orange-500")} />
+                            Resubmitted only
+                        </Button>
                     </div>
 
                     {/* Date Range Picker */}

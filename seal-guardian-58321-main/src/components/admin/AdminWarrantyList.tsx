@@ -6,6 +6,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn, getWarrantyExpiration, formatToIST } from "@/lib/utils";
 import { WarrantySpecSheet } from "@/components/warranty/WarrantySpecSheet";
+import { displaySerial } from "@/lib/ppfRolls";
 import {
     Check,
     Download,
@@ -23,8 +24,10 @@ import {
     Wifi,
     Clock,
     ChevronUp,
-    RefreshCw
+    RefreshCw,
+    RotateCcw
 } from "lucide-react";
+import { WarrantyHistory } from "./WarrantyHistory";
 
 function haversineDistance(lat1: number, lng1: number, lat2: number, lng2: number): number {
     const R = 6371; // Earth's radius in km
@@ -226,6 +229,28 @@ export const AdminWarrantyList = ({
                                     {/* Desktop Dates */}
                                     <p className="hidden md:block text-sm text-muted-foreground mt-1">
                                         Registered on {formatToIST(warranty.created_at)}
+                                        {/*
+                                          * Rejected once, corrected, and waiting again.
+                                          *
+                                          * There is no status for this: resubmitting returns the
+                                          * warranty to the ordinary queue, so it sits among
+                                          * registrations nobody has ever looked at. What marks it
+                                          * out is rejected_at surviving that move.
+                                          *
+                                          * A tag rather than a tab, so the pending count keeps
+                                          * meaning what it says.
+                                          *
+                                          * Only while it is waiting. Two hundred and fifty-nine
+                                          * approved warranties were also rejected once; that is
+                                          * history, not something the reviewer needs flagged.
+                                          */}
+                                        {warranty.rejected_at
+                                            && (warranty.status === 'pending' || warranty.status === 'pending_vendor') && (
+                                            <span className="ml-2 inline-flex items-center gap-1 rounded-full bg-blue-50 border border-blue-200 px-2 py-0.5 text-[10px] font-bold text-blue-700 align-middle">
+                                                <RotateCcw className="h-3 w-3" />
+                                                Resubmitted
+                                            </span>
+                                        )}
                                     </p>
                                     {warranty.status === 'validated' && expirationDate && (
                                         <p className="hidden md:block text-sm text-muted-foreground mt-0.5">
@@ -387,7 +412,7 @@ export const AdminWarrantyList = ({
                                 {warranty.product_type !== 'seat-cover' && (
                                     <div>
                                         <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-1">Serial Number</p>
-                                        <p className="font-mono text-sm font-semibold">{productDetails.serialNumber || warranty.uid || 'N/A'}</p>
+                                        <p className="font-mono text-sm font-semibold">{displaySerial(productDetails, warranty.uid)}</p>
                                     </div>
                                 )}
 
@@ -504,6 +529,10 @@ export const AdminWarrantyList = ({
                                     <p className="text-sm text-red-600">{warranty.rejection_reason || 'N/A'}</p>
                                 </div>
                             )}
+
+                            {/* The rejection-and-fix chain, for a warranty that has
+                                one. Renders nothing on a first-time submission. */}
+                            <WarrantyHistory uid={warranty.uid} />
 
                             {/* Fraud Details Panel (Toggle with badge click) */}
                             {expandedFraud.has(warranty.uid || warranty.id) && warranty.fraud_score !== undefined && (() => {

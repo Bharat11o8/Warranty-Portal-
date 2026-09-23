@@ -111,11 +111,23 @@ const seatCoverDetailsSchema = z.object({
 });
 
 // EV Products (PPF) details schema
+//
+// This asked for a lotNumber and a rollNumber that the form has never sent, so
+// every PPF submission failed this branch of the union and fell through to the
+// permissive record fallback below — leaving PPF effectively unvalidated. It
+// now describes what is actually submitted: the rolls drawn on, each with the
+// area taken from it.
+const ppfRollSchema = z.object({
+    serial: z.string().min(1, 'Serial number is required'),
+    sqft: z.coerce.number().positive('Area used must be greater than zero'),
+    // Which part of the car this roll's film went on. Per roll rather than per
+    // vehicle: film from two rolls goes on two different panels.
+    installArea: z.string().min(1, 'Area of installation is required'),
+});
+
 const evProductDetailsSchema = z.object({
     product: z.string().min(1, 'Product is required'),
-    lotNumber: z.string().min(1, 'Lot number is required'),
-    rollNumber: z.string().min(1, 'Roll number is required'),
-    installArea: z.string().optional(),
+    rolls: z.array(ppfRollSchema).min(1, 'At least one serial number is required'),
     manpowerId: z.string().optional(),
     manpowerName: z.string().optional(),
     customerAddress: z.string().optional(),
