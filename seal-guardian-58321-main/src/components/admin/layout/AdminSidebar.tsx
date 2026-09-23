@@ -1,30 +1,13 @@
 import { cn } from "@/lib/utils";
 import {
-    LayoutDashboard,
-    ShieldCheck,
-    Store,
-    Users,
-    UserCog,
-    Archive,
     LogOut,
     ChevronRight,
     ChevronLeft,
     User,
-    MessageSquare,
-    Package,
-    PenTool,
-    FileText,
-    Megaphone,
-    BookOpen,
-    Crown,
-    Network,
-    Building2,
-    BellRing,
-    Layers,
-    ClipboardCheck,
-    MapPin
+    Crown
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
+import { ADMIN_MENU_GROUPS, canSeeAdminModule, type AdminModule } from "./adminModules";
 import { useNotifications } from "@/contexts/NotificationContext";
 import { Button } from "@/components/ui/button";
 import {
@@ -34,34 +17,8 @@ import {
     TooltipTrigger,
 } from "@/components/ui/tooltip";
 
-export type AdminModule =
-    | 'overview'
-    | 'vendors'
-    | 'distributors'
-    | 'manpower'
-    | 'customers'
-    | 'products'
-    | 'warranty-products'
-    | 'warranties'
-    | 'old-warranties'
-    | 'admins'
-    | 'activity-logs'
-    | 'grievances'
-    | 'terms'
-    | 'content-manager'
-    | 'warranty-form'
-    | 'announcements'
-    | 'notification-settings'
-    | 'posm'
-    | 'uid-management'
-    | 'ppf-rolls'
-    | 'ecatalogue'
-    | 'analytics'
-    | 'order-management'
-    | 'franchise-distributor-map'
-    | 'audits'
-    | 'leads'
-    | 'profile';
+
+export type { AdminModule } from "./adminModules";
 
 interface SidebarItemProps {
     icon: any;
@@ -136,38 +93,6 @@ interface AdminSidebarProps {
     onToggleCollapse?: () => void;
 }
 
-// Maps sidebar module IDs to permission keys
-const moduleToPermKey: Record<string, string> = {
-    'overview': 'overview',
-    'warranties': 'warranties',
-    'warranty-products': 'warranty_products',
-    'uid-management': 'uid_management',
-    // Roll usage is warranty data, so it follows the warranties permission
-    // rather than introducing a key nobody has been granted yet.
-    'ppf-rolls': 'warranties',
-    'warranty-form': 'warranty_form',
-    'vendors': 'vendors',
-    'manpower': 'vendors',
-    'customers': 'customers',
-    'products': 'products',
-    'announcements': 'announcements',
-    'notification-settings': 'announcements',
-    'grievances': 'grievances',
-    'posm': 'posm',
-    'ecatalogue': 'ecatalogue',
-    'terms': 'terms',
-    'old-warranties': 'old_warranties',
-    'activity-logs': 'activity_logs',
-    'admins': 'admins',   // Super Admin only
-    'analytics': 'analytics',
-    'distributors': 'distributors',
-    'content-manager': 'content_manager',
-    'order-management': 'order_management',
-    'franchise-distributor-map': 'distributors',
-    'audits': 'audits',
-    'leads': 'leads',
-    'profile': 'profile',  // Always visible
-};
 
 // Extracted Sidebar Content for reuse in Mobile Sheet
 export const SidebarContent = ({
@@ -183,91 +108,16 @@ export const SidebarContent = ({
     // const unreadWarranties = notifications.filter(n => !n.is_read && n.type === 'warranty').length;
     const unreadGrievances = notifications.filter(n => !n.is_read && n.type === 'grievance').length;
 
-    // Helper: can this admin see a given module?
-    const canSeeModule = (moduleId: string): boolean => {
-        if (moduleId === 'profile') return true;      // always visible
-        if (moduleId === 'admins') return !!user?.isSuperAdmin; // Super Admin only
-        if (user?.isSuperAdmin) return true;          // super admin sees all
-        const permKey = moduleToPermKey[moduleId];
-        if (!permKey) return true;
-        return hasPermission(permKey, 'read');
-    };
-
-    // Define menu items inside the component or outside if static
-    const allMenuGroups = [
-        {
-            label: "Insights",
-            items: [
-                { id: 'overview' as const, label: "Overview", icon: LayoutDashboard },
-                { id: 'analytics' as const, label: "Deep Analytics", icon: MessageSquare },
-            ]
-        },
-        {
-            label: "Warranty Operations",
-            items: [
-                {
-                    id: 'warranties' as const,
-                    label: "Warranty Management",
-                    icon: ShieldCheck,
-                    // badge: unreadWarranties > 0 ? unreadWarranties.toString() : undefined
-                },
-
-                { id: 'warranty-products' as const, label: "Warranty Products", icon: Store },
-                { id: 'uid-management' as const, label: "UID Management", icon: Package },
-                { id: 'ppf-rolls' as const, label: "Serial Number Management", icon: Layers },
-                { id: 'warranty-form' as const, label: "New Registration", icon: PenTool },
-                { id: 'old-warranties' as const, label: "Old Warranties", icon: Archive },
-            ]
-        },
-        {
-            label: "Network & Orders",
-            items: [
-                { id: 'vendors' as const, label: "Franchises", icon: Store },
-                { id: 'distributors' as const, label: "Distributors", icon: Building2 },
-                { id: 'manpower' as const, label: "Manpower", icon: Users },
-                { id: 'customers' as const, label: "Customers", icon: Users },
-                { id: 'order-management' as const, label: "Order Management", icon: Network },
-                { id: 'franchise-distributor-map' as const, label: "Sourcing Map", icon: Layers },
-                { id: 'audits' as const, label: "Audit & Compliance", icon: ClipboardCheck },
-                { id: 'leads' as const, label: "Lead Management", icon: MapPin },
-            ]
-        },
-        {
-            label: "Engagement",
-            items: [
-                { id: 'announcements' as const, label: "Announcements", icon: Megaphone },
-                { id: 'notification-settings' as const, label: "WhatsApp Messages", icon: BellRing },
-                {
-                    id: 'grievances' as const,
-                    label: "Grievances",
-                    icon: MessageSquare,
-                    badge: unreadGrievances > 0 ? unreadGrievances.toString() : undefined
-                },
-                { id: 'posm' as const, label: "POSM Requirements", icon: Package },
-            ]
-        },
-        {
-            label: "Catalogue & Content",
-            items: [
-                { id: 'products' as const, label: "Product Catalogue", icon: Package },
-                { id: 'ecatalogue' as const, label: "E-Catalogue CMS", icon: BookOpen },
-                { id: 'content-manager' as const, label: "Form Content", icon: FileText },
-            ]
-        },
-        {
-            label: "Administration",
-            items: [
-                { id: 'activity-logs' as const, label: "Activity Logs", icon: FileText },
-                { id: 'admins' as const, label: "Admin Access", icon: UserCog },
-            ]
-        }
-    ];
+    const badgeFor = (id: AdminModule): string | undefined =>
+        id === 'grievances' && unreadGrievances > 0 ? unreadGrievances.toString() : undefined;
 
     // Filter groups/items by permission
-    const menuGroups = allMenuGroups
+    const menuGroups = ADMIN_MENU_GROUPS
         .map(group => ({
             ...group,
-            items: group.items.filter(item => canSeeModule(item.id))
+            items: group.items
+                .filter(item => canSeeAdminModule(item.id, user, hasPermission))
+                .map(item => ({ ...item, badge: badgeFor(item.id) }))
         }))
         .filter(group => group.items.length > 0);
 

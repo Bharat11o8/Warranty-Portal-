@@ -8,22 +8,9 @@ import {
     CommandList,
     CommandSeparator,
 } from "@/components/ui/command";
-import {
-    LayoutDashboard,
-    Store,
-    Users,
-    ShieldCheck,
-    Settings,
-    UserCog,
-    FileText,
-    Search,
-    MessageSquare,
-    Package,
-    PenTool,
-    Megaphone,
-    Hash
-} from "lucide-react";
-import { AdminModule } from "./layout/AdminSidebar";
+import { Settings, Search } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
+import { ADMIN_MENU_GROUPS, canSeeAdminModule, type AdminModule } from "./layout/adminModules";
 
 interface AdminCommandPaletteProps {
     onNavigate: (module: AdminModule) => void;
@@ -31,6 +18,7 @@ interface AdminCommandPaletteProps {
 
 export const AdminCommandPalette = ({ onNavigate }: AdminCommandPaletteProps) => {
     const [open, setOpen] = useState(false);
+    const { user, hasPermission } = useAuth();
 
     useEffect(() => {
         const down = (e: KeyboardEvent) => {
@@ -49,6 +37,14 @@ export const AdminCommandPalette = ({ onNavigate }: AdminCommandPaletteProps) =>
         command();
     };
 
+    // Same modules, grouping and permission filter as the sidebar.
+    const groups = ADMIN_MENU_GROUPS
+        .map(group => ({
+            ...group,
+            items: group.items.filter(item => canSeeAdminModule(item.id, user, hasPermission))
+        }))
+        .filter(group => group.items.length > 0);
+
     return (
         <>
             <div
@@ -66,59 +62,28 @@ export const AdminCommandPalette = ({ onNavigate }: AdminCommandPaletteProps) =>
                 <CommandInput placeholder="Type a command or search..." />
                 <CommandList>
                     <CommandEmpty>No results found.</CommandEmpty>
-                    <CommandGroup heading="Navigation">
-                        <CommandItem onSelect={() => runCommand(() => onNavigate('overview'))}>
-                            <LayoutDashboard className="mr-2 h-4 w-4" />
-                            <span>Dashboard Overview</span>
-                        </CommandItem>
-                        <CommandItem onSelect={() => runCommand(() => onNavigate('warranties'))}>
-                            <ShieldCheck className="mr-2 h-4 w-4" />
-                            <span>Warranties</span>
-                        </CommandItem>
-                        <CommandItem onSelect={() => runCommand(() => onNavigate('vendors'))}>
-                            <Store className="mr-2 h-4 w-4" />
-                            <span>Franchises</span>
-                        </CommandItem>
-                        <CommandItem onSelect={() => runCommand(() => onNavigate('customers'))}>
-                            <Users className="mr-2 h-4 w-4" />
-                            <span>Customers</span>
-                        </CommandItem>
-                        <CommandItem onSelect={() => runCommand(() => onNavigate('admins'))}>
-                            <UserCog className="mr-2 h-4 w-4" />
-                            <span>Admin Users</span>
-                        </CommandItem>
-                        <CommandItem onSelect={() => runCommand(() => onNavigate('activity-logs'))}>
-                            <FileText className="mr-2 h-4 w-4" />
-                            <span>Activity Logs</span>
-                        </CommandItem>
-                        <CommandItem onSelect={() => runCommand(() => onNavigate('grievances'))}>
-                            <MessageSquare className="mr-2 h-4 w-4" />
-                            <span>Grievances</span>
-                        </CommandItem>
-                        <CommandItem onSelect={() => runCommand(() => onNavigate('products'))}>
-                            <Package className="mr-2 h-4 w-4" />
-                            <span>Product Catalog</span>
-                        </CommandItem>
-                        <CommandItem onSelect={() => runCommand(() => onNavigate('warranty-form'))}>
-                            <PenTool className="mr-2 h-4 w-4" />
-                            <span>New Registration</span>
-                        </CommandItem>
-                        <CommandItem onSelect={() => runCommand(() => onNavigate('uid-management'))}>
-                            <Hash className="mr-2 h-4 w-4" />
-                            <span>UID Management</span>
-                        </CommandItem>
-                        <CommandItem onSelect={() => runCommand(() => onNavigate('terms'))}>
-                            <FileText className="mr-2 h-4 w-4" />
-                            <span>Terms & Conditions</span>
-                        </CommandItem>
-                        <CommandItem onSelect={() => runCommand(() => onNavigate('announcements'))}>
-                            <Megaphone className="mr-2 h-4 w-4" />
-                            <span>Broadcast / Announcements</span>
-                        </CommandItem>
-                    </CommandGroup>
+                    {groups.map(group => (
+                        <CommandGroup key={group.label} heading={group.label}>
+                            {group.items.map(({ id, label, icon: Icon, keywords }) => (
+                                <CommandItem
+                                    key={id}
+                                    value={label}
+                                    keywords={[group.label, ...(keywords || [])]}
+                                    onSelect={() => runCommand(() => onNavigate(id))}
+                                >
+                                    <Icon className="mr-2 h-4 w-4" />
+                                    <span>{label}</span>
+                                </CommandItem>
+                            ))}
+                        </CommandGroup>
+                    ))}
                     <CommandSeparator />
                     <CommandGroup heading="Settings">
-                        <CommandItem onSelect={() => runCommand(() => onNavigate('profile'))}>
+                        <CommandItem
+                            value="Profile"
+                            keywords={['account', 'my profile']}
+                            onSelect={() => runCommand(() => onNavigate('profile'))}
+                        >
                             <Settings className="mr-2 h-4 w-4" />
                             <span>Profile</span>
                         </CommandItem>

@@ -120,7 +120,7 @@ export const AdminLayout = () => {
     const getModuleTitle = () => {
         const titles: Record<AdminModule, string> = {
             'overview': 'Dashboard Overview',
-            // 'analytics': 'Advanced Data Analytics',
+            'analytics': 'Advanced Data Analytics',
             'warranties': 'Warranty Management',
             'old-warranties': 'Archived Records',
             'vendors': 'Franchise Network',
