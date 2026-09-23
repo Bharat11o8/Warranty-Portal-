@@ -497,23 +497,25 @@ class GrievanceController {
                 console.error('Failed to send auto-assignment email:', assignNotifErr);
             }
 
-            // Create notification for admin
-            try {
-                await db.execute(
-                    `INSERT INTO notifications (user_id, title, message, type, link, created_at) 
-                     SELECT p.id, ?, ?, 'warning', ?, ? 
-                     FROM profiles p
-                     JOIN user_roles ur ON p.id = ur.user_id
-                     WHERE ur.role = 'admin'`,
-                    [
-                        `🏪 Franchise Grievance: ${ticketId}`,
-                        `Franchise "${vendor.store_name}" submitted a grievance to ${department}. Subject: ${subject}`,
-                        `/admin/grievances/${ticketId}`,
-                        getISTTimestamp()
-                    ]
-                );
-            } catch (notifError) {
-                console.error('Failed to send franchise grievance notification:', notifError);
+            // Notify admins — unless an admin raised it on the store's behalf.
+            //
+            // This used to INSERT with type 'warning', which is not in the live
+            // notifications.type ENUM; under STRICT_TRANS_TABLES every insert
+            // failed into the catch below, so no admin was ever told about a
+            // franchise grievance. It also bypassed the socket. 'warranty' is
+            // what the customer-grievance path uses.
+            if (!actingAsAdmin) {
+                try {
+                    await NotificationService.broadcast({
+                        title: `🏪 Franchise Grievance: ${ticketId}`,
+                        message: `Franchise "${vendor.store_name}" submitted a grievance to ${department}. Subject: ${subject}`,
+                        type: 'warranty',
+                        link: `/admin/grievances/${ticketId}`,
+                        targetRole: 'admin'
+                    });
+                } catch (notifError) {
+                    console.error('Failed to send franchise grievance notification:', notifError);
+                }
             }
 
             // Send confirmation email to franchise

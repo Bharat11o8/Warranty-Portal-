@@ -8,6 +8,7 @@ import { NotificationService } from '../services/notification.service.js';
 import { WhatsAppService } from '../services/whatsapp.service.js';
 import { v4 as uuidv4 } from 'uuid';
 import { invalidateSessionState } from '../middleware/auth.js';
+import { getAttentionCounts } from '../services/adminAttention.service.js';
 import { getRollCapacitySqft, issueSerials, parseRolls, reserveRolls } from '../services/ppfRoll.service.js';
 import { withTransaction } from '../utils/transaction.js';
 import {
@@ -77,6 +78,21 @@ const REPLACEABLE_PHOTO_FIELDS = new Set([
 ]);
 
 export class AdminController {
+    /**
+     * Sidebar badge counts — grievances still `submitted`, POSM requests still
+     * `open`. Only modules this admin can read are included, using the
+     * permissions authenticateToken just resolved from the database.
+     */
+    static async getAttentionCounts(req: Request, res: Response) {
+        try {
+            const user = (req as any).user || {};
+            res.json({ success: true, counts: await getAttentionCounts(user) });
+        } catch (error: any) {
+            console.error('Attention counts error:', error);
+            res.status(500).json({ success: false, error: 'Failed to load counts' });
+        }
+    }
+
     static async getDashboardStats(_req: Request, res: Response) {
         try {
             // The overview is the first admin screen. Keep its independent aggregates

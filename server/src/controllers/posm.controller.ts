@@ -113,6 +113,19 @@ class POSMController {
                 details: { ticketId, requestId }
             });
 
+            // 4. Tell admins. Nothing did before, so a new request was only
+            // found by opening the POSM screen.
+            try {
+                await NotificationService.broadcast({
+                    title: `New POSM Request: ${ticketId}`,
+                    message: `${vendor.store_name || 'A franchise'} raised a POSM request: ${String(requirement).slice(0, 140)}`,
+                    type: 'posm',
+                    targetRole: 'admin'
+                });
+            } catch (notifError) {
+                console.error('Failed to notify admins of POSM request:', notifError);
+            }
+
             return res.status(201).json({
                 success: true,
                 message: 'POSM request submitted successfully',

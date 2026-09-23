@@ -154,6 +154,9 @@ router.delete('/admins/:id', ...adminAuth, requirePermission('admins', 'write'),
 
 router.get('/activity-logs', ...adminAuth, requirePermission('activity_logs', 'read'), AdminController.getActivityLogs);
 router.get('/activity-logs/:id', ...adminAuth, requirePermission('activity_logs', 'read'), AdminController.getActivityLogDetail);
+// Sidebar badges: grievances / POSM requests nobody has picked up yet. Each
+// count is included only for modules this admin can read.
+router.get('/attention', ...adminAuth, AdminController.getAttentionCounts);
 router.get('/diagnostic/vendors', ...adminAuth, AdminController.getDashboardStats);
 router.post('/repair-image', ...adminAuth, requirePermission('warranties', 'write'), ImageRepairController.repairOne);
 

@@ -31,6 +31,8 @@ interface NotificationContextType {
     undoDismissNotification: (id: number) => Promise<void>;
     refreshNotifications: () => Promise<void>;
     fetchFullHistory: () => Promise<void>;
+    /** The live connection, for components that listen to other events (e.g. admin:attention). Null until connected, and on backends without Socket.io. */
+    socket: Socket | null;
 }
 
 const NotificationContext = createContext<NotificationContextType | undefined>(undefined);
@@ -257,7 +259,8 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
             dismissNotification,
             undoDismissNotification,
             refreshNotifications: fetchNotifications,
-            fetchFullHistory
+            fetchFullHistory,
+            socket
         }}>
             {children}
         </NotificationContext.Provider>

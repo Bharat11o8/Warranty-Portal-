@@ -3,6 +3,7 @@ import GrievanceController from '../controllers/grievance.controller.js';
 import { GrievanceCategoryController } from '../controllers/grievanceCategory.controller.js';
 import { authenticateToken, requirePermission, requireRole } from '../middleware/auth.js';
 import { grievanceUpload, attachPublicUrls } from '../config/localUpload.js';
+import { signalAdminAttentionOnSuccess as signalAttention } from '../services/adminAttention.service.js';
 
 const router = Router();
 
@@ -20,7 +21,7 @@ const handleUpload = (req: Request, res: Response, next: NextFunction) => {
 };
 
 // Customer routes
-router.post('/', authenticateToken, requireRole('customer'), handleUpload, GrievanceController.submitGrievance);
+router.post('/', authenticateToken, requireRole('customer'), signalAttention, handleUpload, GrievanceController.submitGrievance);
 router.get('/', authenticateToken, requireRole('customer'), GrievanceController.getMyGrievances);
 router.put('/:id/rating', authenticateToken, requireRole('customer'), GrievanceController.addRating);
 
@@ -31,7 +32,7 @@ router.get('/vendor', authenticateToken, requireRole('vendor'), GrievanceControl
 // Admins may file here on a store's behalf by passing franchiseId; the
 // controller rejects that field for a vendor session, so a vendor can still
 // only ever file for itself.
-router.post('/franchise', authenticateToken, requireRole(['vendor', 'admin']), handleUpload, GrievanceController.submitFranchiseGrievance);
+router.post('/franchise', authenticateToken, requireRole(['vendor', 'admin']), signalAttention, handleUpload, GrievanceController.submitFranchiseGrievance);
 router.get('/franchise/submitted', authenticateToken, requireRole('vendor'), GrievanceController.getFranchiseSubmittedGrievances);
 
 // Categories — managed by an admin, so adding one no longer needs a deploy.
@@ -47,9 +48,9 @@ router.get('/admin', authenticateToken, requireRole('admin'), requirePermission(
 
 // Shared routes (Vendor/Admin)
 router.get('/:id', authenticateToken, GrievanceController.getGrievanceById);
-router.put('/:id/status', authenticateToken, requireRole(['vendor', 'admin']), requirePermission('grievances', 'write'), GrievanceController.updateStatus);
+router.put('/:id/status', authenticateToken, requireRole(['vendor', 'admin']), requirePermission('grievances', 'write'), signalAttention, GrievanceController.updateStatus);
 router.put('/:id/assign', authenticateToken, requireRole('admin'), requirePermission('grievances', 'write'), GrievanceController.assignGrievance);
-router.put('/:id/admin-update', authenticateToken, requireRole('admin'), requirePermission('grievances', 'write'), GrievanceController.adminUpdateGrievance);
+router.put('/:id/admin-update', authenticateToken, requireRole('admin'), requirePermission('grievances', 'write'), signalAttention, GrievanceController.adminUpdateGrievance);
 router.put('/:id/remarks', authenticateToken, requireRole(['vendor', 'admin']), requirePermission('grievances', 'write'), GrievanceController.addRemarks);
 router.post('/:id/send-assignment-email', authenticateToken, requireRole('admin'), requirePermission('grievances', 'write'), GrievanceController.sendAssignmentEmail);
 router.get('/:id/remarks', authenticateToken, GrievanceController.getRemarks);

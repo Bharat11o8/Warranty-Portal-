@@ -1,6 +1,6 @@
 
 import { useState } from "react";
-import { Bell, Check, AlertTriangle, Info, ShieldCheck, Megaphone, Trash2, Video, Download, ExternalLink, PlayCircle, FileVideo, ChevronRight } from "lucide-react";
+import { Bell, Check, AlertTriangle, Info, ShieldCheck, Megaphone, Trash2, Video, Download, ExternalLink, PlayCircle, FileVideo, ChevronRight, Flag } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import {
     Popover,
@@ -46,6 +46,7 @@ const getIcon = (type: string) => {
         case 'product': return <Megaphone className="h-4 w-4 text-purple-600" />;
         case 'warranty': return <ShieldCheck className="h-4 w-4 text-blue-600" />;
         case 'alert': return <AlertTriangle className="h-4 w-4 text-amber-600" />;
+        case 'posm': return <Flag className="h-4 w-4 text-orange-600" />;
         case 'system': return <ShieldCheck className="h-4 w-4 text-blue-600" />;
         default: return <Info className="h-4 w-4 text-gray-600" />;
     }
@@ -56,6 +57,7 @@ const getBgColor = (type: string) => {
         case 'product': return "bg-purple-50 text-purple-600 border-purple-100";
         case 'warranty': return "bg-blue-50 text-blue-600 border-blue-100";
         case 'alert': return "bg-amber-50 text-amber-600 border-amber-100";
+        case 'posm': return "bg-orange-50 text-orange-600 border-orange-100";
         case 'system': return "bg-slate-50 text-slate-600 border-slate-100";
         default: return "bg-slate-50 text-slate-600 border-slate-100";
     }

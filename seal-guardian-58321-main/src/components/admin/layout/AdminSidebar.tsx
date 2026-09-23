@@ -10,7 +10,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { ADMIN_MENU_GROUPS, adminModuleGroup, canSeeAdminModule, type AdminModule } from "./adminModules";
-import { useNotifications } from "@/contexts/NotificationContext";
+import { useAdminAttention } from "./useAdminAttention";
 import { Button } from "@/components/ui/button";
 import {
     Tooltip,
@@ -104,14 +104,17 @@ export const SidebarContent = ({
     onToggleCollapse
 }: AdminSidebarProps) => {
     const { logout, user, hasPermission } = useAuth();
-    const { notifications } = useNotifications();
+    // Work nobody has picked up yet. This used to count unread notifications
+    // of type 'grievance' — a type the server never sends, so it never showed.
+    const attention = useAdminAttention();
 
-    // Calculate Section Updates from notifications (Hidden for Phase 1)
-    // const unreadWarranties = notifications.filter(n => !n.is_read && n.type === 'warranty').length;
-    const unreadGrievances = notifications.filter(n => !n.is_read && n.type === 'grievance').length;
+    const countFor = (id: AdminModule): number =>
+        (id === 'grievances' ? attention.grievances
+            : id === 'posm' ? attention.posm
+            : 0) || 0;
 
-    const badgeFor = (id: AdminModule): string | undefined =>
-        id === 'grievances' && unreadGrievances > 0 ? unreadGrievances.toString() : undefined;
+    const badgeText = (n: number): string | undefined =>
+        n <= 0 ? undefined : n > 99 ? '99+' : String(n);
 
     // Filter groups/items by permission
     const menuGroups = ADMIN_MENU_GROUPS
@@ -119,7 +122,7 @@ export const SidebarContent = ({
             ...group,
             items: group.items
                 .filter(item => canSeeAdminModule(item.id, user, hasPermission))
-                .map(item => ({ ...item, badge: badgeFor(item.id) }))
+                .map(item => ({ ...item, count: countFor(item.id), badge: badgeText(countFor(item.id)) }))
         }))
         .filter(group => group.items.length > 0);
 
@@ -186,7 +189,7 @@ export const SidebarContent = ({
                             {!isCollapsed && (() => {
                                 const open = openGroups.has(group.label);
                                 // A folded group still shows that something inside wants attention.
-                                const pending = group.items.reduce((n, i) => n + (Number(i.badge) || 0), 0);
+                                const pending = group.items.reduce((n, i) => n + i.count, 0);
                                 return (
                                     <button
                                         type="button"
@@ -200,7 +203,7 @@ export const SidebarContent = ({
                                         <span className="flex shrink-0 items-center gap-2">
                                             {!open && pending > 0 && (
                                                 <span className="flex h-4 min-w-[16px] items-center justify-center rounded-full bg-orange-500 px-1 text-[9px] font-black text-white">
-                                                    {pending}
+                                                    {badgeText(pending)}
                                                 </span>
                                             )}
                                             <ChevronDown className={cn("h-3.5 w-3.5 transition-transform duration-200", !open && "-rotate-90")} />
