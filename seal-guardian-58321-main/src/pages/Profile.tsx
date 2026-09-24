@@ -80,6 +80,11 @@ const Profile = ({ embedded }: { embedded?: boolean }) => {
     };
 
     const roleConfig = getRoleConfig();
+
+    // An admin's email is their login; only a super admin can change it, and
+    // their phone number, here or from Admin Access. The server enforces the
+    // same rule — this just stops the form offering it.
+    const contactLocked = user.role === 'vendor' || (user.role === 'admin' && !user.isSuperAdmin);
     const RoleIcon = roleConfig.icon;
 
     const handleSave = async (e: React.FormEvent) => {
@@ -275,10 +280,13 @@ const Profile = ({ embedded }: { embedded?: boolean }) => {
                                         value={email}
                                         onChange={(e) => setEmail(e.target.value)}
                                         required
-                                        disabled={user.role === 'vendor'}
-                                        className={cn("pl-11 h-12 rounded-xl", user.role === 'vendor' && "bg-muted cursor-not-allowed")}
+                                        disabled={contactLocked}
+                                        className={cn("pl-11 h-12 rounded-xl", contactLocked && "bg-muted cursor-not-allowed")}
                                     />
                                 </div>
+                                {user.role === 'admin' && contactLocked && (
+                                    <p className="text-xs text-muted-foreground">Only a super admin can change an admin's email or phone number</p>
+                                )}
                             </div>
 
                             {/* Phone Number */}
@@ -292,8 +300,8 @@ const Profile = ({ embedded }: { embedded?: boolean }) => {
                                         value={phoneNumber}
                                         onChange={(e) => setPhoneNumber(e.target.value)}
                                         required
-                                        disabled={user.role === 'vendor'}
-                                        className={cn("pl-11 h-12 rounded-xl", user.role === 'vendor' && "bg-muted cursor-not-allowed")}
+                                        disabled={contactLocked}
+                                        className={cn("pl-11 h-12 rounded-xl", contactLocked && "bg-muted cursor-not-allowed")}
                                     />
                                 </div>
                             </div>

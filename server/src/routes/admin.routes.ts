@@ -150,6 +150,7 @@ router.delete('/products/:id', ...adminAuth, requirePermission('products', 'writ
 router.get('/admins', ...adminAuth, requirePermission('admins', 'read'), AdminController.getAllAdmins);
 router.post('/admins', ...adminAuth, requirePermission('admins', 'write'), AdminController.createAdmin);
 router.patch('/admins/:id/permissions', ...adminAuth, requirePermission('admins', 'write'), AdminController.updateAdminPermissions);
+router.patch('/admins/:id/contact', ...adminAuth, requirePermission('admins', 'write'), AdminController.updateAdminContact);
 router.delete('/admins/:id', ...adminAuth, requirePermission('admins', 'write'), AdminController.deleteAdmin);
 
 router.get('/activity-logs', ...adminAuth, requirePermission('activity_logs', 'read'), AdminController.getActivityLogs);

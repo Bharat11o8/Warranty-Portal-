@@ -1633,6 +1633,21 @@ export class AdminController {
                 return res.status(400).json({ error: 'Store name, contact name, email and phone number are required' });
             }
 
+            // This rewrites profiles.email/phone_number by id, so it must only
+            // ever touch a franchise. It used to take any id: an admin with
+            // Franchises edit access could point it at another admin — a super
+            // admin included — and set their login email to one they control.
+            // Every franchise and distributor login holds the vendor role and
+            // no profile holds two roles (checked 24 Sept 2026).
+            const [targetRoles]: any = await db.execute(
+                'SELECT role FROM user_roles WHERE user_id = ?',
+                [id]
+            );
+            const roles = targetRoles.map((r: any) => r.role);
+            if (!roles.includes('vendor') || roles.includes('admin')) {
+                return res.status(404).json({ error: 'Franchise not found' });
+            }
+
             const connection = await db.getConnection();
             try {
                 await connection.beginTransaction();
@@ -3730,6 +3745,89 @@ export class AdminController {
         } catch (error: any) {
             console.error('Update admin permissions error:', error);
             res.status(500).json({ error: 'Failed to update permissions' });
+        }
+    }
+
+    /**
+     * Change an admin's email and/or phone. Super admin only.
+     *
+     * An admin's email is their login, so this is the one place it can
+     * change: admins can't edit their own (AuthController.updateProfile), and
+     * the franchise profile endpoint refuses admin accounts.
+     */
+    static async updateAdminContact(req: Request, res: Response) {
+        try {
+            const { id } = req.params;
+            const actor = (req as any).user;
+
+            // The route is already gated to the super-admin-only `admins`
+            // module; checked again here because this is an account-takeover
+            // lever if that gate ever loosens.
+            if (!actor?.isSuperAdmin) {
+                return res.status(403).json({ error: 'Only a super admin can change an admin\'s email or phone number.' });
+            }
+
+            const email = String(req.body?.email ?? '').trim();
+            const phoneDigits = String(req.body?.phone ?? '').replace(/\D/g, '');
+            const phone = phoneDigits.length === 12 && phoneDigits.startsWith('91') ? phoneDigits.slice(2) : phoneDigits;
+
+            if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 100) {
+                return res.status(400).json({ error: 'Enter a valid email address' });
+            }
+            if (!/^\d{10}$/.test(phone)) {
+                return res.status(400).json({ error: 'Enter a 10-digit mobile number' });
+            }
+
+            const [target]: any = await db.execute(
+                `SELECT p.name, p.email, p.phone_number
+                 FROM profiles p
+                 JOIN user_roles ur ON ur.user_id = p.id AND ur.role = 'admin'
+                 WHERE p.id = ?`,
+                [id]
+            );
+            if (target.length === 0) {
+                return res.status(404).json({ error: 'Admin not found' });
+            }
+
+            const [emailTaken]: any = await db.execute(
+                'SELECT id FROM profiles WHERE email = ? AND id != ?',
+                [email, id]
+            );
+            if (emailTaken.length > 0) {
+                return res.status(400).json({ error: 'Email already in use by another account' });
+            }
+            const [phoneTaken]: any = await db.execute(
+                'SELECT id FROM profiles WHERE phone_number = ? AND id != ?',
+                [phone, id]
+            );
+            if (phoneTaken.length > 0) {
+                return res.status(400).json({ error: 'Phone number already in use by another account' });
+            }
+
+            await db.execute(
+                'UPDATE profiles SET email = ?, phone_number = ? WHERE id = ?',
+                [email, phone, id]
+            );
+
+            await ActivityLogService.log({
+                adminId: actor.id,
+                adminName: actor.name,
+                adminEmail: actor.email,
+                actionType: 'ADMIN_CONTACT_UPDATED',
+                targetType: 'ADMIN',
+                targetId: id,
+                targetName: target[0].name || 'Unknown',
+                details: {
+                    email: { from: target[0].email, to: email },
+                    phone: { from: target[0].phone_number, to: phone }
+                },
+                ipAddress: req.ip || req.socket?.remoteAddress
+            });
+
+            res.json({ success: true, message: 'Contact details updated', admin: { id, email, phone_number: phone } });
+        } catch (error: any) {
+            console.error('Update admin contact error:', error);
+            res.status(500).json({ error: 'Failed to update contact details' });
         }
     }
 

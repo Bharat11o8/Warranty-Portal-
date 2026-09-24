@@ -832,7 +832,8 @@ export class AuthController {
   static async updateProfile(req: Request, res: Response) {
     try {
       const userId = (req as any).user?.id;
-      const { name, email, phoneNumber } = req.body;
+      const { name } = req.body;
+      let { email, phoneNumber } = req.body;
 
       if (!userId) {
         return res.status(401).json({ error: 'User not authenticated' });
@@ -860,6 +861,22 @@ export class AuthController {
 
       if (currentUser.length === 0) {
         return res.status(404).json({ error: 'User not found' });
+      }
+
+      // An admin's email is their login and their phone their contact of
+      // record, so only a super admin may change them — their own included
+      // (other admins' are changed from Admin Access). Anyone else can still
+      // edit their name here.
+      if (currentRole === 'admin' && !(req as any).user?.isSuperAdmin) {
+        const sameEmail = String(currentUser[0].email || '').trim().toLowerCase() === String(email).trim().toLowerCase();
+        const digits = (v: unknown) => String(v ?? '').replace(/\D/g, '').slice(-10);
+        const samePhone = digits(currentUser[0].phone_number) === digits(phoneNumber);
+        if (!sameEmail || !samePhone) {
+          return res.status(403).json({ error: 'Only a super admin can change an admin\'s email or phone number.' });
+        }
+        // Equal after normalising — keep the stored spelling exactly.
+        email = currentUser[0].email;
+        phoneNumber = currentUser[0].phone_number;
       }
 
       if (currentUser[0].email !== email) {
