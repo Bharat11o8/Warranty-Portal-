@@ -9,7 +9,8 @@ import { getIO } from '../socket.js';
  * These are counts of state, not of unread notifications. A notification is
  * per admin and goes quiet once read, even if nobody acted on it; a grievance
  * still `submitted` or a POSM request still `open` is waiting whoever looks,
- * and stops counting the moment someone moves it on.
+ * and stops counting the moment someone moves it on. POSM counts `pending`
+ * too: a request partly done with the rest outstanding is still HO's to finish.
  */
 export interface AttentionCounts {
     grievances?: number;
@@ -33,8 +34,9 @@ export async function getAttentionCounts(user: { isSuperAdmin?: boolean; permiss
     }
 
     if (canRead(user, 'posm')) {
+        // 'pending' is partly done or not yet started — still waiting on HO.
         const [rows]: any = await db.execute(
-            "SELECT COUNT(*) AS n FROM posm_requests WHERE status = 'open'"
+            "SELECT COUNT(*) AS n FROM posm_requests WHERE status IN ('open', 'pending')"
         );
         counts.posm = Number(rows[0]?.n || 0);
     }
