@@ -11,9 +11,10 @@ import {
 } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AdminLeadsList } from "./AdminLeadsList";
+import { AdminStoreLocator } from "./AdminStoreLocator";
 import {
     Loader2, Plus, Trash2, Search, MapPin, Phone, UserRound,
-    RefreshCw, X, AlertTriangle, Power, Inbox
+    RefreshCw, X, AlertTriangle, Power, Inbox, Store as StoreIcon
 } from "lucide-react";
 
 /**
@@ -265,6 +266,9 @@ export const AdminLeadManagement = () => {
                     <TabsTrigger value="asms" className="rounded-lg text-xs font-black uppercase gap-1.5">
                         <UserRound className="h-3.5 w-3.5" /> ASMs &amp; Areas
                     </TabsTrigger>
+                    <TabsTrigger value="locator" className="rounded-lg text-xs font-black uppercase gap-1.5">
+                        <StoreIcon className="h-3.5 w-3.5" /> Store Locator
+                    </TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="enquiries" className="space-y-5 mt-0">
@@ -414,6 +418,10 @@ export const AdminLeadManagement = () => {
                 </div>
             )}
 
+                </TabsContent>
+
+                <TabsContent value="locator" className="space-y-5 mt-0">
+                    <AdminStoreLocator />
                 </TabsContent>
             </Tabs>
 

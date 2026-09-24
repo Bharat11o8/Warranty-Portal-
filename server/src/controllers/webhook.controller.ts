@@ -5,6 +5,8 @@ import { WhatsAppService } from '../services/whatsapp.service.js';
 import { NotificationService } from '../services/notification.service.js';
 import { ingestFlowAuditResponse, recordAuditSent, recordAuditDelivery } from '../services/auditResponse.service.js';
 import { handleInstagramLead } from '../services/instagramLead.service.js';
+import { handleLocatorReply, handlePincodeMessage } from '../services/storeLocatorChat.js';
+import { replyFromWebhook } from '../services/storeLocatorMessages.js';
 
 export class WebhookController {
 
@@ -136,6 +138,27 @@ export class WebhookController {
                 const body: string = message?.message || message?.text || '';
                 const code: string = String(customer?.country_code || '+91').replace('+', '');
                 const senderPhone = `${code}${customer?.phone_number || ''}`;
+
+                /*
+                 * The store locator: a tap on one of its lists, or a fresh
+                 * pincode from someone already talking to it. Checked first,
+                 * and each only claims a message that is unmistakably its own.
+                 */
+                if (customer?.phone_number) {
+                    try {
+                        const tap = replyFromWebhook(message);
+                        if (tap) {
+                            await handleLocatorReply(senderPhone, tap);
+                            return;
+                        }
+                        if (message?.message_content_type === 'Text' && await handlePincodeMessage(senderPhone, body)) {
+                            return;
+                        }
+                    } catch (err: any) {
+                        console.error('[Webhook] Store locator handling failed:', err?.message);
+                        return;
+                    }
+                }
 
                 if (customer?.phone_number) {
                     try {

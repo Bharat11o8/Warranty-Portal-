@@ -192,7 +192,7 @@ function typoAllowance(len: number): number {
  * enquiries to the wrong person, which is worse than queueing them as
  * unmatched where somebody can see and fix the gap.
  */
-async function findAsmForArea(area: string) {
+export async function findAsmForArea(area: string) {
     const whole = areaKey(area);
     if (!whole) return null;
 

@@ -331,6 +331,69 @@ export class WhatsAppService {
 
 
     /**
+     * Send a free-form reply: text, a list, or reply buttons.
+     *
+     * Not a template, so it needs no Meta approval — but WhatsApp only delivers
+     * one within 24 hours of the customer's last message. Use it to answer a
+     * customer who has just written to us, never to start a conversation.
+     *
+     * Not behind the admin notification toggles: those switch off whole kinds
+     * of outbound template messages, and this is a reply the customer asked
+     * for. Callers that need a switch carry their own.
+     */
+    static async sendSessionMessage(
+        phone: string,
+        type: 'Text' | 'InteractiveList' | 'InteractiveButton',
+        data: Record<string, unknown>,
+        context: string,
+        referenceId?: string
+    ): Promise<boolean> {
+        const logId = uuidv4();
+        const { countryCode, phoneNumber } = this.formatPhoneNumber(phone);
+        const label = `session:${type}`;
+
+        if (!this.API_KEY) {
+            console.error('[WhatsApp] Configuration missing. Set INTERAKT_API_KEY in .env');
+            await this.logMessage({
+                id: logId, recipient_phone: `${countryCode}${phoneNumber}`, channel: 'whatsapp',
+                template_name: label, status: 'failed', context, reference_id: referenceId,
+                error_message: 'INTERAKT_API_KEY not configured',
+            });
+            return false;
+        }
+
+        try {
+            const response = await axios.post(
+                this.API_URL,
+                {
+                    countryCode,
+                    phoneNumber,
+                    type,
+                    callbackData: referenceId ? `${context}_${referenceId}` : context,
+                    data,
+                },
+                { headers: { 'Authorization': `Basic ${this.API_KEY}`, 'Content-Type': 'application/json' } }
+            );
+            console.log(`[WhatsApp] Sent ${type} (${context}) to ${countryCode}${phoneNumber} — ID: ${response.data?.id}`);
+            await this.logMessage({
+                id: logId, recipient_phone: `${countryCode}${phoneNumber}`, channel: 'whatsapp',
+                template_name: label, status: 'sent', context, reference_id: referenceId,
+                interakt_message_id: response.data?.id || null,
+            });
+            return true;
+        } catch (error: any) {
+            const errMsg = error.response?.data?.message || error.response?.data?.error || error.message;
+            console.error(`[WhatsApp] Failed to send ${type} (${context}) to ${countryCode}${phoneNumber}:`, errMsg);
+            await this.logMessage({
+                id: logId, recipient_phone: `${countryCode}${phoneNumber}`, channel: 'whatsapp',
+                template_name: label, status: 'failed', context, reference_id: referenceId,
+                error_message: typeof errMsg === 'string' ? errMsg : JSON.stringify(errMsg),
+            });
+            return false;
+        }
+    }
+
+    /**
      * Logs communication activity to the database
      */
     private static async logMessage(data: any): Promise<void> {
@@ -633,6 +696,46 @@ export class WhatsAppService {
         );
     }
 
+
+    /**
+     * Tell a store a customer picked it from the WhatsApp store locator.
+     *
+     * Template: af_franchise_lead_transfer (header "New Lead Alert!"),
+     * overridable with STORE_LEAD_TEMPLATE should a revised version replace it.
+     *   {{1}} Store name
+     *   {{2}} Customer phone
+     *   {{3}} Product
+     *   {{4}} Vehicle
+     *   {{5}} Date of enquiry
+     *
+     * Only ever called while the locator is live. Until Meta approves the
+     * template a send fails and is logged as failed in message_logs — the
+     * customer's own reply is unaffected either way.
+     */
+    static async sendStoreLead(
+        storePhone: string,
+        storeName: string,
+        customerPhone: string,
+        product: string | null,
+        car: string | null,
+        receivedAt: string,
+        leadId?: string
+    ): Promise<boolean> {
+        const template = process.env.STORE_LEAD_TEMPLATE || 'af_franchise_lead_transfer';
+        return this.sendTemplateMessage(
+            storePhone,
+            template,
+            [
+                storeName.trim(),
+                customerPhone,
+                product || 'Not specified',
+                car || 'Not specified',
+                receivedAt,
+            ],
+            'store_lead',
+            leadId
+        );
+    }
 
     static async sendWarrantyRejectedCustomer(
         phone: string,

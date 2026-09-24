@@ -2,6 +2,8 @@ import { Request, Response } from 'express';
 import db from '../config/database.js';
 import { v4 as uuidv4 } from 'uuid';
 import { hasAutoReplyContent } from '../services/autoReply.js';
+import { findStoresForPincode, getLocatorSettings, saveLocatorSettings } from '../services/storeLocatorQuery.js';
+import { startStoreEnquiry } from '../services/storeLocatorChat.js';
 import { routeEnquiry, areaKey } from '../services/asmRouting.service.js';
 import { findState } from '../services/indianStates.js';
 import { isSamePlace, buildAddress } from '../services/placeMatch.js';
@@ -519,6 +521,112 @@ export class AsmController {
      * while the lead is saved and reopened is the difference between sending a
      * store now and not sending one at all.
      */
+    /**
+     * The stores offered for a pincode, and who to call when there are none.
+     *
+     * The first piece of the store-locator flow: pincode in, list out, nothing
+     * sent to anyone. It exists so the rules can be checked on real pincodes
+     * before any customer sees the result.
+     */
+    /**
+     * Called by the Interakt workflow with the customer's pincode.
+     *
+     * Answered at once, then worked on: Interakt wants a 200 within three
+     * seconds and disables the webhook after five failures in ten minutes, and
+     * nothing is handed back to the workflow — the stores go to the customer
+     * straight from startStoreEnquiry, and the workflow ends at this node.
+     */
+    static async storeEnquiryWebhook(req: Request, res: Response) {
+        const { pincode, phone, name, product, car } = req.body || {};
+
+        // Interakt's "Test Webhook" posts the body with its placeholders unfilled.
+        const unfilled = [pincode, phone].some(v => /\{\{\s*\d+\s*\}\}/.test(String(v ?? '')));
+        if (unfilled || !phone) {
+            return res.json({ received: true, handled: false, reason: unfilled ? 'test call' : 'no phone' });
+        }
+
+        // An auto-responder answering for the customer is not an enquiry.
+        if (hasAutoReplyContent([pincode, car, name])) {
+            console.log(`[Locator] auto-reply ignored from ${String(phone).slice(-10)}`);
+            return res.json({ received: true, handled: false, reason: 'auto-reply' });
+        }
+
+        res.json({ received: true, handled: true });
+
+        startStoreEnquiry({
+            pincode: String(pincode ?? ''),
+            phone: String(phone),
+            name: name ? String(name) : null,
+            product: product ? String(product) : null,
+            car: car ? String(car) : null,
+            rawPayload: req.body,
+        }).catch(err => console.error('[Locator] enquiry failed:', err?.message));
+    }
+
+    static async storesNearPincode(req: Request, res: Response) {
+        try {
+            const result = await findStoresForPincode(String(req.query.pincode || ''));
+            res.json({ success: true, ...result });
+        } catch (error: any) {
+            console.error('Stores near pincode error:', error);
+            res.status(500).json({ error: 'Failed to find stores for that pincode' });
+        }
+    }
+
+    static async getLocatorSettings(_req: Request, res: Response) {
+        try {
+            res.json({ success: true, settings: await getLocatorSettings() });
+        } catch (error: any) {
+            console.error('Locator settings read error:', error);
+            res.status(500).json({ error: 'Failed to read the store locator settings' });
+        }
+    }
+
+    /**
+     * Change the minimum warranties, or the customer support contact.
+     *
+     * Logged, because raising the threshold removes stores from every
+     * customer's list at once — someone asking why a store stopped getting
+     * leads should be able to find out who changed it and when.
+     */
+    static async updateLocatorSettings(req: Request, res: Response) {
+        try {
+            const admin = (req as any).user;
+            const before = await getLocatorSettings();
+            const { min_warranties, support_phone, support_name, whatsapp_live, test_numbers } = req.body || {};
+
+            let saved;
+            try {
+                saved = await saveLocatorSettings(
+                    { min_warranties, support_phone, support_name, whatsapp_live, test_numbers },
+                    admin?.id || null
+                );
+            } catch (err: any) {
+                return res.status(400).json({ error: err?.message || 'Invalid settings' });
+            }
+
+            try {
+                await ActivityLogService.log({
+                    adminId: admin?.id,
+                    adminName: admin?.name,
+                    adminEmail: admin?.email,
+                    actionType: 'LOCATOR_SETTINGS_UPDATED',
+                    targetType: 'SYSTEM',
+                    targetName: 'Store locator',
+                    details: { before, after: saved },
+                    ipAddress: req.ip || req.socket?.remoteAddress,
+                });
+            } catch (e) {
+                console.error('Failed to log locator settings change', e);
+            }
+
+            res.json({ success: true, settings: saved });
+        } catch (error: any) {
+            console.error('Locator settings save error:', error);
+            res.status(500).json({ error: 'Failed to save the store locator settings' });
+        }
+    }
+
     static async storesForEnquiry(req: Request, res: Response) {
         try {
             const area = String(req.query.area || '').trim();
