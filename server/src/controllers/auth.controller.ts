@@ -6,6 +6,8 @@ import { EmailService } from '../services/email.service.js';
 import { OTPService } from '../services/otp.service.js';
 import { WhatsAppService } from '../services/whatsapp.service.js';
 import { ActivityLogService } from '../services/activity-log.service.js';
+import { NotificationService } from '../services/notification.service.js';
+import { signalAdminAttention } from '../services/adminAttention.service.js';
 import { RegisterData } from '../types/index.js';
 import { canonicalState } from '../services/indianStates.js';
 import dotenv from 'dotenv';
@@ -319,8 +321,17 @@ export class AuthController {
           });
         }
 
-        // Note: We allow login for deactivated vendors but return isActive=false
-        // Frontend will handle showing deactivation message
+        // Deactivated stores are refused here, before an OTP is spent. They
+        // used to be let in on the promise that the frontend would show a
+        // deactivation message; it never did, so a deactivated store kept full
+        // access. authenticateToken now rejects them anyway, and this gives
+        // them a reason instead of a login that bounces.
+        const activeVal = verification[0].is_active;
+        if (!(activeVal === 1 || activeVal === true || activeVal === '1')) {
+          return res.status(403).json({
+            error: 'This store account has been deactivated. Please contact Autoform support.'
+          });
+        }
       }
 
       // Invalidate any previous unused OTPs for this user before generating a new one
@@ -483,6 +494,21 @@ export class AuthController {
 
             // Commit the transaction
             await connection.commit();
+
+            // A new store (and any staff it listed) is now waiting on an admin.
+            // Signalled here rather than as route middleware: /verify-otp is
+            // also every ordinary login.
+            signalAdminAttention();
+            try {
+              await NotificationService.broadcast({
+                title: `New Franchise Registration: ${pending.store_name}`,
+                message: `${pending.store_name} (${[pending.city, pending.state].filter(Boolean).join(', ')}) registered and is waiting for approval.`,
+                type: 'system',
+                targetRole: 'admin'
+              });
+            } catch (notifErr) {
+              console.error('Failed to notify admins of new franchise registration:', notifErr);
+            }
 
             // Send emails AFTER successful commit (outside transaction)
             await EmailService.sendVendorVerificationRequest(
@@ -823,7 +849,8 @@ export class AuthController {
   static async updateProfile(req: Request, res: Response) {
     try {
       const userId = (req as any).user?.id;
-      const { name, email, phoneNumber } = req.body;
+      const { name } = req.body;
+      let { email, phoneNumber } = req.body;
 
       if (!userId) {
         return res.status(401).json({ error: 'User not authenticated' });
@@ -851,6 +878,22 @@ export class AuthController {
 
       if (currentUser.length === 0) {
         return res.status(404).json({ error: 'User not found' });
+      }
+
+      // An admin's email is their login and their phone their contact of
+      // record, so only a super admin may change them — their own included
+      // (other admins' are changed from Admin Access). Anyone else can still
+      // edit their name here.
+      if (currentRole === 'admin' && !(req as any).user?.isSuperAdmin) {
+        const sameEmail = String(currentUser[0].email || '').trim().toLowerCase() === String(email).trim().toLowerCase();
+        const digits = (v: unknown) => String(v ?? '').replace(/\D/g, '').slice(-10);
+        const samePhone = digits(currentUser[0].phone_number) === digits(phoneNumber);
+        if (!sameEmail || !samePhone) {
+          return res.status(403).json({ error: 'Only a super admin can change an admin\'s email or phone number.' });
+        }
+        // Equal after normalising — keep the stored spelling exactly.
+        email = currentUser[0].email;
+        phoneNumber = currentUser[0].phone_number;
       }
 
       if (currentUser[0].email !== email) {

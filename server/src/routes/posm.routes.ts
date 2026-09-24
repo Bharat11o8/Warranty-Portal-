@@ -2,6 +2,7 @@ import { Router, Request, Response, NextFunction } from 'express';
 import POSMController from '../controllers/posm.controller.js';
 import { authenticateToken, requirePermission, requireRole } from '../middleware/auth.js';
 import { posmUpload, attachPublicUrls } from '../config/localUpload.js';
+import { signalAdminAttentionOnSuccess as signalAttention } from '../services/adminAttention.service.js';
 
 const router = Router();
 
@@ -20,14 +21,14 @@ const handleUpload = (req: Request, res: Response, next: NextFunction) => {
 
 // Admin Routes
 router.get('/admin/all', authenticateToken, requireRole('admin'), requirePermission('posm', 'read'), POSMController.getAllRequests);
-router.put('/:id/status', authenticateToken, requireRole('admin'), requirePermission('posm', 'write'), POSMController.updateRequest);
+router.put('/:id/status', authenticateToken, requireRole('admin'), requirePermission('posm', 'write'), signalAttention, POSMController.updateRequest);
 // Raise a request on a franchise's behalf — for requirements phoned or emailed
 // in. Kept separate from the franchise route below so that one stays session-
 // scoped and cannot be pointed at another store.
-router.post('/admin/on-behalf', authenticateToken, requireRole('admin'), requirePermission('posm', 'write'), handleUpload, POSMController.submitRequestOnBehalf);
+router.post('/admin/on-behalf', authenticateToken, requireRole('admin'), requirePermission('posm', 'write'), signalAttention, handleUpload, POSMController.submitRequestOnBehalf);
 
 // Shared/General Routes
-router.post('/', authenticateToken, requireRole('vendor'), handleUpload, POSMController.submitRequest);
+router.post('/', authenticateToken, requireRole('vendor'), signalAttention, handleUpload, POSMController.submitRequest);
 router.get('/', authenticateToken, requireRole('vendor'), POSMController.getFranchiseRequests);
 router.get('/:id', authenticateToken, POSMController.getTicketDetails);
 router.post('/:id/messages', authenticateToken, requireRole(['vendor', 'admin']), requirePermission('posm', 'write'), handleUpload, POSMController.sendMessage);

@@ -8,7 +8,7 @@ export interface POSMRequest {
     requirement: string;
     created_by_role?: 'franchise' | 'admin';
     created_by?: string | null;
-    status: 'open' | 'under_review' | 'approved' | 'in_production' | 'dispatched' | 'delivered' | 'closed' | 'rejected';
+    status: 'open' | 'under_review' | 'approved' | 'in_production' | 'pending' | 'dispatched' | 'delivered' | 'closed' | 'rejected';
     internal_notes?: string | null;
     created_at?: Date;
     updated_at?: Date;

@@ -38,6 +38,41 @@ export class WebhookController {
     }
 
     /**
+     * Is this request really from Interakt?
+     *
+     * The route is unauthenticated and not rate-limited, and what it does is
+     * consequential: approve or reject a pending warranty as the franchise,
+     * record audit replies, create leads and send paid WhatsApp templates to
+     * ASMs. The HMAC used to be computed, compared against a re-serialized body
+     * that could never match, logged as a mismatch, and ignored — and skipped
+     * entirely when no header was sent.
+     *
+     * Now: HMAC-SHA256 over the raw request bytes with INTERAKT_WEBHOOK_SECRET,
+     * compared in constant time. No secret configured means nothing can be
+     * verified, which is treated as a failure, not a pass.
+     *
+     * INTERAKT_WEBHOOK_VERIFY=report processes unverified events anyway and
+     * only logs them — for checking a new secret against live traffic. Leave it
+     * unset in normal running.
+     */
+    private static checkSignature(req: Request): 'valid' | 'missing' | 'mismatch' | 'unconfigured' {
+        const secret = process.env.INTERAKT_WEBHOOK_SECRET;
+        if (!secret) return 'unconfigured';
+
+        const header = req.headers['interakt-signature'];
+        const signature = (Array.isArray(header) ? header[0] : header || '').trim();
+        const rawBody: Buffer | undefined = (req as any).rawBody;
+        if (!signature || !rawBody) return 'missing';
+
+        const expected = crypto.createHmac('sha256', secret).update(rawBody).digest('hex');
+        const given = signature.replace(/^sha256=/i, '').toLowerCase();
+
+        const a = Buffer.from(given, 'utf8');
+        const b = Buffer.from(expected, 'utf8');
+        return a.length === b.length && crypto.timingSafeEqual(a, b) ? 'valid' : 'mismatch';
+    }
+
+    /**
      * Handle incoming Interakt webhook events.
      *
      * Real Interakt payload for button clicks:
@@ -50,12 +85,23 @@ export class WebhookController {
      */
     static async handleInterakt(req: Request, res: Response) {
 
-        // Always respond 200 immediately so Interakt doesn't retry
+        // Always respond 200 immediately so Interakt doesn't retry. This holds
+        // for rejected events too: Interakt disables a webhook after five
+        // failures in ten minutes, so answering a bad signature with a 4xx
+        // would let a misconfigured secret switch off every real event. A
+        // forged event is dropped below; the status code gains nothing.
         res.status(200).json({ received: true });
 
         try {
             const payload   = req.body;
             const eventType = payload?.type || '';
+
+            const verdict = WebhookController.checkSignature(req);
+            if (verdict !== 'valid') {
+                const mode = process.env.INTERAKT_WEBHOOK_VERIFY === 'report' ? 'report' : 'enforce';
+                console.warn(`[Webhook] Signature ${verdict} on '${eventType}' event (${mode} mode)${mode === 'enforce' ? ' — dropped' : ''}.`);
+                if (mode === 'enforce') return;
+            }
 
             // Log every event before anything can decide to ignore it.
             //
@@ -65,22 +111,6 @@ export class WebhookController {
             // makes that question answerable with one query instead of
             // inference.
             void WebhookController.logRawEvent(eventType, payload);
-
-            // Signature verification (secured by INTERAKT_WEBHOOK_SECRET)
-            const signature = req.headers['interakt-signature'] as string;
-            const secret = process.env.INTERAKT_WEBHOOK_SECRET;
-            if (secret && signature) {
-                const rawBody = JSON.stringify(payload);
-                const computedSignature = 'sha256=' + crypto
-                    .createHmac('sha256', secret)
-                    .update(rawBody)
-                    .digest('hex');
-                if (signature !== computedSignature) {
-                    console.warn('[Webhook] Signature verification mismatch. This is common when JSON formatting changes during parsing. Proceeding.');
-                } else {
-                    console.log('[Webhook] Signature verified successfully');
-                }
-            }
 
             // Handle delivery status events
             const statusEvents = ['message_api_sent', 'message_api_delivered', 'message_api_read', 'message_api_failed'];

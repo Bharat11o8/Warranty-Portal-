@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import db, { getISTTimestamp } from '../config/database.js';
-import jwt from 'jsonwebtoken';
+import { verifyActionToken, signActionToken } from '../utils/actionToken.js';
 import { EmailService } from '../services/email.service.js';
 import bcrypt from 'bcryptjs';
 import { v4 as uuidv4 } from 'uuid';
@@ -291,7 +291,8 @@ export class PublicController {
             }
 
             // Verify token
-            const decoded: any = jwt.verify(token as string, process.env.JWT_SECRET!);
+            const decoded: any = verifyActionToken('warranty_vendor_action', String(token));
+            if (!decoded) throw new Error('Invalid or expired franchise action link');
 
             if (!decoded.warrantyId) {
                 return res.status(400).send('Invalid token payload');
@@ -394,7 +395,8 @@ export class PublicController {
             }
 
             // Verify token
-            const decoded: any = jwt.verify(token as string, process.env.JWT_SECRET!);
+            const decoded: any = verifyActionToken('warranty_vendor_action', String(token));
+            if (!decoded) throw new Error('Invalid or expired franchise action link');
 
             if (!decoded.warrantyId) {
                 return res.status(400).send('Invalid token payload');
@@ -984,10 +986,10 @@ export class PublicController {
                 // Email fallback
                 if (!franchiseWaSent) {
                     try {
-                        const token = jwt.sign(
+                        const token = signActionToken(
+                            'warranty_vendor_action',
                             { warrantyId: warrantyId, vendorEmail: warrantyData.installerContact },
-                            process.env.JWT_SECRET!,
-                            { expiresIn: '7d' }
+                            '7d'
                         );
                         await EmailService.sendVendorConfirmationEmail(
                             vendorEmail,

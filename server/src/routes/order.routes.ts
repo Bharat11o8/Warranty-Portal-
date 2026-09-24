@@ -4,10 +4,6 @@ import { authenticateToken, requirePermission, requireRole } from '../middleware
 
 const router = Router();
 
-// Public route: External email-based confirmation for distributor
-// Note: This endpoint does NOT require standard auth token because the email link contains a secure JWT confirmation token.
-router.get('/confirm-external', OrderController.confirmExternal);
-
 // Public route: token-authorized invoice download (WhatsApp/email "Download Invoice" link).
 // No login session — the token (a signed JWT carrying the order id) authorizes the PDF.
 // Path-only form (no query string) so WhatsApp dynamic-URL buttons don't mangle it.
@@ -33,14 +29,20 @@ router.post('/:id/received', authenticateToken, requireRole('vendor'), OrderCont
 // Decline outgoing orders (admin only)
 router.post('/:id/cancel', authenticateToken, requireRole('admin'), requirePermission('order_management', 'write'), OrderController.cancelOrder);
 
-// Chat / Messages routes
-router.get('/:id/group', authenticateToken, OrderController.getOrderGroup);
-router.get('/:id/messages', authenticateToken, requirePermission('order_management', 'read'), OrderController.getOrderMessages);
-router.post('/:id/messages', authenticateToken, requirePermission('order_management', 'write'), OrderController.createOrderMessage);
+// Order detail routes, shared by admins and vendors. requirePermission lets
+// every non-admin straight through and the controllers only narrow the
+// 'vendor' case, so without requireRole here any logged-in customer could read
+// any order, its invoice and its chat by id — and the ids are sequential.
+const orderParty = [authenticateToken, requireRole(['admin', 'vendor'])];
 
-// Order by ID (Authenticated: Vendor can view their own, Admin can view any)
-router.get('/:id', authenticateToken, requirePermission('order_management', 'read'), OrderController.getOrderById);
-router.get('/:id/pdf', authenticateToken, requirePermission('order_management', 'read'), OrderController.downloadOrderPDF);
+// Chat / Messages routes
+router.get('/:id/group', ...orderParty, OrderController.getOrderGroup);
+router.get('/:id/messages', ...orderParty, requirePermission('order_management', 'read'), OrderController.getOrderMessages);
+router.post('/:id/messages', ...orderParty, requirePermission('order_management', 'write'), OrderController.createOrderMessage);
+
+// Order by ID (Vendor can view their own, Admin can view any)
+router.get('/:id', ...orderParty, requirePermission('order_management', 'read'), OrderController.getOrderById);
+router.get('/:id/pdf', ...orderParty, requirePermission('order_management', 'read'), OrderController.downloadOrderPDF);
 
 // Admin routes
 router.get('/', authenticateToken, requireRole('admin'), requirePermission('order_management', 'read'), OrderController.getAllOrders);

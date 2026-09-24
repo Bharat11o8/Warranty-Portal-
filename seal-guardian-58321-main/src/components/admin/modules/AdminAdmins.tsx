@@ -22,7 +22,7 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { AlertCircle, Crown, Edit2, Loader2, Plus, Shield, Trash2, UserCheck, ChevronDown, ChevronUp, CheckCircle2 } from "lucide-react";
+import { AlertCircle, Crown, Edit2, Loader2, Plus, Shield, Trash2, UserCheck, ChevronDown, ChevronUp, CheckCircle2, Contact } from "lucide-react";
 import api, { getErrorMessage } from "@/lib/api";
 import { AdminPermissionMatrix, DEFAULT_PERMISSIONS, ModulePermissions } from "./AdminPermissionMatrix";
 import { cn } from "@/lib/utils";
@@ -64,6 +64,12 @@ export const AdminAdmins = () => {
     const [editTarget, setEditTarget] = useState<AdminUser | null>(null);
     const [editPerms, setEditPerms] = useState<ModulePermissions>({});
     const [savingPerms, setSavingPerms] = useState(false);
+
+    // Edit contact dialog — super admin only (this whole module is). An
+    // admin's email is their login, so this is the only place it changes.
+    const [contactTarget, setContactTarget] = useState<AdminUser | null>(null);
+    const [contactForm, setContactForm] = useState({ email: '', phone: '' });
+    const [savingContact, setSavingContact] = useState(false);
 
     // Delete dialog
     const [deleteTarget, setDeleteTarget] = useState<AdminUser | null>(null);
@@ -137,6 +143,28 @@ export const AdminAdmins = () => {
             toast({ title: "Error", description: getErrorMessage(error, "Failed to update permissions"), variant: "destructive" });
         } finally {
             setSavingPerms(false);
+        }
+    };
+
+    const openContactDialog = (admin: AdminUser) => {
+        setContactTarget(admin);
+        setContactForm({ email: admin.email || '', phone: admin.phone_number || '' });
+    };
+
+    const handleSaveContact = async () => {
+        if (!contactTarget) return;
+        setSavingContact(true);
+        try {
+            const response = await api.patch(`/admin/admins/${contactTarget.id}/contact`, contactForm);
+            if (response.data.success) {
+                toast({ title: "Contact Updated", description: `${contactTarget.name}'s email and phone have been updated` });
+                setContactTarget(null);
+                fetchAdmins();
+            }
+        } catch (error: any) {
+            toast({ title: "Error", description: getErrorMessage(error, "Failed to update contact details"), variant: "destructive" });
+        } finally {
+            setSavingContact(false);
         }
     };
 
@@ -346,6 +374,14 @@ export const AdminAdmins = () => {
 
                                         {/* Action Buttons */}
                                         <div className="flex items-center gap-2 shrink-0">
+                                            <button
+                                                id={`edit-contact-${admin.id}`}
+                                                onClick={() => openContactDialog(admin)}
+                                                className="p-1.5 rounded-lg text-slate-400 hover:text-orange-500 hover:bg-orange-50 transition-colors"
+                                                title="Edit email & phone"
+                                            >
+                                                <Contact className="h-4 w-4" />
+                                            </button>
                                             {!admin.is_super_admin && (
                                                 <>
                                                     <button
@@ -441,6 +477,63 @@ export const AdminAdmins = () => {
                 </DialogContent>
             </Dialog>
 
+            {/* Edit Contact Dialog */}
+            <Dialog open={!!contactTarget} onOpenChange={open => !open && setContactTarget(null)}>
+                <DialogContent className="max-w-md">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2 text-slate-800">
+                            <Contact className="h-4 w-4 text-orange-500" />
+                            Edit Contact — {contactTarget?.name}
+                        </DialogTitle>
+                        <DialogDescription>
+                            The email is what <strong>{contactTarget?.name}</strong> logs in with — their next
+                            login code goes to the new address. Only a super admin can change these.
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <div className="space-y-4 py-2">
+                        {([
+                            { label: 'Email Address', key: 'email', type: 'email', placeholder: 'admin@example.com' },
+                            { label: 'Phone Number', key: 'phone', type: 'tel', placeholder: '9876543210' },
+                        ] as const).map(field => (
+                            <div key={field.key} className="space-y-1.5">
+                                <label htmlFor={`contact-${field.key}`} className="text-xs font-bold text-slate-600 uppercase tracking-wide">{field.label}</label>
+                                <input
+                                    id={`contact-${field.key}`}
+                                    type={field.type}
+                                    className="w-full p-2.5 rounded-xl border border-input bg-background text-sm focus:ring-1 focus:ring-orange-200 focus:border-orange-300 transition-colors"
+                                    placeholder={field.placeholder}
+                                    value={contactForm[field.key]}
+                                    onChange={e => setContactForm({ ...contactForm, [field.key]: e.target.value })}
+                                />
+                            </div>
+                        ))}
+                    </div>
+
+                    <DialogFooter className="gap-2">
+                        <Button
+                            variant="outline"
+                            onClick={() => setContactTarget(null)}
+                            className="rounded-xl border-slate-200 font-bold"
+                        >
+                            Cancel
+                        </Button>
+                        <Button
+                            id="save-contact-btn"
+                            onClick={handleSaveContact}
+                            disabled={savingContact || !contactForm.email.trim() || !contactForm.phone.trim()}
+                            className="bg-orange-500 hover:bg-orange-600 text-white rounded-xl font-bold"
+                        >
+                            {savingContact ? (
+                                <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Saving...</>
+                            ) : (
+                                'Save Contact'
+                            )}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
             {/* Delete Confirmation Dialog */}
             <AlertDialog open={!!deleteTarget} onOpenChange={open => !open && setDeleteTarget(null)}>
                 <AlertDialogContent className="rounded-2xl">
@@ -473,7 +566,8 @@ export const AdminAdmins = () => {
                         <div className="text-xs">
                             <p className="font-black text-amber-900 mb-1">Access Control Policy</p>
                             <p className="text-amber-800/70 leading-relaxed">
-                                The Super Admin account cannot be edited or deleted. Permissions for regular admins take effect on their next login session.
+                                The Super Admin's permissions cannot be edited and the account cannot be deleted. Permission changes take effect within a minute, without the admin logging in again.
+                                Only a super admin can change an admin's email or phone number — admins cannot change their own.
                                 Use <strong>Read</strong> to grant view-only access and <strong>Write</strong> to allow create, edit, and delete actions within a module.
                             </p>
                         </div>

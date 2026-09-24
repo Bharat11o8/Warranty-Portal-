@@ -117,7 +117,7 @@ export class AnalyticsController {
                     SELECT 
                         COUNT(*) as total,
                         SUM(CASE WHEN status = 'open' THEN 1 ELSE 0 END) as open,
-                        SUM(CASE WHEN status = 'under_review' OR status = 'approved' OR status = 'in_production' THEN 1 ELSE 0 END) as processing,
+                        SUM(CASE WHEN status IN ('under_review', 'approved', 'in_production', 'pending') THEN 1 ELSE 0 END) as processing,
                         SUM(CASE WHEN status = 'dispatched' OR status = 'delivered' THEN 1 ELSE 0 END) as shipped,
                         SUM(CASE WHEN status = 'closed' OR status = 'rejected' THEN 1 ELSE 0 END) as closed
                     FROM posm_requests

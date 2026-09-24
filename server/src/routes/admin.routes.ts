@@ -5,6 +5,7 @@ import { ProductController } from '../controllers/product.controller.js';
 import { ImageRepairController } from '../controllers/imageRepair.controller.js';
 import { authenticateToken, requireRole, requirePermission, requireAnyPermission } from '../middleware/auth.js';
 import { warrantyUpload, attachPublicUrls } from '../config/localUpload.js';
+import { signalAdminAttentionOnSuccess as signalAttention } from '../services/adminAttention.service.js';
 import type { Request, Response, NextFunction } from 'express';
 
 const router = Router();
@@ -38,20 +39,20 @@ router.get('/stats', ...adminAuth, requirePermission('overview', 'read'), AdminC
 // Vendors (Franchises)
 router.get('/vendors', ...adminAuth, requirePermission('vendors', 'read'), AdminController.getAllVendors);
 router.get('/vendors/:id', ...adminAuth, requirePermission('vendors', 'read'), AdminController.getVendorDetails);
-router.put('/vendors/:id/verification', ...adminAuth, requirePermission('vendors', 'write'), AdminController.updateVendorVerification);
+router.put('/vendors/:id/verification', ...adminAuth, requirePermission('vendors', 'write'), signalAttention, AdminController.updateVendorVerification);
 router.put('/vendors/:id/activation', ...adminAuth, requirePermission('vendors', 'write'), AdminController.toggleVendorActivation);
 router.put('/vendors/:id/profile', ...adminAuth, requirePermission('vendors', 'write'), AdminController.updateVendorProfile);
 router.put('/vendors/:id/coordinates', ...adminAuth, requirePermission('vendors', 'write'), AdminController.updateVendorCoordinates);
 router.put('/vendors/:id/store-code', ...adminAuth, requirePermission('vendors', 'write'), AdminController.updateStoreCode);
 router.put('/vendors/:id/allowed-brands', ...adminAuth, requirePermission('vendors', 'write'), AdminController.updateVendorAllowedBrands);
 router.put('/vendors/:id/distributor-status', ...adminAuth, requirePermission('vendors', 'write'), AdminController.updateVendorDistributorStatus);
-router.delete('/vendors/:id', ...adminAuth, requirePermission('vendors', 'write'), AdminController.deleteVendor);
+router.delete('/vendors/:id', ...adminAuth, requirePermission('vendors', 'write'), signalAttention, AdminController.deleteVendor);
 
 // Manpower
 router.get('/manpower', ...adminAuth, requirePermission('vendors', 'read'), AdminController.getAllManpower);
-router.put('/manpower/:id/approval', ...adminAuth, requirePermission('vendors', 'write'), AdminController.updateManpowerApproval);
-router.put('/manpower/:id/removal-review', ...adminAuth, requirePermission('vendors', 'write'), AdminController.reviewManpowerRemoval);
-router.delete('/manpower/:id', ...adminAuth, requirePermission('vendors', 'write'), AdminController.deleteManpower);
+router.put('/manpower/:id/approval', ...adminAuth, requirePermission('vendors', 'write'), signalAttention, AdminController.updateManpowerApproval);
+router.put('/manpower/:id/removal-review', ...adminAuth, requirePermission('vendors', 'write'), signalAttention, AdminController.reviewManpowerRemoval);
+router.delete('/manpower/:id', ...adminAuth, requirePermission('vendors', 'write'), signalAttention, AdminController.deleteManpower);
 
 // WhatsApp notification toggles
 router.get('/notification-settings', ...adminAuth, requirePermission('announcements', 'read'), AdminController.getNotificationSettings);
@@ -150,10 +151,14 @@ router.delete('/products/:id', ...adminAuth, requirePermission('products', 'writ
 router.get('/admins', ...adminAuth, requirePermission('admins', 'read'), AdminController.getAllAdmins);
 router.post('/admins', ...adminAuth, requirePermission('admins', 'write'), AdminController.createAdmin);
 router.patch('/admins/:id/permissions', ...adminAuth, requirePermission('admins', 'write'), AdminController.updateAdminPermissions);
+router.patch('/admins/:id/contact', ...adminAuth, requirePermission('admins', 'write'), AdminController.updateAdminContact);
 router.delete('/admins/:id', ...adminAuth, requirePermission('admins', 'write'), AdminController.deleteAdmin);
 
 router.get('/activity-logs', ...adminAuth, requirePermission('activity_logs', 'read'), AdminController.getActivityLogs);
 router.get('/activity-logs/:id', ...adminAuth, requirePermission('activity_logs', 'read'), AdminController.getActivityLogDetail);
+// Sidebar badges: grievances / POSM requests nobody has picked up yet. Each
+// count is included only for modules this admin can read.
+router.get('/attention', ...adminAuth, AdminController.getAttentionCounts);
 router.get('/diagnostic/vendors', ...adminAuth, AdminController.getDashboardStats);
 router.post('/repair-image', ...adminAuth, requirePermission('warranties', 'write'), ImageRepairController.repairOne);
 

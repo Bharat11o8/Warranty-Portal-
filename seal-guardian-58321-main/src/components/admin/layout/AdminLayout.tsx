@@ -1,6 +1,7 @@
 import { lazy, Suspense, useState } from "react";
 import { AdminSidebar, SidebarContent } from "./AdminSidebar";
 import type { AdminModule } from "./AdminSidebar";
+import { adminModuleTitle } from "./adminModules";
 import { AdminModuleLayout } from "./AdminModuleLayout";
 import { useAuth } from "@/contexts/AuthContext";
 import { Navigate } from "react-router-dom";
@@ -117,38 +118,7 @@ export const AdminLayout = () => {
         }
     };
 
-    const getModuleTitle = () => {
-        const titles: Record<AdminModule, string> = {
-            'overview': 'Dashboard Overview',
-            // 'analytics': 'Advanced Data Analytics',
-            'warranties': 'Warranty Management',
-            'old-warranties': 'Archived Records',
-            'vendors': 'Franchise Network',
-            'distributors': 'Distributor Network',
-            'manpower': 'Manpower & Leaderboard',
-            'customers': 'Customer Database',
-            'admins': 'Access Control',
-            'activity-logs': 'System Audit',
-            'grievances': 'Grievance Management',
-            'products': 'Product Catalog',
-            'warranty-products': 'Warranty Products List',
-            'terms': 'Terms & Conditions',
-            'content-manager': 'Form Content Manager',
-            'warranty-form': 'Manual Registration',
-            'announcements': 'Broadcast & Announcements',
-            'notification-settings': 'WhatsApp Message Controls',
-            'posm': 'POSM Requirements',
-            'uid-management': 'Product UID Management',
-            'ppf-rolls': 'Serial Number Management',
-            'ecatalogue': 'E-Catalogue CMS',
-            'order-management': 'B2B Order Hierarchy',
-            'franchise-distributor-map': 'Franchise Sourcing Map',
-            'audits': 'Audit & Compliance',
-            'leads': 'Lead Management',
-            'profile': 'My Profile'
-        };
-        return titles[activeModule];
-    };
+    const getModuleTitle = () => adminModuleTitle(activeModule);
 
     return (
         <div className="flex flex-col md:flex-row h-screen bg-[#fffaf5] overflow-hidden">

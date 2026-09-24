@@ -2,7 +2,7 @@ import { Server } from 'socket.io';
 import { Server as HttpServer } from 'http';
 import jwt from 'jsonwebtoken';
 import dotenv from 'dotenv';
-import { isSessionToken } from './middleware/auth.js';
+import { isSessionToken, getSessionState } from './middleware/auth.js';
 
 dotenv.config();
 
@@ -21,7 +21,6 @@ export const initSocket = (server: HttpServer) => {
                     'http://localhost:8080',
                     'http://localhost:8081',
                     'http://127.0.0.1:8080',
-                    'https://server-bharat-maheshwaris-projects.vercel.app',
                     'https://warranty2.autoformindia.co.in'
                   ],
             methods: ["GET", "POST"],
@@ -30,7 +29,7 @@ export const initSocket = (server: HttpServer) => {
     });
 
     // Authentication middleware for Socket.io
-    io.use((socket, next) => {
+    io.use(async (socket, next) => {
         // SBP-006: Read token from cookie first, then fall back to handshake auth
         const cookieHeader = socket.handshake.headers.cookie || '';
         const cookies = Object.fromEntries(
@@ -46,13 +45,20 @@ export const initSocket = (server: HttpServer) => {
         }
 
         try {
-            const decoded = jwt.verify(token, process.env.JWT_SECRET!) as any;
+            const decoded = jwt.verify(token, process.env.JWT_SECRET!, { algorithms: ['HS256'] }) as any;
 
             // Same rule as the HTTP middleware: a single-purpose action token
             // (invoice download, franchise verify link) is signed with the same
             // secret but is not a session, and must not join a user's room.
             if (!isSessionToken(decoded)) {
                 return next(new Error('Authentication error: Invalid token'));
+            }
+
+            // A deactivated store or removed admin must not keep receiving
+            // live notifications on a cookie that is still in date.
+            const state = await getSessionState(decoded.id, decoded.role);
+            if (!state.active) {
+                return next(new Error('Authentication error: Account inactive'));
             }
 
             socket.data.user = decoded;

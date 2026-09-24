@@ -23,12 +23,48 @@ export const getSetting = async (req: Request, res: Response) => {
     }
 };
 
+/**
+ * The e-catalogue URLs are rendered as a link and an embedded frame on the
+ * franchise dashboard, so a `javascript:` value would run script in every
+ * franchise's session. Only http(s) — or empty, to clear it — is accepted.
+ */
+const validateSettingValue = (key: string, value: unknown): string | null => {
+    if (typeof value !== 'string') return 'value must be a string';
+    if (key.startsWith('ecatalogue_')) {
+        const v = value.trim();
+        if (v === '') return null;
+        try {
+            const u = new URL(v);
+            if (u.protocol !== 'https:' && u.protocol !== 'http:') return 'URL must start with http:// or https://';
+        } catch {
+            return 'Not a valid URL';
+        }
+    }
+    if (key === 'purchase_date_window_days' && !/^\d{1,4}$/.test(value.trim())) {
+        return 'Purchase date window must be a whole number of days';
+    }
+    // Same bounds getRollCapacitySqft() accepts — anything outside them is
+    // silently replaced by the default there, so refuse it here instead.
+    if (key === 'ppf_roll_capacity_sqft') {
+        const n = Number(value.trim());
+        if (value.trim() === '' || !Number.isFinite(n) || n <= 0 || n > 100_000) {
+            return 'Roll capacity must be a number of square feet between 0 and 100,000';
+        }
+    }
+    return null;
+};
+
 export const updateSetting = async (req: Request, res: Response) => {
     try {
         const { key } = req.params;
         const { value } = req.body;
         // @ts-ignore
         const user = req.user; // Assuming auth middleware attaches user
+
+        const invalid = validateSettingValue(key, value);
+        if (invalid) {
+            return res.status(400).json({ success: false, message: invalid });
+        }
 
         const [result] = await pool.query(
             `INSERT INTO system_settings (setting_key, setting_value, updated_by) 

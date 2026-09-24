@@ -263,7 +263,6 @@ const allowedOrigins = process.env.ALLOWED_ORIGINS
     'http://localhost:8080',
     'http://localhost:8081',
     'http://127.0.0.1:8080',
-    'https://server-bharat-maheshwaris-projects.vercel.app',
     'https://warranty2.autoformindia.co.in'
   ];
 
@@ -295,7 +294,17 @@ app.use(compression());
 // BODY PARSERS
 // ===========================================
 
-app.use(express.json({ limit: '10mb' }));
+app.use(express.json({
+  limit: '10mb',
+  // Webhook signatures are an HMAC over the exact bytes the provider sent.
+  // Re-serializing req.body never reproduces them (key order, spacing, unicode
+  // escapes), so the raw buffer is kept for the webhook routes only.
+  verify: (req, _res, buf) => {
+    if ((req as any).originalUrl?.startsWith('/api/webhooks')) {
+      (req as any).rawBody = buf;
+    }
+  }
+}));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // ===========================================

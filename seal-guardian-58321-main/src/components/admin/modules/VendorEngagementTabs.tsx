@@ -31,6 +31,7 @@ const POSM_STATUS: Record<string, string> = {
     under_review: "bg-amber-50 text-amber-700 border-amber-200",
     approved: "bg-emerald-50 text-emerald-700 border-emerald-200",
     in_production: "bg-purple-50 text-purple-700 border-purple-200",
+    pending: "bg-yellow-50 text-yellow-700 border-yellow-200",
     dispatched: "bg-indigo-50 text-indigo-700 border-indigo-200",
     delivered: "bg-emerald-50 text-emerald-700 border-emerald-200",
     closed: "bg-slate-100 text-slate-600 border-slate-200",

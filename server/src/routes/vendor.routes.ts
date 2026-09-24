@@ -2,10 +2,11 @@ import { Router } from 'express';
 import { VendorController } from '../controllers/vendor.controller.js';
 
 import { authenticateToken, requireRole } from '../middleware/auth.js';
+import { signalAdminAttentionOnSuccess as signalAttention } from '../services/adminAttention.service.js';
 
 const router = Router();
 
-router.get('/verify', VendorController.verifyVendor);
+router.get('/verify', signalAttention, VendorController.verifyVendor);
 
 // Warranty actions
 router.post('/warranty/:uid/approve', authenticateToken, requireRole(['vendor']), VendorController.approveWarranty);
@@ -21,9 +22,9 @@ router.get('/audits', authenticateToken, requireRole(['vendor']), VendorControll
 // Manpower management routes
 router.get('/manpower', authenticateToken, requireRole(['vendor', 'admin']), VendorController.getManpower);
 router.get('/manpower/:manpowerId/warranties', authenticateToken, requireRole(['vendor', 'admin']), VendorController.getManpowerWarranties);
-router.post('/manpower', authenticateToken, requireRole(['vendor', 'admin']), VendorController.addManpower);
-router.put('/manpower/:id', authenticateToken, requireRole(['vendor', 'admin']), VendorController.updateManpower);
-router.delete('/manpower/:id', authenticateToken, requireRole(['vendor', 'admin']), VendorController.removeManpower);
-router.put('/manpower/:id/restore', authenticateToken, requireRole(['vendor', 'admin']), VendorController.restoreManpower);
+router.post('/manpower', authenticateToken, requireRole(['vendor', 'admin']), signalAttention, VendorController.addManpower);
+router.put('/manpower/:id', authenticateToken, requireRole(['vendor', 'admin']), signalAttention, VendorController.updateManpower);
+router.delete('/manpower/:id', authenticateToken, requireRole(['vendor', 'admin']), signalAttention, VendorController.removeManpower);
+router.put('/manpower/:id/restore', authenticateToken, requireRole(['vendor', 'admin']), signalAttention, VendorController.restoreManpower);
 
 export default router;

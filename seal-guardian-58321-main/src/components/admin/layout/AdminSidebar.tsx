@@ -1,31 +1,16 @@
+import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 import {
-    LayoutDashboard,
-    ShieldCheck,
-    Store,
-    Users,
-    UserCog,
-    Archive,
     LogOut,
     ChevronRight,
     ChevronLeft,
+    ChevronDown,
     User,
-    MessageSquare,
-    Package,
-    PenTool,
-    FileText,
-    Megaphone,
-    BookOpen,
-    Crown,
-    Network,
-    Building2,
-    BellRing,
-    Layers,
-    ClipboardCheck,
-    MapPin
+    Crown
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
-import { useNotifications } from "@/contexts/NotificationContext";
+import { ADMIN_MENU_GROUPS, adminModuleGroup, canSeeAdminModule, type AdminModule } from "./adminModules";
+import { useAdminAttention } from "./useAdminAttention";
 import { Button } from "@/components/ui/button";
 import {
     Tooltip,
@@ -34,34 +19,8 @@ import {
     TooltipTrigger,
 } from "@/components/ui/tooltip";
 
-export type AdminModule =
-    | 'overview'
-    | 'vendors'
-    | 'distributors'
-    | 'manpower'
-    | 'customers'
-    | 'products'
-    | 'warranty-products'
-    | 'warranties'
-    | 'old-warranties'
-    | 'admins'
-    | 'activity-logs'
-    | 'grievances'
-    | 'terms'
-    | 'content-manager'
-    | 'warranty-form'
-    | 'announcements'
-    | 'notification-settings'
-    | 'posm'
-    | 'uid-management'
-    | 'ppf-rolls'
-    | 'ecatalogue'
-    | 'analytics'
-    | 'order-management'
-    | 'franchise-distributor-map'
-    | 'audits'
-    | 'leads'
-    | 'profile';
+
+export type { AdminModule } from "./adminModules";
 
 interface SidebarItemProps {
     icon: any;
@@ -136,38 +95,6 @@ interface AdminSidebarProps {
     onToggleCollapse?: () => void;
 }
 
-// Maps sidebar module IDs to permission keys
-const moduleToPermKey: Record<string, string> = {
-    'overview': 'overview',
-    'warranties': 'warranties',
-    'warranty-products': 'warranty_products',
-    'uid-management': 'uid_management',
-    // Roll usage is warranty data, so it follows the warranties permission
-    // rather than introducing a key nobody has been granted yet.
-    'ppf-rolls': 'warranties',
-    'warranty-form': 'warranty_form',
-    'vendors': 'vendors',
-    'manpower': 'vendors',
-    'customers': 'customers',
-    'products': 'products',
-    'announcements': 'announcements',
-    'notification-settings': 'announcements',
-    'grievances': 'grievances',
-    'posm': 'posm',
-    'ecatalogue': 'ecatalogue',
-    'terms': 'terms',
-    'old-warranties': 'old_warranties',
-    'activity-logs': 'activity_logs',
-    'admins': 'admins',   // Super Admin only
-    'analytics': 'analytics',
-    'distributors': 'distributors',
-    'content-manager': 'content_manager',
-    'order-management': 'order_management',
-    'franchise-distributor-map': 'distributors',
-    'audits': 'audits',
-    'leads': 'leads',
-    'profile': 'profile',  // Always visible
-};
 
 // Extracted Sidebar Content for reuse in Mobile Sheet
 export const SidebarContent = ({
@@ -177,99 +104,51 @@ export const SidebarContent = ({
     onToggleCollapse
 }: AdminSidebarProps) => {
     const { logout, user, hasPermission } = useAuth();
-    const { notifications } = useNotifications();
+    // Work nobody has picked up yet. This used to count unread notifications
+    // of type 'grievance' — a type the server never sends, so it never showed.
+    const attention = useAdminAttention();
 
-    // Calculate Section Updates from notifications (Hidden for Phase 1)
-    // const unreadWarranties = notifications.filter(n => !n.is_read && n.type === 'warranty').length;
-    const unreadGrievances = notifications.filter(n => !n.is_read && n.type === 'grievance').length;
+    const countFor = (id: AdminModule): number =>
+        (id === 'grievances' ? attention.grievances
+            : id === 'posm' ? attention.posm
+            : id === 'vendors' ? attention.franchises
+            : id === 'manpower' ? attention.manpower
+            : 0) || 0;
 
-    // Helper: can this admin see a given module?
-    const canSeeModule = (moduleId: string): boolean => {
-        if (moduleId === 'profile') return true;      // always visible
-        if (moduleId === 'admins') return !!user?.isSuperAdmin; // Super Admin only
-        if (user?.isSuperAdmin) return true;          // super admin sees all
-        const permKey = moduleToPermKey[moduleId];
-        if (!permKey) return true;
-        return hasPermission(permKey, 'read');
-    };
-
-    // Define menu items inside the component or outside if static
-    const allMenuGroups = [
-        {
-            label: "Insights",
-            items: [
-                { id: 'overview' as const, label: "Overview", icon: LayoutDashboard },
-                { id: 'analytics' as const, label: "Deep Analytics", icon: MessageSquare },
-            ]
-        },
-        {
-            label: "Warranty Operations",
-            items: [
-                {
-                    id: 'warranties' as const,
-                    label: "Warranty Management",
-                    icon: ShieldCheck,
-                    // badge: unreadWarranties > 0 ? unreadWarranties.toString() : undefined
-                },
-
-                { id: 'warranty-products' as const, label: "Warranty Products", icon: Store },
-                { id: 'uid-management' as const, label: "UID Management", icon: Package },
-                { id: 'ppf-rolls' as const, label: "Serial Number Management", icon: Layers },
-                { id: 'warranty-form' as const, label: "New Registration", icon: PenTool },
-                { id: 'old-warranties' as const, label: "Old Warranties", icon: Archive },
-            ]
-        },
-        {
-            label: "Network & Orders",
-            items: [
-                { id: 'vendors' as const, label: "Franchises", icon: Store },
-                { id: 'distributors' as const, label: "Distributors", icon: Building2 },
-                { id: 'manpower' as const, label: "Manpower", icon: Users },
-                { id: 'customers' as const, label: "Customers", icon: Users },
-                { id: 'order-management' as const, label: "Order Management", icon: Network },
-                { id: 'franchise-distributor-map' as const, label: "Sourcing Map", icon: Layers },
-                { id: 'audits' as const, label: "Audit & Compliance", icon: ClipboardCheck },
-                { id: 'leads' as const, label: "Lead Management", icon: MapPin },
-            ]
-        },
-        {
-            label: "Engagement",
-            items: [
-                { id: 'announcements' as const, label: "Announcements", icon: Megaphone },
-                { id: 'notification-settings' as const, label: "WhatsApp Messages", icon: BellRing },
-                {
-                    id: 'grievances' as const,
-                    label: "Grievances",
-                    icon: MessageSquare,
-                    badge: unreadGrievances > 0 ? unreadGrievances.toString() : undefined
-                },
-                { id: 'posm' as const, label: "POSM Requirements", icon: Package },
-            ]
-        },
-        {
-            label: "Catalogue & Content",
-            items: [
-                { id: 'products' as const, label: "Product Catalogue", icon: Package },
-                { id: 'ecatalogue' as const, label: "E-Catalogue CMS", icon: BookOpen },
-                { id: 'content-manager' as const, label: "Form Content", icon: FileText },
-            ]
-        },
-        {
-            label: "Administration",
-            items: [
-                { id: 'activity-logs' as const, label: "Activity Logs", icon: FileText },
-                { id: 'admins' as const, label: "Admin Access", icon: UserCog },
-            ]
-        }
-    ];
+    const badgeText = (n: number): string | undefined =>
+        n <= 0 ? undefined : n > 99 ? '99+' : String(n);
 
     // Filter groups/items by permission
-    const menuGroups = allMenuGroups
+    const menuGroups = ADMIN_MENU_GROUPS
         .map(group => ({
             ...group,
-            items: group.items.filter(item => canSeeModule(item.id))
+            items: group.items
+                .filter(item => canSeeAdminModule(item.id, user, hasPermission))
+                .map(item => ({ ...item, count: countFor(item.id), badge: badgeText(countFor(item.id)) }))
         }))
         .filter(group => group.items.length > 0);
+
+    /*
+     * Groups fold to their heading. The one holding the open module is always
+     * expanded — including when a module is opened from Ctrl+K or a link — and
+     * the rest stay however the admin left them.
+     */
+    const [openGroups, setOpenGroups] = useState<Set<string>>(() => {
+        const g = adminModuleGroup(activeModule);
+        return new Set(g ? [g] : []);
+    });
+
+    useEffect(() => {
+        const g = adminModuleGroup(activeModule);
+        if (g) setOpenGroups(prev => (prev.has(g) ? prev : new Set(prev).add(g)));
+    }, [activeModule]);
+
+    const toggleGroup = (label: string) =>
+        setOpenGroups(prev => {
+            const next = new Set(prev);
+            if (next.has(label)) next.delete(label); else next.add(label);
+            return next;
+        });
 
     return (
         <TooltipProvider>
@@ -306,15 +185,36 @@ export const SidebarContent = ({
                 </div>
 
                 {/* Nav Items - Always scrollable now */}
-                <nav className="flex-1 px-4 py-8 space-y-10 overflow-y-auto custom-scrollbar">
+                <nav className={cn("flex-1 px-4 py-8 overflow-y-auto custom-scrollbar", isCollapsed ? "space-y-10" : "space-y-4")}>
                     {menuGroups.map((group) => (
-                        <div key={group.label} className="space-y-4">
-                            {!isCollapsed && (
-                                <h2 className="px-4 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 animate-in-fade">
-                                    {group.label}
-                                </h2>
-                            )}
-                            <div className="space-y-2">
+                        <div key={group.label} className="space-y-2">
+                            {!isCollapsed && (() => {
+                                const open = openGroups.has(group.label);
+                                // A folded group still shows that something inside wants attention.
+                                const pending = group.items.reduce((n, i) => n + i.count, 0);
+                                return (
+                                    <button
+                                        type="button"
+                                        onClick={() => toggleGroup(group.label)}
+                                        aria-expanded={open}
+                                        className="w-full flex items-center justify-between gap-2 px-4 py-1 rounded-lg text-left text-slate-400 hover:text-slate-600 transition-colors animate-in-fade"
+                                    >
+                                        <h2 className="min-w-0 truncate whitespace-nowrap text-[10px] font-black uppercase tracking-[0.14em]">
+                                            {group.label}
+                                        </h2>
+                                        <span className="flex shrink-0 items-center gap-2">
+                                            {!open && pending > 0 && (
+                                                <span className="flex h-4 min-w-[16px] items-center justify-center rounded-full bg-orange-500 px-1 text-[9px] font-black text-white">
+                                                    {badgeText(pending)}
+                                                </span>
+                                            )}
+                                            <ChevronDown className={cn("h-3.5 w-3.5 transition-transform duration-200", !open && "-rotate-90")} />
+                                        </span>
+                                    </button>
+                                );
+                            })()}
+                            {/* Icon-only mode has no headings to unfold, so every item shows. */}
+                            <div className="space-y-2" hidden={!isCollapsed && !openGroups.has(group.label)}>
                                 {group.items.map((item: any) => (
                                     <SidebarItem
                                         key={item.id}
