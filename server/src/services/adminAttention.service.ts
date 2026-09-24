@@ -15,6 +15,8 @@ import { getIO } from '../socket.js';
 export interface AttentionCounts {
     grievances?: number;
     posm?: number;
+    franchises?: number;
+    manpower?: number;
 }
 
 type Perms = Record<string, { read: boolean; write: boolean }> | undefined;
@@ -39,6 +41,31 @@ export async function getAttentionCounts(user: { isSuperAdmin?: boolean; permiss
             "SELECT COUNT(*) AS n FROM posm_requests WHERE status IN ('open', 'pending')"
         );
         counts.posm = Number(rows[0]?.n || 0);
+    }
+
+    // Both screens sit under the `vendors` permission.
+    if (canRead(user, 'vendors')) {
+        // The Franchises screen's "Pending" tab: never reviewed. A rejection
+        // stamps verified_at, so rejected stores don't count.
+        const [f]: any = await db.execute(
+            `SELECT COUNT(*) AS n
+             FROM vendor_verification vv
+             JOIN vendor_details vd ON vd.user_id = vv.user_id
+             WHERE vv.is_verified = 0 AND vv.verified_at IS NULL`
+        );
+        counts.franchises = Number(f[0]?.n || 0);
+
+        // The Manpower screen's "Pending" tab (active, not yet approved — a
+        // restore lands here too) plus its "Removal Requests" tab. Joined to
+        // vendor_details exactly as getAllManpower is.
+        const [m]: any = await db.execute(
+            `SELECT COUNT(*) AS n
+             FROM manpower m
+             JOIN vendor_details vd ON vd.id = m.vendor_id
+             WHERE (m.is_active = 1 AND m.is_approved = 0)
+                OR (m.request_status = 'pending' AND m.request_type = 'remove')`
+        );
+        counts.manpower = Number(m[0]?.n || 0);
     }
 
     return counts;

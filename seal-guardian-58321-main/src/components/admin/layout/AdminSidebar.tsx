@@ -111,6 +111,8 @@ export const SidebarContent = ({
     const countFor = (id: AdminModule): number =>
         (id === 'grievances' ? attention.grievances
             : id === 'posm' ? attention.posm
+            : id === 'vendors' ? attention.franchises
+            : id === 'manpower' ? attention.manpower
             : 0) || 0;
 
     const badgeText = (n: number): string | undefined =>

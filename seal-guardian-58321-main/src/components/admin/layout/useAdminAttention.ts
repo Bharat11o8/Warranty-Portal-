@@ -5,7 +5,8 @@ import { useNotifications } from "@/contexts/NotificationContext";
 
 /**
  * Work waiting on admins, for the sidebar badges: grievances still
- * `submitted` and POSM requests still `open`. A module the admin can't read is
+ * `submitted`, POSM requests `open`/`pending`, franchises awaiting approval,
+ * and manpower awaiting approval or removal review. A module the admin can't read is
  * simply absent from the response.
  *
  * The server emits `admin:attention` whenever one is created or changes
@@ -15,6 +16,10 @@ import { useNotifications } from "@/contexts/NotificationContext";
 export interface AttentionCounts {
     grievances?: number;
     posm?: number;
+    /** Registered stores not yet approved or rejected. */
+    franchises?: number;
+    /** Staff awaiting approval plus pending removal requests. */
+    manpower?: number;
 }
 
 const POLL_MS = 60_000;

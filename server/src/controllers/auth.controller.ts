@@ -6,6 +6,8 @@ import { EmailService } from '../services/email.service.js';
 import { OTPService } from '../services/otp.service.js';
 import { WhatsAppService } from '../services/whatsapp.service.js';
 import { ActivityLogService } from '../services/activity-log.service.js';
+import { NotificationService } from '../services/notification.service.js';
+import { signalAdminAttention } from '../services/adminAttention.service.js';
 import { RegisterData } from '../types/index.js';
 import { canonicalState } from '../services/indianStates.js';
 import dotenv from 'dotenv';
@@ -492,6 +494,21 @@ export class AuthController {
 
             // Commit the transaction
             await connection.commit();
+
+            // A new store (and any staff it listed) is now waiting on an admin.
+            // Signalled here rather than as route middleware: /verify-otp is
+            // also every ordinary login.
+            signalAdminAttention();
+            try {
+              await NotificationService.broadcast({
+                title: `New Franchise Registration: ${pending.store_name}`,
+                message: `${pending.store_name} (${[pending.city, pending.state].filter(Boolean).join(', ')}) registered and is waiting for approval.`,
+                type: 'system',
+                targetRole: 'admin'
+              });
+            } catch (notifErr) {
+              console.error('Failed to notify admins of new franchise registration:', notifErr);
+            }
 
             // Send emails AFTER successful commit (outside transaction)
             await EmailService.sendVendorVerificationRequest(
