@@ -4,6 +4,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { hasAutoReplyContent } from '../services/autoReply.js';
 import { findStoresForPincode, getLocatorSettings, saveLocatorSettings } from '../services/storeLocatorQuery.js';
 import { startStoreEnquiry } from '../services/storeLocatorChat.js';
+import { searchAreas, resolveNewArea, coverageOf } from '../services/asmTerritoryQuery.js';
 import { routeEnquiry, areaKey } from '../services/asmRouting.service.js';
 import { findState } from '../services/indianStates.js';
 import { isSamePlace, buildAddress } from '../services/placeMatch.js';
@@ -145,9 +146,15 @@ export class AsmController {
                   ORDER BY a.is_active DESC, a.name ASC`
             );
             const [areas]: any = await db.execute(
-                'SELECT id, asm_id, area_key, area_label, state FROM asm_areas ORDER BY area_label'
+                `SELECT id, asm_id, area_key, area_label, state, kind, district, pincode
+                   FROM asm_areas ORDER BY area_label`
             );
-            res.json({ success: true, asms: rows, areas });
+            const counts = await coverageOf(areas).catch(() => areas.map(() => 0));
+            res.json({
+                success: true,
+                asms: rows,
+                areas: areas.map((a: any, i: number) => ({ ...a, pincodes: counts[i] })),
+            });
         } catch (error: any) {
             console.error('List ASMs error:', error);
             res.status(500).json({ error: 'Failed to load ASMs' });
@@ -223,42 +230,63 @@ export class AsmController {
     // ── Areas ───────────────────────────────────────────────────────────────
 
     /**
-     * Assign an area to an ASM.
+     * Give an ASM a place: a state, a district or a pincode from the pincode
+     * directory. Every pincode inside it is then theirs.
      *
-     * area_key is UNIQUE, so a second ASM claiming the same place is refused by
-     * the database rather than resolved arbitrarily at routing time.
+     * The key is UNIQUE, so a second ASM claiming the same place is refused by
+     * the database rather than resolved arbitrarily at routing time. A place
+     * inside one someone else holds — a district of their state — is allowed:
+     * the more specific place wins, which is how a state is split.
      */
     static async addArea(req: Request, res: Response) {
         try {
-            const { asm_id, area_label, state } = req.body || {};
-            if (!asm_id || !area_label) {
-                return res.status(400).json({ error: 'asm_id and area_label are required' });
-            }
-            const key = areaKey(area_label);
-            if (!key) return res.status(400).json({ error: 'That area name is empty once normalised' });
+            const { asm_id } = req.body || {};
+            if (!asm_id) return res.status(400).json({ error: 'asm_id is required' });
 
             const [asm]: any = await db.execute('SELECT id FROM asms WHERE id = ?', [asm_id]);
             if (!asm.length) return res.status(404).json({ error: 'ASM not found' });
 
-            await db.execute(
-                'INSERT INTO asm_areas (id, asm_id, area_key, area_label, state) VALUES (?, ?, ?, ?, ?)',
-                [uuidv4(), asm_id, key, String(area_label).trim(), state || null]
-            );
-            res.status(201).json({ success: true, message: `${area_label} assigned` });
-        } catch (error: any) {
-            if (error?.code === 'ER_DUP_ENTRY') {
+            let area;
+            try {
+                area = await resolveNewArea(req.body || {});
+            } catch (err: any) {
+                return res.status(400).json({ error: err?.message || 'Pick the area from the list' });
+            }
+
+            try {
+                await db.execute(
+                    `INSERT INTO asm_areas (id, asm_id, area_key, area_label, state, kind, district, pincode)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+                    [uuidv4(), asm_id, area.key, area.label, area.state,
+                     area.territory.kind, area.territory.district ?? null, area.territory.pincode ?? null]
+                );
+            } catch (error: any) {
+                if (error?.code !== 'ER_DUP_ENTRY') throw error;
                 const [owner]: any = await db.execute(
                     `SELECT a.name FROM asm_areas ar JOIN asms a ON a.id = ar.asm_id WHERE ar.area_key = ?`,
-                    [areaKey(req.body?.area_label || '')]
+                    [area.key]
                 );
                 return res.status(400).json({
                     error: owner.length
-                        ? `That area is already covered by ${owner[0].name}`
-                        : 'That area is already assigned',
+                        ? `${area.label} is already covered by ${owner[0].name}`
+                        : `${area.label} is already assigned`,
                 });
             }
+            res.status(201).json({ success: true, message: `${area.label} assigned` });
+        } catch (error: any) {
             console.error('Add area error:', error);
             res.status(500).json({ error: 'Failed to assign the area' });
+        }
+    }
+
+    /** Places matching what the admin typed, and who already holds each. */
+    static async searchAreas(req: Request, res: Response) {
+        try {
+            const places = await searchAreas(String(req.query.q || ''));
+            res.json({ success: true, places });
+        } catch (error: any) {
+            console.error('Area search error:', error);
+            res.status(500).json({ error: 'Failed to search areas' });
         }
     }
 

@@ -42,6 +42,8 @@ router.post('/store-enquiry', workflowSecret, AsmController.storeEnquiryWebhook)
  * should have run.
  */
 router.get('/known-areas', ...adminAuth, requirePermission('leads', 'read'), AsmController.knownAreas);
+// States, districts and pincodes to give an ASM, from the pincode directory.
+router.get('/area-search', ...adminAuth, requirePermission('leads', 'read'), AsmController.searchAreas);
 router.get('/leads/list', ...adminAuth, requirePermission('leads', 'read'), AsmController.listLeads);
 router.post('/leads', ...adminAuth, requirePermission('leads', 'write'), AsmController.createLead);
 router.put('/leads/:id', ...adminAuth, requirePermission('leads', 'write'), AsmController.updateLead);

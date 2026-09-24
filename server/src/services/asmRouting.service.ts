@@ -2,6 +2,7 @@ import db from '../config/database.js';
 import { v4 as uuidv4 } from 'uuid';
 import { WhatsAppService } from './whatsapp.service.js';
 import { findState } from './indianStates.js';
+import { findAsmForText } from './asmTerritoryQuery.js';
 
 /* Re-exported so existing callers keep working; the implementation lives
    in productMatch, which has no database import and can be tested. */
@@ -122,169 +123,19 @@ export interface RouteResult {
 }
 
 /**
- * Edit distance, capped, counting a swap of two adjacent letters as one edit.
+ * Find the ASM for a typed location — "Rohini Delhi", "gurgaon", "Delhi 110085".
  *
- * That last part matters more than it sounds: "dehli" for "delhi" is the most
- * common way this word is mistyped, and plain Levenshtein scores it 2 — the
- * same as two unrelated wrong letters. Treating a transposition as one edit
- * catches it without raising the allowance, which would otherwise let "Dehri"
- * (a real town in Bihar) match Delhi.
- *
- * Bails out as soon as the best possible distance exceeds `max`, so a long
- * sentence is rejected in a few comparisons rather than a full matrix.
- */
-function editDistance(a: string, b: string, max: number): number {
-    if (Math.abs(a.length - b.length) > max) return max + 1;
-
-    let twoBack: number[] = [];
-    let prev = Array.from({ length: b.length + 1 }, (_, i) => i);
-
-    for (let i = 1; i <= a.length; i++) {
-        const curr = [i];
-        let rowBest = i;
-        for (let j = 1; j <= b.length; j++) {
-            const cost = a[i - 1] === b[j - 1] ? 0 : 1;
-            let val = Math.min(curr[j - 1] + 1, prev[j] + 1, prev[j - 1] + cost);
-            // Adjacent letters swapped — one edit, not two.
-            if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) {
-                val = Math.min(val, twoBack[j - 2] + 1);
-            }
-            curr[j] = val;
-            if (val < rowBest) rowBest = val;
-        }
-        if (rowBest > max) return max + 1;
-        twoBack = prev;
-        prev = curr;
-    }
-    return prev[b.length];
-}
-
-/**
- * How close a typo may be before we accept it.
- *
- * Scaled to the word: one edit on a short name, two on a longer one. "dehli"
- * reaches "delhi", but "delhi" never reaches "dehradun" — being generous with
- * short words is how a matcher starts sending enquiries to the wrong person.
- */
-function typoAllowance(len: number): number {
-    if (len <= 4) return 0;
-    if (len <= 7) return 1;
-    return 2;
-}
-
-/**
- * Find the ASM for an area.
- *
- * A customer types their location however they please: "Delhi", "rohini,
- * delhi", "I am from dehli", "Delhi 110085". So rather than matching the
- * string, this looks for a mapped area *inside* whatever they wrote.
- *
- * Three passes, each stricter than the next is loose:
- *   1. the whole string, exactly
- *   2. any word or adjacent pair that IS a mapped area, longest first
- *   3. the same, allowing a typo or two on longer words
- *
- * Longest-first ordering matters: with both "Delhi" and "New Delhi" mapped,
- * "Dwarka, New Delhi" must reach whoever holds New Delhi.
- *
- * Fuzziness is deliberately mean — no allowance under five characters, and at
- * most two edits on a long name. A matcher that guesses generously sends
- * enquiries to the wrong person, which is worse than queueing them as
- * unmatched where somebody can see and fix the gap.
+ * Territories are places from the pincode directory now (a state, a district
+ * or a pincode), so this reads the place out of the text and asks who holds
+ * it: a pincode in the text first, then a district it names, then its state.
+ * The rules are in asmTerritory; typos in a state name ("dehli") are handled
+ * by findState.
  */
 export async function findAsmForArea(area: string) {
-    const whole = areaKey(area);
-    if (!whole) return null;
-
-    const [mapped]: any = await db.execute(
-        `SELECT ar.area_key, ar.area_label, a.id, a.name, a.phone_number, a.is_active
-           FROM asm_areas ar
-           JOIN asms a ON a.id = ar.asm_id`
-    );
-    if (!mapped.length) return null;
-
-    const byKey = new Map<string, any>(mapped.map((m: any) => [m.area_key, m]));
-
-    /*
-     * The state decides who gets the enquiry.
-     *
-     * An ASM covers a state, so "Rohini Delhi", "Saket delhi" and "dehli" are
-     * all the same routing decision — and resolving the state first is what
-     * makes them so. Matching on the city instead meant the same input could
-     * land on whichever mapped area happened to win: identical enquiries
-     * reading "Rohini" one time and "Delhi" the next.
-     *
-     * The city is not discarded. It travels to the ASM in the message, which is
-     * where it is actually useful.
-     */
-    const resolved = findState(area);
-    if (resolved) {
-        const hit = byKey.get(areaKey(resolved.state));
-        if (hit) {
-            if (areaKey(resolved.state) !== whole) {
-                console.log(`[ASM] "${area}" -> ${resolved.state} (${resolved.how})`);
-            }
-            return hit.is_active ? hit : null;
-        }
-
-        /*
-         * The state was understood, and nobody covers it. That is the answer.
-         *
-         * Falling through to the city passes below would undo the decision:
-         * "Noida" is Uttar Pradesh, but a leftover area row named "Noida"
-         * belonging to the Delhi ASM would match it by name and send the
-         * enquiry across a state line — silently, and looking like a success.
-         *
-         * An uncovered state is a gap in the roster, and queueing it as
-         * unmatched is what puts that gap in front of somebody.
-         */
-        console.log(`[ASM] "${area}" is ${resolved.state} — no ASM covers that state`);
-        return null;
-    }
-
-    // Candidates: the whole string, then adjacent pairs, then single words.
-    const words = String(area).split(/[^A-Za-z0-9]+/).filter(Boolean);
-    const pairs = words.slice(0, -1).map((w, i) => areaKey(w + words[i + 1]));
-    const singles = words.map(w => areaKey(w)).filter(w => w.length > 2);
-
-    const candidates = [
-        whole,
-        ...[...pairs, ...singles].filter(k => k && k !== whole).sort((a, b) => b.length - a.length),
-    ];
-
-    const accept = (hit: any, via: string) => {
-        // A deactivated ASM should not be messaged, but the area is still
-        // "known" — queued as unmatched so it shows as a gap to reassign.
-        if (!hit.is_active) return null;
-        if (via !== whole) console.log(`[ASM] "${area}" matched on "${hit.area_label}"`);
-        return hit;
-    };
-
-    // Pass 1 and 2 — exact.
-    for (const key of new Set(candidates)) {
-        const hit = byKey.get(key);
-        if (hit) return accept(hit, key);
-    }
-
-    // Pass 3 — allow a typo. "dehli" reaches Delhi; "dwarka" still reaches
-    // nothing, because it is a real place nobody has mapped.
-    for (const key of new Set(candidates)) {
-        const allow = typoAllowance(key.length);
-        if (!allow) continue;
-
-        let best: any = null;
-        let bestDist = allow + 1;
-        for (const m of mapped) {
-            const d = editDistance(key, m.area_key, allow);
-            if (d < bestDist) { bestDist = d; best = m; }
-        }
-        if (best) {
-            console.log(`[ASM] "${area}" ~ "${best.area_label}" (${bestDist} edit${bestDist > 1 ? 's' : ''})`);
-            return accept(best, best.area_key);
-        }
-    }
-
-    return null;
+    if (!areaKey(area)) return null;
+    const match = await findAsmForText(area);
+    if (match) console.log(`[ASM] "${area}" -> ${match.name} via ${match.area_label}`);
+    return match;
 }
 
 /**

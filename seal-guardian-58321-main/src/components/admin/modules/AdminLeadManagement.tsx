@@ -20,10 +20,12 @@ import {
 /**
  * ASMs and the areas they cover.
  *
- * This is the routing table behind lead forwarding: an enquiry carries an area,
- * and whoever owns that area gets the WhatsApp. One area belongs to exactly one
- * ASM — the database enforces it — so this screen's job is mostly to make the
- * mapping visible and easy to correct.
+ * This is the routing table behind lead forwarding. An ASM is given places
+ * from the pincode directory — a state, a district, or a single pincode — and
+ * every pincode inside them is theirs. One place belongs to exactly one ASM
+ * (the database enforces it), and a smaller place beats a bigger one, so a
+ * state can be split. This screen's job is to make that visible and easy to
+ * correct.
  */
 
 interface Asm {
@@ -42,13 +44,31 @@ interface Area {
     area_key: string;
     area_label: string;
     state: string | null;
+    kind: "state" | "district" | "pincode" | null;
+    district: string | null;
+    pincode: string | null;
+    /** Pincodes this area covers. */
+    pincodes: number;
 }
+
+/** A place from the pincode directory that can be given to an ASM. */
+interface Place {
+    key: string;
+    kind: "state" | "district" | "pincode";
+    state: string;
+    district?: string | null;
+    pincode?: string | null;
+    label: string;
+    pincodes: number;
+    taken_by: string | null;
+}
+
+const KIND_LABEL: Record<Place["kind"], string> = { state: "State", district: "District", pincode: "Pincode" };
 
 export const AdminLeadManagement = () => {
     const { toast } = useToast();
     const [asms, setAsms] = useState<Asm[]>([]);
     const [areas, setAreas] = useState<Area[]>([]);
-    const [knownAreas, setKnownAreas] = useState<{ label: string; state: string | null }[]>([]);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
     const [search, setSearch] = useState("");
@@ -63,7 +83,9 @@ export const AdminLeadManagement = () => {
     // Assign an area
     const [areaTarget, setAreaTarget] = useState<Asm | null>(null);
     const [areaInput, setAreaInput] = useState("");
-    const [addingArea, setAddingArea] = useState(false);
+    const [addingArea, setAddingArea] = useState<string | null>(null);
+    const [places, setPlaces] = useState<Place[]>([]);
+    const [searchingPlaces, setSearchingPlaces] = useState(false);
 
     const fetchAll = async (silent = false) => {
         silent ? setRefreshing(true) : setLoading(true);
@@ -87,11 +109,6 @@ export const AdminLeadManagement = () => {
 
     useEffect(() => {
         fetchAll();
-        // Cities we already serve, offered as suggestions so nobody assigns an
-        // area from memory and mistypes it.
-        api.get("/asm/known-areas")
-            .then(res => { if (res.data.success) setKnownAreas(res.data.areas || []); })
-            .catch(() => { /* suggestions are a convenience, not a requirement */ });
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
@@ -100,9 +117,6 @@ export const AdminLeadManagement = () => {
         areas.forEach(a => { (map[a.asm_id] ||= []).push(a); });
         return map;
     }, [areas]);
-
-    /** Areas already taken, so the suggestion list never offers a clash. */
-    const takenKeys = useMemo(() => new Set(areas.map(a => a.area_key)), [areas]);
 
     const visible = useMemo(() => {
         const q = search.trim().toLowerCase();
@@ -190,17 +204,38 @@ export const AdminLeadManagement = () => {
         }
     };
 
-    const addArea = async (label: string) => {
-        if (!areaTarget || !label.trim()) return;
-        setAddingArea(true);
+    /*
+     * Places matching what is typed — states, districts, or a pincode — from
+     * the pincode directory. Debounced; an empty box lists the states.
+     */
+    useEffect(() => {
+        if (!areaTarget) return;
+        let cancelled = false;
+        setSearchingPlaces(true);
+        const t = setTimeout(() => {
+            api.get("/asm/area-search", { params: { q: areaInput.trim() } })
+                .then(res => { if (!cancelled && res.data.success) setPlaces(res.data.places || []); })
+                .catch(() => { if (!cancelled) setPlaces([]); })
+                .finally(() => { if (!cancelled) setSearchingPlaces(false); });
+        }, 250);
+        return () => { cancelled = true; clearTimeout(t); };
+    }, [areaInput, areaTarget, areas]);
+
+    const addArea = async (place: Place) => {
+        if (!areaTarget) return;
+        setAddingArea(place.key);
         try {
-            const known = knownAreas.find(k => k.label.toLowerCase() === label.trim().toLowerCase());
             await api.post("/asm/areas", {
                 asm_id: areaTarget.id,
-                area_label: label.trim(),
-                state: known?.state || null,
+                kind: place.kind,
+                state: place.state,
+                district: place.district,
+                pincode: place.pincode,
             });
-            toast({ title: `${label.trim()} assigned to ${areaTarget.name}` });
+            toast({
+                title: `${place.label} assigned to ${areaTarget.name}`,
+                description: `${place.pincodes.toLocaleString()} pincode${place.pincodes === 1 ? "" : "s"}`,
+            });
             setAreaInput("");
             fetchAll(true);
         } catch (error: any) {
@@ -212,7 +247,7 @@ export const AdminLeadManagement = () => {
                 variant: "destructive",
             });
         } finally {
-            setAddingArea(false);
+            setAddingArea(null);
         }
     };
 
@@ -226,16 +261,6 @@ export const AdminLeadManagement = () => {
         }
     };
 
-    /** Suggestions: known cities, minus anything already covered. */
-    const suggestions = useMemo(() => {
-        const q = areaInput.trim().toLowerCase();
-        const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "");
-        return knownAreas
-            .filter(k => !takenKeys.has(norm(k.label)))
-            .filter(k => !q || k.label.toLowerCase().includes(q))
-            .slice(0, 8);
-    }, [knownAreas, areaInput, takenKeys]);
-
     if (loading) {
         return (
             <div className="flex items-center justify-center min-h-[400px] gap-3 text-slate-400">
@@ -245,9 +270,7 @@ export const AdminLeadManagement = () => {
         );
     }
 
-    const unassignedCount = knownAreas.filter(k =>
-        !takenKeys.has(k.label.toLowerCase().replace(/[^a-z0-9]+/g, ""))
-    ).length;
+    const pincodesAssigned = areas.reduce((sum, a) => sum + (a.pincodes || 0), 0);
 
     return (
         <div className="space-y-5">
@@ -292,7 +315,7 @@ export const AdminLeadManagement = () => {
                     { label: "ASMs", value: asms.length, tone: "text-slate-800" },
                     { label: "Active", value: asms.filter(a => a.is_active).length, tone: "text-emerald-600" },
                     { label: "Areas covered", value: areas.length, tone: "text-blue-600" },
-                    { label: "Cities uncovered", value: unassignedCount, tone: unassignedCount ? "text-amber-600" : "text-slate-400" },
+                    { label: "Pincodes assigned", value: pincodesAssigned.toLocaleString(), tone: "text-slate-800" },
                 ].map(s => (
                     <div key={s.label} className="rounded-2xl border border-slate-100 bg-white p-4">
                         <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">{s.label}</p>
@@ -399,6 +422,11 @@ export const AdminLeadManagement = () => {
                                                     className="inline-flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-lg pl-2.5 pr-1 py-1 text-xs font-semibold text-slate-700"
                                                 >
                                                     {area.area_label}
+                                                    {area.kind && (
+                                                        <span className="text-[10px] font-medium text-slate-400 tabular-nums">
+                                                            {area.pincodes.toLocaleString()}
+                                                        </span>
+                                                    )}
                                                     <button
                                                         type="button"
                                                         onClick={() => removeArea(area)}
@@ -481,47 +509,67 @@ export const AdminLeadManagement = () => {
                     <DialogHeader>
                         <DialogTitle>Areas for {areaTarget?.name}</DialogTitle>
                         <DialogDescription>
-                            One area belongs to one ASM. If an area is already covered, you will be told who has it.
+                            Every pincode inside a place goes to this ASM. Give them a state, a district
+                            or a single pincode; a smaller place held by someone else takes priority,
+                            so a state can be split between ASMs.
                         </DialogDescription>
                     </DialogHeader>
 
                     <div className="space-y-4 py-2">
-                        <div className="flex gap-2">
+                        <div className="relative">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
                             <Input
                                 value={areaInput}
                                 onChange={e => setAreaInput(e.target.value)}
-                                onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); addArea(areaInput); } }}
-                                placeholder="Type an area, or pick one below"
+                                placeholder="Search a state, district or pincode — e.g. Delhi, Gurugram"
+                                className="pl-9"
+                                autoFocus
                             />
-                            <Button
-                                onClick={() => addArea(areaInput)}
-                                disabled={addingArea || !areaInput.trim()}
-                                className="bg-orange-500 hover:bg-orange-600 shrink-0"
-                            >
-                                {addingArea ? <Loader2 className="h-4 w-4 animate-spin" /> : "Add"}
-                            </Button>
+                            {searchingPlaces && (
+                                <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-slate-400" />
+                            )}
                         </div>
 
-                        {suggestions.length > 0 && (
-                            <div>
-                                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">
-                                    Cities we serve, not yet covered
+                        <div className="rounded-xl border border-slate-200 divide-y divide-slate-100 max-h-64 overflow-y-auto">
+                            {places.length === 0 ? (
+                                <p className="text-sm text-slate-400 px-3.5 py-3">
+                                    {searchingPlaces ? "Searching…" : "No state, district or pincode matches that."}
                                 </p>
-                                <div className="flex flex-wrap gap-1.5">
-                                    {suggestions.map(s => (
-                                        <button
-                                            key={s.label}
-                                            type="button"
-                                            onClick={() => addArea(s.label)}
-                                            disabled={addingArea}
-                                            className="text-xs font-semibold bg-orange-50 text-orange-700 border border-orange-200 rounded-lg px-2.5 py-1 hover:bg-orange-100 transition-colors"
-                                        >
-                                            + {s.label}
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
+                            ) : places.map(place => {
+                                const mine = place.taken_by === areaTarget?.name;
+                                const taken = Boolean(place.taken_by);
+                                return (
+                                    <button
+                                        key={place.key}
+                                        type="button"
+                                        disabled={taken || addingArea !== null}
+                                        onClick={() => addArea(place)}
+                                        className="w-full text-left px-3.5 py-2.5 flex items-center gap-3 hover:bg-orange-50/60 disabled:hover:bg-transparent disabled:cursor-not-allowed"
+                                    >
+                                        <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 w-14 shrink-0">
+                                            {KIND_LABEL[place.kind]}
+                                        </span>
+                                        <span className={`min-w-0 flex-1 truncate text-sm font-semibold ${taken ? "text-slate-400" : "text-slate-800"}`}>
+                                            {place.label}
+                                        </span>
+                                        <span className="text-[11px] text-slate-400 tabular-nums shrink-0">
+                                            {place.pincodes.toLocaleString()} pincode{place.pincodes === 1 ? "" : "s"}
+                                        </span>
+                                        <span className="w-24 text-right shrink-0">
+                                            {addingArea === place.key ? (
+                                                <Loader2 className="h-3.5 w-3.5 animate-spin inline text-orange-500" />
+                                            ) : taken ? (
+                                                <span className="text-[10px] font-semibold text-slate-400 truncate">
+                                                    {mine ? "Already theirs" : place.taken_by}
+                                                </span>
+                                            ) : (
+                                                <span className="text-xs font-bold text-orange-600">+ Add</span>
+                                            )}
+                                        </span>
+                                    </button>
+                                );
+                            })}
+                        </div>
 
                         <div>
                             <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">
@@ -540,6 +588,11 @@ export const AdminLeadManagement = () => {
                                             className="inline-flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-lg pl-2.5 pr-1 py-1 text-xs font-semibold text-slate-700"
                                         >
                                             {area.area_label}
+                                            {area.kind && (
+                                                <span className="text-[10px] font-medium text-slate-400 tabular-nums">
+                                                    {area.pincodes.toLocaleString()}
+                                                </span>
+                                            )}
                                             <button
                                                 type="button"
                                                 onClick={() => removeArea(area)}

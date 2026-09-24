@@ -38,8 +38,15 @@ import {
 /** Marks the leads this flow creates, to find them again when a tap comes back. */
 export const LOCATOR_FLOW_ID = 'store-locator';
 
-/** The workflow can fire twice for one answer; the second is the same enquiry. */
-const REPEAT_WINDOW_SECONDS = 120;
+/**
+ * The workflow can fire twice for one answer; the second is the same enquiry.
+ *
+ * Seconds, not minutes: a double-fire lands almost at once, while a customer
+ * who runs the whole flow again for the same pincode is asking again and must
+ * get the list again. At two minutes, a tester re-running the flow after 95
+ * seconds was silently ignored.
+ */
+const REPEAT_WINDOW_SECONDS = 15;
 
 /** How long after an enquiry a bare pincode is taken as a new search. */
 const FOLLOW_UP_HOURS = 24;

@@ -1,5 +1,5 @@
 import db from '../config/database.js';
-import { findAsmForArea } from './asmRouting.service.js';
+import { findAsmForPincode } from './asmTerritoryQuery.js';
 import { findState } from './indianStates.js';
 import {
     storesToOffer,
@@ -17,7 +17,7 @@ import {
  * What a customer is offered for their pincode, read from the database.
  *
  *   stores within 15 km           → a list, the customer picks one
- *   else the ASM for the state    → one person, who gets the lead
+ *   else the ASM for the pincode  → one person, who gets the lead
  *   else the state's distributors → a list, the customer picks one
  *   else customer support         → one number
  *
@@ -285,16 +285,19 @@ async function distributorsInState(
 /**
  * Who a customer is put in touch with when no store qualifies.
  *
- * The ASM covering their state first: a person who knows the area and can
- * place them with a store further out. Then the state's distributors, for the
+ * The ASM whose territory holds their pincode first — their state, their
+ * district, or the pincode itself: a person who knows the area and can place
+ * them with a store further out. Then the state's distributors, for the
  * customer to choose from. Customer support only when the state has neither.
  */
 async function fallbackFor(
-    customer: { lat: number; lng: number; state: string | null } | null,
+    pincode: string,
+    customer: { lat: number; lng: number; district: string | null; state: string | null } | null,
     settings: LocatorSettings,
 ): Promise<LocatorFallback> {
-    if (customer?.state) {
-        const asm = await findAsmForArea(customer.state).catch(() => null);
+    if (customer) {
+        const asm = await findAsmForPincode(pincode, { pincode, district: customer.district, state: customer.state })
+            .catch(() => null);
         if (asm?.phone_number) {
             return { kind: 'asm', contacts: [{ id: asm.id, name: asm.name, phone: asm.phone_number }] };
         }
@@ -326,7 +329,7 @@ export async function findStoresForPincode(rawPincode: string): Promise<LocatorR
     if (!pinRows.length) {
         // A real pincode we cannot place still gets someone to call.
         return { pincode, found: false, customer: null, rules, stores: [],
-            fallback: await fallbackFor(null, settings),
+            fallback: await fallbackFor(pincode, null, settings),
             reason: 'Pincode not in the India Post directory' };
     }
 
@@ -387,7 +390,7 @@ export async function findStoresForPincode(rawPincode: string): Promise<LocatorR
             distance_km: Number(distanceKm.toFixed(2)),
             distance_label: formatDistance(distanceKm),
         })),
-        fallback: offered.length ? null : await fallbackFor(customer, settings),
+        fallback: offered.length ? null : await fallbackFor(pincode, customer, settings),
         reason: offered.length ? undefined
             : `No store within ${RADIUS_KM} km with ${settings.min_warranties}+ approved warranties`,
     };
