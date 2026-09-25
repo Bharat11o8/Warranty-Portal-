@@ -1,5 +1,7 @@
 import { routeEnquiry } from './asmRouting.service.js';
 import { parseLeadForm } from './instagramLeadParser.js';
+import { startStoreEnquiry } from './storeLocatorChat.js';
+import { extractPincode } from './storeLocator.js';
 
 /* Re-exported so callers and tests can reach the parser through either
    module; the reading itself has no database import. */
@@ -14,7 +16,17 @@ export type { ParsedLead } from './instagramLeadParser.js';
  *
  * The phone comes from the WhatsApp sender, not the form: the form field is
  * typed and can be wrong, while the sender's number is the one that actually
- * reached us and the one an ASM can call back.
+ * reached us and the one a store can call back.
+ *
+ * Since late September 2026 the ad forms ask for a pincode, and a lead with
+ * one goes through the store locator exactly like the Interakt workflow: the
+ * customer has just messaged us, so the store list can go straight back to
+ * them, and the store they pick is alerted. Stores, then the ASM, then
+ * distributors, then support — one flow whichever door the customer came in by.
+ *
+ *   a pincode (or a city answer that is one)  -> the store locator
+ *   a pincode question, but no pincode in it  -> the locator asks for one
+ *   an older form asking only for the city    -> the ASM by city, as before
  */
 export async function handleInstagramLead(
     text: string,
@@ -26,29 +38,37 @@ export async function handleInstagramLead(
 
     if (Object.keys(lead.unmapped).length) {
         // Not an error — a new ad asking something we have no column for. Worth
-        // seeing, because it is also how a renamed City field would show up.
+        // seeing, because it is also how a renamed pincode field would show up.
         console.log('[Instagram] unmapped form fields:', JSON.stringify(lead.unmapped));
     }
 
-    if (!lead.city) {
-        console.warn(
-            `[Instagram] lead from ${senderPhone} has no city — cannot route. ` +
-            `Fields seen: ${JSON.stringify(lead)}`
-        );
+    const payload = rawPayload ?? { text };
+    const pincode = extractPincode(lead.pincode) ?? extractPincode(lead.city);
+
+    // A pincode form, whether or not the answer holds one: the locator either
+    // runs, or asks the customer for the pincode and keeps the lead meanwhile.
+    if (pincode || lead.pincode !== null || !lead.city) {
+        await startStoreEnquiry({
+            pincode: pincode ?? lead.pincode ?? '',
+            phone: senderPhone,
+            name: lead.name,
+            product: lead.product,
+            car: lead.car,
+            source: 'instagram',
+            rawPayload: payload,
+        });
+        return true;
     }
 
+    // An older form that asks only for the city: the ASM for that place.
     await routeEnquiry({
-        // No city means no route, but it is still recorded as unmatched rather
-        // than dropped — an ad form that stopped asking for the city is exactly
-        // the kind of thing that must not fail silently.
-        area: lead.city || '',
+        area: lead.city,
         phone: senderPhone,
         name: lead.name,
         product: lead.product,
         car: lead.car,
         source: 'instagram',
-        rawPayload: rawPayload ?? { text },
+        rawPayload: payload,
     });
-
     return true;
 }

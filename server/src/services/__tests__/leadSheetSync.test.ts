@@ -1,6 +1,6 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { planSync, summarise, hasUsablePhone, leadDate, type ExistingLead } from '../leadSheetSync.js';
+import { planSync, summarise, hasUsablePhone, leadDate, sheetArea, type ExistingLead } from '../leadSheetSync.js';
 import type { SheetLead } from '../leadSheetParser.js';
 
 /**
@@ -16,6 +16,7 @@ const lead = (over: Partial<SheetLead> = {}): SheetLead => ({
     createdAt: '2026-09-20T10:00:00-05:00',
     name: 'Ravi Khetan',
     phone: '+919876543210',
+    pincode: null,
     city: 'Jaipur',
     state: null,
     car: 'Thar',
@@ -166,6 +167,35 @@ describe('the state, once the campaign form asks for it', () => {
             CUTOFF,
         );
         assert.equal(d.action, 'duplicate');
+    });
+});
+
+describe('the pincode, once the forms ask for it', () => {
+    /* A store-locator lead records its pincode as the area, so a sheet row
+       carrying the same pincode is the same enquiry and is not sent again. */
+    test('a customer already served on WhatsApp is a duplicate by pincode', () => {
+        const [d] = planSync(
+            [lead({ pincode: '302 001', city: null })],
+            [existing({ raw_area: '302001' })],
+            CUTOFF,
+        );
+        assert.equal(d.action, 'duplicate');
+    });
+
+    test('same number, different pincode, is a new lead', () => {
+        const [d] = planSync(
+            [lead({ pincode: '302001', city: null })],
+            [existing({ raw_area: '110001' })],
+            CUTOFF,
+        );
+        assert.equal(d.action, 'route');
+    });
+
+    test('the pincode wins over city and state for matching', () => {
+        assert.equal(sheetArea(lead({ pincode: '302001', city: 'Jaipur', state: 'Rajasthan' })), '302001');
+        assert.equal(sheetArea(lead({ pincode: null, city: 'Jaipur 302001' })), '302001');
+        assert.equal(sheetArea(lead({ pincode: 'near bus stand', city: 'Jaipur' })), 'Jaipur');
+        assert.equal(sheetArea(lead({ pincode: null, city: 'Jaipur', state: 'Rajasthan' })), 'Rajasthan');
     });
 });
 

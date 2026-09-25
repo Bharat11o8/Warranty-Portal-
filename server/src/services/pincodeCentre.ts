@@ -47,7 +47,15 @@ export interface Office {
     state: string | null;
 }
 
-export type CentreSource = 'india-post' | 'district';
+/**
+ * Where a pincode's location came from:
+ *   india-post  its own offices
+ *   district    its district's centre — every office was a placeholder, or had
+ *               no usable coordinate at all
+ *   prefix      the centre of pincodes sharing its first three digits — no
+ *               usable coordinate and no district either
+ */
+export type CentreSource = 'india-post' | 'district' | 'prefix';
 
 export interface PincodeCentre {
     pincode: string;
@@ -296,3 +304,106 @@ export function placeAllPincodes(offices: Office[], options: CentreOptions = DEF
 }
 
 const round = (n: number) => Number(n.toFixed(6));
+
+// ─── Filling India Post's gaps ───────────────────────────────────────────────
+
+const isBlank = (s: string | null | undefined) => !s || /^n\.?a\.?$/i.test(String(s).trim());
+
+/**
+ * The state each 3-digit pincode prefix belongs to, where the file agrees.
+ *
+ * The first three digits are the sorting district, which never crosses a
+ * state line in practice — so a pincode India Post files under state "NA"
+ * (811315, 494111) can take the state its neighbours all share. A prefix is
+ * only trusted when at least `minShare` of its offices, and `minCount` of
+ * them, agree; a split prefix is left alone rather than guessed.
+ */
+export function statesByPrefix(
+    offices: { pincode: string; state: string | null }[],
+    minShare = 0.9,
+    minCount = 5,
+): Map<string, string> {
+    const tally = new Map<string, Map<string, number>>();
+    for (const o of offices) {
+        if (isBlank(o.state)) continue;
+        const p = o.pincode.slice(0, 3);
+        const m = tally.get(p) ?? tally.set(p, new Map()).get(p)!;
+        m.set(o.state!, (m.get(o.state!) ?? 0) + 1);
+    }
+    const out = new Map<string, string>();
+    for (const [p, m] of tally) {
+        const total = [...m.values()].reduce((a, b) => a + b, 0);
+        const [state, n] = [...m].sort((a, b) => b[1] - a[1])[0];
+        if (n >= minCount && n / total >= minShare) out.set(p, state);
+    }
+    return out;
+}
+
+/** An "NA" state replaced by its prefix's, when the prefix is unanimous enough. */
+export function withInferredState<T extends { pincode: string; state: string | null }>(
+    o: T, byPrefix: Map<string, string>,
+): T {
+    if (!isBlank(o.state)) return o;
+    const state = byPrefix.get(o.pincode.slice(0, 3));
+    return state ? { ...o, state } : o;
+}
+
+/**
+ * Pincodes with no usable coordinate anywhere in the file, placed from what is
+ * known about them: the centre of their district's placed pincodes, or failing
+ * that, of the pincodes sharing their first three digits in the same state.
+ * A pincode with neither stays unplaced.
+ */
+export function placeFromNeighbours(
+    missing: { pincode: string; state: string | null; district: string | null }[],
+    placed: PincodeCentre[],
+): PincodeCentre[] {
+    const byDistrict = new Map<string, PincodeCentre[]>();
+    const byPrefix = new Map<string, PincodeCentre[]>();
+    for (const c of placed) {
+        if (!isBlank(c.district)) {
+            const k = districtKey(c);
+            (byDistrict.get(k) ?? byDistrict.set(k, []).get(k)!).push(c);
+        }
+        const k = `${String(c.state ?? '').toLowerCase()}|${c.pincode.slice(0, 3)}`;
+        (byPrefix.get(k) ?? byPrefix.set(k, []).get(k)!).push(c);
+    }
+
+    const out: PincodeCentre[] = [];
+    for (const m of missing) {
+        const district = isBlank(m.district) ? undefined : byDistrict.get(districtKey(m));
+        const prefix = byPrefix.get(`${String(m.state ?? '').toLowerCase()}|${m.pincode.slice(0, 3)}`);
+        const group = district?.length ? district : prefix;
+        if (!group?.length) continue;
+        out.push({
+            pincode: m.pincode,
+            lat: round(median(group.map(c => c.lat))),
+            lng: round(median(group.map(c => c.lng))),
+            district: isBlank(m.district) ? null : m.district,
+            state: m.state,
+            offices: 0,
+            discarded: 0,
+            source: district?.length ? 'district' : 'prefix',
+        });
+    }
+    return out;
+}
+
+/**
+ * A district for a pincode India Post left as "NA": the district of the
+ * nearest placed pincode in the same state, if one is within `maxKm`. Needed
+ * because an ASM can hold a district (Gurugram, Daman), and a pincode with no
+ * district could never reach them.
+ */
+export function nearestDistrict(
+    c: PincodeCentre, placed: PincodeCentre[], maxKm = 25,
+): string | null {
+    let best: PincodeCentre | null = null;
+    let bestKm = maxKm;
+    for (const p of placed) {
+        if (p.pincode === c.pincode || isBlank(p.district) || p.state !== c.state) continue;
+        const km = distanceKm(c, p);
+        if (km <= bestKm) { bestKm = km; best = p; }
+    }
+    return best?.district ?? null;
+}

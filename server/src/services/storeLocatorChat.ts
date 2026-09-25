@@ -2,8 +2,8 @@ import db from '../config/database.js';
 import { v4 as uuidv4 } from 'uuid';
 import { WhatsAppService } from './whatsapp.service.js';
 import { findState } from './indianStates.js';
-import { phoneKey, normaliseProduct } from './asmRouting.service.js';
-import { isPincode } from './storeLocator.js';
+import { phoneKey, normaliseProduct, asmLeadNumber } from './asmRouting.service.js';
+import { isPincode, extractPincode } from './storeLocator.js';
 import { findStoresForPincode, getLocatorSettings, repliesTo, type LocatorResult } from './storeLocatorQuery.js';
 import {
     storeList,
@@ -59,6 +59,8 @@ export interface StoreEnquiry {
     name?: string | null;
     product?: string | null;
     car?: string | null;
+    /** Where the enquiry came from: the Interakt workflow, or an Instagram lead form. */
+    source?: 'whatsapp' | 'instagram';
     rawPayload?: unknown;
 }
 
@@ -84,25 +86,52 @@ const text = (body: string) => ({ message: body });
  */
 export async function startStoreEnquiry(input: StoreEnquiry): Promise<EnquiryOutcome> {
     const phone = String(input.phone || '').trim();
-    const pincode = String(input.pincode || '').replace(/\D/g, '');
+    const typed = String(input.pincode || '').trim();
+    const pincode = extractPincode(typed) ?? '';
+    const source = input.source ?? 'whatsapp';
     const settings = await getLocatorSettings();
     const canReply = repliesTo(settings, phone);
 
-    if (!isPincode(pincode)) {
-        if (canReply) await reply(phone, 'Text', text(INVALID_PINCODE_TEXT));
-        return 'invalid-pincode';
-    }
-
     const [recent]: any = await db.execute(
         `SELECT id FROM leads
-          WHERE phone_key = ? AND flow_id = ? AND raw_area = ?
+          WHERE phone_key = ? AND flow_id = ? AND raw_area <=> ?
             AND created_at >= DATE_SUB(NOW(), INTERVAL ? SECOND)
           LIMIT 1`,
-        [phoneKey(phone), LOCATOR_FLOW_ID, pincode, REPEAT_WINDOW_SECONDS]
+        [phoneKey(phone), LOCATOR_FLOW_ID, pincode || typed.slice(0, 255) || null, REPEAT_WINDOW_SECONDS]
     );
     if (recent.length) {
-        console.log(`[Locator] repeat of ${pincode} from ${phoneKey(phone)} — lead ${recent[0].id} already answered`);
+        console.log(`[Locator] repeat of ${pincode || typed || '(no pincode)'} from ${phoneKey(phone)} — lead ${recent[0].id} already answered`);
         return 'repeat';
+    }
+
+    if (!isPincode(pincode)) {
+        /*
+         * No usable pincode — an Instagram form answered "near the bus stand",
+         * or left blank. The customer is asked for it, and the enquiry is kept
+         * as a lead so it is not lost: that record is also what lets the
+         * pincode they type next be taken up (handlePincodeMessage looks for a
+         * recent locator lead from the same phone).
+         */
+        const leadId = uuidv4();
+        if (canReply) await reply(phone, 'Text', text(INVALID_PINCODE_TEXT), leadId);
+        await db.execute(
+            `INSERT INTO leads
+               (id, source, product, car_model, customer_name, customer_phone, phone_key,
+                raw_area, flow_id, raw_payload, status, failure_reason)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'unmatched', 'No valid pincode given')`,
+            [
+                leadId, source, normaliseProduct(input.product),
+                String(input.car || '').trim().slice(0, 80) || null,
+                input.name ? String(input.name).trim().slice(0, 255) : null,
+                phone, phoneKey(phone), typed.slice(0, 255) || null, LOCATOR_FLOW_ID,
+                JSON.stringify({
+                    ...(input.rawPayload && typeof input.rawPayload === 'object' ? input.rawPayload as object : {}),
+                    locator: { pincode: typed || null, offered: 'invalid-pincode' },
+                }),
+            ]
+        );
+        console.log(`[Locator] no valid pincode in "${typed}" from ${phoneKey(phone)} (${source}) — asked for one, lead ${leadId}`);
+        return 'invalid-pincode';
     }
 
     const result = await findStoresForPincode(pincode);
@@ -127,6 +156,7 @@ export async function startStoreEnquiry(input: StoreEnquiry): Promise<EnquiryOut
             const ok = await WhatsAppService.sendAsmEnquiry(
                 asm.phone, asm.name, input.name || '', phone, place, receivedAt(),
                 normaliseProduct(input.product), input.car || null,
+                asm.id ? await asmLeadNumber(asm.id).catch(() => undefined) : undefined,
             ).catch(() => false);
             status = ok ? 'sent' : 'failed';
         }
@@ -146,9 +176,10 @@ export async function startStoreEnquiry(input: StoreEnquiry): Promise<EnquiryOut
         `INSERT INTO leads
            (id, source, product, car_model, state, customer_name, customer_phone, phone_key,
             raw_area, matched_area, asm_id, flow_id, raw_payload, status, sent_at, failure_reason)
-         VALUES (?, 'whatsapp', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
             leadId,
+            source,
             normaliseProduct(input.product),
             String(input.car || '').trim().slice(0, 80) || null,
             findState(String(result.customer?.state ?? ''))?.state ?? null,
@@ -166,8 +197,24 @@ export async function startStoreEnquiry(input: StoreEnquiry): Promise<EnquiryOut
         ]
     );
 
-    console.log(`[Locator] ${pincode} from ${phoneKey(phone)} -> ${kind}` +
+    console.log(`[Locator] ${pincode} from ${phoneKey(phone)} (${source}) -> ${kind}` +
         `${kind === 'stores' ? ` (${result.stores.length})` : ''}, reply ${raw.locator.reply} — lead ${leadId}`);
+
+    /*
+     * Nobody near — no store, ASM or distributor — so customer support is the
+     * one place this lead can go. The customer is shown the support number;
+     * support is told about the customer, in the same alert a store gets, so
+     * the lead does not sit unseen in Lead Management. After the insert,
+     * because notifyOnce records the alert on the lead row.
+     */
+    if (kind === 'support') {
+        const support = result.fallback?.contacts[0];
+        await notifyOnce(
+            { id: leadId, notified: null, customer_phone: phone, location: place,
+              product: normaliseProduct(input.product), car_model: String(input.car || '').trim() || null },
+            'support', support?.phone ?? null, support?.name || 'Autoform Customer Support', settings.whatsapp_live,
+        ).catch(err => console.error('[Locator] support alert failed:', err?.message));
+    }
     return kind;
 }
 
@@ -274,12 +321,14 @@ export async function handleLocatorReply(senderPhone: string, tap: LocatorReply)
 }
 
 /**
- * Tell the store (or distributor) the customer picked that a lead is coming.
+ * Tell whoever the lead went to — the store or distributor the customer
+ * picked, or customer support when nobody was near — that it is coming.
  *
- * Live only: a test tap from an admin's phone must never land on a real
- * store's phone. Once per store per enquiry — a customer tapping the same row
+ * Live only: a test from an admin's phone must never land on a real store's
+ * phone. Once per recipient per enquiry — a customer tapping the same row
  * twice is one lead, while picking a second store is a lead for that store too.
- * Whether it went is kept on the lead, under locator.notified.
+ * Whether it went is kept on the lead, under locator.notified, keyed
+ * `store:<id>`, `distributor:<id>` or `support`.
  */
 async function notifyOnce(lead: any, key: string, phone: string | null, name: string, live: boolean) {
     if (!live || !phone) return;
@@ -291,9 +340,41 @@ async function notifyOnce(lead: any, key: string, phone: string | null, name: st
     } catch { /* nothing recorded yet */ }
     if (notified.includes(key)) return;
 
-    const ok = await WhatsAppService.sendStoreLead(
-        phone, name, lead.customer_phone, lead.product, lead.car_model, receivedAt(), lead.id,
-    ).catch(() => false);
+    /*
+     * The recipient's lead number for the month: the leads it has already been
+     * alerted about since the 1st, plus this one. Starts again at #1 each
+     * month. The connection runs in IST, so the month turns at midnight India
+     * time. Counted from locator.notified, the same record that stops a repeat
+     * alert, so a lead is numbered only if the store actually heard about it.
+     */
+    const [[{ prior }]]: any = await db.execute(
+        `SELECT COUNT(*) AS prior FROM leads
+          WHERE flow_id = ?
+            AND created_at >= DATE_FORMAT(NOW(), '%Y-%m-01')
+            AND JSON_CONTAINS(COALESCE(JSON_EXTRACT(raw_payload, '$.locator.notified'), JSON_ARRAY()), JSON_QUOTE(?))`,
+        [LOCATOR_FLOW_ID, key]
+    );
+
+    const leadNumber = Number(prior) + 1;
+    const when = receivedAt();
+
+    /*
+     * Support has its own template, which adds where the customer is — they
+     * are the ones who must find them somewhere to go. Until Meta approves it
+     * the send fails, and support gets the store alert instead, so no lead
+     * goes unannounced in the meantime.
+     */
+    let ok = false;
+    if (key === 'support') {
+        ok = await WhatsAppService.sendSupportLead(
+            phone, lead.customer_phone, lead.location || '', lead.product, lead.car_model, when, leadNumber, lead.id,
+        ).catch(() => false);
+    }
+    if (!ok) {
+        ok = await WhatsAppService.sendStoreLead(
+            phone, name, lead.customer_phone, lead.product, lead.car_model, when, leadNumber, lead.id,
+        ).catch(() => false);
+    }
     if (!ok) return;
 
     await db.execute(
@@ -315,7 +396,7 @@ export async function handlePincodeMessage(senderPhone: string, body: string): P
     if (!/^[1-9][0-9]{5}$/.test(pincode)) return false;
 
     const [rows]: any = await db.execute(
-        `SELECT customer_name, product, car_model FROM leads
+        `SELECT customer_name, product, car_model, source FROM leads
           WHERE phone_key = ? AND flow_id = ?
             AND created_at >= DATE_SUB(NOW(), INTERVAL ? HOUR)
           ORDER BY created_at DESC LIMIT 1`,
@@ -326,6 +407,7 @@ export async function handlePincodeMessage(senderPhone: string, body: string): P
     const last = rows[0];
     await startStoreEnquiry({
         pincode, phone: senderPhone, name: last.customer_name, product: last.product, car: last.car_model,
+        source: last.source === 'instagram' ? 'instagram' : 'whatsapp',
         rawPayload: { source: 'follow-up pincode' },
     });
     return true;

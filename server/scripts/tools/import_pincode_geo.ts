@@ -1,6 +1,9 @@
 import fs from 'fs';
 import db from '../../src/config/database.js';
-import { placeAllPincodes, distanceKm, type Office, type PincodeCentre } from '../../src/services/pincodeCentre.js';
+import {
+    placeAllPincodes, distanceKm, statesByPrefix, withInferredState, placeFromNeighbours, nearestDistrict,
+    type Office, type PincodeCentre,
+} from '../../src/services/pincodeCentre.js';
 import { parseCoordinate, isTestAccount } from '../../src/services/storeLocator.js';
 
 /**
@@ -47,24 +50,57 @@ const toNumber = (value: unknown): number | null => {
 const inIndia = (lat: number | null, lng: number | null) =>
     lat !== null && lng !== null && lat >= 6 && lat <= 37.5 && lng >= 68 && lng <= 97.5;
 
-function readOffices(file: string): Office[] {
+type Unlocated = { pincode: string; state: string | null; district: string | null };
+
+/**
+ * The offices with a usable coordinate, and every pincode that has none.
+ *
+ * A state India Post files as "NA" is taken from the pincode's 3-digit prefix
+ * when the rest of the file agrees on it (statesByPrefix) — 811315 is Bihar
+ * like every other 811. Without a state no ASM territory can match a pincode.
+ */
+function readOffices(file: string): { offices: Office[]; unlocated: Unlocated[]; inferred: number } {
     const parsed = JSON.parse(fs.readFileSync(file, 'utf8'));
     const records: any[] = parsed.records || parsed.data || [];
-    const out: Office[] = [];
-    for (const r of records) {
-        const pincode = String(r.pincode ?? '').trim();
-        if (!/^[1-9][0-9]{5}$/.test(pincode)) continue;
-        const lat = toNumber(r.latitude);
-        const lng = toNumber(r.longitude);
-        if (!inIndia(lat, lng)) continue;
-        out.push({
-            pincode, lat: lat!, lng: lng!,
+
+    const all = records
+        .map(r => ({
+            pincode: String(r.pincode ?? '').trim(),
+            lat: toNumber(r.latitude),
+            lng: toNumber(r.longitude),
             district: String(r.district ?? '').trim() || null,
             state: String(r.statename ?? '').trim() || null,
-        });
+        }))
+        .filter(r => /^[1-9][0-9]{5}$/.test(r.pincode));
+
+    const byPrefix = statesByPrefix(all);
+    let inferred = 0;
+    const filled = all.map(r => {
+        const next = withInferredState(r, byPrefix);
+        if (next !== r) inferred++;
+        return next;
+    });
+
+    const offices: Office[] = [];
+    const located = new Set<string>();
+    for (const r of filled) {
+        if (!inIndia(r.lat, r.lng)) continue;
+        offices.push({ pincode: r.pincode, lat: r.lat!, lng: r.lng!, district: r.district, state: r.state });
+        located.add(r.pincode);
     }
-    console.log(`  ${records.length.toLocaleString()} post offices, ${out.length.toLocaleString()} with a coordinate inside India`);
-    return out;
+
+    // Pincodes none of whose offices has a coordinate inside India.
+    const unlocated = new Map<string, Unlocated>();
+    for (const r of filled) {
+        if (!located.has(r.pincode) && !unlocated.has(r.pincode)) {
+            unlocated.set(r.pincode, { pincode: r.pincode, state: r.state, district: r.district });
+        }
+    }
+
+    console.log(`  ${records.length.toLocaleString()} post offices, ${offices.length.toLocaleString()} with a coordinate inside India`);
+    console.log(`  ${inferred.toLocaleString()} offices filed under state "NA" given their prefix's state`);
+    console.log(`  ${unlocated.size} pincodes with no usable coordinate at all`);
+    return { offices, unlocated: [...unlocated.values()], inferred };
 }
 
 interface StorePin {
@@ -102,9 +138,23 @@ async function main(): Promise<void> {
     }
 
     console.log(`Reading ${file}…`);
-    const offices = readOffices(file);
-    const centres = placeAllPincodes(offices, { placeholderPincodes: 30, clusterKm: 15 });
-    console.log(`  ${centres.length.toLocaleString()} pincodes placed`);
+    const { offices, unlocated } = readOffices(file);
+    const placedFromOffices = placeAllPincodes(offices, { placeholderPincodes: 30, clusterKm: 15 });
+    console.log(`  ${placedFromOffices.length.toLocaleString()} pincodes placed from their offices`);
+
+    // A district for pincodes India Post left as "NA", from the nearest neighbour.
+    let districtsFilled = 0;
+    for (const c of placedFromOffices) {
+        if (c.district && !/^n\.?a\.?$/i.test(c.district)) continue;
+        const d = nearestDistrict(c, placedFromOffices);
+        if (d) { c.district = d; districtsFilled++; }
+    }
+    console.log(`  ${districtsFilled} "NA" districts taken from the nearest pincode`);
+
+    // Pincodes with no usable coordinate, placed at their district or prefix.
+    const fromNeighbours = placeFromNeighbours(unlocated, placedFromOffices);
+    console.log(`  ${fromNeighbours.length} of ${unlocated.length} unlocated pincodes placed from their district or prefix`);
+    const centres = [...placedFromOffices, ...fromNeighbours];
 
     const stores = await readStorePins();
     const byPin = new Map<string, StorePin[]>();
@@ -167,6 +217,25 @@ async function main(): Promise<void> {
     }
 
     if (dry) {
+        const [liveRows]: any = await db.execute('SELECT pincode, lat, lng, district, state FROM pincode_geo');
+        const live = new Map<string, any>(liveRows.map((r: any) => [r.pincode, r]));
+        const added: string[] = [], stateChanged: string[] = [], districtChanged: string[] = [];
+        let moved = 0;
+        for (const r of all) {
+            const was = live.get(r.pincode);
+            if (!was) { added.push(`${r.pincode} ${r.district ?? '-'}/${r.state ?? '-'} (${r.source})`); continue; }
+            if (String(was.state ?? '') !== String(r.state ?? '')) stateChanged.push(`${r.pincode} ${was.state ?? '-'} -> ${r.state}`);
+            else if (String(was.district ?? '') !== String(r.district ?? '')) districtChanged.push(`${r.pincode} ${was.district ?? '-'} -> ${r.district}`);
+            if (distanceKm({ lat: Number(was.lat), lng: Number(was.lng) }, r) > 1) moved++;
+        }
+        const removed = [...live.keys()].filter(k => !rows.has(k));
+        console.log(`\nAgainst the live table:`);
+        console.log(`  newly placed (${added.length}):`); added.forEach(x => console.log(`     ${x}`));
+        console.log(`  state filled/changed (${stateChanged.length}):`); stateChanged.forEach(x => console.log(`     ${x}`));
+        console.log(`  district filled/changed (${districtChanged.length}):`); districtChanged.slice(0, 40).forEach(x => console.log(`     ${x}`));
+        if (districtChanged.length > 40) console.log(`     … ${districtChanged.length - 40} more`);
+        console.log(`  moved more than 1 km: ${moved}`);
+        console.log(`  no longer present: ${removed.length}${removed.length ? ' — ' + removed.join(', ') : ''}`);
         console.log('\n--dry: nothing written.');
         process.exit(0);
     }

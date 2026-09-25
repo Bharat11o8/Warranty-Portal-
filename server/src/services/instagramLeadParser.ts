@@ -38,6 +38,12 @@ const LEAD_FORM_MARKER = /i\s+filled\s+(in|out)\s+your\s+form/i;
 export interface ParsedLead {
     name: string | null;
     phone: string | null;
+    /**
+     * The answer to the pincode question, as typed ("302 001", "Pin 302001").
+     * Campaigns from late September 2026 ask for this instead of the city,
+     * because leads are routed by pincode; extractPincode reads the digits.
+     */
+    pincode: string | null;
     city: string | null;
     car: string | null;
     product: string | null;
@@ -87,6 +93,8 @@ function extractPairs(text: string): Array<[string, string]> {
 const FIELD_PATTERNS: Array<[keyof Omit<ParsedLead, 'unmapped' | 'product'>, RegExp]> = [
     ['name', /full\s*name|your\s*name|^name$/i],
     ['phone', /phone|mobile|contact\s*number|whats\s*app/i],
+    // Before city, whose "area" and "location" would otherwise claim "Area pincode".
+    ['pincode', /pin\s*code|\bpin\b|postal|zip/i],
     ['city', /city|town|location|area|where.*located/i],
     // "car model year" is a year, not a car — excluded so it cannot win 'car'.
     ['car', /(?!.*year)(which\s*car|car\s*model|vehicle|car\b)/i],
@@ -103,7 +111,7 @@ export function parseLeadForm(text: string): ParsedLead | null {
     if (!LEAD_FORM_MARKER.test(body)) return null;
 
     const parsed: ParsedLead = {
-        name: null, phone: null, city: null, car: null, product: null, unmapped: {},
+        name: null, phone: null, pincode: null, city: null, car: null, product: null, unmapped: {},
     };
 
     for (const [label, value] of extractPairs(body)) {

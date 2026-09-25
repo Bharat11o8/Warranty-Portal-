@@ -111,6 +111,18 @@ describe('parseSheetRow — each layout reads the same lead', () => {
         assert.equal(lead.state, 'Haryana');
         assert.equal(lead.city, 'Rewari');
     });
+
+    // The pincode forms from late September 2026 ask for this instead of the city.
+    for (const heading of ['pincode', 'pin_code', 'your_pincode', 'postal_code', 'what_is_your_area_pincode?']) {
+        test(`a "${heading}" column is the pincode`, () => {
+            const header = [...HEADER_SHORT.slice(0, 5), heading, 'lead_status'];
+            const row = [...ROW_SHORT.slice(0, 5), '123401', 'CREATED'];
+            const lead = parseSheetRow(row, header, 1);
+            assert.equal(lead.pincode, '123401');
+            assert.equal(lead.city, null);
+            assert.equal(heading in lead.unmapped, false);
+        });
+    }
 });
 
 describe('pickHeader — layout is decided by the row, never its position', () => {

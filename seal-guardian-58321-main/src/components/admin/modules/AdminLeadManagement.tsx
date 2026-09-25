@@ -63,7 +63,7 @@ interface Place {
     taken_by: string | null;
 }
 
-const KIND_LABEL: Record<Place["kind"], string> = { state: "State", district: "District", pincode: "Pincode" };
+const KIND_GROUP: Record<Place["kind"], string> = { state: "States", district: "Districts", pincode: "Pincode" };
 
 export const AdminLeadManagement = () => {
     const { toast } = useToast();
@@ -505,24 +505,28 @@ export const AdminLeadManagement = () => {
 
             {/* Assign areas */}
             <Dialog open={!!areaTarget} onOpenChange={open => { if (!open) setAreaTarget(null); }}>
-                <DialogContent className="max-w-lg">
+                {/*
+                  * grid-cols-1 + min-w-0: the dialog is a CSS grid, and without
+                  * them one long row sizes the column past the dialog's edge —
+                  * the list and the description spilled out to the right.
+                  */}
+                <DialogContent className="max-w-lg grid-cols-1 [&>*]:min-w-0">
                     <DialogHeader>
                         <DialogTitle>Areas for {areaTarget?.name}</DialogTitle>
                         <DialogDescription>
-                            Every pincode inside a place goes to this ASM. Give them a state, a district
-                            or a single pincode; a smaller place held by someone else takes priority,
-                            so a state can be split between ASMs.
+                            Every pincode inside the places you add goes to this ASM. A smaller place
+                            held by someone else takes priority.
                         </DialogDescription>
                     </DialogHeader>
 
-                    <div className="space-y-4 py-2">
+                    <div className="space-y-4 py-1">
                         <div className="relative">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
                             <Input
                                 value={areaInput}
                                 onChange={e => setAreaInput(e.target.value)}
-                                placeholder="Search a state, district or pincode — e.g. Delhi, Gurugram"
-                                className="pl-9"
+                                placeholder="Search a state, district or pincode"
+                                className="pl-9 h-10 rounded-xl"
                                 autoFocus
                             />
                             {searchingPlaces && (
@@ -530,43 +534,55 @@ export const AdminLeadManagement = () => {
                             )}
                         </div>
 
-                        <div className="rounded-xl border border-slate-200 divide-y divide-slate-100 max-h-64 overflow-y-auto">
+                        <div className="rounded-xl border border-slate-200 max-h-72 overflow-y-auto overflow-x-hidden">
                             {places.length === 0 ? (
-                                <p className="text-sm text-slate-400 px-3.5 py-3">
+                                <p className="text-sm text-slate-400 px-4 py-3">
                                     {searchingPlaces ? "Searching…" : "No state, district or pincode matches that."}
                                 </p>
-                            ) : places.map(place => {
-                                const mine = place.taken_by === areaTarget?.name;
-                                const taken = Boolean(place.taken_by);
+                            ) : (["state", "district", "pincode"] as const).map(kind => {
+                                const group = places.filter(pl => pl.kind === kind);
+                                if (!group.length) return null;
                                 return (
-                                    <button
-                                        key={place.key}
-                                        type="button"
-                                        disabled={taken || addingArea !== null}
-                                        onClick={() => addArea(place)}
-                                        className="w-full text-left px-3.5 py-2.5 flex items-center gap-3 hover:bg-orange-50/60 disabled:hover:bg-transparent disabled:cursor-not-allowed"
-                                    >
-                                        <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 w-14 shrink-0">
-                                            {KIND_LABEL[place.kind]}
-                                        </span>
-                                        <span className={`min-w-0 flex-1 truncate text-sm font-semibold ${taken ? "text-slate-400" : "text-slate-800"}`}>
-                                            {place.label}
-                                        </span>
-                                        <span className="text-[11px] text-slate-400 tabular-nums shrink-0">
-                                            {place.pincodes.toLocaleString()} pincode{place.pincodes === 1 ? "" : "s"}
-                                        </span>
-                                        <span className="w-24 text-right shrink-0">
-                                            {addingArea === place.key ? (
-                                                <Loader2 className="h-3.5 w-3.5 animate-spin inline text-orange-500" />
-                                            ) : taken ? (
-                                                <span className="text-[10px] font-semibold text-slate-400 truncate">
-                                                    {mine ? "Already theirs" : place.taken_by}
-                                                </span>
-                                            ) : (
-                                                <span className="text-xs font-bold text-orange-600">+ Add</span>
-                                            )}
-                                        </span>
-                                    </button>
+                                    <div key={kind}>
+                                        <p className="sticky top-0 z-10 bg-slate-50/95 backdrop-blur-sm border-b border-slate-100 px-4 py-1.5 text-[10px] font-black uppercase tracking-widest text-slate-400">
+                                            {KIND_GROUP[kind]}
+                                        </p>
+                                        <div className="divide-y divide-slate-100">
+                                            {group.map(place => {
+                                                const mine = place.taken_by === areaTarget?.name;
+                                                const taken = Boolean(place.taken_by);
+                                                return (
+                                                    <div key={place.key} className="flex items-center gap-3 px-4 py-2.5">
+                                                        <div className="min-w-0 flex-1">
+                                                            <p className={`text-sm font-semibold truncate ${taken ? "text-slate-400" : "text-slate-800"}`}>
+                                                                {place.label}
+                                                            </p>
+                                                            <p className="text-[11px] text-slate-400 truncate">
+                                                                {place.pincodes.toLocaleString()} pincode{place.pincodes === 1 ? "" : "s"}
+                                                                {taken && !mine && <> · with {place.taken_by}</>}
+                                                            </p>
+                                                        </div>
+                                                        {taken ? (
+                                                            <span className={`shrink-0 text-[11px] font-bold rounded-lg px-2.5 py-1 ${mine ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-500"}`}>
+                                                                {mine ? "Added" : "Taken"}
+                                                            </span>
+                                                        ) : (
+                                                            <Button
+                                                                type="button" size="sm" variant="outline"
+                                                                disabled={addingArea !== null}
+                                                                onClick={() => addArea(place)}
+                                                                className="shrink-0 h-8 rounded-lg border-orange-200 text-orange-600 hover:bg-orange-50 hover:text-orange-700 font-bold"
+                                                            >
+                                                                {addingArea === place.key
+                                                                    ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                                                    : <><Plus className="h-3.5 w-3.5 mr-1" />Add</>}
+                                                            </Button>
+                                                        )}
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
                                 );
                             })}
                         </div>

@@ -615,7 +615,8 @@ export class WhatsAppService {
         area: string,
         receivedAt: string,
         product?: string | null,
-        car?: string | null
+        car?: string | null,
+        leadNumber?: number
     ): Promise<boolean> {
         // "rohini, delhi" -> "Rohini, Delhi". The previous version uppercased
         // every letter, which shouted ROHINI, DELHI at the ASM.
@@ -623,6 +624,41 @@ export class WhatsAppService {
             String(s || '')
                 .toLowerCase()
                 .replace(/\b[a-z]/g, ch => ch.toUpperCase());
+
+        /*
+         * af_asm_lead_alert (September 2026) — the same shape as the store and
+         * support alerts, overridable with ASM_LEAD_TEMPLATE:
+         *   {{1}} ASM name   {{2}} Customer phone   {{3}} Location
+         *   {{4}} Product    {{5}} Vehicle          {{6}} Date of enquiry
+         *   {{7}} Lead number — this ASM's nth lead this month
+         * No customer name: the workflow rarely has one. Until Meta approves
+         * it the send fails and the older template below goes instead.
+         */
+        if (leadNumber) {
+            const newShape = [
+                titleCase(asmName) || 'Team',
+                customerPhone,
+                titleCase(area) || 'Not provided',
+                product || 'Not specified',
+                car || 'Not specified',
+                receivedAt,
+                String(leadNumber),
+            ];
+            /*
+             * The seven-field version may have been approved under the new
+             * name or as an edit of af_asm_enquiry_v2 — the latter happened in
+             * September 2026, and every old six-field send then failed with
+             * "expected number of values are 7". Both names are tried with the
+             * new shape before falling back to the old one.
+             */
+            const names = [...new Set([
+                process.env.ASM_LEAD_TEMPLATE || 'af_asm_lead_alert',
+                process.env.ASM_ENQUIRY_TEMPLATE || 'af_asm_enquiry',
+            ])];
+            for (const name of names) {
+                if (await this.sendTemplateMessage(phone, name, newShape, 'asm_enquiry', customerPhone)) return true;
+            }
+        }
 
         /*
          * The approved `af_asm_enquiry` has four variables and no slot for the
@@ -707,10 +743,10 @@ export class WhatsAppService {
      *   {{3}} Product
      *   {{4}} Vehicle
      *   {{5}} Date of enquiry
+     *   {{6}} Lead number — this store's nth lead this month ("Lead: #3")
      *
-     * Only ever called while the locator is live. Until Meta approves the
-     * template a send fails and is logged as failed in message_logs — the
-     * customer's own reply is unaffected either way.
+     * Only ever called while the locator is live; the customer's own reply is
+     * unaffected either way.
      */
     static async sendStoreLead(
         storePhone: string,
@@ -719,6 +755,7 @@ export class WhatsAppService {
         product: string | null,
         car: string | null,
         receivedAt: string,
+        leadNumber: number,
         leadId?: string
     ): Promise<boolean> {
         const template = process.env.STORE_LEAD_TEMPLATE || 'af_franchise_lead_transfer';
@@ -731,8 +768,50 @@ export class WhatsAppService {
                 product || 'Not specified',
                 car || 'Not specified',
                 receivedAt,
+                String(leadNumber),
             ],
             'store_lead',
+            leadId
+        );
+    }
+
+    /**
+     * Tell customer support about a lead nobody else could take — no store, ASM
+     * or distributor near the customer.
+     *
+     * Template: af_support_lead_alert (header "New Support Lead!"),
+     * overridable with SUPPORT_LEAD_TEMPLATE.
+     *   {{1}} Customer phone   {{2}} Location   {{3}} Product
+     *   {{4}} Vehicle          {{5}} Date of enquiry
+     *   {{6}} Lead number — support's nth lead this month
+     * No customer name: the workflow does not reliably have one.
+     *
+     * Returns false if the send fails — including while the template is still
+     * awaiting Meta's approval — so the caller can fall back to the store alert.
+     */
+    static async sendSupportLead(
+        supportPhone: string,
+        customerPhone: string,
+        location: string,
+        product: string | null,
+        car: string | null,
+        receivedAt: string,
+        leadNumber: number,
+        leadId?: string
+    ): Promise<boolean> {
+        const template = process.env.SUPPORT_LEAD_TEMPLATE || 'af_support_lead_alert';
+        return this.sendTemplateMessage(
+            supportPhone,
+            template,
+            [
+                customerPhone,
+                location || 'Not provided',
+                product || 'Not specified',
+                car || 'Not specified',
+                receivedAt,
+                String(leadNumber),
+            ],
+            'support_lead',
             leadId
         );
     }

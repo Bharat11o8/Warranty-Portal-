@@ -7,6 +7,10 @@ import {
     distinctPoints,
     distanceKm,
     isInOwnState,
+    statesByPrefix,
+    withInferredState,
+    placeFromNeighbours,
+    nearestDistrict,
     type Office,
 } from '../pincodeCentre.js';
 
@@ -130,6 +134,67 @@ describe('Pratapgarh — a whole district filed in the wrong state', () => {
         assert.equal(isInOwnState({ lat: 21.25, lng: 81.61, state: 'UTTAR PRADESH' }), false);
         // No state, no judgement.
         assert.equal(isInOwnState({ lat: 21.25, lng: 81.61, state: 'NA' }), true);
+    });
+});
+
+describe('filling India Post\'s gaps', () => {
+    const stated = (pincode: string, state: string | null) => ({ pincode, state });
+
+    test('an "NA" state takes the state its prefix agrees on', () => {
+        const offices = [
+            ...Array.from({ length: 12 }, (_, i) => stated(`8113${String(i).padStart(2, '0')}`, 'BIHAR')),
+            stated('811315', 'NA'),
+        ];
+        const byPrefix = statesByPrefix(offices);
+        assert.equal(withInferredState(stated('811315', 'NA'), byPrefix).state, 'BIHAR');
+        assert.equal(withInferredState(stated('811315', null), byPrefix).state, 'BIHAR');
+    });
+
+    test('a split prefix is left alone rather than guessed', () => {
+        const offices = [
+            ...Array.from({ length: 6 }, (_, i) => stated(`4960${i}0`, 'CHHATTISGARH')),
+            ...Array.from({ length: 4 }, (_, i) => stated(`4960${i}1`, 'ODISHA')),
+        ];
+        assert.equal(statesByPrefix(offices).has('496'), false);
+        assert.equal(withInferredState(stated('496999', 'NA'), statesByPrefix(offices)).state, 'NA');
+    });
+
+    test('a known state is never overwritten', () => {
+        const byPrefix = new Map([['811', 'BIHAR']]);
+        const o = stated('811315', 'JHARKHAND');
+        assert.equal(withInferredState(o, byPrefix), o);
+    });
+
+    const centre = (pincode: string, lat: number, lng: number, district: string | null, state = 'MADHYA PRADESH') =>
+        ({ pincode, lat, lng, district, state, offices: 2, discarded: 0, source: 'india-post' as const });
+
+    test('a pincode with no location sits at its district\'s centre', () => {
+        const placed = [centre('483001', 23.18, 79.95, 'JABALPUR'), centre('483002', 23.20, 79.97, 'JABALPUR'),
+            centre('483501', 23.83, 80.39, 'KATNI')];
+        const [c] = placeFromNeighbours([{ pincode: '483222', state: 'MADHYA PRADESH', district: 'JABALPUR' }], placed);
+        assert.equal(c.source, 'district');
+        assert.ok(c.lat > 23.1 && c.lat < 23.3, `got ${c.lat}`);
+    });
+
+    test('with no district, it sits at the centre of its prefix in the same state', () => {
+        const placed = [centre('500001', 17.38, 78.47, 'HYDERABAD', 'TELANGANA'), centre('500002', 17.36, 78.48, 'HYDERABAD', 'TELANGANA')];
+        const [c] = placeFromNeighbours([{ pincode: '500934', state: 'TELANGANA', district: 'NA' }], placed);
+        assert.equal(c.source, 'prefix');
+        assert.equal(c.district, null);
+    });
+
+    test('with neither, it stays unplaced', () => {
+        assert.deepEqual(placeFromNeighbours([{ pincode: '999999', state: 'NOWHERE', district: 'NA' }], []), []);
+    });
+
+    test('an "NA" district takes the nearest pincode\'s, in the same state only', () => {
+        const target = centre('122999', 28.46, 77.03, 'NA', 'HARYANA');
+        const placed = [
+            centre('122001', 28.47, 77.03, 'GURUGRAM', 'HARYANA'),
+            centre('110037', 28.46, 77.05, 'SOUTH WEST', 'DELHI'),   // nearer, but another state
+        ];
+        assert.equal(nearestDistrict(target, placed), 'GURUGRAM');
+        assert.equal(nearestDistrict(centre('122999', 20, 70, 'NA', 'HARYANA'), placed), null, 'too far away');
     });
 });
 

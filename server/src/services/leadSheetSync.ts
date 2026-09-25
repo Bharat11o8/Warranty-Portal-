@@ -1,5 +1,6 @@
 import type { SheetLead } from './leadSheetParser.js';
 import { leadKey, phoneKey } from './leadIdentity.js';
+import { extractPincode } from './storeLocator.js';
 
 /**
  * Deciding what a sheet sync should do with each row, before anything is written.
@@ -70,14 +71,20 @@ export function leadDate(lead: SheetLead): Date | null {
 /**
  * The identity of a sheet lead, in the same shape the router records.
  *
- * `raw_area` on a lead row holds whatever the customer gave as their location,
- * which for a sheet lead is the city. Matching on the same four fields either
- * side is what makes a WhatsApp lead and its sheet copy recognise each other.
+ * `raw_area` on a lead row holds whatever the customer gave as their location.
+ * For a store-locator lead — the workflow's and, since the forms ask for one,
+ * Instagram's — that is the pincode, so the pincode leads here too: it is what
+ * makes a lead captured on WhatsApp and its sheet copy recognise each other.
+ * Older rows without one fall back to the state or city as before.
  */
+export function sheetArea(lead: SheetLead): string | null {
+    return extractPincode(lead.pincode) ?? extractPincode(lead.city) ?? (lead.state || lead.city);
+}
+
 function sheetKey(lead: SheetLead): string {
     return leadKey({
         phone: lead.phone,
-        area: lead.state || lead.city,
+        area: sheetArea(lead),
         car: lead.car,
         product: lead.product,
     });

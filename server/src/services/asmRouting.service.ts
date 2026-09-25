@@ -123,6 +123,21 @@ export interface RouteResult {
 }
 
 /**
+ * An ASM's lead number for the month: the leads already forwarded to them
+ * since the 1st, plus this one. Starts again at #1 each month; the connection
+ * runs in IST, so the month turns at midnight India time.
+ */
+export async function asmLeadNumber(asmId: string): Promise<number> {
+    const [[{ prior }]]: any = await db.execute(
+        `SELECT COUNT(*) AS prior FROM leads
+          WHERE asm_id = ? AND status = 'sent'
+            AND created_at >= DATE_FORMAT(NOW(), '%Y-%m-01')`,
+        [asmId]
+    );
+    return Number(prior) + 1;
+}
+
+/**
  * Find the ASM for a typed location — "Rohini Delhi", "gurgaon", "Delhi 110085".
  *
  * Territories are places from the pincode directory now (a state, a district
@@ -344,7 +359,8 @@ export async function routeEnquiry(input: EnquiryInput): Promise<RouteResult> {
             areaForAsm,
             receivedAt,
             product,
-            car
+            car,
+            await asmLeadNumber(asm.id).catch(() => undefined)
         );
     } catch (err: any) {
         // Swallowed deliberately — the lead is still recorded below, and a lost

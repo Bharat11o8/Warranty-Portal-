@@ -2,6 +2,7 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { parseLeadForm } from '../instagramLeadParser.js';
 import { normaliseProduct } from '../productMatch.js';
+import { extractPincode } from '../storeLocator.js';
 
 /**
  * A false positive here routes an ordinary "hi" straight past the question
@@ -66,6 +67,56 @@ For which car do you need the seat cover?: Hatchback`
         assert.equal(lead?.city, 'Gurgaon');
         assert.equal(lead?.car, 'Hatchback');
     });
+});
+
+describe('parseLeadForm — the pincode, which forms ask for from late September 2026', () => {
+    const FORM = (line: string) => `Hello! I filled out your form and would like to know more about your business.
+
+Full name: Ravi Khetan
+Phone number: +919839905800
+${line}
+For which car do you need the seat cover?: Toyota Etios`;
+
+    test('a "Pincode" answer is read, and the city is left empty', () => {
+        const lead = parseLeadForm(FORM('Pincode: 274304'));
+        assert.equal(lead?.pincode, '274304');
+        assert.equal(lead?.city, null);
+        assert.deepEqual(lead?.unmapped, {});
+    });
+
+    for (const label of ['Pin code', 'PIN', 'Your pincode', 'Postal code', 'Area pincode', "What's your area pincode?"]) {
+        test(`"${label}" is the pincode, never the city`, () => {
+            const lead = parseLeadForm(FORM(`${label}: 274304`));
+            assert.equal(lead?.pincode, '274304');
+            assert.equal(lead?.city, null);
+        });
+    }
+
+    test('the phone is never read as the pincode', () => {
+        const lead = parseLeadForm(FORM('Pincode: 274304'));
+        assert.equal(lead?.phone, '+919839905800');
+    });
+});
+
+describe('extractPincode — the digits inside what was typed', () => {
+    const cases: Array<[string | null, string | null]> = [
+        ['274304', '274304'],
+        ['274 304', '274304'],
+        ['274-304', '274304'],
+        ['Pin- 302001', '302001'],
+        ['Sector 62 Noida 201301', '201301'],
+        ['  110085 ', '110085'],
+        ['+919839905800', null],     // a phone number's tail is not a pincode
+        ['12345', null],
+        ['1234567', null],
+        ['012345', null],            // pincodes never start with 0
+        ['Padrauna', null],
+        ['', null],
+        [null, null],
+    ];
+    for (const [input, expected] of cases) {
+        test(`${JSON.stringify(input)} -> ${expected}`, () => assert.equal(extractPincode(input), expected));
+    }
 });
 
 describe('parseLeadForm — the year is not the car', () => {

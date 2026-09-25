@@ -169,6 +169,18 @@ export function isPincode(raw: unknown): boolean {
 }
 
 /**
+ * The pincode inside whatever a customer typed: "302001", "302 001",
+ * "Pin- 302001", "Sector 62 Noida 201301". Null when there is none.
+ *
+ * Only six digits standing on their own count, so the tail of a phone number
+ * ("+919876543210") is never mistaken for one.
+ */
+export function extractPincode(raw: unknown): string | null {
+    const m = String(raw ?? '').match(/(?<![\d+])([1-9]\d{2})[\s-]?(\d{3})(?!\d)/);
+    return m ? m[1] + m[2] : null;
+}
+
+/**
  * A minimum-warranty threshold an admin may set.
  *
  * Whole, and never negative. Capped so a stray extra zero cannot empty every

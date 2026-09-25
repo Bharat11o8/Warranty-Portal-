@@ -189,9 +189,9 @@ export const AdminWarranties = () => {
         return () => window.clearTimeout(timer);
     }, [search]);
 
-    const buildWarrantyQuery = (limit = itemsPerPage, exportAll = false) => {
+    const buildWarrantyQuery = (limit = itemsPerPage, exportAll = false, exportPage = 1) => {
         const params = new URLSearchParams({
-            page: exportAll ? '1' : String(currentPage),
+            page: exportAll ? String(exportPage) : String(currentPage),
             limit: String(limit),
             status: statusFilter,
             product_type: productTypeFilter,
@@ -214,9 +214,27 @@ export const AdminWarranties = () => {
 
     const handleSelectiveExport = async (selectedFields: string[]) => {
         try {
-            // Full data is requested only when an admin explicitly exports.
-            const response = await api.get(`/admin/warranties?${buildWarrantyQuery(10000, true)}`);
-            const exportRecords = response.data.warranties || [];
+            /*
+             * Fetched page by page until every matching warranty is in.
+             *
+             * One request used to ask for 10,000 rows, the server's ceiling for
+             * an export — and with 11,727 warranties the file silently stopped
+             * at 10,000, dropping the oldest. Pages keep each response a
+             * sensible size however many warranties there are. Rows are keyed
+             * by id, so one shifted across a page boundary by a new warranty
+             * arriving mid-export is not written twice.
+             */
+            const PAGE = 2000;
+            const byId = new Map<string, any>();
+            let page = 1;
+            let totalPages = 1;
+            do {
+                const response = await api.get(`/admin/warranties?${buildWarrantyQuery(PAGE, true, page)}`);
+                for (const w of response.data.warranties || []) byId.set(String(w.id ?? w.uid), w);
+                totalPages = response.data.pagination?.totalPages || 1;
+                page++;
+            } while (page <= totalPages);
+            const exportRecords = [...byId.values()];
 
             if (exportRecords.length === 0) {
                 toast({ description: "No records found to export", variant: "destructive" });

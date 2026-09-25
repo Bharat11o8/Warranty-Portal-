@@ -32,8 +32,13 @@ export interface SheetLead {
     createdAt: string | null;
     name: string | null;
     phone: string | null;
+    /**
+     * The answer to the pincode question, as typed. Campaigns from late
+     * September 2026 ask for this instead of the city; leads are routed by it.
+     */
+    pincode: string | null;
     city: string | null;
-    /** The state, once the campaign form asks for it. Null until then. */
+    /** The state, if a form ever asks for it. Superseded by the pincode. */
     state: string | null;
     car: string | null;
     product: string | null;
@@ -56,6 +61,8 @@ const COLUMN_PATTERNS: Array<[keyof Omit<SheetLead, 'unmapped' | 'rowNumber' | '
     ['createdAt', /created_?time|created_?at|timestamp/i],
     ['name', /full_?name|^name$/i],
     ['phone', /phone|mobile|contact_?number/i],
+    // "pincode", "pin_code", "your_pincode", "postal_code", "zip_code".
+    ['pincode', /pin_?code|^pin$|postal_?code|zip_?code/i],
     // Checked before city: "state" must never be claimed by the city pattern.
     ['state', /^state$|which_?state|your_?state/i],
     ['city', /^city$|town|which_?city/i],
@@ -136,7 +143,7 @@ export function parseSheetRow(
     rowNumber: number
 ): SheetLead {
     const lead: SheetLead = {
-        leadId: null, createdAt: null, name: null, phone: null, city: null,
+        leadId: null, createdAt: null, name: null, phone: null, pincode: null, city: null,
         state: null, car: null, product: null, platform: null,
         rowNumber, unmapped: {},
     };
