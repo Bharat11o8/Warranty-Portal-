@@ -1,16 +1,16 @@
 import crypto from 'crypto';
 import { Request, Response } from 'express';
 import db from '../config/database.js';
+import { recordIvrEvent } from '../services/ivrLead.service.js';
 
 /**
  * The IVR provider's HTTP hook: one call per phone call.
  *
- * Capture only, for now. The provider's payload is not documented to us, so
- * every call is stored exactly as it arrives in webhook_events (provider
- * 'ivr') and nothing else happens — no lead, no message. The lead mapping is
- * built against real stored calls once one has arrived. The store audit taught
- * this: a parser written against a guessed shape lost the first real
- * submissions, because only the event name was logged, never the body.
+ * Every event is stored exactly as it arrives in webhook_events (provider
+ * 'ivr'), then filed as a lead — one per caller per day — by ivrLead.service.
+ * Nothing is sent to anyone: the IVR gives only the caller's number, and the
+ * team follows up from Lead Management. The raw store came first, before the
+ * shape was known; it stays, so a changed payload can be re-read later.
  *
  * Secured by a key in the URL (?key=…, set on the server as IVR_WEBHOOK_KEY),
  * since the hook screen offers no header or signature. Without the key set,
@@ -46,7 +46,7 @@ export class IvrWebhookController {
             }
             return null;
         };
-        const phone = pick('caller', 'caller_number', 'callerNumber', 'from', 'From', 'CallFrom', 'customer_number', 'mobile', 'phone');
+        const phone = pick('cli', 'caller', 'caller_number', 'callerNumber', 'from', 'From', 'CallFrom', 'customer_number', 'mobile', 'phone');
         const event = pick('event', 'event_type', 'eventType', 'status', 'call_status', 'CallStatus') ?? 'ivr_call';
 
         try {
@@ -58,6 +58,13 @@ export class IvrWebhookController {
             console.log(`[IVR] ${req.method} call recorded — event "${event}", caller ${phone ?? '(unknown)'}`);
         } catch (error: any) {
             console.error('[IVR] could not record the call:', error?.message || error);
+        }
+
+        // The call as a lead in Lead Management — see ivrLead.service.
+        try {
+            await recordIvrEvent(body as Record<string, unknown>);
+        } catch (error: any) {
+            console.error('[IVR] could not file the lead:', error?.message || error);
         }
     }
 }
