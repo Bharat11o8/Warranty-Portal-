@@ -129,6 +129,10 @@ router.post('/warranties/resubmissions/:id/reject', ...adminAuth, requirePermiss
 // The rejection-and-fix chain for one warranty. Declared above /warranties/:id
 // for the same reason as roll-context: :id would otherwise swallow it.
 router.get('/warranties/:uid/history', ...adminAuth, requirePermission('warranties', 'read'), AdminController.getWarrantyHistory);
+// Internal admin-only remarks. Never exposed on a customer or vendor route.
+router.get('/warranties/:uid/remarks', ...adminAuth, requirePermission('warranties', 'read'), AdminController.getWarrantyRemarks);
+router.post('/warranties/:uid/remarks', ...adminAuth, requirePermission('warranties', 'write'), AdminController.addWarrantyRemark);
+router.delete('/warranties/:uid/remarks/:remarkId', ...adminAuth, requirePermission('warranties', 'write'), AdminController.deleteWarrantyRemark);
 router.get('/warranties/:id', ...adminAuth, requirePermission('warranties', 'read'), AdminController.getWarrantyById);
 router.put('/warranties/:uid/status', ...adminAuth, requirePermission('warranties', 'write'), AdminController.updateWarrantyStatus);
 router.put('/warranties/:uid/details', ...adminAuth, requirePermission('warranties', 'write'), AdminController.updateWarrantyDetails);

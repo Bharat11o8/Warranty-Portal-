@@ -6255,6 +6255,92 @@ export class AdminController {
     }
 
     /**
+     * Internal remarks on one warranty, oldest first.
+     *
+     * Admin-only notes for whoever reviews it next. Kept out of
+     * warranty_registrations entirely so no customer or vendor query that
+     * selects the row can ever carry them out.
+     */
+    static async getWarrantyRemarks(req: Request, res: Response) {
+        try {
+            const uid = String(req.params.uid || '').trim();
+            if (!uid) return res.status(400).json({ error: 'A warranty id is required' });
+
+            const [rows]: any = await db.execute(
+                `SELECT id, admin_id, admin_name, remark, created_at
+                   FROM warranty_remarks
+                  WHERE warranty_uid = ?
+                  ORDER BY created_at ASC, id ASC`,
+                [uid]
+            );
+
+            res.json({ success: true, remarks: rows });
+        } catch (error: any) {
+            console.error('[Warranty Remarks] Load failed:', error?.message);
+            res.status(500).json({ error: 'Could not load remarks' });
+        }
+    }
+
+    static async addWarrantyRemark(req: Request, res: Response) {
+        try {
+            const uid = String(req.params.uid || '').trim();
+            const remark = String(req.body?.remark ?? '').trim();
+            if (!uid) return res.status(400).json({ error: 'A warranty id is required' });
+            if (!remark) return res.status(400).json({ error: 'Remark cannot be empty' });
+            if (remark.length > 2000) return res.status(400).json({ error: 'Remark is too long (2000 characters max)' });
+
+            const [warranty]: any = await db.execute(
+                'SELECT uid FROM warranty_registrations WHERE uid = ? LIMIT 1',
+                [uid]
+            );
+            if (warranty.length === 0) return res.status(404).json({ error: 'Warranty not found' });
+
+            const admin = (req as any).user;
+            const adminName = admin.name || admin.email || null;
+            const [result]: any = await db.execute(
+                'INSERT INTO warranty_remarks (warranty_uid, admin_id, admin_name, remark) VALUES (?, ?, ?, ?)',
+                [uid, admin.id, adminName, remark]
+            );
+
+            const [rows]: any = await db.execute(
+                'SELECT id, admin_id, admin_name, remark, created_at FROM warranty_remarks WHERE id = ?',
+                [result.insertId]
+            );
+
+            res.status(201).json({ success: true, remark: rows[0] });
+        } catch (error: any) {
+            console.error('[Warranty Remarks] Add failed:', error?.message);
+            res.status(500).json({ error: 'Could not save remark' });
+        }
+    }
+
+    /** Only the admin who wrote a remark, or a super admin, can remove it. */
+    static async deleteWarrantyRemark(req: Request, res: Response) {
+        try {
+            const uid = String(req.params.uid || '').trim();
+            const remarkId = Number(req.params.remarkId);
+            if (!uid || !Number.isInteger(remarkId)) return res.status(400).json({ error: 'Invalid remark' });
+
+            const [rows]: any = await db.execute(
+                'SELECT id, admin_id FROM warranty_remarks WHERE id = ? AND warranty_uid = ?',
+                [remarkId, uid]
+            );
+            if (rows.length === 0) return res.status(404).json({ error: 'Remark not found' });
+
+            const admin = (req as any).user;
+            if (String(rows[0].admin_id) !== String(admin.id) && !admin.isSuperAdmin) {
+                return res.status(403).json({ error: 'You can only delete your own remarks' });
+            }
+
+            await db.execute('DELETE FROM warranty_remarks WHERE id = ?', [remarkId]);
+            res.json({ success: true });
+        } catch (error: any) {
+            console.error('[Warranty Remarks] Delete failed:', error?.message);
+            res.status(500).json({ error: 'Could not delete remark' });
+        }
+    }
+
+    /**
      * The roll context for one warranty being reviewed.
      *
      * Nothing pre-registers a PPF roll: the serial the installer types is what

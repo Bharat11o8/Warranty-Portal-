@@ -16,6 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import api, { getErrorMessage } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import { displaySerial } from "@/lib/ppfRolls";
+import { WarrantyRemarks } from "@/components/admin/WarrantyRemarks";
 
 interface WarrantySpecSheetProps {
     isOpen: boolean;
@@ -286,6 +287,9 @@ export const WarrantySpecSheet = ({ isOpen, onClose, warranty, isAdmin, onRefres
                                 </div>
                             </div>
                         )}
+
+                        {/* Admin-only: customers and franchises open this same sheet. */}
+                        {isAdmin && <WarrantyRemarks uid={warranty.uid} />}
 
                         {/* Product & Car Details */}
                         <div className="space-y-1">

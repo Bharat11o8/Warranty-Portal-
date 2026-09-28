@@ -28,6 +28,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import api, { getErrorMessage } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import { Pencil, Save, X, Upload } from "lucide-react";
+import { WarrantyRemarks } from "@/components/admin/WarrantyRemarks";
 
 function haversineDistance(lat1: number, lng1: number, lat2: number, lng2: number): number {
     const R = 6371; // Earth's radius in km
@@ -667,6 +668,8 @@ export const QuickReviewPanel = ({
                         </div>
                     </div>
                 )}
+
+                <WarrantyRemarks uid={warranty.uid} />
 
                 {/* Left/Right quick details grid */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
