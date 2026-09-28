@@ -1,30 +1,62 @@
+import { normaliseProduct, type Product } from './productMatch.js';
+
 /**
  * Reading the IVR provider's call events. Free of any database import, so the
  * rules can be tested; ivrLead.service does the writing.
  *
- * Each call arrives as two events sharing one `uniqueid`, seen on real calls
+ * A call arrives as several events sharing one `uniqueid`, seen on real calls
  * (25 Sept 2026):
  *
- *   { event: "IN", cli: "9820306492", time: "…+05:30", uniqueid: "1790334154.234406", app }
- *   { event: "H",  cli: "9820306492", time: "…+05:30", uniqueid: "…", duration: 56, app }
+ *   IN  { cli, time, uniqueid }                     the call starts
+ *   TA  { group: "SeatCovers", to, agentName, attemptid }
+ *                                                   the caller pressed an option
+ *                                                   and an agent's phone rings
+ *   TE  { group, to, result: "answered"|"noanswer", duration, attemptid }
+ *                                                   that ring ended
+ *   H   { duration }                                the caller hung up
  *
- * IN is the call starting, H the hang-up with its length in seconds. Nothing
- * else comes with it — no keypad presses, no pincode — so an IVR lead is the
- * caller's number, when they called and for how long, for the team to follow up.
+ * The IVR menu is 1 Seat Covers, 2 Mats, 3 Accessories, and each option
+ * transfers to an agent group named for it — so the group is the product.
  */
 
-export type IvrEventKind = 'start' | 'end' | 'other';
+export type IvrEventKind = 'start' | 'end' | 'transfer' | 'transfer-end' | 'other';
 
 export interface IvrCall {
     callId: string;
     /** Caller's number as the IVR gives it: 10 digits, no country code. */
     phone: string;
     kind: IvrEventKind;
-    /** Seconds; on the hang-up only. */
+    /** Seconds: the whole call on H, the agent's part on TE. */
     duration: number | null;
     /** The IVR's own timestamp, IST. */
     at: string | null;
+    /** Transfer events only. */
+    transfer?: {
+        attemptId: string;
+        group: string | null;
+        product: Product | null;
+        agent: string | null;
+        to: string | null;
+        /** "answered" | "noanswer" | … — on TE only. */
+        result: string | null;
+    };
 }
+
+const KINDS: Record<string, IvrEventKind> = { IN: 'start', H: 'end', TA: 'transfer', TE: 'transfer-end' };
+
+/**
+ * The product an IVR agent group stands for. "SeatCovers" and "CarMats" are
+ * split into words first, so the same matcher the WhatsApp flow uses reads them.
+ */
+export function productFromGroup(group: string | null | undefined): Product | null {
+    const words = String(group ?? '').replace(/([a-z])([A-Z])/g, '$1 $2').replace(/[_-]+/g, ' ');
+    return normaliseProduct(words);
+}
+
+const text = (v: unknown) => {
+    const s = String(v ?? '').trim();
+    return s ? s : null;
+};
 
 /** A call event, or null for anything we cannot file (no caller, no call id). */
 export function parseIvrEvent(body: Record<string, unknown> | null | undefined): IvrCall | null {
@@ -33,17 +65,29 @@ export function parseIvrEvent(body: Record<string, unknown> | null | undefined):
     const phone = String(body.cli ?? '').replace(/\D/g, '');
     if (!callId || !phone) return null;
 
-    const event = String(body.event ?? '').trim().toUpperCase();
-    const kind: IvrEventKind = event === 'IN' ? 'start' : event === 'H' ? 'end' : 'other';
+    const kind = KINDS[String(body.event ?? '').trim().toUpperCase()] ?? 'other';
     const seconds = Number(body.duration);
 
-    return {
+    const call: IvrCall = {
         callId,
         phone,
         kind,
-        duration: Number.isFinite(seconds) && seconds >= 0 ? Math.round(seconds) : null,
-        at: body.time ? String(body.time) : null,
+        duration: body.duration !== undefined && Number.isFinite(seconds) && seconds >= 0 ? Math.round(seconds) : null,
+        at: text(body.time),
     };
+
+    if (kind === 'transfer' || kind === 'transfer-end') {
+        const group = text(body.group);
+        call.transfer = {
+            attemptId: text(body.attemptid) ?? `${callId}.?`,
+            group,
+            product: productFromGroup(group),
+            agent: text(body.agentName),
+            to: text(body.to),
+            result: text(body.result)?.toLowerCase() ?? null,
+        };
+    }
+    return call;
 }
 
 /**
@@ -57,3 +101,16 @@ export function isMobile(phone: string): boolean {
 
 /** How long a repeat call from the same number joins the earlier lead. */
 export const REPEAT_CALL_HOURS = 24;
+
+/**
+ * What the team needs to know about a lead's calls, in a line: whether anyone
+ * picked up. A caller whose every transfer rang out is a missed call — the one
+ * the team must ring back. Null while nothing has reached an agent yet.
+ */
+export function missedCallReason(calls: Record<string, any>): string | null {
+    const transfers = Object.values(calls ?? {}).flatMap((c: any) => Object.values(c?.transfers ?? {})) as any[];
+    const ended = transfers.filter(t => t?.result);
+    if (!ended.length) return null;
+    if (ended.some(t => t.result === 'answered')) return null;
+    return 'Missed call — no agent answered, call back';
+}
