@@ -69,6 +69,27 @@ import { SelectiveExportDialog } from "@/components/warranty/SelectiveExportDial
 import { exportWarrantiesToCSV } from "@/lib/adminExports";
 import { Skeleton } from "@/components/ui/skeleton";
 
+// Standard reasons offered when declining a warranty. The chosen sentence is
+// saved as-is to rejection_reason and shown to the customer, so keep each one
+// a complete, customer-readable sentence.
+const REJECTION_REASONS = [
+    "The product UID does not match the MRP sticker.",
+    "The product image does not match the invoice.",
+    "The product image is missing.",
+    "The vehicle image is missing.",
+    "An estimated invoice cannot be accepted.",
+    "The invoice or MRP sticker is not attached.",
+    "The files are not readable.",
+    "The images are phone screenshots.",
+    "The product image does not match the product name.",
+    "The MRP sticker is not clear. Please attach the invoice.",
+    "The vehicle image is not original.",
+    "The files are corrupted.",
+    "The MRP sticker is torn or damaged.",
+    "Vehicle registration number does not match the product image.",
+];
+const CUSTOM_REJECTION = "__custom__";
+
 const WarrantyListSkeleton = () => (
     <Card className="border-orange-100 shadow-sm overflow-hidden rounded-3xl">
         <CardContent className="p-3 md:p-4 space-y-4">
@@ -156,8 +177,16 @@ export const AdminWarranties = () => {
 
     // Rejection Dialog State
     const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
+    // rejectPreset is one of REJECTION_REASONS, CUSTOM_REJECTION, or "" (nothing picked yet);
+    // rejectReason is the typed text, used only when CUSTOM_REJECTION is picked.
+    const [rejectPreset, setRejectPreset] = useState("");
     const [rejectReason, setRejectReason] = useState("");
     const [rejectingWarrantyId, setRejectingWarrantyId] = useState<string | null>(null);
+    const finalRejectReason = rejectPreset === CUSTOM_REJECTION ? rejectReason.trim() : rejectPreset;
+    const resetRejectReason = () => {
+        setRejectPreset("");
+        setRejectReason("");
+    };
 
     const toTitleCase = (str: string) => {
         if (!str) return str;
@@ -686,7 +715,7 @@ export const AdminWarranties = () => {
                             onApprove={(id) => handleUpdateStatus(id, 'validated')}
                             onReject={(id) => {
                                 setRejectingWarrantyId(id);
-                                setRejectReason("");
+                                resetRejectReason();
                                 setRejectDialogOpen(true);
                                 return new Promise<void>((resolve) => {
                                     // Resolve will be called after the reject dialog submits
@@ -706,7 +735,7 @@ export const AdminWarranties = () => {
                                 onApprove={(id) => handleUpdateStatus(id, 'validated')}
                                 onReject={(id) => {
                                     setRejectingWarrantyId(id);
-                                    setRejectReason("");
+                                    resetRejectReason();
                                     setRejectDialogOpen(true);
                                     return new Promise<void>((resolve) => {
                                         // Resolve will be called after the reject dialog submits
@@ -803,21 +832,42 @@ export const AdminWarranties = () => {
                     </DialogHeader>
                     <div className="space-y-4 py-4">
                         <div className="space-y-2">
-                            <Label htmlFor="rejection-reason">Reviewer Remarks / Feedback</Label>
-                            <Textarea
-                                id="rejection-reason"
-                                placeholder="Enter feedback for the user..."
-                                value={rejectReason}
-                                onChange={(e) => setRejectReason(e.target.value)}
-                                className="min-h-[100px]"
-                            />
+                            <Label htmlFor="rejection-preset">Reason</Label>
+                            <Select value={rejectPreset} onValueChange={setRejectPreset}>
+                                <SelectTrigger id="rejection-preset" className="h-auto min-h-10 text-left whitespace-normal">
+                                    <SelectValue placeholder="Select a reason..." />
+                                </SelectTrigger>
+                                <SelectContent className="max-h-80">
+                                    {REJECTION_REASONS.map((reason) => (
+                                        <SelectItem key={reason} value={reason} className="whitespace-normal">
+                                            {reason}
+                                        </SelectItem>
+                                    ))}
+                                    <SelectItem value={CUSTOM_REJECTION} className="font-semibold">
+                                        Write your own reason...
+                                    </SelectItem>
+                                </SelectContent>
+                            </Select>
                         </div>
+                        {rejectPreset === CUSTOM_REJECTION && (
+                            <div className="space-y-2">
+                                <Label htmlFor="rejection-reason">Reviewer Remarks / Feedback</Label>
+                                <Textarea
+                                    id="rejection-reason"
+                                    placeholder="Enter feedback for the user..."
+                                    value={rejectReason}
+                                    onChange={(e) => setRejectReason(e.target.value)}
+                                    className="min-h-[100px]"
+                                    autoFocus
+                                />
+                            </div>
+                        )}
                         <div className="flex justify-end gap-3">
                             <Button
                                 variant="outline"
                                 onClick={() => {
                                     setRejectDialogOpen(false);
-                                    setRejectReason("");
+                                    resetRejectReason();
                                     setRejectingWarrantyId(null);
                                     if ((window as any).__rejectResolve) {
                                         (window as any).__rejectResolve();
@@ -831,10 +881,10 @@ export const AdminWarranties = () => {
                             <Button
                                 variant="destructive"
                                 onClick={async () => {
-                                    if (rejectingWarrantyId && rejectReason.trim()) {
-                                        await handleUpdateStatus(rejectingWarrantyId, 'rejected', rejectReason.trim());
+                                    if (rejectingWarrantyId && finalRejectReason) {
+                                        await handleUpdateStatus(rejectingWarrantyId, 'rejected', finalRejectReason);
                                         setRejectDialogOpen(false);
-                                        setRejectReason("");
+                                        resetRejectReason();
                                         setRejectingWarrantyId(null);
                                         if ((window as any).__rejectResolve) {
                                             (window as any).__rejectResolve();
@@ -842,7 +892,7 @@ export const AdminWarranties = () => {
                                         }
                                     }
                                 }}
-                                disabled={!rejectReason.trim() || processingId === rejectingWarrantyId}
+                                disabled={!finalRejectReason || processingId === rejectingWarrantyId}
                             >
                                 {processingId === rejectingWarrantyId ? (
                                     <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Declining...</>

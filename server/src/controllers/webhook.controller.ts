@@ -334,7 +334,7 @@ export class WebhookController {
         await db.execute(
             `UPDATE warranty_registrations
              SET status = 'rejected',
-                 rejection_reason = 'Franchise store could not confirm this installation.',
+                 rejection_reason = 'Franchise store could not confirm this installation (via WhatsApp button).',
                  rejected_at = NOW(),
                  rejected_by = 'vendor'
              WHERE uid = ?`,
