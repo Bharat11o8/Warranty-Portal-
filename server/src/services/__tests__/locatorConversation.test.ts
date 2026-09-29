@@ -73,9 +73,9 @@ describe('nextStep — one chat step at a time', () => {
 });
 
 describe('restart, cancel, idle', () => {
-    test('greetings restart; a car name does not', () => {
-        for (const t of ['Heyy', 'hi', 'Hello!', 'hii']) assert.equal(isRestart(t), true, t);
-        for (const t of ['Hyundai', 'hi creta', 'Honda City']) assert.equal(isRestart(t), false, t);
+    test('only the start word restarts; a "hi" to another message does not', () => {
+        for (const t of ['Heyy', 'hey', 'HEYYYY!']) assert.equal(isRestart(t), true, t);
+        for (const t of ['hi', 'Hello', 'Hyundai', 'hey creta']) assert.equal(isRestart(t), false, t);
     });
     test('stop and cancel end the chat', () => {
         assert.equal(isCancel('Stop'), true);

@@ -152,10 +152,19 @@ function readMenuText(stage: 'product' | 'product-other', text: string): MenuKey
     return null;
 }
 
-/** "Heyy", "hi", "hello": the customer is starting over — the workflow takes it. */
-export function isRestart(text: string): boolean {
-    return /^\s*(h+i+|hello+|hey+|hii+)\s*[!.]*\s*$/i.test(String(text ?? ''));
+/**
+ * The word that starts the chat — the Interakt workflow's own trigger, "Heyy"
+ * (any number of y's). Our server starts on it directly, the moment the
+ * message reaches us, rather than waiting ~8 s for the workflow to hand over.
+ * Deliberately not "hi" or "hello": franchises message this number too, and a
+ * "hi" to someone else's message must not get a product menu.
+ */
+export function isStartWord(text: string): boolean {
+    return /^\s*hey+\s*[!.]*\s*$/i.test(String(text ?? ''));
 }
+
+/** Mid-chat, the start word starts over. A "hi" is just an answer. */
+export const isRestart = isStartWord;
 
 /** "stop", "cancel": the customer wants out. */
 export function isCancel(text: string): boolean {

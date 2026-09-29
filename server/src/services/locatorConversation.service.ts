@@ -157,6 +157,59 @@ function inOrder<T>(key: string, work: () => Promise<T>): Promise<T> {
     return run;
 }
 
+/* ─── Two ways in, one chat ──────────────────────────────────────────────── */
+
+/**
+ * Whether a chat for this number began in the last few seconds — and, if
+ * `openOnly`, is still going: a chat the customer just ended by sending "Heyy"
+ * again must not stop the fresh one.
+ */
+async function chatStartedWithin(phone: string, seconds: number, openOnly: boolean): Promise<boolean> {
+    const [rows]: any = await db.execute(
+        `SELECT 1 FROM leads
+          WHERE flow_id = ? AND phone_key = ?
+            AND JSON_EXTRACT(raw_payload, '$.locator.session') IS NOT NULL
+            AND created_at >= NOW() - INTERVAL ? SECOND
+            ${openOnly ? `AND JSON_UNQUOTE(JSON_EXTRACT(raw_payload, '$.locator.session.stage')) IN (${OPEN_STAGES.map(() => '?').join(', ')})` : ''}
+          LIMIT 1`,
+        [LOCATOR_FLOW_ID, phoneKey(phone), seconds, ...(openOnly ? OPEN_STAGES : [])]
+    );
+    return rows.length > 0;
+}
+
+/*
+ * The customer's "Heyy", straight from the incoming-message webhook — about
+ * eight seconds before the Interakt workflow gets round to its hand-off, and
+ * with the right phone number whatever the workflow's variables say.
+ *
+ * Skipped only when the hand-off got there first a moment ago, so the menu is
+ * never sent twice; a customer sending "Heyy" again later starts over.
+ */
+export function startFromMessage(phone: string, name: string | null): Promise<void> {
+    return inOrder(phoneKey(phone), async () => {
+        if (await chatStartedWithin(phone, 20, true)) {
+            console.log(`[Chat] ${phoneKey(phone)} "Heyy" — chat already started by the hand-off`);
+            return;
+        }
+        await startConversation({ phone, name, rawPayload: { source: 'heyy' } });
+    });
+}
+
+/*
+ * The workflow's hand-off. It always follows a "Heyy" we have usually acted on
+ * already, so it only starts a chat when none began in the last two minutes —
+ * a backup for when the message webhook is late or missed.
+ */
+export function startFromHandoff(input: Parameters<typeof startConversation>[0]): Promise<void> {
+    return inOrder(phoneKey(input.phone), async () => {
+        if (await chatStartedWithin(input.phone, 120, false)) {
+            console.log(`[Chat] ${phoneKey(input.phone)} hand-off — chat already running`);
+            return;
+        }
+        await startConversation(input);
+    });
+}
+
 async function isKnownPincode(pincode: string): Promise<boolean> {
     const [rows]: any = await db.execute('SELECT 1 FROM pincode_geo WHERE pincode = ? LIMIT 1', [pincode]);
     return rows.length > 0;

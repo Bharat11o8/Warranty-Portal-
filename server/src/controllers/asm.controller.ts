@@ -4,7 +4,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { hasAutoReplyContent } from '../services/autoReply.js';
 import { findStoresForPincode, getLocatorSettings, saveLocatorSettings } from '../services/storeLocatorQuery.js';
 import { startStoreEnquiry, notifyOnce, type AlertResult } from '../services/storeLocatorChat.js';
-import { startConversation } from '../services/locatorConversation.service.js';
+import { startFromHandoff } from '../services/locatorConversation.service.js';
 import { searchAreas, resolveNewArea, coverageOf, placeOf } from '../services/asmTerritoryQuery.js';
 import { extractPincode } from '../services/storeLocator.js';
 import { routeEnquiry, areaKey } from '../services/asmRouting.service.js';
@@ -698,7 +698,7 @@ export class AsmController {
          * still asks for the pincode lands below, exactly as before.
          */
         if (!String(pincode ?? '').trim()) {
-            startConversation({
+            startFromHandoff({
                 phone: String(phone),
                 name: name ? String(name) : null,
                 product: product ? String(product) : null,

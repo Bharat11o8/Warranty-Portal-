@@ -6,7 +6,8 @@ import { NotificationService } from '../services/notification.service.js';
 import { ingestFlowAuditResponse, recordAuditSent, recordAuditDelivery } from '../services/auditResponse.service.js';
 import { handleInstagramLead } from '../services/instagramLead.service.js';
 import { handleLocatorReply, handlePincodeMessage } from '../services/storeLocatorChat.js';
-import { handleConversationMessage } from '../services/locatorConversation.service.js';
+import { handleConversationMessage, startFromMessage } from '../services/locatorConversation.service.js';
+import { isStartWord } from '../services/locatorConversation.js';
 import { replyFromWebhook } from '../services/storeLocatorMessages.js';
 
 export class WebhookController {
@@ -183,6 +184,12 @@ export class WebhookController {
                 if (customer?.phone_number) {
                     try {
                         if (await handleConversationMessage(senderPhone, message)) return;
+                        // "Heyy" starts the chat here, the moment it arrives —
+                        // not ~8 s later when the workflow hands over.
+                        if (message?.message_content_type === 'Text' && isStartWord(body)) {
+                            await startFromMessage(senderPhone, customer?.traits?.name ?? null);
+                            return;
+                        }
                     } catch (err: any) {
                         console.error('[Webhook] Chat handling failed:', err?.message);
                         return;
