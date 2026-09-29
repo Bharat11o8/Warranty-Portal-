@@ -108,7 +108,7 @@ export function leadStage(l: StageInput, now = Date.now()): LeadStage {
     // Still answering our chat's car or pincode question. Once it goes quiet
     // it is simply not forwarded — the auditor calls.
     const session = locatorOf(l.raw_payload)?.session;
-    if (session && ['car', 'pincode'].includes(session.stage)
+    if (session && ['product', 'product-other', 'car', 'pincode'].includes(session.stage)
         && now - Date.parse(session.at ?? '') <= CHAT_IDLE_MS) return 'answering';
     if (l.status === 'duplicate' || l.status === 'throttled') return 'repeat';
     if (l.status === 'failed' || forwardDeliveries(l).includes('failed')) return 'failed';

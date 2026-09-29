@@ -1,5 +1,7 @@
 import { readCarAnswer, exampleModels } from './carModels.js';
 import { extractPincode } from './storeLocator.js';
+import { normaliseProduct, type Product } from './productMatch.js';
+import type { MenuKey } from './storeLocatorMessages.js';
 import {
     CAR_RETRY, PINCODE_QUESTION, INVALID_PINCODE_TEXT, NO_PINCODE_END,
     whichModelText, unknownPincodeText,
@@ -19,10 +21,19 @@ import {
  * reading, writing and sending.
  */
 
-export type ChatStage = 'car' | 'pincode';
+/**
+ * product        the main menu is showing
+ * product-other  the "Other Products" menu is showing
+ * car, pincode   the questions after it
+ */
+export type ChatStage = 'product' | 'product-other' | 'car' | 'pincode';
 
+/** Every stage in which the chat is waiting for the customer. */
+export const OPEN_STAGES: ChatStage[] = ['product', 'product-other', 'car', 'pincode'];
+
+/** A question stage — the menus are handled by menuStep. */
 export interface ChatSession {
-    stage: ChatStage;
+    stage: 'car' | 'pincode';
     /** Wrong answers so far to the current question. */
     tries: number;
 }
@@ -80,6 +91,65 @@ export async function nextStep(
     }
     if (wrong >= MAX_TRIES) return { kind: 'give-up', reply: NO_PINCODE_END };
     return { kind: 'retry', tries: wrong, reply: INVALID_PINCODE_TEXT };
+}
+
+/* ─── The product menu ───────────────────────────────────────────────────── */
+
+/*
+ * What each menu row files the lead under. Lead Management splits leads into
+ * three lines, so the "Other Products" rows count as Accessories; the exact row
+ * is kept alongside as the customer's choice.
+ */
+export const MENU_CHOICES: Record<'seat' | 'mats' | 'acc' | 'care' | 'lights' | 'audio', { product: Product; choice: string }> = {
+    seat: { product: 'Seat Covers', choice: 'Seat Covers' },
+    mats: { product: 'Mats', choice: 'Car Mats' },
+    acc: { product: 'Accessories', choice: 'Accessories' },
+    care: { product: 'Accessories', choice: 'Care & Fragrance' },
+    lights: { product: 'Accessories', choice: 'Lights & Utility' },
+    audio: { product: 'Accessories', choice: 'Audio & Security' },
+};
+
+export type MenuStep =
+    /* Show a menu: after "Other Products", "Back", or a retry of the same one. */
+    | { kind: 'menu'; menu: 'main' | 'other'; tries: number; retry: boolean }
+    /* A product is chosen — ask for the car. Null product: moved on after tries. */
+    | { kind: 'chosen'; product: Product | null; choice: string | null };
+
+/* Typed instead of tapped: the words people use for each row. */
+const TYPED_CHOICES: [keyof typeof MENU_CHOICES, RegExp][] = [
+    ['care', /care|fragran|perfume|polish|clean|wash|shampoo/i],
+    ['lights', /light|\bled\b|lamp|bulb|horn|utility/i],
+    ['audio', /audio|music|speaker|stereo|sound|security|camera|alarm|lock|dash\s*cam/i],
+];
+
+export function menuStep(
+    stage: 'product' | 'product-other',
+    tries: number,
+    input: { tap?: MenuKey; text?: string },
+): MenuStep {
+    const key = input.tap ?? readMenuText(stage, input.text ?? '');
+    if (key === 'other') return { kind: 'menu', menu: 'other', tries: 0, retry: false };
+    if (key === 'back') return { kind: 'menu', menu: 'main', tries: 0, retry: false };
+    if (key) return { kind: 'chosen', ...MENU_CHOICES[key] };
+
+    // Not something on the menu. Ask once more, then move on — the car and
+    // pincode matter more than the product, which the auditor can fill in.
+    const wrong = tries + 1;
+    if (wrong >= MAX_TRIES) return { kind: 'chosen', product: null, choice: String(input.text ?? '').trim().slice(0, 40) || null };
+    return { kind: 'menu', menu: stage === 'product-other' ? 'other' : 'main', tries: wrong, retry: true };
+}
+
+function readMenuText(stage: 'product' | 'product-other', text: string): MenuKey | null {
+    const t = String(text ?? '').trim();
+    if (!t) return null;
+    if (stage === 'product-other' && /\b(back|main\s*menu|menu)\b/i.test(t)) return 'back';
+    for (const [key, pattern] of TYPED_CHOICES) if (pattern.test(t)) return key;
+    const product = normaliseProduct(t);
+    if (product === 'Seat Covers') return 'seat';
+    if (product === 'Mats') return 'mats';
+    if (product === 'Accessories') return 'acc';
+    if (/\bother/i.test(t)) return 'other';
+    return null;
 }
 
 /** "Heyy", "hi", "hello": the customer is starting over — the workflow takes it. */

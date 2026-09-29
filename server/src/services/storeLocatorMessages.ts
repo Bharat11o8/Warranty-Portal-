@@ -297,6 +297,57 @@ export const INVALID_PINCODE_TEXT =
  * do. Each re-prompt says what was wrong and gives an example, so a customer is
  * never just told "invalid".
  */
+/*
+ * The product menu, now sent by our server rather than the Interakt workflow.
+ * WhatsApp allows only three reply buttons, and there are four choices plus a
+ * sub-menu — so both are lists (up to ten rows behind one tap). A tap comes
+ * back as `pm:<lead id>:<key>`.
+ */
+export type MenuKey = 'seat' | 'mats' | 'acc' | 'other' | 'care' | 'lights' | 'audio' | 'back';
+
+const MENU_PREFIX = 'pm';
+export const menuRowId = (leadId: string, key: MenuKey) => `${MENU_PREFIX}:${leadId}:${key}`;
+
+/** A tap on one of our menus, out of a message_received webhook; null for anything else. */
+export function menuTapFromWebhook(message: any): { leadId: string; key: MenuKey } | null {
+    let body: any = message?.message;
+    if (typeof body === 'string') {
+        try { body = JSON.parse(body); } catch { return null; }
+    }
+    const parts = String(body?.list_reply?.id ?? body?.button_reply?.id ?? '').split(':');
+    const keys: MenuKey[] = ['seat', 'mats', 'acc', 'other', 'care', 'lights', 'audio', 'back'];
+    if (parts.length !== 3 || parts[0] !== MENU_PREFIX || !parts[1] || !keys.includes(parts[2] as MenuKey)) return null;
+    return { leadId: parts[1], key: parts[2] as MenuKey };
+}
+
+const MAIN_MENU_BODY = [
+    '🎉 Hello! Thanks for reaching out to us at Autoform India.',
+    '',
+    '🚘 We offer a wide range of car seat covers, car mats, and other car accessories.',
+    '',
+    '💬 Tap *Choose a product* and let us know what you are looking for! 😊',
+].join('\n');
+
+export function productMenu(leadId: string): InteractiveList {
+    return list(MAIN_MENU_BODY, 'Choose a product', 'Our products', [
+        { id: menuRowId(leadId, 'seat'), title: 'Seat Covers', description: 'Custom-fit seat covers for your car' },
+        { id: menuRowId(leadId, 'mats'), title: 'Car Mats', description: 'Floor and boot mats' },
+        { id: menuRowId(leadId, 'acc'), title: 'Accessories', description: 'Car accessories' },
+        { id: menuRowId(leadId, 'other'), title: 'Other Products', description: 'Care & fragrance, lights, audio & security' },
+    ]);
+}
+
+export function otherProductsMenu(leadId: string): InteractiveList {
+    return list('Which of these are you looking for? 🚗', 'Choose a product', 'Other products', [
+        { id: menuRowId(leadId, 'care'), title: 'Care & Fragrance' },
+        { id: menuRowId(leadId, 'lights'), title: 'Lights & Utility' },
+        { id: menuRowId(leadId, 'audio'), title: 'Audio & Security' },
+        { id: menuRowId(leadId, 'back'), title: '↩ Back to main menu' },
+    ]);
+}
+
+export const MENU_RETRY = 'Please tap *Choose a product* above and pick one of the options. 🙏';
+
 export const CAR_QUESTION =
     'Which car do you have? 🚗\n\nPlease type the model, for example Creta, Swift or Thar.';
 
