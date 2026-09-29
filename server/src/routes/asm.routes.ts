@@ -54,6 +54,7 @@ router.get('/stores-near', ...adminAuth, requirePermission('leads', 'read'), Asm
 router.get('/locator-settings', ...adminAuth, requirePermission('leads', 'read'), AsmController.getLocatorSettings);
 router.put('/locator-settings', ...adminAuth, requirePermission('leads', 'write'), AsmController.updateLocatorSettings);
 router.get('/leads/:id/stores', ...adminAuth, requirePermission('leads', 'read'), AsmController.leadStores);
+router.get('/leads/:id/messages', ...adminAuth, requirePermission('leads', 'read'), AsmController.leadMessages);
 router.post('/leads/:id/send-store', ...adminAuth, requirePermission('leads', 'write'), AsmController.sendLeadStore);
 router.post('/areas', ...adminAuth, requirePermission('leads', 'write'), AsmController.addArea);
 router.delete('/areas/:id', ...adminAuth, requirePermission('leads', 'write'), AsmController.removeArea);

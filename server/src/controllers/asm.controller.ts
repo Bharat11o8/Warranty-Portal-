@@ -3,13 +3,23 @@ import db from '../config/database.js';
 import { v4 as uuidv4 } from 'uuid';
 import { hasAutoReplyContent } from '../services/autoReply.js';
 import { findStoresForPincode, getLocatorSettings, saveLocatorSettings } from '../services/storeLocatorQuery.js';
-import { startStoreEnquiry } from '../services/storeLocatorChat.js';
-import { searchAreas, resolveNewArea, coverageOf } from '../services/asmTerritoryQuery.js';
+import { startStoreEnquiry, notifyOnce, type AlertResult } from '../services/storeLocatorChat.js';
+import { startConversation } from '../services/locatorConversation.service.js';
+import { searchAreas, resolveNewArea, coverageOf, placeOf } from '../services/asmTerritoryQuery.js';
+import { extractPincode } from '../services/storeLocator.js';
 import { routeEnquiry, areaKey } from '../services/asmRouting.service.js';
 import { findState } from '../services/indianStates.js';
 import { isSamePlace, buildAddress } from '../services/placeMatch.js';
 import { ActivityLogService } from '../services/activity-log.service.js';
 import { WhatsAppService } from '../services/whatsapp.service.js';
+import { summariseIvr } from '../services/ivrLead.js';
+import {
+    leadRouting, notifiedIds, leadPincode, areaText, locatorOf, phoneTail, leadStage, LEAD_STAGES,
+    forwardKinds, leadStores,
+} from '../services/leadRouting.js';
+import { describeMessages } from '../services/leadMessages.js';
+import { PRODUCTS } from '../services/productMatch.js';
+import { titleCase } from '../services/asmTerritory.js';
 
 /**
  * The verified franchises in a state, with the ones the customer's own words
@@ -48,6 +58,68 @@ async function storesForArea(state: string | null, rawArea: string): Promise<any
     );
 
     return scored;
+}
+
+/**
+ * Who each store-locator lead went to, as `row.routing` (see leadRouting).
+ *
+ * One query per kind for the whole page rather than per lead. mysql2's
+ * execute cannot bind an array to IN (?), so the placeholders are built.
+ */
+async function attachRouting(rows: any[]) {
+    const locator = rows.filter(r => r.flow_id === 'store-locator');
+    for (const row of rows) row.routing = null;
+    if (!locator.length) return;
+
+    const storeIds = new Set<string>();
+    const distributorIds = new Set<string>();
+    for (const r of locator) {
+        const ids = notifiedIds(r.raw_payload);
+        ids.stores.forEach(id => storeIds.add(id));
+        ids.distributors.forEach(id => distributorIds.add(id));
+    }
+    const marks = (n: number) => Array(n).fill('?').join(',');
+
+    const stores = new Map<string, { name: string; phone: string | null }>();
+    if (storeIds.size) {
+        const [found]: any = await db.execute(
+            `SELECT vd.id, vd.store_name, p.phone_number
+               FROM vendor_details vd LEFT JOIN profiles p ON p.id = vd.user_id
+              WHERE vd.id IN (${marks(storeIds.size)})`,
+            [...storeIds]
+        );
+        for (const s of found) stores.set(String(s.id), { name: s.store_name, phone: s.phone_number });
+    }
+
+    const distributors = new Map<string, { name: string; phone: string | null }>();
+    if (distributorIds.size) {
+        const [found]: any = await db.execute(
+            `SELECT id, name, phone_number FROM distributors WHERE id IN (${marks(distributorIds.size)})`,
+            [...distributorIds]
+        );
+        for (const d of found) distributors.set(String(d.id), { name: d.name, phone: d.phone_number });
+    }
+
+    // Support falls back to the store template until Meta approves its own.
+    const [logs]: any = await db.execute(
+        `SELECT reference_id, recipient_phone, status FROM message_logs
+          WHERE context IN ('store_lead', 'support_lead')
+            AND reference_id IN (${marks(locator.length)})
+          ORDER BY created_at`,
+        locator.map(r => r.id)
+    );
+    const alertsFor = new Map<string, { phone: string; status: string }[]>();
+    for (const l of logs) {
+        const list = alertsFor.get(l.reference_id) ?? [];
+        list.push({ phone: l.recipient_phone, status: l.status });
+        alertsFor.set(l.reference_id, list);
+    }
+
+    const settings = await getLocatorSettings();
+    const support = { name: settings.support_name, phone: settings.support_phone || null };
+    for (const r of locator) {
+        r.routing = leadRouting(r, { stores, distributors, support, alerts: alertsFor.get(r.id) ?? [] });
+    }
 }
 
 export class AsmController {
@@ -445,11 +517,18 @@ export class AsmController {
             const admin = (req as any).user;
             const {
                 lead_status, review_status, review_reason,
-                customer_name, raw_area, state, product, car_model,
+                customer_name, raw_area, state, product, car_model, pincode,
             } = req.body || {};
 
-            const [rows]: any = await db.execute('SELECT id FROM leads WHERE id = ?', [id]);
+            const [rows]: any = await db.execute('SELECT id, raw_area, raw_payload FROM leads WHERE id = ?', [id]);
             if (!rows.length) return res.status(404).json({ error: 'Lead not found' });
+
+            if (pincode !== undefined && pincode !== null && pincode !== '' && !/^[1-9]\d{5}$/.test(String(pincode).trim())) {
+                return res.status(400).json({ error: 'The pincode must be 6 digits' });
+            }
+            if (product !== undefined && product !== null && product !== '' && !PRODUCTS.includes(product)) {
+                return res.status(400).json({ error: `Product must be one of ${PRODUCTS.join(', ')}` });
+            }
 
             const OUTCOMES = [
                 'no_response', 'follow_up', 'closed_won', 'closed_lost',
@@ -482,15 +561,40 @@ export class AsmController {
             assign('car_model', car_model, v => String(v).trim().slice(0, 80));
 
             /*
-             * Correcting the area re-resolves the state, unless one was given
-             * explicitly — the resolver reads most spellings, but an admin who
-             * knows better should be able to say so.
+             * The pincode, kept apart from the area as typed: WhatsApp and
+             * Instagram ask for one, and on an IVR lead the auditor asks the
+             * caller for both. Stored in raw_payload.pincode — the key the
+             * workflows already write — so no column is needed.
+             */
+            const oldPin = leadPincode(rows[0].raw_payload, rows[0].raw_area);
+            const areaChanged = raw_area !== undefined
+                && String(raw_area ?? '').trim() !== String(rows[0].raw_area ?? '').trim();
+            if (pincode !== undefined) {
+                sets.push(`raw_payload = JSON_SET(COALESCE(raw_payload, JSON_OBJECT()), '$.pincode', ?)`);
+                params.push(String(pincode ?? '').trim() || null);
+            } else if (areaChanged && oldPin) {
+                /* A WhatsApp lead's pincode may live only in raw_area; typing a
+                   place name over it must not lose what the customer gave. */
+                sets.push(`raw_payload = JSON_SET(COALESCE(raw_payload, JSON_OBJECT()), '$.pincode', ?)`);
+                params.push(oldPin);
+            }
+
+            /*
+             * Correcting the pincode or the area re-resolves the state, unless
+             * one was given explicitly. The pincode wins: it names one place,
+             * where an area can be spelt a dozen ways — and findState reads
+             * place names, so a pincode given to it would wipe the state.
              */
             if (state !== undefined) {
                 assign('state', state, v => String(v).trim());
-            } else if (raw_area !== undefined) {
+            } else if (pincode !== undefined || areaChanged) {
+                const area = raw_area !== undefined ? String(raw_area ?? '') : String(rows[0].raw_area ?? '');
+                const pin = pincode !== undefined
+                    ? extractPincode(pincode) ?? extractPincode(area)
+                    : oldPin ?? extractPincode(area);
+                const place = pin ? await placeOf(pin) : null;
                 sets.push('state = ?');
-                params.push(findState(String(raw_area))?.state || null);
+                params.push(findState(String(place?.state ?? area))?.state || null);
             }
 
             // Stamp the audit only when the review itself changed.
@@ -581,6 +685,23 @@ export class AsmController {
 
         res.json({ received: true, handled: true });
 
+        /*
+         * The hybrid flow: the workflow hands over right after the product
+         * menu, with no pincode, and our server asks the car and the pincode
+         * itself — checking each answer (locatorConversation). A workflow that
+         * still asks for the pincode lands below, exactly as before.
+         */
+        if (!String(pincode ?? '').trim()) {
+            startConversation({
+                phone: String(phone),
+                name: name ? String(name) : null,
+                product: product ? String(product) : null,
+                car: car ? String(car) : null,
+                rawPayload: req.body,
+            }).catch(err => console.error('[Chat] could not start:', err?.message));
+            return;
+        }
+
         startStoreEnquiry({
             pincode: String(pincode ?? ''),
             phone: String(phone),
@@ -621,12 +742,12 @@ export class AsmController {
         try {
             const admin = (req as any).user;
             const before = await getLocatorSettings();
-            const { min_warranties, support_phone, support_name, whatsapp_live, test_numbers } = req.body || {};
+            const { min_warranties, radius_km, support_phone, support_name, whatsapp_live, test_numbers } = req.body || {};
 
             let saved;
             try {
                 saved = await saveLocatorSettings(
-                    { min_warranties, support_phone, support_name, whatsapp_live, test_numbers },
+                    { min_warranties, radius_km, support_phone, support_name, whatsapp_live, test_numbers },
                     admin?.id || null
                 );
             } catch (err: any) {
@@ -681,30 +802,129 @@ export class AsmController {
             const { id } = req.params;
 
             const [leads]: any = await db.execute(
-                'SELECT id, state, raw_area FROM leads WHERE id = ?', [id]
+                'SELECT id, state, raw_area, raw_payload FROM leads WHERE id = ?', [id]
             );
             if (!leads.length) return res.status(404).json({ error: 'Lead not found' });
             const lead = leads[0];
 
-            if (!lead.state) {
-                return res.json({
-                    success: true, stores: [], state: null,
-                    message: 'No state could be read from this enquiry, so there is nothing to match against.',
-                });
-            }
+            /*
+             * What the dialog has typed, before it is saved — a new pincode or
+             * area shows its stores straight away, rather than after a save.
+             */
+            const { pincode: typedPin, area: typedArea } = req.query as Record<string, string>;
+            const area = typedArea !== undefined ? String(typedArea) : String(lead.raw_area ?? '');
+            const pin = typedPin !== undefined
+                ? extractPincode(typedPin)
+                : leadPincode(lead.raw_payload, lead.raw_area);
 
-            const scored = await storesForArea(lead.state, lead.raw_area || '');
+            const place = pin ? await placeOf(pin) : null;
+            const state = (place ? findState(String(place.state ?? ''))?.state : null)
+                ?? (typedArea !== undefined ? findState(area)?.state : lead.state)
+                ?? null;
+
+            /*
+             * The same stores the WhatsApp locator offers for this pincode —
+             * within the locator's radius, nearest first — then the rest of the state below,
+             * because an auditor on the phone may know better.
+             */
+            // Nearest first: the auditor is on the phone with the customer.
+            const nearby = pin
+                ? [...(await findStoresForPincode(pin)).stores].sort((a, b) => a.distance_km - b.distance_km)
+                : [];
+            const nearIds = new Set(nearby.map(s => String(s.id)));
+            const rest = state
+                ? (await storesForArea(state, area)).filter((s: any) => !nearIds.has(String(s.id)))
+                : [];
+            const stores = [
+                ...nearby.map(s => ({
+                    id: s.id, store_name: s.store_name, store_code: s.store_code,
+                    address: s.address, city: s.city, state, pincode: s.pincode,
+                    phone_number: s.phone, near: true, distance_label: s.distance_label,
+                })),
+                // By pincode, "near" means within the locator's radius; the city match is only a guess.
+                ...rest.map((s: any) => ({ ...s, near: pin ? false : s.near, distance_label: null })),
+            ];
 
             res.json({
                 success: true,
-                state: lead.state,
-                area: lead.raw_area,
-                stores: scored,
-                near_count: scored.filter((s: any) => s.near).length,
+                state,
+                pincode: pin,
+                district: place?.district && place.district !== 'NA' ? titleCase(place.district) : null,
+                area,
+                stores,
+                near_count: stores.filter((s: any) => s.near).length,
+                ...(stores.length ? {} : {
+                    message: pin || state
+                        ? `No verified franchise near ${pin ?? state} yet.`
+                        : 'Enter a pincode or an area to find stores.',
+                }),
             });
         } catch (error: any) {
             console.error('Lead stores error:', error);
             res.status(500).json({ error: 'Failed to load the stores for this lead' });
+        }
+    }
+
+    /**
+     * Every WhatsApp this lead set off, oldest first (see leadMessages).
+     *
+     * Everything is logged against the lead id except the ASM's alert, which
+     * is logged against the customer's number — matched here on time, within
+     * fifteen seconds of the forward, the same way the list matches it.
+     */
+    static async leadMessages(req: Request, res: Response) {
+        try {
+            const { id } = req.params;
+            const [leads]: any = await db.execute(
+                `SELECT l.id, l.customer_phone, l.sent_at, l.created_at, l.raw_payload, a.name AS asm_name, a.phone_number AS asm_phone
+                   FROM leads l LEFT JOIN asms a ON a.id = l.asm_id WHERE l.id = ?`,
+                [id]
+            );
+            if (!leads.length) return res.status(404).json({ error: 'Lead not found' });
+            const lead = leads[0];
+
+            const COLS = 'context, template_name, recipient_phone, status, error_message, created_at, updated_at';
+            const [byLead]: any = await db.execute(
+                `SELECT ${COLS} FROM message_logs WHERE reference_id = ?`,
+                [id]
+            );
+            /* A failed forward leaves no sent_at, and the failure is the one
+               worth seeing — so the lead's own time stands in for it. */
+            const [toAsm]: any = await db.execute(
+                `SELECT ${COLS} FROM message_logs
+                  WHERE context = 'asm_enquiry'
+                    AND reference_id = ?
+                    AND ABS(TIMESTAMPDIFF(SECOND, ?, created_at)) <= 15`,
+                [lead.customer_phone, lead.sent_at ?? lead.created_at]
+            );
+
+            /* Stores and distributors by phone, to name who an alert went to. */
+            const ids = notifiedIds(lead.raw_payload);
+            const contacts = new Map<string, { name: string; kind: 'store' | 'distributor' }>();
+            const [[stores], [dists]]: any = await Promise.all([
+                ids.stores.length ? db.execute(
+                    `SELECT vd.store_name AS name, p.phone_number AS phone FROM vendor_details vd
+                       LEFT JOIN profiles p ON p.id = vd.user_id
+                      WHERE vd.id IN (${ids.stores.map(() => '?').join(',')})`, ids.stores) : [[]],
+                ids.distributors.length ? db.execute(
+                    `SELECT name, phone_number AS phone FROM distributors
+                      WHERE id IN (${ids.distributors.map(() => '?').join(',')})`, ids.distributors) : [[]],
+            ]);
+            for (const s of stores) contacts.set(phoneTail(s.phone), { name: s.name, kind: 'store' });
+            for (const d of dists) contacts.set(phoneTail(d.phone), { name: d.name, kind: 'distributor' });
+
+            const settings = await getLocatorSettings();
+            const messages = describeMessages([...byLead, ...toAsm], {
+                customerPhone: lead.customer_phone,
+                offered: locatorOf(lead.raw_payload)?.offered ?? null,
+                asm: lead.asm_name ? { name: lead.asm_name, phone: lead.asm_phone } : null,
+                support: { name: settings.support_name, phone: settings.support_phone || null },
+                contacts,
+            });
+            res.json({ success: true, messages });
+        } catch (error: any) {
+            console.error('Lead messages error:', error);
+            res.status(500).json({ error: 'Failed to load the messages for this lead' });
         }
     }
 
@@ -728,7 +948,10 @@ export class AsmController {
             if (!store_id) return res.status(400).json({ error: 'Pick a store first' });
 
             const [leads]: any = await db.execute(
-                'SELECT id, customer_phone, customer_name, store_id, store_sent_at FROM leads WHERE id = ?',
+                `SELECT id, source, customer_phone, customer_name, product, car_model, store_id, store_sent_at,
+                        created_at AS enquired_at,
+                        JSON_EXTRACT(raw_payload, '$.locator.notified') AS notified
+                   FROM leads WHERE id = ?`,
                 [id]
             );
             if (!leads.length) return res.status(404).json({ error: 'Lead not found' });
@@ -761,6 +984,8 @@ export class AsmController {
                     store_phone: store.phone_number || null,
                     customer_phone: lead.customer_phone,
                     already_sent_at: lead.store_sent_at,
+                    // IVR and hand-added leads also alert the store; see below.
+                    alerts_store: !['whatsapp', 'instagram'].includes(lead.source),
                 });
             }
 
@@ -789,6 +1014,25 @@ export class AsmController {
                 [store_id, admin?.id || null, id]
             );
 
+            /*
+             * The store hears of it too, for an IVR or hand-added lead — the
+             * same "new lead" alert, with its monthly lead number, that a
+             * WhatsApp customer's own pick sends. WhatsApp and Instagram leads
+             * already alerted whoever they went to. Once per store per lead, so
+             * resending the same store does not alert it twice; after the
+             * customer's message, whose failure stops everything above.
+             */
+            let storeAlert: AlertResult | 'not-applicable' = 'not-applicable';
+            if (!['whatsapp', 'instagram'].includes(lead.source)) {
+                const settings = await getLocatorSettings();
+                storeAlert = await notifyOnce(
+                    lead, `store:${store.id}`, store.phone_number, store.store_name, settings.whatsapp_live,
+                ).catch((err: any) => {
+                    console.error('[Leads] store alert failed:', err?.message);
+                    return 'failed' as const;
+                });
+            }
+
             try {
                 await ActivityLogService.log({
                     adminId: admin?.id,
@@ -803,6 +1047,7 @@ export class AsmController {
                         store_phone: store.phone_number,
                         customer_phone: lead.customer_phone,
                         resent: Boolean(lead.store_sent_at),
+                        store_alert: storeAlert,
                     },
                     ipAddress: req.ip || req.socket?.remoteAddress,
                 });
@@ -814,6 +1059,7 @@ export class AsmController {
                 success: true,
                 message: `${store.store_name} sent to the customer`,
                 store_name: store.store_name,
+                store_alert: storeAlert,
             });
         } catch (error: any) {
             console.error('Send lead store error:', error);
@@ -823,14 +1069,21 @@ export class AsmController {
 
     static async listLeads(req: Request, res: Response) {
         try {
-            const { status, source, asm_id, product, delivery, review, dateFrom, dateTo, q, limit } =
-                req.query as Record<string, string>;
+            const {
+                status, stage, source, asm_id, product, delivery, review, dateFrom, dateTo, q, limit,
+                forwarded_to, store, ivr_call, state,
+            } = req.query as Record<string, string>;
+            /*
+             * The date range and the plain column filters narrow in SQL.
+             * Channel, product, stage and search are applied after, in one
+             * place, because the tiles count by them: each tile group counts
+             * with every filter but its own, so a tile and the list it opens
+             * always agree.
+             */
             const where: string[] = [];
             const params: any[] = [];
             if (status) { where.push('l.status = ?'); params.push(status); }
-            if (source) { where.push('l.source = ?'); params.push(source); }
             if (asm_id) { where.push('l.asm_id = ?'); params.push(asm_id); }
-            if (product) { where.push('l.product = ?'); params.push(product); }
 
             /*
              * The audit outcome. 'pending' is its own case and the one that
@@ -871,25 +1124,23 @@ export class AsmController {
              * question from "was it delivered".
              */
             if (delivery) {
-                const matchWindow = `
-                    ml.context = 'asm_enquiry'
-                AND ml.reference_id COLLATE utf8mb4_0900_ai_ci = l.customer_phone
-                AND ABS(TIMESTAMPDIFF(SECOND, l.sent_at, ml.created_at)) <= 15`;
+                /* Every alert about the lead: the ASM's (logged against the
+                   customer's number, matched on time), and the store,
+                   distributor and support alerts (logged against the lead).
+                   Store alerts are now most of them. */
+                const alert = `(
+                    (ml.context = 'asm_enquiry'
+                     AND ml.reference_id = l.customer_phone COLLATE utf8mb4_unicode_ci
+                     AND ABS(TIMESTAMPDIFF(SECOND, COALESCE(l.sent_at, l.created_at), ml.created_at)) <= 15)
+                 OR (ml.context IN ('store_lead', 'support_lead')
+                     AND ml.reference_id = l.id COLLATE utf8mb4_unicode_ci))`;
 
                 if (delivery === 'none') {
-                    where.push(`NOT EXISTS (SELECT 1 FROM message_logs ml WHERE ${matchWindow})`);
+                    where.push(`NOT EXISTS (SELECT 1 FROM message_logs ml WHERE ${alert})`);
                 } else {
-                    where.push(`EXISTS (
-                        SELECT 1 FROM message_logs ml
-                         WHERE ${matchWindow} AND ml.status = ?
-                    )`);
+                    where.push(`EXISTS (SELECT 1 FROM message_logs ml WHERE ${alert} AND ml.status = ?)`);
                     params.push(delivery);
                 }
-            }
-            if (q) {
-                where.push('(l.customer_phone LIKE ? OR l.customer_name LIKE ? OR l.raw_area LIKE ? OR l.car_model LIKE ?)');
-                const like = `%${q}%`;
-                params.push(like, like, like, like);
             }
 
             const [rows]: any = await db.execute(
@@ -913,13 +1164,13 @@ export class AsmController {
                          */
                         (SELECT ml.status FROM message_logs ml
                           WHERE ml.context = 'asm_enquiry'
-                            AND ml.reference_id COLLATE utf8mb4_0900_ai_ci = l.customer_phone
+                            AND ml.reference_id = l.customer_phone COLLATE utf8mb4_unicode_ci
                             AND ABS(TIMESTAMPDIFF(SECOND, l.sent_at, ml.created_at)) <= 15
                           ORDER BY ABS(TIMESTAMPDIFF(SECOND, l.sent_at, ml.created_at))
                           LIMIT 1) AS delivery_status,
                         (SELECT ml.updated_at FROM message_logs ml
                           WHERE ml.context = 'asm_enquiry'
-                            AND ml.reference_id COLLATE utf8mb4_0900_ai_ci = l.customer_phone
+                            AND ml.reference_id = l.customer_phone COLLATE utf8mb4_unicode_ci
                             AND ABS(TIMESTAMPDIFF(SECOND, l.sent_at, ml.created_at)) <= 15
                           ORDER BY ABS(TIMESTAMPDIFF(SECOND, l.sent_at, ml.created_at))
                           LIMIT 1) AS delivery_updated_at,
@@ -933,8 +1184,14 @@ export class AsmController {
                          */
                         (SELECT ms.status FROM message_logs ms
                           WHERE ms.context = 'customer_store_details'
-                            AND ms.reference_id COLLATE utf8mb4_0900_ai_ci = l.id
-                          ORDER BY ms.created_at DESC LIMIT 1) AS store_msg_status
+                            AND ms.reference_id = l.id COLLATE utf8mb4_unicode_ci
+                          ORDER BY ms.created_at DESC LIMIT 1) AS store_msg_status,
+                        /* The store's own "new lead" alert, when an admin sent
+                           an IVR or hand-added lead a store. */
+                        (SELECT ma.status FROM message_logs ma
+                          WHERE ma.context = 'store_lead'
+                            AND ma.reference_id = l.id COLLATE utf8mb4_unicode_ci
+                          ORDER BY ma.created_at DESC LIMIT 1) AS store_alert_status
                    FROM leads l
                    LEFT JOIN asms a ON a.id = l.asm_id
                    /* vendor_details was created with a different default
@@ -943,53 +1200,8 @@ export class AsmController {
                    LEFT JOIN vendor_details vd
                           ON vd.id = l.store_id COLLATE utf8mb4_unicode_ci
                    ${where.length ? 'WHERE ' + where.join(' AND ') : ''}
-                  ORDER BY l.created_at DESC
-                  LIMIT ${Math.min(Number(limit) || 200, 1000)}`,
+                  ORDER BY l.created_at DESC`,
                 params
-            );
-            /*
-             * The summary follows the date range, and nothing else.
-             *
-             * The tiles ARE the status filter, so narrowing them by status
-             * would leave every tile but the selected one reading zero. A date
-             * range is different: it is the period being looked at, and totals
-             * for all time beside a list showing one week is a contradiction
-             * somebody will eventually act on.
-             */
-            const countWhere: string[] = [];
-            const countParams: any[] = [];
-            if (dateFrom) {
-                countWhere.push("DATE(CONVERT_TZ(created_at, '+00:00', '+05:30')) >= ?");
-                countParams.push(dateFrom);
-            }
-            if (dateTo) {
-                countWhere.push("DATE(CONVERT_TZ(created_at, '+00:00', '+05:30')) <= ?");
-                countParams.push(dateTo);
-            }
-
-            const [[counts]]: any = await db.execute(
-                /*
-                 * COALESCE because SUM over no rows is NULL, not 0 — a date
-                 * range matching nothing would otherwise hand the UI a row of
-                 * nulls where it expects numbers.
-                 */
-                `SELECT COUNT(*) total,
-                        COALESCE(SUM(status = 'sent'), 0) sent,
-                        COALESCE(SUM(status = 'failed'), 0) failed,
-                        COALESCE(SUM(status = 'unmatched'), 0) unmatched,
-                        COALESCE(SUM(product = 'Seat Covers'), 0) seat_covers,
-                        COALESCE(SUM(product = 'Mats'), 0) mats,
-                        COALESCE(SUM(product = 'Accessories'), 0) accessories,
-                        COALESCE(SUM(product IS NULL), 0) no_product,
-                        COALESCE(SUM(source = 'whatsapp'), 0) ch_whatsapp,
-                        COALESCE(SUM(source = 'instagram'), 0) ch_instagram,
-                        COALESCE(SUM(source = 'ivr'), 0) ch_ivr,
-                        COALESCE(SUM(source = 'website'), 0) ch_website,
-                        COALESCE(SUM(review_status IS NULL), 0) review_pending,
-                        COALESCE(SUM(review_status IS NOT NULL), 0) review_done
-                   FROM leads
-                   ${countWhere.length ? 'WHERE ' + countWhere.join(' AND ') : ''}`,
-                countParams
             );
             /*
              * Every ASM, for the filter — the roster, not only those who
@@ -1011,7 +1223,120 @@ export class AsmController {
                   ORDER BY a.is_active DESC, a.name`
             );
 
-            res.json({ success: true, leads: rows, counts, asms: asmOptions });
+            // IVR leads carry their calls in raw_payload; the screen gets them read.
+            for (const row of rows) row.ivr = row.source === 'ivr' ? summariseIvr(row.raw_payload) : null;
+
+            await attachRouting(rows);
+
+            /* The pincode the customer gave (WhatsApp and Instagram ask for one;
+               an auditor may add it to an IVR lead), the district it sits in,
+               and the area as typed when it is more than that pincode. */
+            for (const row of rows) {
+                row.pincode = leadPincode(row.raw_payload, row.raw_area);
+                row.area_text = areaText(row.raw_area);
+                row.district = null;
+            }
+            const pins = [...new Set(rows.map((r: any) => r.pincode).filter(Boolean))] as string[];
+            if (pins.length) {
+                const [places]: any = await db.execute(
+                    `SELECT pincode, MIN(district) AS district FROM pincode_geo
+                      WHERE pincode IN (${pins.map(() => '?').join(',')}) GROUP BY pincode`,
+                    pins
+                );
+                const districtOf = new Map<string, string>(places.map((p: any) => [String(p.pincode), p.district]));
+                for (const row of rows) {
+                    const d = row.pincode ? districtOf.get(row.pincode) : null;
+                    row.district = d && d !== 'NA' ? titleCase(d) : null;
+                }
+            }
+
+            for (const row of rows) row.stage = leadStage(row);
+
+            /*
+             * Search across everything the row shows — pincode, district, ASM,
+             * and the stores and distributors it went to — over every lead in
+             * the range, not only the page on screen.
+             */
+            const needle = String(q ?? '').trim().toLowerCase();
+            const searched = needle
+                ? rows.filter((r: any) => [
+                    r.customer_phone, r.customer_name, r.raw_area, r.pincode, r.district, r.state,
+                    r.car_model, r.matched_area, r.asm_name, r.store_name,
+                    ...(r.routing?.recipients ?? []).map((x: any) => x.name),
+                ].some(v => String(v ?? '').toLowerCase().includes(needle)))
+                : rows;
+
+            /*
+             * The stores that received leads in this range, for the Store
+             * filter — offered before that filter applies, so picking one
+             * does not leave it the only option.
+             */
+            const storeCount = new Map<string, { id: string; name: string; count: number }>();
+            for (const r of searched) {
+                for (const s of leadStores(r)) {
+                    const e = storeCount.get(s.id) ?? { ...s, count: 0 };
+                    e.count++;
+                    storeCount.set(s.id, e);
+                }
+            }
+            const storeOptions = [...storeCount.values()].sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
+
+            // The states leads came from in this range, most first — the same way.
+            const stateCount = new Map<string, number>();
+            for (const r of searched) if (r.state) stateCount.set(r.state, (stateCount.get(r.state) ?? 0) + 1);
+            const stateOptions = [...stateCount].map(([name, count]) => ({ name, count }))
+                .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
+
+            // Who has it, which store, and — for the IVR — whether anybody answered.
+            const found = searched.filter((r: any) => {
+                if (forwarded_to) {
+                    const kinds = forwardKinds(r);
+                    if (forwarded_to === 'none' ? kinds.length > 0 : !kinds.includes(forwarded_to)) return false;
+                }
+                if (store && !leadStores(r).some(s => s.id === store)) return false;
+                if (ivr_call && r.ivr?.status !== ivr_call) return false;
+                if (state && (state === 'none' ? Boolean(r.state) : r.state !== state)) return false;
+                return true;
+            });
+
+            /* Each tile group counts with every filter but its own — so picking
+               Mats does not turn the other product tiles to zero. */
+            const byStage = (r: any) => !stage || r.stage === stage;
+            const byProduct = (r: any) => !product || (product === 'none' ? !r.product : r.product === product);
+            const bySource = (r: any) => !source || r.source === source;
+            const tally = (list: any[], key: (r: any) => string) =>
+                list.reduce((acc: Record<string, number>, r: any) => {
+                    const k = key(r);
+                    acc[k] = (acc[k] ?? 0) + 1;
+                    return acc;
+                }, {});
+            const stageBase = found.filter((r: any) => byProduct(r) && bySource(r));
+            const productBase = found.filter((r: any) => byStage(r) && bySource(r));
+            const sourceBase = found.filter((r: any) => byStage(r) && byProduct(r));
+            const matching = found.filter((r: any) => byStage(r) && byProduct(r) && bySource(r));
+
+            const counts = {
+                total: stageBase.length,
+                stage: Object.fromEntries(LEAD_STAGES.map(s => [s, 0])),
+                product: { 'Seat Covers': 0, Mats: 0, Accessories: 0, none: 0 } as Record<string, number>,
+                channel: { whatsapp: 0, instagram: 0, ivr: 0, website: 0 } as Record<string, number>,
+                review_pending: matching.filter((r: any) => !r.review_status).length,
+            };
+            Object.assign(counts.stage, tally(stageBase, r => r.stage));
+            Object.assign(counts.product, tally(productBase, r => r.product || 'none'));
+            Object.assign(counts.channel, tally(sourceBase, r => r.source));
+
+            const cap = Math.min(Number(limit) || 200, 1000);
+            res.json({
+                success: true,
+                leads: matching.slice(0, cap),
+                // How many matched, when that is more than the page shows.
+                matched: matching.length,
+                counts,
+                asms: asmOptions,
+                stores: storeOptions,
+                states: stateOptions,
+            });
         } catch (error: any) {
             console.error('List leads error:', error);
             res.status(500).json({ error: 'Failed to load leads' });

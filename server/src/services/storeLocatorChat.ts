@@ -62,13 +62,38 @@ export interface StoreEnquiry {
     /** Where the enquiry came from: the Interakt workflow, or an Instagram lead form. */
     source?: 'whatsapp' | 'instagram';
     rawPayload?: unknown;
+    /**
+     * The lead to finish, when our own chat collected the answers
+     * (locatorConversation) — so one enquiry stays one lead, dated when the
+     * customer first asked. Without it a new lead is created, as always.
+     */
+    leadId?: string;
+    /** How the chat went, kept on the lead under locator.chat. */
+    chat?: Record<string, unknown>;
+}
+
+/** Create the lead, or finish the one a chat started. */
+async function writeLead(existingId: string | undefined, newId: string, cols: Record<string, unknown>) {
+    const names = Object.keys(cols);
+    if (existingId) {
+        await db.execute(
+            `UPDATE leads SET ${names.map(n => `${n} = ?`).join(', ')}, updated_at = NOW() WHERE id = ?`,
+            [...Object.values(cols), existingId]
+        );
+    } else {
+        await db.execute(
+            `INSERT INTO leads (id, ${names.join(', ')}) VALUES (?, ${names.map(() => '?').join(', ')})`,
+            [newId, ...Object.values(cols)]
+        );
+    }
 }
 
 export type EnquiryOutcome =
     | 'invalid-pincode' | 'repeat'
     | 'stores' | 'distributor' | 'asm' | 'support';
 
-const receivedAt = () => new Date().toLocaleString('en-IN', {
+/** "29 Sept, 03:45 pm" in IST — now, or when the enquiry actually came in. */
+const receivedAt = (at: Date = new Date()) => at.toLocaleString('en-IN', {
     timeZone: 'Asia/Kolkata', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hour12: true,
 });
 
@@ -99,7 +124,8 @@ export async function startStoreEnquiry(input: StoreEnquiry): Promise<EnquiryOut
           LIMIT 1`,
         [phoneKey(phone), LOCATOR_FLOW_ID, pincode || typed.slice(0, 255) || null, REPEAT_WINDOW_SECONDS]
     );
-    if (recent.length) {
+    // A chat finishing its own lead is not a double-fire of the workflow.
+    if (recent.length && !input.leadId) {
         console.log(`[Locator] repeat of ${pincode || typed || '(no pincode)'} from ${phoneKey(phone)} — lead ${recent[0].id} already answered`);
         return 'repeat';
     }
@@ -112,30 +138,30 @@ export async function startStoreEnquiry(input: StoreEnquiry): Promise<EnquiryOut
          * pincode they type next be taken up (handlePincodeMessage looks for a
          * recent locator lead from the same phone).
          */
-        const leadId = uuidv4();
+        const leadId = input.leadId ?? uuidv4();
         if (canReply) await reply(phone, 'Text', text(INVALID_PINCODE_TEXT), leadId);
-        await db.execute(
-            `INSERT INTO leads
-               (id, source, product, car_model, customer_name, customer_phone, phone_key,
-                raw_area, flow_id, raw_payload, status, failure_reason)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'unmatched', 'No valid pincode given')`,
-            [
-                leadId, source, normaliseProduct(input.product),
-                String(input.car || '').trim().slice(0, 80) || null,
-                input.name ? String(input.name).trim().slice(0, 255) : null,
-                phone, phoneKey(phone), typed.slice(0, 255) || null, LOCATOR_FLOW_ID,
-                JSON.stringify({
-                    ...(input.rawPayload && typeof input.rawPayload === 'object' ? input.rawPayload as object : {}),
-                    locator: { pincode: typed || null, offered: 'invalid-pincode' },
-                }),
-            ]
-        );
+        await writeLead(input.leadId, leadId, {
+            source,
+            product: normaliseProduct(input.product),
+            car_model: String(input.car || '').trim().slice(0, 80) || null,
+            customer_name: input.name ? String(input.name).trim().slice(0, 255) : null,
+            customer_phone: phone,
+            phone_key: phoneKey(phone),
+            raw_area: typed.slice(0, 255) || null,
+            flow_id: LOCATOR_FLOW_ID,
+            raw_payload: JSON.stringify({
+                ...(input.rawPayload && typeof input.rawPayload === 'object' ? input.rawPayload as object : {}),
+                locator: { pincode: typed || null, offered: 'invalid-pincode', ...(input.chat ? { chat: input.chat } : {}) },
+            }),
+            status: 'unmatched',
+            failure_reason: 'No valid pincode given',
+        });
         console.log(`[Locator] no valid pincode in "${typed}" from ${phoneKey(phone)} (${source}) — asked for one, lead ${leadId}`);
         return 'invalid-pincode';
     }
 
     const result = await findStoresForPincode(pincode);
-    const leadId = uuidv4();
+    const leadId = input.leadId ?? uuidv4();
     const district = result.customer?.district ?? null;
     const place = district && district !== 'NA' ? `${titleCase(district)} (${pincode})` : pincode;
     const kind: EnquiryOutcome = result.stores.length ? 'stores' : (result.fallback?.kind ?? 'support');
@@ -169,33 +195,27 @@ export async function startStoreEnquiry(input: StoreEnquiry): Promise<EnquiryOut
             offered: kind,
             count: kind === 'stores' ? result.stores.length : (result.fallback?.contacts.length ?? 0),
             reply: sent === null ? 'held' : sent ? 'sent' : 'failed',
+            ...(input.chat ? { chat: input.chat } : {}),
         },
     };
 
-    await db.execute(
-        `INSERT INTO leads
-           (id, source, product, car_model, state, customer_name, customer_phone, phone_key,
-            raw_area, matched_area, asm_id, flow_id, raw_payload, status, sent_at, failure_reason)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [
-            leadId,
-            source,
-            normaliseProduct(input.product),
-            String(input.car || '').trim().slice(0, 80) || null,
-            findState(String(result.customer?.state ?? ''))?.state ?? null,
-            input.name ? String(input.name).trim().slice(0, 255) : null,
-            phone,
-            phoneKey(phone),
-            pincode,
-            district && district !== 'NA' ? place : null,
-            asmId,
-            LOCATOR_FLOW_ID,
-            JSON.stringify(raw),
-            status,
-            status === 'sent' ? new Date() : null,
-            sent === false ? 'WhatsApp reply to the customer failed' : null,
-        ]
-    );
+    await writeLead(input.leadId, leadId, {
+        source,
+        product: normaliseProduct(input.product),
+        car_model: String(input.car || '').trim().slice(0, 80) || null,
+        state: findState(String(result.customer?.state ?? ''))?.state ?? null,
+        customer_name: input.name ? String(input.name).trim().slice(0, 255) : null,
+        customer_phone: phone,
+        phone_key: phoneKey(phone),
+        raw_area: pincode,
+        matched_area: district && district !== 'NA' ? place : null,
+        asm_id: asmId,
+        flow_id: LOCATOR_FLOW_ID,
+        raw_payload: JSON.stringify(raw),
+        status,
+        sent_at: status === 'sent' ? new Date() : null,
+        failure_reason: sent === false ? 'WhatsApp reply to the customer failed' : null,
+    });
 
     console.log(`[Locator] ${pincode} from ${phoneKey(phone)} (${source}) -> ${kind}` +
         `${kind === 'stores' ? ` (${result.stores.length})` : ''}, reply ${raw.locator.reply} — lead ${leadId}`);
@@ -329,16 +349,22 @@ export async function handleLocatorReply(senderPhone: string, tap: LocatorReply)
  * twice is one lead, while picking a second store is a lead for that store too.
  * Whether it went is kept on the lead, under locator.notified, keyed
  * `store:<id>`, `distributor:<id>` or `support`.
+ *
+ * Also used when an admin sends an IVR or hand-added lead a store from Lead
+ * Management, so that store hears of it the same way.
  */
-async function notifyOnce(lead: any, key: string, phone: string | null, name: string, live: boolean) {
-    if (!live || !phone) return;
+export type AlertResult = 'sent' | 'already' | 'not-live' | 'no-phone' | 'failed';
+
+export async function notifyOnce(lead: any, key: string, phone: string | null, name: string, live: boolean): Promise<AlertResult> {
+    if (!live) return 'not-live';
+    if (!phone) return 'no-phone';
 
     let notified: string[] = [];
     try {
         const parsed = typeof lead.notified === 'string' ? JSON.parse(lead.notified) : lead.notified;
         if (Array.isArray(parsed)) notified = parsed.map(String);
     } catch { /* nothing recorded yet */ }
-    if (notified.includes(key)) return;
+    if (notified.includes(key)) return 'already';
 
     /*
      * The recipient's lead number for the month: the leads it has already been
@@ -346,17 +372,22 @@ async function notifyOnce(lead: any, key: string, phone: string | null, name: st
      * month. The connection runs in IST, so the month turns at midnight India
      * time. Counted from locator.notified, the same record that stops a repeat
      * alert, so a lead is numbered only if the store actually heard about it.
+     * Every channel counts: an IVR lead an admin sent the store is its next
+     * lead too.
      */
     const [[{ prior }]]: any = await db.execute(
         `SELECT COUNT(*) AS prior FROM leads
-          WHERE flow_id = ?
-            AND created_at >= DATE_FORMAT(NOW(), '%Y-%m-01')
+          WHERE created_at >= DATE_FORMAT(NOW(), '%Y-%m-01')
             AND JSON_CONTAINS(COALESCE(JSON_EXTRACT(raw_payload, '$.locator.notified'), JSON_ARRAY()), JSON_QUOTE(?))`,
-        [LOCATOR_FLOW_ID, key]
+        [key]
     );
 
     const leadNumber = Number(prior) + 1;
-    const when = receivedAt();
+    /* The enquiry's own time when the caller knows it. A WhatsApp pick is
+       alerted moments after the enquiry, so "now" is right there; an admin
+       may send an IVR lead's store hours after the call. */
+    const enquired = lead.enquired_at ? new Date(lead.enquired_at) : null;
+    const when = receivedAt(enquired && !Number.isNaN(enquired.getTime()) ? enquired : undefined);
 
     /*
      * Support has its own template, which adds where the customer is — they
@@ -375,16 +406,21 @@ async function notifyOnce(lead: any, key: string, phone: string | null, name: st
             phone, name, lead.customer_phone, lead.product, lead.car_model, when, leadNumber, lead.id,
         ).catch(() => false);
     }
-    if (!ok) return;
+    if (!ok) return 'failed';
 
     await db.execute(
         `UPDATE leads
-            SET raw_payload = JSON_SET(COALESCE(raw_payload, JSON_OBJECT()), '$.locator.notified',
+            /* $.locator first: JSON_SET will not create a missing parent, and an
+               IVR lead has none — without it the record would silently vanish. */
+            SET raw_payload = JSON_SET(COALESCE(raw_payload, JSON_OBJECT()),
+                    '$.locator', COALESCE(JSON_EXTRACT(raw_payload, '$.locator'), JSON_OBJECT()),
+                    '$.locator.notified',
                     JSON_ARRAY_APPEND(COALESCE(JSON_EXTRACT(raw_payload, '$.locator.notified'), JSON_ARRAY()), '$', ?)),
                 status = 'sent', sent_at = COALESCE(sent_at, NOW())
           WHERE id = ?`,
         [key, lead.id]
     );
+    return 'sent';
 }
 
 /**

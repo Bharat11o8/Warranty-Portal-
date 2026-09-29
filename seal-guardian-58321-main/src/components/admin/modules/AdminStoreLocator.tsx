@@ -14,19 +14,21 @@ import { Switch } from "@/components/ui/switch";
 /**
  * The rules deciding what a customer is offered from their pincode.
  *
- *   stores within 15 km           → a list, the customer picks one
+ *   stores within the radius      → a list, the customer picks one
  *   else the ASM for the state    → one person, who gets the lead
  *   else the state's distributors → a list, the customer picks one
  *   else customer support         → one number
  *
- * The minimum-warranties threshold lives here so the team can tighten or
- * loosen it without a release, as does the customer support number that ends
+ * The radius and the minimum-warranties threshold live here so the team can
+ * tighten or loosen them without a release, as does the customer support number that ends
  * the chain. The preview runs the same lookup a customer would, so a change can
  * be checked on a real pincode before anyone relies on it.
  */
 
 interface Settings {
     min_warranties: number;
+    /** How far a store may be from the customer's pincode, in km. */
+    radius_km: number;
     support_phone: string;
     support_name: string;
     whatsapp_live: boolean;
@@ -66,6 +68,9 @@ interface PreviewResult {
 }
 
 const MAX = 1000;
+/* The same limits the server holds the radius to. */
+const MIN_KM = 1;
+const MAX_KM = 100;
 
 /** How each step of the chain is named, and what it means for the lead. */
 const STEP = {
@@ -117,7 +122,7 @@ export const AdminStoreLocator = () => {
 
     const [saved, setSaved] = useState<Settings | null>(null);
     const [form, setForm] = useState<Settings>({
-        min_warranties: 1, support_phone: "", support_name: "", whatsapp_live: false, test_numbers: [],
+        min_warranties: 1, radius_km: 15, support_phone: "", support_name: "", whatsapp_live: false, test_numbers: [],
     });
     // Typed freely, turned into test_numbers on save.
     const [testText, setTestText] = useState("");
@@ -149,6 +154,7 @@ export const AdminStoreLocator = () => {
 
     const dirty = saved !== null && (
         saved.min_warranties !== form.min_warranties
+        || saved.radius_km !== form.radius_km
         || saved.support_phone !== form.support_phone
         || saved.support_name !== form.support_name
         || saved.whatsapp_live !== form.whatsapp_live
@@ -161,6 +167,8 @@ export const AdminStoreLocator = () => {
 
     const step = (delta: number) =>
         setForm(f => ({ ...f, min_warranties: Math.min(MAX, Math.max(0, f.min_warranties + delta)) }));
+    const stepKm = (delta: number) =>
+        setForm(f => ({ ...f, radius_km: Math.min(MAX_KM, Math.max(MIN_KM, f.radius_km + delta)) }));
 
     const runPreview = async (pin = pincode) => {
         const p = pin.trim();
@@ -214,7 +222,7 @@ export const AdminStoreLocator = () => {
                     <div className="space-y-2.5">
                         <h3 className="text-sm font-black text-slate-800">What a customer is offered</h3>
                         <ol className="space-y-2.5">
-                            <ChainStep n={1} title="Stores within 15 km"
+                            <ChainStep n={1} title={`Stores within ${form.radius_km} km`}
                                 detail="Alphabetical, with at least the warranties set below. The customer picks one." />
                             <ChainStep n={2} title="Else the ASM"
                                 detail="The ASM covering the customer's state gets the lead." />
@@ -223,6 +231,44 @@ export const AdminStoreLocator = () => {
                             <ChainStep n={4} title="Else customer support"
                                 detail="The number set below." />
                         </ol>
+                    </div>
+
+                    {/* How far is near. Straight-line distance from the centre
+                        of the customer's pincode, so the road is a little longer. */}
+                    <div className="border-t border-slate-100 pt-4 space-y-2">
+                        <Label className="text-xs">Search radius around the customer's pincode</Label>
+                        <div className="flex items-center gap-2">
+                            <Button
+                                type="button" variant="outline" size="icon" className="h-10 w-10 rounded-xl"
+                                onClick={() => stepKm(-1)} disabled={form.radius_km <= MIN_KM}
+                                aria-label="Decrease radius"
+                            >
+                                <Minus className="h-4 w-4" />
+                            </Button>
+                            <Input
+                                inputMode="numeric"
+                                value={String(form.radius_km)}
+                                onChange={e => {
+                                    const n = parseInt(e.target.value.replace(/\D/g, "") || "0", 10);
+                                    setForm(f => ({ ...f, radius_km: Math.min(MAX_KM, n) }));
+                                }}
+                                onBlur={() => setForm(f => ({ ...f, radius_km: Math.max(MIN_KM, f.radius_km) }))}
+                                className="h-10 w-24 text-center text-lg font-black"
+                                aria-label="Radius in km"
+                            />
+                            <Button
+                                type="button" variant="outline" size="icon" className="h-10 w-10 rounded-xl"
+                                onClick={() => stepKm(1)} disabled={form.radius_km >= MAX_KM}
+                                aria-label="Increase radius"
+                            >
+                                <Plus className="h-4 w-4" />
+                            </Button>
+                            <span className="text-sm font-bold text-slate-500">km</span>
+                        </div>
+                        <p className="text-[11px] text-slate-400 leading-snug">
+                            Stores up to {form.radius_km} km away in a straight line are offered ({MIN_KM}–{MAX_KM} km).
+                            Wider finds more stores but further away; narrower sends more customers to the ASM.
+                        </p>
                     </div>
 
                     <div className="border-t border-slate-100 pt-4 space-y-2">
@@ -254,7 +300,7 @@ export const AdminStoreLocator = () => {
                         </div>
                         <p className="text-[11px] text-slate-400 leading-snug">
                             {form.min_warranties === 0
-                                ? "Every store within 15 km is offered, including ones with no approved warranty yet."
+                                ? `Every store within ${form.radius_km} km is offered, including ones with no approved warranty yet.`
                                 : `A store needs ${form.min_warranties}+ approved warranties to be offered.`}
                         </p>
                     </div>

@@ -46,10 +46,20 @@ export interface LocatorRules {
 }
 
 /**
- * How far is near. Fixed rather than configurable: a customer offered a store
- * 40 km away has not been helped, and the fallback exists for exactly that.
+ * How far is near, by default. An admin can change it from the Store Locator
+ * settings, within MIN–MAX_RADIUS_KM: a customer offered a store 40 km away
+ * has not been helped, and the ASM fallback exists for exactly that.
  */
 export const RADIUS_KM = 15;
+export const MIN_RADIUS_KM = 1;
+export const MAX_RADIUS_KM = 100;
+
+/** A radius an admin may set: whole kilometres, 1 to 100. Anything unreadable is the default. */
+export function clampRadiusKm(raw: unknown): number {
+    const n = Math.round(Number(raw));
+    if (!Number.isFinite(n) || raw === null || raw === '') return RADIUS_KM;
+    return Math.min(MAX_RADIUS_KM, Math.max(MIN_RADIUS_KM, n));
+}
 
 const EARTH_RADIUS_KM = 6371;
 const toRadians = (degrees: number) => (degrees * Math.PI) / 180;

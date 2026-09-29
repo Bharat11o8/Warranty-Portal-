@@ -10,6 +10,7 @@ import {
     formatDistance,
     isPincode,
     clampMinWarranties,
+    clampRadiusKm,
     RADIUS_KM,
     MAX_MIN_WARRANTIES,
     type LocatableStore,
@@ -322,5 +323,24 @@ describe('isPincode', () => {
         for (const v of ['011008', '11008', '1100855', 'abcdef', '', null, '110 085']) {
             assert.equal(isPincode(v), false, JSON.stringify(v));
         }
+    });
+});
+
+describe('clampRadiusKm — the radius an admin can set', () => {
+    test('whole kilometres, as given', () => {
+        assert.equal(clampRadiusKm(15), 15);
+        assert.equal(clampRadiusKm('25'), 25);
+        assert.equal(clampRadiusKm(7.6), 8);
+    });
+    test('held between 1 and 100 km', () => {
+        assert.equal(clampRadiusKm(0), 1);
+        assert.equal(clampRadiusKm(-5), 1);
+        assert.equal(clampRadiusKm(5000), 100);
+    });
+    test('anything unreadable is the 15 km default', () => {
+        assert.equal(clampRadiusKm(undefined), 15);
+        assert.equal(clampRadiusKm(null), 15);
+        assert.equal(clampRadiusKm(''), 15);
+        assert.equal(clampRadiusKm('abc'), 15);
     });
 });

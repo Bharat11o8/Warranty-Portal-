@@ -291,6 +291,43 @@ export function supportText(support: ListContact): string {
 export const INVALID_PINCODE_TEXT =
     "That doesn't look like a pincode. Please send your 6-digit area pincode, for example 110001.";
 
+/*
+ * The questions our server asks once the Interakt workflow hands over after the
+ * product menu (locatorConversation), and what it says when an answer will not
+ * do. Each re-prompt says what was wrong and gives an example, so a customer is
+ * never just told "invalid".
+ */
+export const CAR_QUESTION =
+    'Which car do you have? 🚗\n\nPlease type the model, for example Creta, Swift or Thar.';
+
+export const CAR_RETRY: Record<'empty' | 'junk' | 'place', string> = {
+    empty: 'Please type your car model, for example Creta, Swift or Thar.',
+    junk: "Sorry, we couldn't read that as a car. Please type your car model, for example Creta, Swift or Thar.",
+    place: 'That looks like a place 🙂 Please type your car model, for example Creta, Swift or Thar.',
+};
+
+export function whichModelText(make: string, examples: string): string {
+    return `Which ${make}? Please type the model${examples ? `, for example ${examples}` : ''}.`;
+}
+
+export const PINCODE_QUESTION =
+    'Thanks! 📍 Please send your 6-digit area pincode, so we can find the Autoform store nearest you. For example 110001.';
+
+export function unknownPincodeText(pincode: string): string {
+    return `We couldn't find the pincode ${pincode}. Could you check it and send it again?`;
+}
+
+/** Two wrong pincodes: nobody is kept going round — the team calls instead. */
+export const NO_PINCODE_END =
+    'Thank you! 🙏 Our team will call you shortly to help you find the nearest Autoform store.';
+
+export const PLEASE_TYPE_TEXT = 'Please type your answer as a message so we can help. 🙏';
+
+export const CANCELLED_TEXT = 'No problem. Send "Heyy" any time to start again. 🙏';
+
+/** Anything unexpected on our side: the customer still hears from us, and the lead is kept. */
+export const SORRY_TEXT = 'Sorry, something went wrong on our side. 🙏 Our team will call you shortly.';
+
 /** 919876543210 or 9876543210 -> +91 98765 43210. */
 export function formatPhone(raw: string): string {
     const digits = String(raw ?? '').replace(/\D/g, '');

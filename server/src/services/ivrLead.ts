@@ -114,3 +114,67 @@ export function missedCallReason(calls: Record<string, any>): string | null {
     if (ended.some(t => t.result === 'answered')) return null;
     return 'Missed call — no agent answered, call back';
 }
+
+/** One call on the lead screen: when, how long, and each ring to an agent. */
+export interface IvrCallSummary {
+    started: string | null;
+    /** Seconds the caller was on the line, when the hang-up arrived. */
+    duration: number | null;
+    rings: { group: string | null; to: string | null; answered: boolean; talked: number | null; at: string | null }[];
+}
+
+/**
+ * What the lead screen shows for an IVR lead, read from raw_payload.ivr —
+ * so the browser never has to know how the events are stored.
+ *
+ *   status  'missed' while every ring went unanswered, 'answered' once one
+ *           was picked up, 'no-agent' when the caller hung up in the menu
+ */
+export interface IvrSummary {
+    status: 'answered' | 'missed' | 'no-agent';
+    calls: number;
+    rings: number;
+    answered: number;
+    /** Seconds agents spent talking, across every call. */
+    talkSeconds: number;
+    lastCall: string | null;
+    mobile: boolean;
+    detail: IvrCallSummary[];
+}
+
+export function summariseIvr(rawPayload: unknown): IvrSummary | null {
+    let raw: any = rawPayload;
+    if (typeof raw === 'string') {
+        try { raw = JSON.parse(raw); } catch { return null; }
+    }
+    const ivr = raw?.ivr;
+    if (!ivr || typeof ivr !== 'object') return null;
+
+    const detail: IvrCallSummary[] = Object.values(ivr.calls ?? {}).map((c: any) => ({
+        started: c?.started ?? null,
+        duration: typeof c?.duration === 'number' ? c.duration : null,
+        rings: (Object.values(c?.transfers ?? {}) as any[])
+            .map(t => ({
+                group: t?.group ?? null,
+                to: t?.to ?? null,
+                answered: t?.result === 'answered',
+                talked: typeof t?.talked === 'number' ? t.talked : null,
+                at: t?.rang ?? t?.ended ?? null,
+            }))
+            .sort((a, b) => String(a.at ?? '').localeCompare(String(b.at ?? ''))),
+    }));
+    detail.sort((a, b) => String(a.started ?? '').localeCompare(String(b.started ?? '')));
+
+    const rings = detail.flatMap(c => c.rings);
+    const answered = rings.filter(r => r.answered).length;
+    return {
+        status: answered ? 'answered' : rings.length ? 'missed' : 'no-agent',
+        calls: detail.length,
+        rings: rings.length,
+        answered,
+        talkSeconds: rings.reduce((sum, r) => sum + (r.answered ? r.talked ?? 0 : 0), 0),
+        lastCall: detail.reduce<string | null>((last, c) => (c.started && (!last || c.started > last) ? c.started : last), null),
+        mobile: ivr.mobile !== false,
+        detail,
+    };
+}

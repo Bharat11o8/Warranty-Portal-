@@ -1,6 +1,6 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseIvrEvent, isMobile, productFromGroup, missedCallReason } from '../ivrLead.js';
+import { parseIvrEvent, isMobile, productFromGroup, missedCallReason, summariseIvr } from '../ivrLead.js';
 
 /** The events below are real ones from the IVR's first calls, 25 Sept 2026. */
 
@@ -86,4 +86,56 @@ describe('isMobile', () => {
     test('a 10-digit mobile', () => assert.equal(isMobile('9820306492'), true));
     test('with a country code', () => assert.equal(isMobile('919820306492'), true));
     test('a landline or trunk number from the IVR is not', () => assert.equal(isMobile('1409800269'), false));
+});
+
+describe('summariseIvr — what the lead screen shows', () => {
+    const payload = {
+        ivr: {
+            mobile: true,
+            calls: {
+                'b': {
+                    started: '2026-09-26T10:00:00+05:30', duration: 40,
+                    transfers: { 'b.1': { group: 'SeatCovers', to: '7217014601', result: 'answered', talked: 25, rang: '2026-09-26T10:00:10+05:30' } },
+                },
+                'a': {
+                    started: '2026-09-25T17:48:06+05:30', duration: 31,
+                    transfers: {
+                        'a.2': { group: 'SeatCovers', result: 'noanswer', talked: 0, rang: '2026-09-25T17:48:30+05:30' },
+                        'a.1': { group: 'SeatCovers', result: 'noanswer', talked: 0, rang: '2026-09-25T17:48:23+05:30' },
+                    },
+                },
+            },
+        },
+    };
+
+    test('counts calls, rings and talk time, oldest call first', () => {
+        const s = summariseIvr(JSON.stringify(payload))!;
+        assert.equal(s.status, 'answered');
+        assert.equal(s.calls, 2);
+        assert.equal(s.rings, 3);
+        assert.equal(s.answered, 1);
+        assert.equal(s.talkSeconds, 25);
+        assert.equal(s.lastCall, '2026-09-26T10:00:00+05:30');
+        assert.equal(s.detail[0].started, '2026-09-25T17:48:06+05:30');
+        assert.equal(s.detail[0].rings[0].at, '2026-09-25T17:48:23+05:30');
+    });
+
+    test('every ring unanswered is a missed call', () => {
+        const s = summariseIvr({ ivr: { calls: { a: payload.ivr.calls.a } } })!;
+        assert.equal(s.status, 'missed');
+        assert.equal(s.talkSeconds, 0);
+    });
+
+    test('hung up in the menu, before any agent rang', () => {
+        const s = summariseIvr({ ivr: { mobile: false, calls: { x: { started: 't', duration: 12 } } } })!;
+        assert.equal(s.status, 'no-agent');
+        assert.equal(s.rings, 0);
+        assert.equal(s.mobile, false);
+    });
+
+    test('not an IVR payload', () => {
+        assert.equal(summariseIvr(null), null);
+        assert.equal(summariseIvr('{bad'), null);
+        assert.equal(summariseIvr({ whatsapp: {} }), null);
+    });
 });

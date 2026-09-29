@@ -51,7 +51,7 @@ export async function directory(): Promise<DirectoryDistrict[]> {
     return cached.districts;
 }
 
-async function placeOf(pincode: string): Promise<PincodePlace | null> {
+export async function placeOf(pincode: string): Promise<PincodePlace | null> {
     const [rows]: any = await db.execute(
         'SELECT pincode, district, state FROM pincode_geo WHERE pincode = ? LIMIT 1',
         [pincode]

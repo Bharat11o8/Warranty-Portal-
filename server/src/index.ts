@@ -203,13 +203,19 @@ if (dbReady) {
 } else {
   console.error('⚠️ Database not reachable after retries — starting server anyway; it will recover once the DB is back.');
 }
-AssignmentSchedulerService.start();
-WarrantyReminderScheduler.start();
+// A local run against the live database must not email staff or repeat
+// production's background work — DISABLE_SCHEDULERS=1 keeps it to serving requests.
+if (process.env.DISABLE_SCHEDULERS === '1') {
+  console.log('🕒 Schedulers disabled (DISABLE_SCHEDULERS=1)');
+} else {
+  AssignmentSchedulerService.start();
+  WarrantyReminderScheduler.start();
 
-// Backstop for the analytics ledger. Events are written when a warranty is
-// registered; this closes any gap left by a failed write or a crash mid-request,
-// so the trend chart cannot silently drift again.
-startAnalyticsRepairSchedule();
+  // Backstop for the analytics ledger. Events are written when a warranty is
+  // registered; this closes any gap left by a failed write or a crash mid-request,
+  // so the trend chart cannot silently drift again.
+  startAnalyticsRepairSchedule();
+}
 
 // Get current directory for ES modules
 const __filename = fileURLToPath(import.meta.url);

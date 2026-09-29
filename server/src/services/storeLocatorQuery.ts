@@ -9,6 +9,7 @@ import {
     isPincode,
     formatDistance,
     clampMinWarranties,
+    clampRadiusKm,
     RADIUS_KM,
     type LocatableStore,
 } from './storeLocator.js';
@@ -32,6 +33,8 @@ const SETTING_KEY = 'store_locator';
 export interface LocatorSettings {
     /** Only stores with at least this many approved warranties are offered. */
     min_warranties: number;
+    /** How far a store may be from the customer's pincode to be offered, in km. */
+    radius_km: number;
     /** The last resort: no store, no ASM and no distributor in the state. */
     support_phone: string;
     support_name: string;
@@ -52,6 +55,7 @@ const DEFAULTS: LocatorSettings = {
     // Leaves out only stores with no approved warranty at all — 131 of 339 as
     // of September 2026. An admin raises it from Lead Management.
     min_warranties: 1,
+    radius_km: RADIUS_KM,
     support_phone: '',
     support_name: 'Autoform Customer Support',
     whatsapp_live: false,
@@ -82,6 +86,8 @@ export async function getLocatorSettings(): Promise<LocatorSettings> {
         const stored = JSON.parse(rows[0].setting_value || '{}');
         return {
             min_warranties: clampMinWarranties(stored.min_warranties ?? DEFAULTS.min_warranties),
+            // Settings saved before the radius was adjustable have none: 15 km, as before.
+            radius_km: clampRadiusKm(stored.radius_km ?? DEFAULTS.radius_km),
             // Read under the old company_* names too: settings saved before the
             // rename would otherwise lose their number without anyone noticing.
             support_phone: String(stored.support_phone ?? stored.company_phone ?? DEFAULTS.support_phone).trim(),
@@ -113,6 +119,9 @@ export async function saveLocatorSettings(
 
     if (changes.min_warranties !== undefined) {
         next.min_warranties = clampMinWarranties(changes.min_warranties);
+    }
+    if (changes.radius_km !== undefined) {
+        next.radius_km = clampRadiusKm(changes.radius_km);
     }
     if (changes.support_phone !== undefined) {
         const digits = String(changes.support_phone).replace(/\D/g, '');
@@ -315,7 +324,7 @@ async function fallbackFor(
 export async function findStoresForPincode(rawPincode: string): Promise<LocatorResult> {
     const pincode = String(rawPincode ?? '').trim();
     const settings = await getLocatorSettings();
-    const rules = { radius_km: RADIUS_KM, min_warranties: settings.min_warranties };
+    const rules = { radius_km: settings.radius_km, min_warranties: settings.min_warranties };
 
     if (!isPincode(pincode)) {
         return { pincode, found: false, customer: null, rules, stores: [],
@@ -369,7 +378,7 @@ export async function findStoresForPincode(rawPincode: string): Promise<LocatorR
     }
 
     const offered = storesToOffer(customer, stores, {
-        radiusKm: RADIUS_KM,
+        radiusKm: settings.radius_km,
         minWarranties: settings.min_warranties,
     });
 
@@ -392,6 +401,6 @@ export async function findStoresForPincode(rawPincode: string): Promise<LocatorR
         })),
         fallback: offered.length ? null : await fallbackFor(pincode, customer, settings),
         reason: offered.length ? undefined
-            : `No store within ${RADIUS_KM} km with ${settings.min_warranties}+ approved warranties`,
+            : `No store within ${settings.radius_km} km with ${settings.min_warranties}+ approved warranties`,
     };
 }

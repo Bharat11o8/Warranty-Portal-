@@ -6,6 +6,7 @@ import { NotificationService } from '../services/notification.service.js';
 import { ingestFlowAuditResponse, recordAuditSent, recordAuditDelivery } from '../services/auditResponse.service.js';
 import { handleInstagramLead } from '../services/instagramLead.service.js';
 import { handleLocatorReply, handlePincodeMessage } from '../services/storeLocatorChat.js';
+import { handleConversationMessage } from '../services/locatorConversation.service.js';
 import { replyFromWebhook } from '../services/storeLocatorMessages.js';
 
 export class WebhookController {
@@ -174,6 +175,20 @@ export class WebhookController {
                  * pincode from someone already talking to it. Checked first,
                  * and each only claims a message that is unmistakably its own.
                  */
+                /*
+                 * Our own chat first: when it is waiting for this customer's
+                 * car or pincode, the message is its answer. It claims nothing
+                 * else — taps, a fresh "Heyy", or no open chat fall through.
+                 */
+                if (customer?.phone_number) {
+                    try {
+                        if (await handleConversationMessage(senderPhone, message)) return;
+                    } catch (err: any) {
+                        console.error('[Webhook] Chat handling failed:', err?.message);
+                        return;
+                    }
+                }
+
                 if (customer?.phone_number) {
                     try {
                         const tap = replyFromWebhook(message);
