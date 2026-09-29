@@ -22,7 +22,12 @@ const workflowSecret: RequestHandler = (req, res, next) => {
         return next();
     }
     const given = req.headers['x-asm-secret'] || req.query.secret;
-    if (given !== expected) return res.status(401).json({ error: 'Unauthorized' });
+    if (given !== expected) {
+        // Logged, never the value: a workflow edit that dropped the header
+        // otherwise looks exactly like a customer getting no reply.
+        console.warn(`[ASM] ${req.path} refused: secret ${given ? 'wrong' : 'missing'} (from ${req.ip})`);
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
     next();
 };
 

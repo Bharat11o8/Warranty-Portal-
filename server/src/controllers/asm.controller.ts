@@ -673,8 +673,14 @@ export class AsmController {
 
         // Interakt's "Test Webhook" posts the body with its placeholders unfilled.
         const unfilled = [pincode, phone].some(v => /\{\{\s*\d+\s*\}\}/.test(String(v ?? '')));
-        if (unfilled || !phone) {
-            return res.json({ received: true, handled: false, reason: unfilled ? 'test call' : 'no phone' });
+        // A hand-off without a real WhatsApp number cannot be answered. Logged
+        // with what arrived, because from the customer's side it is silence —
+        // and the usual cause is a workflow variable mapped to the wrong field.
+        const digits = String(phone ?? '').replace(/\D/g, '');
+        if (unfilled || digits.length < 10) {
+            const reason = unfilled ? 'test call / unfilled variable' : 'no valid phone number';
+            console.warn(`[Locator] store-enquiry ignored (${reason}) — body: ${JSON.stringify(req.body).slice(0, 300)}`);
+            return res.json({ received: true, handled: false, reason });
         }
 
         // An auto-responder answering for the customer is not an enquiry.
