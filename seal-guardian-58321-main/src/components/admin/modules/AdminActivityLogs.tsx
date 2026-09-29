@@ -17,6 +17,24 @@ import {
     PaginationPrevious,
 } from "@/components/ui/pagination";
 
+/** Labels for the fields a franchise / admin identity edit can change. */
+const IDENTITY_FIELD_LABELS: Record<string, string> = {
+    contact_name: 'Contact name',
+    email: 'Email',
+    phone: 'Phone',
+    phone_number: 'Phone',
+    store_name: 'Store name',
+    address: 'Address',
+    city: 'City',
+    state: 'State',
+    pincode: 'Pincode',
+    gst_number: 'GST',
+    area_head_name: 'Area head',
+    store_code: 'Store code',
+    latitude: 'Latitude',
+    longitude: 'Longitude',
+};
+
 export const AdminActivityLogs = () => {
     const { user } = useAuth();
     const { toast } = useToast();
@@ -259,6 +277,32 @@ export const AdminActivityLogs = () => {
                             <span className="line-through text-red-400">{String(val.before ?? '—')}</span>
                             <span className="text-slate-400">→</span>
                             <span className="text-green-600 font-medium">{String(val.after ?? '—')}</span>
+                        </div>
+                    ))}
+                </div>
+            );
+        }
+        // Franchise profile, store code, map pin and admin contact edits log
+        // { field: { from, to } } — under details.changes, or at the top level
+        // for ADMIN_CONTACT_UPDATED. Older rows carry no change set and fall
+        // through to the plain row.
+        const identityChanges = details.changes
+            ?? (log.action_type === 'ADMIN_CONTACT_UPDATED' ? details : null);
+        if (identityChanges && typeof identityChanges === 'object') {
+            const rows = Object.entries(identityChanges).filter(([, v]: [string, any]) => v && 'from' in v && 'to' in v);
+            if (rows.length === 0) {
+                return details.changes
+                    ? <div className="text-xs text-slate-400 mt-1">Saved with no changes</div>
+                    : null;
+            }
+            return (
+                <div className="mt-1.5 space-y-0.5">
+                    {rows.map(([field, val]: [string, any]) => (
+                        <div key={field} className="text-xs flex items-center gap-1.5 flex-wrap">
+                            <span className="font-medium text-slate-600">{IDENTITY_FIELD_LABELS[field] || field}:</span>
+                            <span className="line-through text-red-400">{String(val.from ?? '—')}</span>
+                            <span className="text-slate-400">→</span>
+                            <span className="text-green-600 font-medium">{String(val.to ?? '—')}</span>
                         </div>
                     ))}
                 </div>

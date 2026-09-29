@@ -1104,10 +1104,19 @@ export class WarrantyController {
       if (req.user.role === 'customer') {
         query += ' AND user_id = ?';
         params.push(req.user.id);
-      } else if (req.user.role !== 'vendor' && req.user.role !== 'admin') {
+      } else if (req.user.role === 'vendor') {
+        // SBP-004: a franchise reads its own store's warranties, plus any that a
+        // grievance assigned to its store points at (the grievance screen opens
+        // them through this route). Anything else answers 404, not 403, so the
+        // response does not confirm that another store's warranty exists.
+        const scope = await vendorWarrantyScope(req.user.id);
+        query += ` AND (${scope.sql} OR uid IN (
+          SELECT g.warranty_uid FROM grievances g
+          JOIN vendor_details vd ON vd.id = g.franchise_id
+          WHERE vd.user_id = ? AND g.warranty_uid IS NOT NULL))`;
+        params.push(...scope.params, req.user.id);
+      } else if (req.user.role !== 'admin') {
         // Default deny — an unrecognised role must never read unscoped.
-        // NOTE: vendor reads are still unscoped here (report finding SBP-004);
-        // that is a separate fix, deliberately not changed in this pass.
         return res.status(403).json({ error: 'Insufficient permissions' });
       }
 

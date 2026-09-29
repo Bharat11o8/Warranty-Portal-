@@ -2,6 +2,7 @@
 import db, { getISTTimestamp } from '../config/database.js';
 import { EmailService } from '../services/email.service.js';
 import { ActivityLogService } from '../services/activity-log.service.js';
+import { fieldChanges } from '../services/profileChanges.js';
 import { listMonths, roundsInMonth, storesInMonth, allCampaignsInMonth } from '../services/auditMonth.service.js';
 import { parseContacts, matchContacts, saveContacts, syncRoundTargets } from '../services/auditContacts.service.js';
 import { NotificationService } from '../services/notification.service.js';
@@ -1521,6 +1522,11 @@ export class AdminController {
                 });
             }
 
+            const [beforeCode]: any = await db.execute(
+                'SELECT store_code FROM vendor_details WHERE user_id = ?',
+                [id]
+            );
+
             // Update store_code
             await db.execute(
                 'UPDATE vendor_details SET store_code = ? WHERE user_id = ?',
@@ -1542,7 +1548,7 @@ export class AdminController {
                 targetType: 'VENDOR',
                 targetId: id,
                 targetName: vendor[0]?.store_name || 'Unknown',
-                details: { store_code: normalizedCode },
+                details: { changes: fieldChanges(beforeCode[0] || {}, { store_code: normalizedCode }) },
                 ipAddress: req.ip || req.socket?.remoteAddress
             });
 
@@ -1565,6 +1571,11 @@ export class AdminController {
             const { id } = req.params;
             const { latitude, longitude } = req.body;
 
+            const [beforePin]: any = await db.execute(
+                'SELECT latitude, longitude FROM vendor_details WHERE user_id = ?',
+                [id]
+            );
+
             await db.execute(
                 'UPDATE vendor_details SET latitude = ?, longitude = ? WHERE user_id = ?',
                 [latitude || null, longitude || null, id]
@@ -1579,7 +1590,7 @@ export class AdminController {
                 targetType: 'VENDOR',
                 targetId: id,
                 targetName: undefined,
-                details: { latitude, longitude },
+                details: { changes: fieldChanges(beforePin[0] || {}, { latitude, longitude }) },
                 ipAddress: req.ip || req.socket?.remoteAddress
             });
 
@@ -1634,6 +1645,20 @@ export class AdminController {
             const connection = await db.getConnection();
             try {
                 await connection.beginTransaction();
+
+                // What the franchise looked like before this edit, so the log can
+                // say what changed rather than only that something did.
+                const [beforeRows]: any = await connection.execute(
+                    `SELECT p.name AS contact_name, p.email, p.phone_number,
+                            vd.store_name, vd.address, vd.city, vd.state, vd.pincode, vd.gst_number,
+                            dist.area_head_name
+                     FROM profiles p
+                     LEFT JOIN vendor_details vd ON vd.user_id = p.id
+                     LEFT JOIN distributors dist ON dist.profile_id = p.id
+                     WHERE p.id = ?`,
+                    [id]
+                );
+                const before = beforeRows[0] || {};
 
                 const [existingEmail]: any = await connection.execute(
                     'SELECT id FROM profiles WHERE email = ? AND id != ?',
@@ -1692,6 +1717,15 @@ export class AdminController {
                     targetType: 'VENDOR',
                     targetId: id,
                     targetName: store_name,
+                    details: {
+                        changes: fieldChanges(before, {
+                            contact_name, email, phone_number, store_name,
+                            address, city, state, pincode, gst_number,
+                            // Only distributors carry an area head; a franchise
+                            // has none, so don't log null → null noise for it.
+                            ...(before.area_head_name != null || area_head_name ? { area_head_name } : {}),
+                        }),
+                    },
                     ipAddress: req.ip || req.socket?.remoteAddress
                 });
 
