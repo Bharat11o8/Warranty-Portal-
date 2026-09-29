@@ -9,7 +9,7 @@ interface FraudAnalysisSectionProps {
     fraudData: any;
     fraudFlag: string;
     setFraudFlag: (val: string) => void;
-    fetchFranchiseDrilldown: (name: string) => void;
+    fetchFranchiseDrilldown: (storeId: string, name: string) => void;
 }
 
 export const FraudAnalysisSection = ({ 
@@ -97,7 +97,7 @@ export const FraudAnalysisSection = ({
                             <div className="space-y-3 pr-2" style={{ maxHeight: '500px', overflowY: 'auto' }}>
                                 {fraudData.riskiest_franchises.map((f: any, i: number) => (
                                     <div key={i}
-                                        onClick={() => fetchFranchiseDrilldown(f.installer_name)}
+                                        onClick={() => fetchFranchiseDrilldown(f.store_id, f.installer_name)}
                                         className="group flex items-center gap-4 p-3 rounded-2xl hover:bg-red-50 hover:ring-1 hover:ring-red-100 transition-all cursor-pointer">
                                         <div className="h-8 w-8 rounded-xl bg-red-100 flex items-center justify-center text-[10px] font-black text-red-600 shrink-0">
                                             #{i + 1}
@@ -139,7 +139,7 @@ export const FraudAnalysisSection = ({
                             <div className="space-y-3 pr-2" style={{ maxHeight: '500px', overflowY: 'auto' }}>
                                 {fraudData.cleanest_franchises.map((f: any, i: number) => (
                                     <div key={i}
-                                        onClick={() => fetchFranchiseDrilldown(f.installer_name)}
+                                        onClick={() => fetchFranchiseDrilldown(f.store_id, f.installer_name)}
                                         className="group flex items-center gap-4 p-3 rounded-2xl hover:bg-emerald-50 hover:ring-1 hover:ring-emerald-100 transition-all cursor-pointer">
                                         <div className="h-8 w-8 rounded-xl bg-emerald-100 flex items-center justify-center text-[10px] font-black text-emerald-600 shrink-0">
                                             #{i + 1}

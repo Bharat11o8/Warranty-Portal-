@@ -158,23 +158,12 @@ async function markInitialRunComplete(): Promise<void> {
 // ─── Finding who is due ──────────────────────────────────────────────────────
 
 /**
- * The store behind a warranty, by the same three routes the admin warranty list
- * uses: the installer's own store, an installer name + email match, or the
- * `owner-<vendorDetailsId>` sentinel used when the owner did the fitting.
+ * The store behind a warranty, by the store id it carries (see
+ * services/warrantyStore.ts) — never by name, which another store can share.
  */
 const STORE_JOIN = `
-    LEFT JOIN manpower m ON w.manpower_id = m.id
-    LEFT JOIN vendor_details vd_m ON (
-        w.manpower_id IS NOT NULL AND w.manpower_id NOT LIKE 'owner-%' AND m.vendor_id = vd_m.id
-    )
-    LEFT JOIN vendor_details vd_i ON (
-        (w.installer_name = vd_i.store_name OR w.installer_name = CONCAT(vd_i.store_name, ' - ', vd_i.city))
-        AND w.installer_contact = vd_i.store_email
-    )
-    LEFT JOIN vendor_details vd_o ON (
-        w.manpower_id LIKE 'owner-%' AND vd_o.id = REPLACE(w.manpower_id, 'owner-', '')
-    )
-    LEFT JOIN profiles store_p ON COALESCE(vd_m.user_id, vd_i.user_id, vd_o.user_id) = store_p.id
+    LEFT JOIN vendor_details vd_s ON vd_s.id = w.vendor_details_id
+    LEFT JOIN profiles store_p ON vd_s.user_id = store_p.id
 `;
 
 /**
@@ -199,7 +188,7 @@ const SELECT_COLUMNS = `
     w.product_details, w.reminder_count,
     COALESCE(w.rejected_at, w.created_at) AS rejected_on,
     DATEDIFF(NOW(), COALESCE(w.rejected_at, w.created_at)) AS days_since_rejection,
-    COALESCE(vd_m.store_name, vd_i.store_name, vd_o.store_name) AS store_name,
+    vd_s.store_name AS store_name,
     store_p.phone_number AS store_phone
 `;
 

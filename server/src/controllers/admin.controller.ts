@@ -112,32 +112,19 @@ export class AdminController {
                     FROM vendor_details vd
                     JOIN user_roles ur ON ur.user_id = vd.user_id AND ur.role = 'vendor'
                     JOIN (
-                        -- Warranty activity through a franchise's staff.
-                        SELECT m.vendor_id AS franchise_id
-                        FROM manpower m
-                        JOIN warranty_registrations wr ON wr.manpower_id = m.id
+                        -- Warranty activity, by the store id each warranty
+                        -- carries (services/warrantyStore.ts), plus a franchise's
+                        -- own submissions that have no store yet.
+                        SELECT wr.vendor_details_id AS franchise_id
+                        FROM warranty_registrations wr
+                        WHERE wr.vendor_details_id IS NOT NULL
 
                         UNION
 
-                        -- Warranties submitted directly by the franchise account.
                         SELECT vd_direct.id AS franchise_id
                         FROM warranty_registrations wr
                         JOIN vendor_details vd_direct ON vd_direct.user_id = wr.user_id
-
-                        UNION
-
-                        -- Legacy owner warranties and installer-attributed warranties.
-                        SELECT vd_owner.id AS franchise_id
-                        FROM warranty_registrations wr
-                        JOIN vendor_details vd_owner ON wr.manpower_id = CONCAT('owner-', vd_owner.id)
-
-                        UNION
-
-                        SELECT vd_installer.id AS franchise_id
-                        FROM warranty_registrations wr
-                        JOIN vendor_details vd_installer
-                          ON wr.installer_name = vd_installer.store_name
-                         AND wr.installer_contact = vd_installer.store_email
+                        WHERE wr.vendor_details_id IS NULL
 
                         UNION
 
@@ -338,19 +325,16 @@ export class AdminController {
                     FROM (
                         SELECT u.vkey, u.status, ${inRangeExpr} as in_range
                         FROM (
+                            -- Each warranty counts once, for the store id it carries
+                            -- (services/warrantyStore.ts); one with no store yet
+                            -- counts for the franchise account that submitted it.
                             SELECT vd2.user_id as vkey, wr.uid, wr.status, wr.created_at, wr.purchase_date
-                            FROM manpower m
-                            JOIN vendor_details vd2 ON vd2.id = m.vendor_id
-                            JOIN warranty_registrations wr ON wr.manpower_id = m.id
-                            UNION
-                            SELECT vd3.user_id, wr.uid, wr.status, wr.created_at, wr.purchase_date
-                            FROM vendor_details vd3
-                            JOIN warranty_registrations wr
-                              ON wr.installer_name = vd3.store_name
-                             AND wr.installer_contact = vd3.store_email
-                            UNION
+                            FROM warranty_registrations wr
+                            JOIN vendor_details vd2 ON vd2.id = wr.vendor_details_id
+                            UNION ALL
                             SELECT wr.user_id, wr.uid, wr.status, wr.created_at, wr.purchase_date
                             FROM warranty_registrations wr
+                            WHERE wr.vendor_details_id IS NULL
                         ) u
                     ) t
                     GROUP BY t.vkey
@@ -433,12 +417,14 @@ export class AdminController {
             }
 
             const vendorData = vendor[0];
-            // A warranty belongs to this store only when its name AND email match,
-            // the same rule as the franchise's own dashboard. Matching on name alone
-            // showed one store's warranties under every store sharing its name
-            // (Patan's under Kalol and Kadi, Sept 2026). The name may be saved
-            // plain or as "Name - City".
-            const storeLabelWithCity = `${vendorData.store_name} - ${vendorData.city}`;
+            // This store's warranties are the ones carrying its store id (see
+            // services/warrantyStore.ts), plus anything its account submitted that
+            // has no store yet — the same rule as the franchise's own dashboard.
+            // Never by name: stores share names, and matching on one showed
+            // Patan's warranties under Kalol and Kadi (Sept 2026).
+            const storeScope = vendorData.vendor_details_id
+                ? { sql: '(wr.vendor_details_id = ? OR (wr.vendor_details_id IS NULL AND wr.user_id = ?))', params: [vendorData.vendor_details_id, vendorData.user_id] }
+                : { sql: 'wr.user_id = ?', params: [vendorData.user_id] };
 
             // Get manpower using vendor_details_id with points system
             let manpower: any[] = [];
@@ -466,10 +452,10 @@ export class AdminController {
                         SUM(CASE WHEN status = 'validated' THEN 1 ELSE 0 END) as points,
                         SUM(CASE WHEN status IN ('pending', 'pending_vendor') THEN 1 ELSE 0 END) as pending_points,
                         SUM(CASE WHEN status = 'rejected' THEN 1 ELSE 0 END) as rejected_points
-                    FROM warranty_registrations
-                    WHERE (manpower_id = 'owner' OR manpower_id IS NULL OR manpower_id = '')
-                      AND (((installer_name = ? OR installer_name = ?) AND installer_contact = ?) OR user_id = ?)
-                `, [vendorData.store_name, storeLabelWithCity, vendorData.store_email, vendorData.user_id]);
+                    FROM warranty_registrations wr
+                    WHERE (wr.manpower_id IS NULL OR wr.manpower_id = '' OR wr.manpower_id LIKE 'owner%')
+                      AND ${storeScope.sql}
+                `, storeScope.params);
 
                 if (ownerStats[0].total_applications > 0) {
                     manpower.push({
@@ -492,35 +478,25 @@ export class AdminController {
                 }
             }
 
-            // Get warranties based on vendor's manpower, store name, or user_id
             const [warrantyList]: any = await db.execute(`
                 SELECT wr.*, 
                        p.name as submitted_by_name, 
                        p.email as submitted_by_email,
                        m.name as manpower_name_from_db,
-                       COALESCE(vd_m.store_name, vd_i.store_name, vd_owner.store_name) as vendor_store_name,
-                       COALESCE(vd_m.store_email, vd_i.store_email, vd_owner.store_email) as vendor_store_email,
+                       vd_s.store_name as vendor_store_name,
+                       vd_s.store_email as vendor_store_email,
+                       vd_s.city as vendor_city,
                        vp.phone_number as vendor_phone_number,
-                       COALESCE(vd_m.latitude, vd_i.latitude, vd_owner.latitude) as store_lat,
-                       COALESCE(vd_m.longitude, vd_i.longitude, vd_owner.longitude) as store_lng
+                       vd_s.latitude as store_lat,
+                       vd_s.longitude as store_lng
                 FROM warranty_registrations wr
                 LEFT JOIN profiles p ON wr.user_id = p.id
                 LEFT JOIN manpower m ON wr.manpower_id = m.id
-                LEFT JOIN vendor_details vd_m ON (wr.manpower_id IS NOT NULL AND wr.manpower_id NOT LIKE 'owner-%' AND m.vendor_id = vd_m.id)
-                LEFT JOIN vendor_details vd_i ON (
-                    (wr.installer_name = vd_i.store_name OR wr.installer_name = CONCAT(vd_i.store_name, ' - ', vd_i.city)) 
-                    AND wr.installer_contact = vd_i.store_email
-                )
-                LEFT JOIN vendor_details vd_owner ON (
-                    wr.manpower_id LIKE 'owner-%' AND
-                    vd_owner.id = REPLACE(wr.manpower_id, 'owner-', '')
-                )
-                LEFT JOIN profiles vp ON COALESCE(vd_m.user_id, vd_i.user_id, vd_owner.user_id) = vp.id
-                WHERE (wr.manpower_id IN (SELECT id FROM manpower WHERE vendor_id = ?)
-                   OR ((wr.installer_name = ? OR wr.installer_name = ?) AND wr.installer_contact = ?)
-                   OR wr.user_id = ?)
+                LEFT JOIN vendor_details vd_s ON vd_s.id = wr.vendor_details_id
+                LEFT JOIN profiles vp ON vd_s.user_id = vp.id
+                WHERE ${storeScope.sql}
                 ORDER BY wr.created_at DESC
-            `, [vendorData.vendor_details_id, vendorData.store_name, storeLabelWithCity, vendorData.store_email, vendorData.user_id]);
+            `, storeScope.params);
 
             res.json({
                 success: true,
@@ -1667,6 +1643,16 @@ export class AdminController {
                     return res.status(400).json({ error: 'Email already in use by another account' });
                 }
 
+                // The store email must stay unique as well: it is how a warranty
+                // finds its store when no installer was picked.
+                const [existingStoreEmail]: any = await connection.execute(
+                    'SELECT id FROM vendor_details WHERE store_email = ? AND user_id != ?',
+                    [email, id]
+                );
+                if (existingStoreEmail.length > 0) {
+                    return res.status(400).json({ error: 'Email already in use by another store' });
+                }
+
                 const [existingPhone]: any = await connection.execute(
                     'SELECT id FROM profiles WHERE phone_number = ? AND id != ?',
                     [phone_number, id]
@@ -1795,6 +1781,7 @@ export class AdminController {
                     wr.purchase_date,
                     wr.created_at,
                     wr.manpower_id,
+                    wr.vendor_details_id,
                     vd.store_name,
                     vd.store_email,
                     vd.address as store_address,
@@ -1806,7 +1793,7 @@ export class AdminController {
                     m.is_active as applicator_active
                 FROM warranty_registrations wr
                 LEFT JOIN manpower m ON wr.manpower_id = m.id
-                LEFT JOIN vendor_details vd ON (wr.installer_name = vd.store_name AND wr.installer_contact = vd.store_email)
+                LEFT JOIN vendor_details vd ON vd.id = wr.vendor_details_id
                 WHERE wr.uid = ? OR wr.id = ?`,
                 [uid, uid]
             );
@@ -2176,43 +2163,20 @@ export class AdminController {
                         let vendorUserId: string | null = null;
                         let applicatorName: string | null = warrantyData.applicator_name || null;
 
-                        // 1. Try manpower lookup (real DB manpower ID)
-                        const manpowerId = warrantyData.manpower_id;
-                        if (manpowerId && manpowerId !== 'owner') {
+                        // The warranty's own store, by id — never by name, which
+                        // another store can share (services/warrantyStore.ts).
+                        if (warrantyData.vendor_details_id) {
                             const [vendorInfo]: any = await db.execute(
-                                `SELECT 
-                                    p.email as vendor_email,
-                                    p.id as vendor_user_id,
-                                    vd.store_name as vendor_name,
-                                    m.name as manpower_name
-                                FROM manpower m
-                                JOIN vendor_details vd ON m.vendor_id = vd.id
-                                JOIN profiles p ON vd.user_id = p.id
-                                WHERE m.id = ?`,
-                                [manpowerId]
+                                `SELECT p.email as vendor_email, p.id as vendor_user_id, vd.store_name as vendor_name
+                                 FROM vendor_details vd
+                                 JOIN profiles p ON vd.user_id = p.id
+                                 WHERE vd.id = ?`,
+                                [warrantyData.vendor_details_id]
                             );
                             if (vendorInfo.length > 0) {
                                 vendorEmail = vendorInfo[0].vendor_email;
                                 vendorName = vendorInfo[0].vendor_name;
                                 vendorUserId = vendorInfo[0].vendor_user_id;
-                                applicatorName = vendorInfo[0].manpower_name || applicatorName;
-                            }
-                        }
-
-                        // 2. Fallback: find vendor by installer_name (catches QR/direct/owner submissions)
-                        if (!vendorEmail && warrantyData.installer_name) {
-                            const [vendorByName]: any = await db.execute(
-                                `SELECT p.email as vendor_email, p.id as vendor_user_id, vd.store_name as vendor_name
-                                 FROM vendor_details vd
-                                 JOIN profiles p ON vd.user_id = p.id
-                                 WHERE vd.store_name = ? AND vd.store_email = ?
-                                 LIMIT 1`,
-                                [warrantyData.installer_name, warrantyData.installer_contact]
-                            );
-                            if (vendorByName.length > 0) {
-                                vendorEmail = vendorByName[0].vendor_email;
-                                vendorName = vendorByName[0].vendor_name;
-                                vendorUserId = vendorByName[0].vendor_user_id;
                             }
                         }
 
@@ -2826,14 +2790,11 @@ export class AdminController {
                     wr.car_make LIKE ? OR 
                     wr.car_model LIKE ? OR
                     wr.installer_name LIKE ? OR
-                    vd_m.store_name LIKE ? OR
-                    vd_i.store_name LIKE ? OR
-                    vd_owner.store_name LIKE ? OR
-                    vd_m.city LIKE ? OR
-                    vd_i.city LIKE ? OR
-                    vd_owner.city LIKE ?
+                    vd_s.store_name LIKE ? OR
+                    vd_s.city LIKE ? OR
+                    vd_s.store_code LIKE ?
                 )`;
-                const searchParams = Array(15).fill(searchTerm);
+                const searchParams = Array(12).fill(searchTerm);
                 addCondition(searchCondition, searchParams);
             }
 
@@ -2848,14 +2809,11 @@ export class AdminController {
             // 2. Build Query
             const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
             const summaryWhereClause = summaryConditions.length > 0 ? `WHERE ${summaryConditions.join(' AND ')}` : '';
+            // The store is the one each warranty carries by id
+            // (services/warrantyStore.ts) — never matched by name.
             const joins = `
                 LEFT JOIN manpower m ON wr.manpower_id = m.id
-                LEFT JOIN vendor_details vd_m ON (wr.manpower_id IS NOT NULL AND wr.manpower_id NOT LIKE 'owner-%' AND m.vendor_id = vd_m.id)
-                LEFT JOIN vendor_details vd_i ON (wr.installer_name = vd_i.store_name AND wr.installer_contact = vd_i.store_email)
-                LEFT JOIN vendor_details vd_owner ON (
-                    wr.manpower_id LIKE 'owner-%' AND
-                    vd_owner.id = REPLACE(wr.manpower_id, 'owner-', '')
-                )`;
+                LEFT JOIN vendor_details vd_s ON vd_s.id = wr.vendor_details_id`;
 
             // Count Query (must include the same JOINs used in search conditions)
             const countQuery = `
@@ -2917,26 +2875,18 @@ export class AdminController {
                     p.email as submitted_by_email,
                     (SELECT ur.role FROM user_roles ur WHERE ur.user_id = p.id LIMIT 1) as submitted_by_role,
                     m.name as manpower_name_from_db,
-                    COALESCE(vd_m.store_name, vd_i.store_name, vd_owner.store_name) as vendor_store_name,
-                    COALESCE(vd_m.store_email, vd_i.store_email, vd_owner.store_email) as vendor_store_email,
-                    COALESCE(vd_m.city, vd_i.city, vd_owner.city) as vendor_city,
-                    COALESCE(vd_m.state, vd_i.state, vd_owner.state) as vendor_state,
-                    COALESCE(vd_m.latitude, vd_i.latitude, vd_owner.latitude) as store_lat,
-                    COALESCE(vd_m.longitude, vd_i.longitude, vd_owner.longitude) as store_lng,
+                    vd_s.store_name as vendor_store_name,
+                    vd_s.store_email as vendor_store_email,
+                    vd_s.store_code as vendor_store_code,
+                    vd_s.city as vendor_city,
+                    vd_s.state as vendor_state,
+                    vd_s.latitude as store_lat,
+                    vd_s.longitude as store_lng,
                     vp.phone_number as vendor_phone_number
                 FROM warranty_registrations wr
                 LEFT JOIN profiles p ON wr.user_id = p.id
-                LEFT JOIN manpower m ON wr.manpower_id = m.id
-                LEFT JOIN vendor_details vd_m ON (wr.manpower_id IS NOT NULL AND wr.manpower_id NOT LIKE 'owner-%' AND m.vendor_id = vd_m.id)
-                LEFT JOIN vendor_details vd_i ON (
-                    (wr.installer_name = vd_i.store_name OR wr.installer_name = CONCAT(vd_i.store_name, ' - ', vd_i.city)) 
-                    AND wr.installer_contact = vd_i.store_email
-                )
-                LEFT JOIN profiles vp ON COALESCE(vd_m.user_id, vd_i.user_id) = vp.id
-                LEFT JOIN vendor_details vd_owner ON (
-                    wr.manpower_id LIKE 'owner-%' AND
-                    vd_owner.id = REPLACE(wr.manpower_id, 'owner-', '')
-                )
+                ${joins}
+                LEFT JOIN profiles vp ON vd_s.user_id = vp.id
                 ${whereClause}
                 ORDER BY ${sortBy} ${sortOrder}, wr.id DESC
                 LIMIT ? OFFSET ?
@@ -2996,15 +2946,13 @@ export class AdminController {
                     m.name as manpower_name_from_db,
                     vd.store_name as vendor_store_name,
                     vd.store_email as vendor_store_email,
+                    vd.city as vendor_city,
                     vp.phone_number as vendor_phone_number
                 FROM warranty_registrations wr
                 LEFT JOIN profiles p ON wr.user_id = p.id
                 LEFT JOIN user_roles ur ON p.id = ur.user_id
                 LEFT JOIN manpower m ON wr.manpower_id = m.id
-                LEFT JOIN vendor_details vd ON (
-                    (wr.manpower_id IS NOT NULL AND wr.manpower_id NOT LIKE 'owner-%' AND m.vendor_id = vd.id) OR
-                    (wr.installer_name = vd.store_name AND wr.installer_contact = vd.store_email)
-                )
+                LEFT JOIN vendor_details vd ON vd.id = wr.vendor_details_id
                 LEFT JOIN profiles vp ON vd.user_id = vp.id
                 WHERE wr.uid = ? OR wr.id = ?
                 LIMIT 1
@@ -3353,24 +3301,17 @@ export class AdminController {
                     p.name as submitted_by_name,
                     p.email as submitted_by_email,
                     m.name as manpower_name_from_db,
-                    COALESCE(vd_m.store_name, vd_i.store_name, vd_owner.store_name) as vendor_store_name,
-                    COALESCE(vd_m.store_email, vd_i.store_email, vd_owner.store_email) as vendor_store_email,
+                    vd_s.store_name as vendor_store_name,
+                    vd_s.store_email as vendor_store_email,
+                    vd_s.city as vendor_city,
                     vp.phone_number as vendor_phone_number,
-                    COALESCE(vd_m.latitude, vd_i.latitude, vd_owner.latitude) as store_lat,
-                    COALESCE(vd_m.longitude, vd_i.longitude, vd_owner.longitude) as store_lng
+                    vd_s.latitude as store_lat,
+                    vd_s.longitude as store_lng
                 FROM warranty_registrations wr
                 LEFT JOIN profiles p ON wr.user_id = p.id
                 LEFT JOIN manpower m ON wr.manpower_id = m.id
-                LEFT JOIN vendor_details vd_m ON (wr.manpower_id IS NOT NULL AND wr.manpower_id NOT LIKE 'owner-%' AND m.vendor_id = vd_m.id)
-                LEFT JOIN vendor_details vd_i ON (
-                    (wr.installer_name = vd_i.store_name OR wr.installer_name = CONCAT(vd_i.store_name, ' - ', vd_i.city)) 
-                    AND wr.installer_contact = vd_i.store_email
-                )
-                LEFT JOIN vendor_details vd_owner ON (
-                    wr.manpower_id LIKE 'owner-%' AND
-                    vd_owner.id = REPLACE(wr.manpower_id, 'owner-', '')
-                )
-                LEFT JOIN profiles vp ON COALESCE(vd_m.user_id, vd_i.user_id, vd_owner.user_id) = vp.id
+                LEFT JOIN vendor_details vd_s ON vd_s.id = wr.vendor_details_id
+                LEFT JOIN profiles vp ON vd_s.user_id = vp.id
                 WHERE (? = TRUE AND wr.customer_phone = ?) OR (? = FALSE AND wr.customer_email = ?)
                 ORDER BY wr.created_at DESC
             `, [isPhoneLookup, identifier, isPhoneLookup, identifier]);
@@ -3973,7 +3914,7 @@ export class AdminController {
                 FROM warranty_resubmissions wr
                 LEFT JOIN profiles p ON wr.user_id = p.id
                 LEFT JOIN manpower m ON wr.manpower_id = m.id
-                LEFT JOIN vendor_details vd ON (m.vendor_id = vd.id OR (wr.installer_name = vd.store_name AND wr.installer_contact = vd.store_email))
+                LEFT JOIN vendor_details vd ON vd.id = wr.vendor_details_id
                 WHERE wr.status = 'pending_review'
                 ORDER BY wr.created_at DESC
                 LIMIT ? OFFSET ?
@@ -4022,6 +3963,7 @@ export class AdminController {
                     registration_number = ?, purchase_date = ?, installer_name = ?, 
                     installer_contact = ?, product_details = ?, manpower_id = ?,
                     status = 'validated', seat_cover_photo_url = ?, car_outer_photo_url = ?,
+                    vendor_details_id = COALESCE(?, vendor_details_id),
                     validated_at = NOW()
                 WHERE uid = ?
             `, [
@@ -4030,6 +3972,7 @@ export class AdminController {
                 staging.registration_number, staging.purchase_date, staging.installer_name,
                 staging.installer_contact, staging.product_details, staging.manpower_id,
                 staging.seat_cover_photo_url, staging.car_outer_photo_url,
+                staging.vendor_details_id || null,
                 staging.original_uid
             ]);
 
@@ -4223,10 +4166,12 @@ export class AdminController {
 
             await connection.beginTransaction();
 
-            // Check if profile already exists for this email
+            // Check if profile already exists for this email. A store email must
+            // be unique too: it is how a warranty finds its store when no
+            // installer was picked (services/warrantyStore.ts).
             const [existingEmail]: any = await connection.execute(
-                'SELECT id FROM profiles WHERE email = ?',
-                [email]
+                'SELECT id FROM profiles WHERE email = ? UNION SELECT id FROM vendor_details WHERE store_email = ?',
+                [email, email]
             );
             if (existingEmail.length > 0) {
                 await connection.rollback();

@@ -12,6 +12,7 @@ import { checkPurchaseDate } from '../services/purchaseDateWindow.service.js';
 import { recordRegistrationEvent } from '../services/analyticsEvents.service.js';
 import { parseRolls, reserveRolls, nextWarrantyUidForRoll, RollUnavailableError, withRollRetry, findSerialNotIssuedToStore } from '../services/ppfRoll.service.js';
 import { withTransaction } from '../utils/transaction.js';
+import { resolveWarrantyStore } from '../services/warrantyStore.js';
 
 export class PublicController {
     static async getStores(req: Request, res: Response) {
@@ -798,17 +799,28 @@ export class PublicController {
                 ? ''
                 : (warrantyData.productDetails.uid || warrantyData.productDetails.serialNumber || uuidv4());
 
+            // The store this warranty belongs to, by id — see services/warrantyStore.ts.
+            const storeResolution = await resolveWarrantyStore({
+                manpowerId: warrantyData.manpowerId,
+                installerContact: warrantyData.installerContact,
+                storeCode: warrantyData.storeCode,
+            });
+            if (!storeResolution.ok) {
+                return res.status(400).json({ error: storeResolution.error });
+            }
+            const storeId = storeResolution.storeId;
+
             // --- FRAUD DETECTION: Calculate fraud score ---
             let fraudScore = 0;
             let fraudFlags = {};
 
             // Lookup store location for comparison
             let storeLocation = { lat: null as number | null, lng: null as number | null, city: null as string | null, state: null as string | null };
-            if (warrantyData.installerName) {
+            if (storeId) {
                 try {
                     const [storeRows]: any = await db.execute(
-                        'SELECT latitude, longitude, city, state FROM vendor_details WHERE store_name = ? LIMIT 1',
-                        [warrantyData.installerName]
+                        'SELECT latitude, longitude, city, state FROM vendor_details WHERE id = ?',
+                        [storeId]
                     );
                     if (storeRows.length > 0) {
                         storeLocation = {
@@ -875,8 +887,8 @@ export class PublicController {
                  customer_address, registration_number, car_make, car_model, car_year, car_colour,
                  purchase_date, installer_name, installer_contact, product_details, manpower_id, warranty_type, status,
                  exif_lat, exif_lng, exif_timestamp, exif_device, device_fingerprint, submission_ip, ip_city, ip_region, ip_lat, ip_lng, fraud_score, fraud_flags,
-                 seat_cover_photo_url, car_outer_photo_url) 
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                 seat_cover_photo_url, car_outer_photo_url, vendor_details_id) 
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                 [
                     uidForInsert,
                     userId,
@@ -910,7 +922,8 @@ export class PublicController {
                     fraudScore,
                     JSON.stringify(fraudFlags),
                     warrantyData.productDetails?.photos?.seatCover || null,
-                    warrantyData.productDetails?.photos?.carOuter || null
+                    warrantyData.productDetails?.photos?.carOuter || null,
+                    storeId
                 ]
                 );
 
@@ -960,8 +973,8 @@ export class PublicController {
                         const [vendorProfile]: any = await db.execute(
                             `SELECT p.phone_number FROM profiles p
                              JOIN vendor_details vd ON vd.user_id = p.id
-                             WHERE vd.store_email = ? LIMIT 1`,
-                            [vendorEmail]
+                             WHERE vd.id = ?`,
+                            [storeId]
                         );
                         if (vendorProfile.length > 0 && vendorProfile[0].phone_number) {
                             const productName = warrantyData.productDetails?.productName

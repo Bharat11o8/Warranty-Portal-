@@ -203,40 +203,18 @@ export interface LocatorResult {
 // ─── Lookups ─────────────────────────────────────────────────────────────────
 
 /**
- * Approved warranties per store.
- *
- * A warranty reaches a store four ways: through its staff (manpower), from the
- * franchise's own account, through the legacy "owner-<id>" link, and by the
- * installer's name and email. The overview screen counts activity the same
- * way. A warranty matching two of these must count once, so the pairs are
- * de-duplicated before counting rather than the four counts being added.
+ * Approved warranties per store, by the store id each warranty carries (see
+ * services/warrantyStore.ts). It used to union four routes — staff, the
+ * franchise's own account, the "owner-<id>" link, and installer name + email —
+ * which let one warranty count for two stores, and a store sharing a name with
+ * another count the other's.
  */
 async function warrantyCounts(): Promise<Map<string, number>> {
     const [rows]: any = await db.execute(`
-        SELECT franchise_id, COUNT(DISTINCT warranty_id) AS n FROM (
-            SELECT m.vendor_id AS franchise_id, wr.id AS warranty_id
-              FROM manpower m
-              JOIN warranty_registrations wr ON wr.manpower_id = m.id
-             WHERE wr.status = 'validated'
-            UNION
-            SELECT vd.id, wr.id
-              FROM warranty_registrations wr
-              JOIN vendor_details vd ON vd.user_id = wr.user_id
-             WHERE wr.status = 'validated'
-            UNION
-            SELECT vd.id, wr.id
-              FROM warranty_registrations wr
-              JOIN vendor_details vd ON wr.manpower_id = CONCAT('owner-', vd.id)
-             WHERE wr.status = 'validated'
-            UNION
-            SELECT vd.id, wr.id
-              FROM warranty_registrations wr
-              JOIN vendor_details vd
-                ON wr.installer_name = vd.store_name
-               AND wr.installer_contact = vd.store_email
-             WHERE wr.status = 'validated'
-        ) attributed
-        GROUP BY franchise_id
+        SELECT vendor_details_id AS franchise_id, COUNT(*) AS n
+          FROM warranty_registrations
+         WHERE status = 'validated' AND vendor_details_id IS NOT NULL
+         GROUP BY vendor_details_id
     `);
     /* Keyed as text: vendor_details.id is a UUID. Converting it with Number()
        gave NaN for every store, and a Map treats every NaN as the same key, so

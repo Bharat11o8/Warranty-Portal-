@@ -822,8 +822,13 @@ export const QuickReviewPanel = ({
                         <div className="space-y-2.5">
                             <div className="flex items-center gap-2 text-sm">
                                 <span className="text-slate-450 font-normal w-24 shrink-0">Store:</span>
-                                <span className="font-bold text-slate-700 truncate" title={productDetails.storeName || warranty.installer_name}>
-                                    {productDetails.storeName || warranty.installer_name || 'N/A'}
+                                {/* The store the warranty is filed under, with its city —
+                                    several franchises share a name. The name typed on the
+                                    form is only the fallback. */}
+                                <span className="font-bold text-slate-700 truncate" title={warranty.vendor_store_name || productDetails.storeName || warranty.installer_name}>
+                                    {warranty.vendor_store_name
+                                        ? `${warranty.vendor_store_name}${warranty.vendor_city ? ` - ${warranty.vendor_city}` : ''}`
+                                        : (productDetails.storeName || warranty.installer_name || 'N/A')}
                                 </span>
                             </div>
                             <div className="flex items-center gap-2 text-sm">

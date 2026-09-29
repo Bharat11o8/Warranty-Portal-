@@ -52,23 +52,17 @@ export class AnalyticsController {
                 db.execute(`
                     SELECT 
                         (
-                            -- A warranty is attributed to a store by any of three paths
-                            -- (same as the admin vendor list): its manpower, an installer
-                            -- name+email match, or the submitting user. Counting only the
-                            -- first two under-reported participation.
+                            -- A store takes part when some warranty carries its store
+                            -- id (services/warrantyStore.ts), or its account submitted
+                            -- one that has no store yet. Never matched by name.
                             SELECT COUNT(DISTINCT vd.id)
                             FROM vendor_details vd
                             WHERE vd.is_franchise = 1 AND (
                                 EXISTS (
-                                    SELECT 1 FROM warranty_registrations wr WHERE wr.user_id = vd.user_id
-                                ) OR EXISTS (
-                                    SELECT 1 FROM manpower m
-                                    JOIN warranty_registrations wr ON wr.manpower_id = m.id
-                                    WHERE m.vendor_id = vd.id
+                                    SELECT 1 FROM warranty_registrations wr WHERE wr.vendor_details_id = vd.id
                                 ) OR EXISTS (
                                     SELECT 1 FROM warranty_registrations wr
-                                    WHERE wr.installer_name = vd.store_name
-                                      AND wr.installer_contact = vd.store_email
+                                    WHERE wr.vendor_details_id IS NULL AND wr.user_id = vd.user_id
                                 )
                             )
                         ) as warranty_participation,
@@ -365,26 +359,19 @@ export class AnalyticsController {
                            COUNT(DISTINCT uid) as total_registrations,
                            COUNT(DISTINCT CASE WHEN status = 'validated' THEN uid END) as warranty_count
                     FROM (
-                        SELECT vd_staff.user_id AS profile_id, wr.uid, wr.status
+                        -- Each warranty counts for the store id it carries
+                        -- (services/warrantyStore.ts); one with no store yet
+                        -- counts for the franchise account that submitted it.
+                        SELECT vd_store.user_id AS profile_id, wr.uid, wr.status
                         FROM warranty_registrations wr
-                        JOIN manpower m ON m.id = wr.manpower_id
-                        JOIN vendor_details vd_staff ON vd_staff.id = m.vendor_id
+                        JOIN vendor_details vd_store ON vd_store.id = wr.vendor_details_id
                         WHERE ${warrantyDateClause}
 
                         UNION
 
                         SELECT wr.user_id AS profile_id, wr.uid, wr.status
                         FROM warranty_registrations wr
-                        WHERE ${warrantyDateClause}
-
-                        UNION
-
-                        SELECT vd_installer.user_id AS profile_id, wr.uid, wr.status
-                        FROM warranty_registrations wr
-                        JOIN vendor_details vd_installer
-                          ON wr.installer_name = vd_installer.store_name
-                         AND wr.installer_contact = vd_installer.store_email
-                        WHERE ${warrantyDateClause}
+                        WHERE wr.vendor_details_id IS NULL AND ${warrantyDateClause}
                     ) attributed_warranties
                     GROUP BY profile_id
                 ) warranty_stats ON warranty_stats.profile_id = p.id
@@ -474,7 +461,9 @@ export class AnalyticsController {
                 `, params),
                 db.execute(`
                     SELECT
-                        installer_name,
+                        vendor_details_id as store_id,
+                        (SELECT CONCAT(vd.store_name, ' - ', vd.city) FROM vendor_details vd
+                          WHERE vd.id = warranty_registrations.vendor_details_id) as installer_name,
                         COUNT(*) as total_submissions,
                         ROUND(AVG(fraud_score), 1) as avg_score,
                         SUM(CASE WHEN fraud_score < 40 THEN 1 ELSE 0 END) as flagged_count,
@@ -484,12 +473,13 @@ export class AnalyticsController {
                         SUM(COALESCE(CAST(JSON_UNQUOTE(JSON_EXTRACT(fraud_flags, '$.time_penalty')) AS DECIMAL(10,2)), 0)) as time_penalty,
                         SUM(COALESCE(CAST(JSON_UNQUOTE(JSON_EXTRACT(fraud_flags, '$.consistency_penalty')) AS DECIMAL(10,2)), 0)) as consistency_penalty
                     FROM warranty_registrations
+                    -- Grouped by store id, not name: stores share names
+                    -- (services/warrantyStore.ts), which merged their figures.
                     WHERE fraud_score IS NOT NULL
-                      AND installer_name IS NOT NULL
-                      AND installer_name != ''
+                      AND vendor_details_id IS NOT NULL
                       AND ${whereClause}
                       AND ${flagCondition}
-                    GROUP BY installer_name
+                    GROUP BY vendor_details_id
                     HAVING total_submissions >= 5
                 `, params)
             ]);
@@ -542,8 +532,9 @@ export class AnalyticsController {
      */
     static async getFranchiseFraudDrilldown(req: Request, res: Response) {
         try {
+            // The route param is the store id (vendor_details.id), not a name.
             const franchiseName = req.params.franchiseName?.trim();
-            if (!franchiseName) return res.status(400).json({ success: false, error: 'Franchise name required' });
+            if (!franchiseName) return res.status(400).json({ success: false, error: 'Store id required' });
 
             // 1. Overall stats
             const [stats]: any = await db.execute(`
@@ -556,7 +547,7 @@ export class AnalyticsController {
                     SUM(CASE WHEN fraud_score >= 40 AND fraud_score < 80 THEN 1 ELSE 0 END) as medium_risk_count,
                     SUM(CASE WHEN fraud_score >= 80 THEN 1 ELSE 0 END) as low_risk_count
                 FROM warranty_registrations
-                WHERE TRIM(installer_name) = ? AND fraud_score IS NOT NULL
+                WHERE vendor_details_id = ? AND fraud_score IS NOT NULL
             `, [franchiseName]);
 
             // If no data, return empty stats but success:true to avoid "No data" flash
@@ -575,7 +566,7 @@ export class AnalyticsController {
             // 2. Penalty totals
             const [flagRows]: any = await db.execute(`
                 SELECT fraud_flags FROM warranty_registrations
-                WHERE TRIM(installer_name) = ? AND fraud_flags IS NOT NULL AND fraud_flags != '' AND fraud_flags != '{}'
+                WHERE vendor_details_id = ? AND fraud_flags IS NOT NULL AND fraud_flags != '' AND fraud_flags != '{}'
             `, [franchiseName]);
 
             const penaltyTotals: Record<string, number> = { ip: 0, distance: 0, time: 0, consistency: 0 };
@@ -597,7 +588,7 @@ export class AnalyticsController {
                     FLOOR(fraud_score / 10) * 10 as bucket,
                     COUNT(*) as count
                 FROM warranty_registrations
-                WHERE TRIM(installer_name) = ? AND fraud_score IS NOT NULL
+                WHERE vendor_details_id = ? AND fraud_score IS NOT NULL
                 GROUP BY bucket
                 ORDER BY bucket ASC
             `, [franchiseName]);
@@ -608,7 +599,7 @@ export class AnalyticsController {
                     id, customer_name, customer_email, status,
                     fraud_score, fraud_flags, created_at
                 FROM warranty_registrations
-                WHERE TRIM(installer_name) = ? AND fraud_score IS NOT NULL
+                WHERE vendor_details_id = ? AND fraud_score IS NOT NULL
                 ORDER BY created_at DESC
             `, [franchiseName]);
 
@@ -705,21 +696,12 @@ export class AnalyticsController {
             }
 
             // Define labels for grouping and filtering separately
-            const groupLabel = selectedState ? 'COALESCE(vd_m.city, vd_i.city, vd_owner.city)' : 'COALESCE(vd_m.state, vd_i.state, vd_owner.state)';
-            const stateFilterLabel = 'COALESCE(vd_m.state, vd_i.state, vd_owner.state)';
+            const groupLabel = selectedState ? 'vd_s.city' : 'vd_s.state';
+            const stateFilterLabel = 'vd_s.state';
             
+            // The store each warranty carries by id (services/warrantyStore.ts).
             const joinLogic = `
-                LEFT JOIN manpower m ON w.manpower_id = m.id
-                LEFT JOIN vendor_details vd_m ON (w.manpower_id IS NOT NULL AND w.manpower_id NOT LIKE 'owner-%' AND m.vendor_id = vd_m.id)
-                LEFT JOIN vendor_details vd_i ON (
-                    (LOWER(TRIM(w.installer_name)) = LOWER(TRIM(vd_i.store_name)) OR 
-                     LOWER(TRIM(w.installer_name)) = LOWER(TRIM(CONCAT(vd_i.store_name, ' - ', vd_i.city)))) 
-                    AND LOWER(TRIM(w.installer_contact)) = LOWER(TRIM(vd_i.store_email))
-                )
-                LEFT JOIN vendor_details vd_owner ON (
-                    w.manpower_id LIKE 'owner-%' AND 
-                    vd_owner.id = REPLACE(w.manpower_id, 'owner-', '')
-                )
+                LEFT JOIN vendor_details vd_s ON vd_s.id = w.vendor_details_id
             `;
 
             const [warrantyStats]: any = await db.query(`

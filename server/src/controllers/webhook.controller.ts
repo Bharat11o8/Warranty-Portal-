@@ -257,7 +257,7 @@ export class WebhookController {
                 console.warn(`[Webhook] No callbackData prefix — falling back to phone lookup`);
                 const [rows]: any = await db.execute(
                     `SELECT wr.uid FROM warranty_registrations wr
-                     JOIN vendor_details vd ON vd.store_email = wr.installer_contact
+                     JOIN vendor_details vd ON vd.id = wr.vendor_details_id
                      JOIN profiles p ON p.id = vd.user_id
                      WHERE p.phone_number = ? AND wr.status = 'pending_vendor'
                      ORDER BY wr.created_at DESC LIMIT 1`,

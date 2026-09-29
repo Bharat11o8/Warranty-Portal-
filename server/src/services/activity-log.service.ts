@@ -129,7 +129,7 @@ export class ActivityLogService {
                    AND (vd_v.user_id = al.target_id OR vd_v.id = al.target_id)
              LEFT JOIN warranty_registrations wr
                     ON al.target_type = 'WARRANTY' AND wr.uid = al.target_id
-             LEFT JOIN vendor_details vd_w ON vd_w.store_name = wr.installer_name
+             LEFT JOIN vendor_details vd_w ON vd_w.id = wr.vendor_details_id
              LEFT JOIN manpower m
                     ON al.target_type = 'MANPOWER' AND m.id = al.target_id
              LEFT JOIN vendor_details vd_m ON vd_m.id = m.vendor_id`;
@@ -219,7 +219,7 @@ export class ActivityLogService {
                      AND (vd_v.user_id = al.target_id OR vd_v.id = al.target_id)
                LEFT JOIN warranty_registrations wr
                       ON al.target_type = 'WARRANTY' AND wr.uid = al.target_id
-               LEFT JOIN vendor_details vd_w ON vd_w.store_name = wr.installer_name
+               LEFT JOIN vendor_details vd_w ON vd_w.id = wr.vendor_details_id
                LEFT JOIN manpower m
                       ON al.target_type = 'MANPOWER' AND m.id = al.target_id
                LEFT JOIN vendor_details vd_m ON vd_m.id = m.vendor_id

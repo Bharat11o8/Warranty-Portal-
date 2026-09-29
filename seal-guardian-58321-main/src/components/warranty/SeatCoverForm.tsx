@@ -668,6 +668,11 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
         installerName: formData.storeName,
         installerContact: formData.storeEmail,
         manpowerId: formData.manpowerId || null,
+        // The QR link's store, so the server files this under that exact store
+        // rather than working it out from a name another branch may share.
+        ...(isPublic && storeDetails?.store_code
+          ? { storeCode: storeDetails.store_code }
+          : {}),
         productDetails: {
           uid: resolvedUid,
           productName: formData.productName,

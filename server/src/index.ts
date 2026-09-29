@@ -38,6 +38,7 @@ import { initSocket } from './socket.js';
 import { getISTTimestamp } from './utils/dateUtils.js';
 import pool, { getDbRetryStats, pingDatabase } from './config/database.js';
 import { ensureCustomerMobileLimitTable } from './utils/customerMobileLimits.js';
+import { backfillWarrantyStores } from './services/warrantyStore.js';
 
 // Keep the process alive on stray async errors. A single unhandled promise
 // rejection (e.g. a transient DB error in a background task) would otherwise
@@ -163,6 +164,43 @@ async function runMigrations() {
       console.log('✅ Migration: Added reminder_count/last_reminder_at to warranty_registrations.');
     } else {
       console.log('ℹ️ Migration: reminder columns already exist in warranty_registrations.');
+    }
+
+    // The store a warranty belongs to, by id. Warranties used to name their store
+    // only as text, so stores sharing a name shared warranties and a rename
+    // detached a store's history — see services/warrantyStore.ts. Every read
+    // matches on this column, so the backfill runs on every boot: a row left
+    // empty by any path heals at the next restart instead of staying invisible.
+    for (const table of ['warranty_registrations', 'warranty_resubmissions'] as const) {
+      const [storeCol]: any = await pool.query(`SHOW COLUMNS FROM ${table} LIKE 'vendor_details_id'`);
+      if (storeCol.length === 0) {
+        await pool.query(
+          `ALTER TABLE ${table}
+             ADD COLUMN vendor_details_id VARCHAR(36) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+             ADD INDEX idx_${table === 'warranty_registrations' ? 'wr' : 'wrs'}_vendor_details_id (vendor_details_id)`
+        );
+        console.log(`✅ Migration: Added vendor_details_id to ${table}.`);
+      }
+      const filled = await backfillWarrantyStores(table);
+      const [empty]: any = await pool.query(`SELECT COUNT(*) AS n FROM ${table} WHERE vendor_details_id IS NULL`);
+      console.log(`ℹ️ Migration: ${table}.vendor_details_id — filled ${filled}, ${empty[0].n} with no store.`);
+    }
+
+    // A warranty whose installer picked nothing falls back to the store email to
+    // find its store, so one email must mean one store.
+    const [emailIdx]: any = await pool.query("SHOW INDEX FROM vendor_details WHERE Key_name = 'uniq_vendor_store_email'");
+    if (emailIdx.length === 0) {
+      const [dupes]: any = await pool.query(
+        `SELECT store_email, COUNT(*) AS n FROM vendor_details
+         WHERE store_email IS NOT NULL GROUP BY store_email HAVING n > 1`
+      );
+      if (dupes.length === 0) {
+        await pool.query('ALTER TABLE vendor_details ADD UNIQUE INDEX uniq_vendor_store_email (store_email)');
+        console.log('✅ Migration: store_email is now unique in vendor_details.');
+      } else {
+        console.warn(`⚠️ Migration: ${dupes.length} store emails are shared between stores; unique index not added:`,
+          dupes.map((d: any) => d.store_email).join(', '));
+      }
     }
 
     await ensureCustomerMobileLimitTable();

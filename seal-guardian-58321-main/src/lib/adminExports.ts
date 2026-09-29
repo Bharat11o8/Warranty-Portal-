@@ -56,7 +56,10 @@ export const formatWarrantyForExport = (w: any, selectedFields?: string[]) => {
         vehicleModel: w.car_model || 'N/A',
         vehicleYear: w.car_year || 'N/A',
         vehicleReg: w.registration_number || productDetails.carRegistration || 'N/A',
-        installerStore: productDetails.storeName || w.installer_name || 'N/A',
+        // The store it is filed under, with its city (franchises share names).
+        installerStore: w.vendor_store_name
+            ? `${w.vendor_store_name}${w.vendor_city ? ` - ${w.vendor_city}` : ''}`
+            : (productDetails.storeName || w.installer_name || 'N/A'),
         installerEmail: productDetails.storeEmail || (w.installer_contact?.includes('|') ? w.installer_contact.split('|')[0].trim() : w.installer_contact) || 'N/A',
         installerPhone: productDetails.dealerMobile || (w.installer_contact?.includes('|') ? w.installer_contact.split('|')[1].trim() : '') || 'N/A',
         installerManpower: w.manpower_name || productDetails.manpowerName || w.manpower_name_from_db || 'N/A',

@@ -171,12 +171,15 @@ async function resolveVendor(phone: string, franchiseName: string | null) {
         }
     }
 
+    // The name only settles it when exactly one store has it. Three franchises
+    // are "UMIYA CAR ACCESSORIES & SPA"; picking the first credited one store's
+    // audit to another. Ambiguous stays unmatched, for attaching by hand.
     if (franchiseName && franchiseName.trim()) {
         const [rows]: any = await db.execute(
-            `SELECT id FROM vendor_details WHERE store_name = ? LIMIT 1`,
+            `SELECT id FROM vendor_details WHERE store_name = ? LIMIT 2`,
             [franchiseName.trim()]
         );
-        if (rows.length > 0) return rows[0].id as string;
+        if (rows.length === 1) return rows[0].id as string;
     }
 
     return null;

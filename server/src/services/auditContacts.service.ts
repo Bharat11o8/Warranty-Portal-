@@ -198,9 +198,12 @@ export async function matchContacts(contacts: ParsedContact[]): Promise<MatchedC
             `SELECT id, store_name FROM vendor_details WHERE store_name IN (?)`,
             [names]
         );
+        // A name shared by two stores names neither: keeping the first
+        // credited one store's contact to another. Left unmatched instead.
         byNameRows.forEach((r: any) => {
             const k = String(r.store_name || '').trim().toLowerCase();
-            if (k && !nameMap.has(k)) nameMap.set(k, r);
+            if (!k) return;
+            nameMap.set(k, nameMap.has(k) ? null : r);
         });
     }
 

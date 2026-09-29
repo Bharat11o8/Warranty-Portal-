@@ -166,9 +166,11 @@ export class AuthController {
       await db.execute('DELETE FROM pending_registrations WHERE expires_at < NOW()');
 
       // Check if user already exists in ACTUAL profiles table (verified users only)
+      // A store email must be unique too — it is how a warranty finds its
+      // store when no installer was picked (services/warrantyStore.ts).
       const [existingUsers]: any = await db.execute(
-        'SELECT id FROM profiles WHERE email = ?',
-        [email]
+        'SELECT id FROM profiles WHERE email = ? UNION SELECT id FROM vendor_details WHERE store_email = ?',
+        [email, email]
       );
 
       if (existingUsers.length > 0) {

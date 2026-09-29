@@ -363,7 +363,10 @@ export const AdminWarrantyList = ({
                                                 <div className="text-sm cursor-pointer hover:bg-muted/50 p-1.5 -m-1.5 rounded-md transition-colors">
                                                     <p className="font-medium flex items-center gap-1.5">
                                                         <Store className="h-4 w-4 text-purple-600" />
-                                                        {warranty.vendor_store_name || productDetails.storeName || 'N/A'}
+                                                        {/* With the city: several franchises share a name. */}
+                                                        {warranty.vendor_store_name
+                                                            ? `${warranty.vendor_store_name}${warranty.vendor_city ? ` - ${warranty.vendor_city}` : ''}`
+                                                            : (productDetails.storeName || 'N/A')}
                                                     </p>
                                                     <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium mt-1 bg-purple-100 text-purple-800">
                                                         Franchise

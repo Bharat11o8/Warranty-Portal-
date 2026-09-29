@@ -1116,16 +1116,13 @@ export class VendorController {
 
       const w = warranty[0];
 
-      // Check authorization: 
-      // 1. Manpower belongs to vendor
-      // 2. OR Vendor submitted it directly
-      // 3. OR Store name matches installer_name
-      const isManpowerOwner = w.manpower_vendor_id === vendorId;
-      const isVendorSubmitter = w.user_id === userId;
-      const isStoreMatch = storeName && w.installer_name &&
-        w.installer_name.toLowerCase() === storeName.toLowerCase();
+      // Only the store the warranty belongs to may approve or reject it — by
+      // store id. Matching the store name let any store sharing that name
+      // (three are "UMIYA CAR ACCESSORIES & SPA") act on another's warranty.
+      const isOwnStore = !!w.vendor_details_id && w.vendor_details_id === vendorId;
+      const isVendorSubmitter = !w.vendor_details_id && w.user_id === userId;
 
-      if (!isManpowerOwner && !isVendorSubmitter && !isStoreMatch) {
+      if (!isOwnStore && !isVendorSubmitter) {
         console.log('Authorization failed:', {
           warrantyId: uid,
           manpowerVendorId: w.manpower_vendor_id,
@@ -1231,16 +1228,13 @@ export class VendorController {
 
       const w = warrantyCheck[0];
 
-      // Check authorization: 
-      // 1. Manpower belongs to vendor
-      // 2. OR Vendor submitted it directly
-      // 3. OR Store name matches installer_name
-      const isManpowerOwner = w.manpower_vendor_id === vendorId;
-      const isVendorSubmitter = w.user_id === userId;
-      const isStoreMatch = storeName && w.installer_name &&
-        w.installer_name.toLowerCase() === storeName.toLowerCase();
+      // Only the store the warranty belongs to may approve or reject it — by
+      // store id. Matching the store name let any store sharing that name
+      // (three are "UMIYA CAR ACCESSORIES & SPA") act on another's warranty.
+      const isOwnStore = !!w.vendor_details_id && w.vendor_details_id === vendorId;
+      const isVendorSubmitter = !w.vendor_details_id && w.user_id === userId;
 
-      if (!isManpowerOwner && !isVendorSubmitter && !isStoreMatch) {
+      if (!isOwnStore && !isVendorSubmitter) {
         console.log('Reject authorization failed:', {
           warrantyId: uid,
           manpowerVendorId: w.manpower_vendor_id,

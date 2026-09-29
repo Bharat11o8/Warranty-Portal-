@@ -81,12 +81,13 @@ export const AdminAnalytics = ({ onNavigate }: { onNavigate: (module: AdminModul
     const lastProductRequest = useRef('');
     const lastGeoRequest = useRef('');
 
-    const fetchFranchiseDrilldown = async (name: string) => {
+    // By store id: stores share names, so a name would merge their figures.
+    const fetchFranchiseDrilldown = async (storeId: string, name: string) => {
         setSelectedFranchise(name);
         setDrilldownData(null);
         setDrilldownLoading(true);
         try {
-            const response = await api.get(`/admin/analytics/fraud/franchise/${encodeURIComponent(name)}`);
+            const response = await api.get(`/admin/analytics/fraud/franchise/${encodeURIComponent(storeId)}`);
             if (response.data.success) {
                 setDrilldownData(response.data.data);
             }

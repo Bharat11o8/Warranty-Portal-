@@ -16,6 +16,7 @@ import { recordRegistrationEvent } from '../services/analyticsEvents.service.js'
 import { checkPurchaseDate } from '../services/purchaseDateWindow.service.js';
 import { parseRolls, reserveRolls, nextWarrantyUidForRoll, RollUnavailableError, withRollRetry } from '../services/ppfRoll.service.js';
 import { withTransaction } from '../utils/transaction.js';
+import { resolveWarrantyStore, vendorWarrantyScope } from '../services/warrantyStore.js';
 
 
 // Extending WarrantyData interface locally if not updated in types file yet
@@ -232,48 +233,29 @@ export class WarrantyController {
       const checkId = isPPF
         ? (warrantyData.warrantyId || warrantyData.productDetails.warrantyUid || null)
         : (uid || warrantyData.productDetails.serialNumber);
+      let existingStoreId: string | null = null;
       if (checkId) {
         const [existingWarranty]: any = await db.execute(
-          'SELECT uid, user_id, status, product_details, manpower_id, installer_name, installer_contact FROM warranty_registrations WHERE uid = ?',
+          'SELECT uid, user_id, status, product_details, manpower_id, installer_name, installer_contact, vendor_details_id FROM warranty_registrations WHERE uid = ?',
           [checkId]
         );
 
         if (existingWarranty.length > 0) {
           const existing = existingWarranty[0];
+          existingStoreId = existing.vendor_details_id || null;
 
           // Authorization check: Only allow resubmission if user owns it, is admin, or is a linked vendor
           let isAuthorized = req.user.role === 'admin' || existing.user_id === req.user.id;
 
-          if (!isAuthorized && req.user.role === 'vendor') {
-            // Fetch vendor details to check for link
+          // A franchise may resubmit its own store's warranty — by store id,
+          // never by name, which another store can share.
+          if (!isAuthorized && req.user.role === 'vendor' && existing.vendor_details_id) {
             const [vendorDetails]: any = await db.execute(
-              'SELECT id, store_name, store_email, city FROM vendor_details WHERE user_id = ?',
+              'SELECT id FROM vendor_details WHERE user_id = ?',
               [req.user.id]
             );
-
-            if (vendorDetails.length > 0) {
-              const vd = vendorDetails[0];
-              
-              // 1. Check if manpower belongs to this vendor
-              if (existing.manpower_id) {
-                const [manpower]: any = await db.execute(
-                  'SELECT id FROM manpower WHERE id = ? AND vendor_id = ?',
-                  [existing.manpower_id, vd.id]
-                );
-                if (manpower.length > 0) isAuthorized = true;
-              }
-
-              // 2. Check if installer name/contact match this store (catches QR/public submissions)
-              if (!isAuthorized && 
-                  (existing.installer_name === vd.store_name || existing.installer_name === `${vd.store_name} - ${vd.city}`) && 
-                  existing.installer_contact === vd.store_email) {
-                isAuthorized = true;
-              }
-
-              // 3. Check if the warranty installer_contact contains the vendor email (fallback for mixed formats)
-              if (!isAuthorized && existing.installer_contact && existing.installer_contact.includes(vd.store_email)) {
-                isAuthorized = true;
-              }
+            if (vendorDetails.length > 0 && vendorDetails[0].id === existing.vendor_details_id) {
+              isAuthorized = true;
             }
           }
 
@@ -385,15 +367,27 @@ export class WarrantyController {
         ? checkId
         : (isPPF ? '' : (warrantyData.productDetails.uid || warrantyData.productDetails.serialNumber || uuidv4()));
 
+      // The store this warranty belongs to, by id — see services/warrantyStore.ts.
+      const storeResolution = await resolveWarrantyStore({
+        manpowerId: warrantyData.manpowerId,
+        installerContact: warrantyData.installerContact,
+        submitterUserId: req.user.role === 'vendor' ? req.user.id : null,
+      });
+      if (!storeResolution.ok) {
+        return res.status(400).json({ error: storeResolution.error });
+      }
+      // A correction keeps its store when the form carries nothing to resolve.
+      const storeId = storeResolution.storeId ?? existingStoreId;
+
       // --- FRAUD DETECTION: Calculate fraud score ---
       let fraudScore = 0;
       let fraudFlags = {};
       let storeLocation = { lat: null as number | null, lng: null as number | null, city: null as string | null, state: null as string | null };
-      if (warrantyData.installerName) {
+      if (storeId) {
         try {
           const [storeRows]: any = await db.execute(
-            'SELECT latitude, longitude, city, state FROM vendor_details WHERE store_name = ? LIMIT 1',
-            [warrantyData.installerName]
+            'SELECT latitude, longitude, city, state FROM vendor_details WHERE id = ?',
+            [storeId]
           );
           if (storeRows.length > 0) {
             storeLocation = {
@@ -530,9 +524,10 @@ export class WarrantyController {
            customer_address, registration_number, car_make, car_model, car_year, car_colour,
            purchase_date, installer_name, installer_contact, product_details, manpower_id, warranty_type, status,
            exif_lat, exif_lng, exif_timestamp, exif_device, device_fingerprint, submission_ip, ip_city, ip_region, ip_lat, ip_lng, fraud_score, fraud_flags,
-           seat_cover_photo_url, car_outer_photo_url) 
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+           seat_cover_photo_url, car_outer_photo_url, vendor_details_id) 
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           ON DUPLICATE KEY UPDATE
+            vendor_details_id = VALUES(vendor_details_id),
             customer_name = VALUES(customer_name),
             customer_email = VALUES(customer_email),
             customer_phone = VALUES(customer_phone),
@@ -569,7 +564,8 @@ export class WarrantyController {
             exifData.deviceMake ? `${exifData.deviceMake} ${exifData.deviceModel || ''}`.trim() : null,
             exifData.deviceFingerprint, clientIP, ipGeo.city, ipGeo.region, ipGeo.lat, ipGeo.lng, fraudScore,
             JSON.stringify(fraudFlags), (warrantyData.productDetails as any)?.photos?.seatCover || null,
-            (warrantyData.productDetails as any)?.photos?.vehicle || (warrantyData.productDetails as any)?.photos?.carOuter || null
+            (warrantyData.productDetails as any)?.photos?.vehicle || (warrantyData.productDetails as any)?.photos?.carOuter || null,
+            storeId
           ]
         );
 
@@ -670,8 +666,8 @@ export class WarrantyController {
            customer_address, registration_number, car_make, car_model, car_year, car_colour,
            purchase_date, installer_name, installer_contact, product_details, manpower_id, warranty_type, status,
            exif_lat, exif_lng, exif_timestamp, exif_device, device_fingerprint, submission_ip, ip_city, ip_region, ip_lat, ip_lng, fraud_score, fraud_flags,
-           seat_cover_photo_url, car_outer_photo_url)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+           seat_cover_photo_url, car_outer_photo_url, vendor_details_id)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             uidForInsert, finalUserId, warrantyData.productType, warrantyData.customerName, warrantyData.customerEmail,
             warrantyData.customerPhone, warrantyData.customerAddress, warrantyData.registrationNumber,
@@ -683,7 +679,8 @@ export class WarrantyController {
             exifData.deviceMake ? `${exifData.deviceMake} ${exifData.deviceModel || ''}`.trim() : null,
             exifData.deviceFingerprint, clientIP, ipGeo.city, ipGeo.region, ipGeo.lat, ipGeo.lng, fraudScore,
             JSON.stringify(fraudFlags), (warrantyData.productDetails as any)?.photos?.seatCover || null,
-            (warrantyData.productDetails as any)?.photos?.vehicle || (warrantyData.productDetails as any)?.photos?.carOuter || null
+            (warrantyData.productDetails as any)?.photos?.vehicle || (warrantyData.productDetails as any)?.photos?.carOuter || null,
+            storeId
           ]
           );
 
@@ -733,8 +730,8 @@ export class WarrantyController {
             const [vendorProfile]: any = await db.execute(
               `SELECT p.phone_number FROM profiles p
                JOIN vendor_details vd ON vd.user_id = p.id
-               WHERE vd.store_email = ? LIMIT 1`,
-              [vendorEmail]
+               WHERE vd.id = ?`,
+              [storeId]
             );
             if (vendorProfile.length > 0 && vendorProfile[0].phone_number) {
               const productName = warrantyData.productDetails?.productName
@@ -841,30 +838,14 @@ export class WarrantyController {
         let vendorUserId: string | null = null;
         let storeName: string | null = null;
 
-        // Method 1: Look up vendor by manpower_id
-        if (warrantyData.manpowerId) {
-          const [vendorInfo]: any = await db.execute(
-            `SELECT vd.user_id, vd.store_name FROM manpower m 
-             JOIN vendor_details vd ON m.vendor_id = vd.id 
-             WHERE m.id = ?`,
-            [warrantyData.manpowerId]
+        if (storeId) {
+          const [store]: any = await db.execute(
+            'SELECT user_id, store_name FROM vendor_details WHERE id = ?',
+            [storeId]
           );
-          if (vendorInfo.length > 0) {
-            vendorUserId = vendorInfo[0].user_id;
-            storeName = vendorInfo[0].store_name;
-          }
-        }
-
-        // Method 2: Fallback - Look up vendor by store email. Never by name:
-        // several franchises share a name, and a name lookup notified the first.
-        if (!vendorUserId && warrantyData.installerContact) {
-          const [vendorByName]: any = await db.execute(
-            `SELECT user_id, store_name FROM vendor_details WHERE store_email = ? LIMIT 1`,
-            [String(warrantyData.installerContact).split('|')[0].trim()]
-          );
-          if (vendorByName.length > 0) {
-            vendorUserId = vendorByName[0].user_id;
-            storeName = vendorByName[0].store_name;
+          if (store.length > 0) {
+            vendorUserId = store[0].user_id;
+            storeName = store[0].store_name;
           }
         }
 
@@ -926,42 +907,11 @@ export class WarrantyController {
         params.push(req.user.id);
       }
       else if (req.user.role === 'vendor') {
-        // First, get vendor's vendor_details_id and store_name
-        const [vendorDetails]: any = await db.execute(
-          'SELECT id, store_name, store_email FROM vendor_details WHERE user_id = ?',
-          [req.user.id]
-        );
-
-        if (vendorDetails.length > 0) {
-          const vendorDetailsId = vendorDetails[0].id;
-          const vendorStoreName = vendorDetails[0].store_name;
-          const vendorStoreEmail = vendorDetails[0].store_email;
-
-          // Get all manpower IDs for this vendor
-          const [manpower]: any = await db.execute(
-            'SELECT id FROM manpower WHERE vendor_id = ?',
-            [vendorDetailsId]
-          );
-
-          if (manpower.length > 0) {
-            const manpowerIds = manpower.map((m: any) => m.id);
-            const inClause = manpowerIds.map(() => '?').join(',');
-            // Show warranties where:
-            // 1. manpower_id matches one of this vendor's manpower, OR
-            // 2. user_id matches (vendor submitted directly), OR
-            // 3. installer_name AND installer_contact match this store (catches QR/public submissions)
-            conditions.push(`(w.manpower_id IN (${inClause}) OR w.user_id = ? OR (w.installer_name = ? AND w.installer_contact = ?))`);
-            params.push(...manpowerIds, req.user.id, vendorStoreName, vendorStoreEmail);
-          } else {
-            // No manpower — show warranties submitted by vendor OR linked via store name + email
-            conditions.push('(w.user_id = ? OR (w.installer_name = ? AND w.installer_contact = ?))');
-            params.push(req.user.id, vendorStoreName, vendorStoreEmail);
-          }
-        } else {
-          // No vendor details, just show warranties submitted by vendor
-          conditions.push('w.user_id = ?');
-          params.push(req.user.id);
-        }
+        // The store's warranties by store id — never by name, which another
+        // store can share. See services/warrantyStore.ts.
+        const scope = await vendorWarrantyScope(req.user.id, 'w');
+        conditions.push(scope.sql);
+        params.push(...scope.params);
       }
       else if (req.user.role !== 'admin') {
         // Default deny. Only admins are meant to read unscoped; any other role
@@ -1037,20 +987,13 @@ export class WarrantyController {
             w.*, 
             m.name as manpower_name_from_db,
             vp.phone_number as vendor_phone_number,
-            COALESCE(vd.city, vd_owner.city) as vendor_city,
-            COALESCE(vd.store_name, vd_owner.store_name) as vendor_store_name,
-            COALESCE(vd.state, vd_owner.state) as vendor_state
+            vd.city as vendor_city,
+            vd.store_name as vendor_store_name,
+            vd.state as vendor_state
         FROM warranty_registrations w 
         LEFT JOIN manpower m ON w.manpower_id = m.id
-        LEFT JOIN vendor_details vd ON (
-            (w.installer_name = vd.store_name OR w.installer_name = CONCAT(vd.store_name, ' - ', vd.city)) 
-            AND w.installer_contact = vd.store_email
-        )
+        LEFT JOIN vendor_details vd ON vd.id = w.vendor_details_id
         LEFT JOIN profiles vp ON vd.user_id = vp.id
-        LEFT JOIN vendor_details vd_owner ON (
-            w.manpower_id LIKE 'owner-%' AND 
-            vd_owner.id = REPLACE(w.manpower_id, 'owner-', '')
-        )
         ${whereClause}
         ORDER BY w.created_at DESC 
         LIMIT ? OFFSET ?
@@ -1097,34 +1040,9 @@ export class WarrantyController {
         conditions.push('user_id = ?');
         params.push(req.user.id);
       } else if (req.user.role === 'vendor') {
-        const [vendorDetails]: any = await db.execute(
-          'SELECT id, store_name, store_email FROM vendor_details WHERE user_id = ?',
-          [req.user.id]
-        );
-
-        if (vendorDetails.length > 0) {
-          const vendorDetailsId = vendorDetails[0].id;
-          const vendorStoreName = vendorDetails[0].store_name;
-          const [manpower]: any = await db.execute(
-            'SELECT id FROM manpower WHERE vendor_id = ?',
-            [vendorDetailsId]
-          );
-
-          if (manpower.length > 0) {
-            const manpowerIds = manpower.map((m: any) => m.id);
-            const inClause = manpowerIds.map(() => '?').join(',');
-            const vendorStoreEmail = vendorDetails[0].store_email;
-            conditions.push(`(manpower_id IN (${inClause}) OR user_id = ? OR (installer_name = ? AND installer_contact = ?))`);
-            params.push(...manpowerIds, req.user.id, vendorStoreName, vendorStoreEmail);
-          } else {
-            const vendorStoreEmail = vendorDetails[0].store_email;
-            conditions.push('(user_id = ? OR (installer_name = ? AND installer_contact = ?))');
-            params.push(req.user.id, vendorStoreName, vendorStoreEmail);
-          }
-        } else {
-          conditions.push('user_id = ?');
-          params.push(req.user.id);
-        }
+        const scope = await vendorWarrantyScope(req.user.id);
+        conditions.push(scope.sql);
+        params.push(...scope.params);
       }
       else if (req.user.role !== 'admin') {
         // Default deny — see getWarranties.
@@ -1290,11 +1208,11 @@ export class WarrantyController {
         // ones the update itself needs: selecting eight columns left the
         // rest undefined, so a correction reported every field as having
         // been empty before it.
-        checkQuery = 'SELECT id, uid, user_id, status, product_details, manpower_id, installer_name, installer_contact, customer_name, customer_email, customer_phone, customer_address, registration_number, car_make, car_model, car_year, car_colour, purchase_date, warranty_type, product_type, rejection_reason, rejected_by FROM warranty_registrations WHERE uid = CAST(? AS CHAR) OR id = ?';
+        checkQuery = 'SELECT id, uid, user_id, status, product_details, manpower_id, installer_name, installer_contact, customer_name, customer_email, customer_phone, customer_address, registration_number, car_make, car_model, car_year, car_colour, purchase_date, warranty_type, product_type, rejection_reason, rejected_by, vendor_details_id FROM warranty_registrations WHERE uid = CAST(? AS CHAR) OR id = ?';
         checkParams = [String(uid), Number(uid)];
       } else {
         // Non-numeric identifier can only be a uid/serial string.
-        checkQuery = 'SELECT id, uid, user_id, status, product_details, manpower_id, installer_name, installer_contact, customer_name, customer_email, customer_phone, customer_address, registration_number, car_make, car_model, car_year, car_colour, purchase_date, warranty_type, product_type, rejection_reason, rejected_by FROM warranty_registrations WHERE uid = ?';
+        checkQuery = 'SELECT id, uid, user_id, status, product_details, manpower_id, installer_name, installer_contact, customer_name, customer_email, customer_phone, customer_address, registration_number, car_make, car_model, car_year, car_colour, purchase_date, warranty_type, product_type, rejection_reason, rejected_by, vendor_details_id FROM warranty_registrations WHERE uid = ?';
         checkParams = [String(uid)];
       }
 
@@ -1317,36 +1235,15 @@ export class WarrantyController {
       // Authorization check: Only allow update if user owns it, is admin, or is a linked vendor
       let isAuthorized = req.user.role === 'admin' || warranty.user_id === req.user.id;
 
-      if (!isAuthorized && req.user.role === 'vendor') {
-        // Fetch vendor details to check for link
+      // A franchise may edit its own store's warranty — by store id, never by
+      // name, which another store can share.
+      if (!isAuthorized && req.user.role === 'vendor' && warranty.vendor_details_id) {
         const [vendorDetails]: any = await db.execute(
-          'SELECT id, store_name, store_email FROM vendor_details WHERE user_id = ?',
+          'SELECT id FROM vendor_details WHERE user_id = ?',
           [req.user.id]
         );
-
-        if (vendorDetails.length > 0) {
-          const vd = vendorDetails[0];
-          
-          // 1. Check if manpower belongs to this vendor
-          if (warranty.manpower_id) {
-            const [manpower]: any = await db.execute(
-              'SELECT id FROM manpower WHERE id = ? AND vendor_id = ?',
-              [warranty.manpower_id, vd.id]
-            );
-            if (manpower.length > 0) isAuthorized = true;
-          }
-
-          // 2. Check if installer name/contact match this store (catches QR/public submissions)
-          if (!isAuthorized && 
-              (warranty.installer_name === vd.store_name || warranty.installer_name === `${vd.store_name} - ${vd.city}`) && 
-              warranty.installer_contact === vd.store_email) {
-            isAuthorized = true;
-          }
-
-          // 3. Check if the warranty installer_contact contains the vendor email (fallback for mixed formats)
-          if (!isAuthorized && warranty.installer_contact && warranty.installer_contact.includes(vd.store_email)) {
-            isAuthorized = true;
-          }
+        if (vendorDetails.length > 0 && vendorDetails[0].id === warranty.vendor_details_id) {
+          isAuthorized = true;
         }
       }
 
@@ -1450,8 +1347,24 @@ export class WarrantyController {
         return res.status(500).json({ error: 'Internal error: Warranty ID not found for update' });
       }
 
+      // Re-resolve the store from what the edit now says, keeping the current
+      // one when the form carries nothing that names a store.
+      const effectiveManpowerId = (warrantyData.manpowerId && warrantyData.manpowerId !== 'owner')
+        ? warrantyData.manpowerId
+        : (warranty.manpower_id && warranty.manpower_id !== 'owner' ? warranty.manpower_id : null);
+      const storeResolution = await resolveWarrantyStore({
+        manpowerId: effectiveManpowerId,
+        installerContact: warrantyData.installerContact,
+        submitterUserId: req.user.role === 'vendor' ? req.user.id : null,
+      });
+      if (!storeResolution.ok) {
+        return res.status(400).json({ error: storeResolution.error });
+      }
+      const storeId = storeResolution.storeId ?? warranty.vendor_details_id ?? null;
+
       await db.execute(
         `UPDATE warranty_registrations SET
+         vendor_details_id = ?,
          product_type = ?, customer_name = ?, customer_email = ?, customer_phone = ?,
          customer_address = ?, registration_number = ?, car_make = ?, car_model = ?, car_year = ?,
          car_colour = ?, purchase_date = ?, installer_name = ?,
@@ -1460,6 +1373,7 @@ export class WarrantyController {
          status = ?, rejection_reason = ${clearRejectionReason ? 'NULL' : 'rejection_reason'}
          WHERE id = ?`,
         [
+          storeId,
           warrantyData.productType,
           warrantyData.customerName,
           warrantyData.customerEmail,
@@ -1596,34 +1510,14 @@ export class WarrantyController {
         let vendorUserId: string | null = null;
         let storeName: string | null = null;
 
-        // Method 1: Look up vendor by manpower_id
-        if (warrantyData.manpowerId || warranty.manpower_id) {
-          const mId = (warrantyData.manpowerId && warrantyData.manpowerId !== 'owner') ? warrantyData.manpowerId : warranty.manpower_id;
-          if (mId && mId !== 'owner') {
-            const [vendorInfo]: any = await db.execute(
-              `SELECT vd.user_id, vd.store_name FROM manpower m 
-               JOIN vendor_details vd ON m.vendor_id = vd.id 
-               WHERE m.id = ?`,
-              [mId]
-            );
-            if (vendorInfo.length > 0) {
-              vendorUserId = vendorInfo[0].user_id;
-              storeName = vendorInfo[0].store_name;
-            }
-          }
-        }
-
-        // Method 2: Fallback - Look up vendor by store email. Never by name:
-        // several franchises share a name, and a name lookup notified the first.
-        if (!vendorUserId && (warrantyData.installerContact || warranty.installer_contact)) {
-          const iEmail = String(warrantyData.installerContact || warranty.installer_contact).split('|')[0].trim();
-          const [vendorByName]: any = await db.execute(
-            `SELECT user_id, store_name FROM vendor_details WHERE store_email = ? LIMIT 1`,
-            [iEmail]
+        if (storeId) {
+          const [store]: any = await db.execute(
+            'SELECT user_id, store_name FROM vendor_details WHERE id = ?',
+            [storeId]
           );
-          if (vendorByName.length > 0) {
-            vendorUserId = vendorByName[0].user_id;
-            storeName = vendorByName[0].store_name;
+          if (store.length > 0) {
+            vendorUserId = store[0].user_id;
+            storeName = store[0].store_name;
           }
         }
 
