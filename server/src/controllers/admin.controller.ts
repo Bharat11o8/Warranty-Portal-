@@ -403,6 +403,7 @@ export class AdminController {
                     dist.id AS distributor_id,
                     vd.id AS vendor_details_id,
                     vd.store_name,
+                    vd.store_email,
                     vd.store_code,
                     vd.address,
                     vd.city,
@@ -432,6 +433,12 @@ export class AdminController {
             }
 
             const vendorData = vendor[0];
+            // A warranty belongs to this store only when its name AND email match,
+            // the same rule as the franchise's own dashboard. Matching on name alone
+            // showed one store's warranties under every store sharing its name
+            // (Patan's under Kalol and Kadi, Sept 2026). The name may be saved
+            // plain or as "Name - City".
+            const storeLabelWithCity = `${vendorData.store_name} - ${vendorData.city}`;
 
             // Get manpower using vendor_details_id with points system
             let manpower: any[] = [];
@@ -461,8 +468,8 @@ export class AdminController {
                         SUM(CASE WHEN status = 'rejected' THEN 1 ELSE 0 END) as rejected_points
                     FROM warranty_registrations
                     WHERE (manpower_id = 'owner' OR manpower_id IS NULL OR manpower_id = '')
-                      AND (installer_name = ? OR user_id = ?)
-                `, [vendorData.store_name, vendorData.user_id]);
+                      AND (((installer_name = ? OR installer_name = ?) AND installer_contact = ?) OR user_id = ?)
+                `, [vendorData.store_name, storeLabelWithCity, vendorData.store_email, vendorData.user_id]);
 
                 if (ownerStats[0].total_applications > 0) {
                     manpower.push({
@@ -510,10 +517,10 @@ export class AdminController {
                 )
                 LEFT JOIN profiles vp ON COALESCE(vd_m.user_id, vd_i.user_id, vd_owner.user_id) = vp.id
                 WHERE (wr.manpower_id IN (SELECT id FROM manpower WHERE vendor_id = ?)
-                   OR wr.installer_name = ?
+                   OR ((wr.installer_name = ? OR wr.installer_name = ?) AND wr.installer_contact = ?)
                    OR wr.user_id = ?)
                 ORDER BY wr.created_at DESC
-            `, [vendorData.vendor_details_id, vendorData.store_name, vendorData.user_id]);
+            `, [vendorData.vendor_details_id, vendorData.store_name, storeLabelWithCity, vendorData.store_email, vendorData.user_id]);
 
             res.json({
                 success: true,

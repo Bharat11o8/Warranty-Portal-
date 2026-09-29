@@ -855,11 +855,12 @@ export class WarrantyController {
           }
         }
 
-        // Method 2: Fallback - Look up vendor by installer_name (store name)
-        if (!vendorUserId && warrantyData.installerName) {
+        // Method 2: Fallback - Look up vendor by store email. Never by name:
+        // several franchises share a name, and a name lookup notified the first.
+        if (!vendorUserId && warrantyData.installerContact) {
           const [vendorByName]: any = await db.execute(
-            `SELECT user_id, store_name FROM vendor_details WHERE store_name = ?`,
-            [warrantyData.installerName]
+            `SELECT user_id, store_name FROM vendor_details WHERE store_email = ? LIMIT 1`,
+            [String(warrantyData.installerContact).split('|')[0].trim()]
           );
           if (vendorByName.length > 0) {
             vendorUserId = vendorByName[0].user_id;
@@ -1612,12 +1613,13 @@ export class WarrantyController {
           }
         }
 
-        // Method 2: Fallback - Look up vendor by installer_name
-        if (!vendorUserId && (warrantyData.installerName || warranty.installer_name)) {
-          const iName = warrantyData.installerName || warranty.installer_name;
+        // Method 2: Fallback - Look up vendor by store email. Never by name:
+        // several franchises share a name, and a name lookup notified the first.
+        if (!vendorUserId && (warrantyData.installerContact || warranty.installer_contact)) {
+          const iEmail = String(warrantyData.installerContact || warranty.installer_contact).split('|')[0].trim();
           const [vendorByName]: any = await db.execute(
-            `SELECT user_id, store_name FROM vendor_details WHERE store_name = ?`,
-            [iName]
+            `SELECT user_id, store_name FROM vendor_details WHERE store_email = ? LIMIT 1`,
+            [iEmail]
           );
           if (vendorByName.length > 0) {
             vendorUserId = vendorByName[0].user_id;

@@ -67,7 +67,9 @@ const InstallerDetails = ({ formData, updateFormData, onNext, isPublic, isEditin
   // Fetch manpower when store changes
   useEffect(() => {
     const fetchManpower = async () => {
-      const selectedStore = stores.find(s => s.store_name === formData.storeName);
+      // By email, never by name: franchises share names, and a name lookup
+      // took the first match and swapped in that store's email.
+      const selectedStore = stores.find(s => s.store_email === formData.storeEmail);
       if (selectedStore) {
         // Auto-fill all store details
         updateFormData({
@@ -134,12 +136,12 @@ const InstallerDetails = ({ formData, updateFormData, onNext, isPublic, isEditin
       return;
     }
 
-    if (formData.storeName) {
+    if (formData.storeEmail) {
       // If we are initializing and already have a manpowerId, don't let fetchManpower 
       // overwrite other details if it doesn't have to, but we still need the list.
       fetchManpower();
     }
-  }, [formData.storeName, stores, isPublic, installers]);
+  }, [formData.storeEmail, stores, isPublic, installers]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

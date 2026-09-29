@@ -374,16 +374,12 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
     if (isPublic) return;
 
     const fetchManpower = async () => {
-      const selectedStore = stores.find(s => s.store_name === formData.storeName);
+      // By email, never by name: franchises share names (three stores are
+      // "UMIYA CAR ACCESSORIES & SPA"), and a name lookup took the first match,
+      // overwrote the chosen store's email and filed the warranty under the
+      // wrong store. The dropdown already sets name, email and resets manpower.
+      const selectedStore = stores.find(s => s.store_email === formData.storeEmail);
       if (selectedStore) {
-        // Auto-fill email
-        setFormData(prev => {
-          if (prev.storeEmail !== selectedStore.store_email) {
-            return { ...prev, storeEmail: selectedStore.store_email, manpowerId: "" };
-          }
-          return prev;
-        });
-
         try {
           const manpowerResponse = await api.get(`/public/stores/${selectedStore.vendor_details_id}/manpower?active=true`);
           if (manpowerResponse.data.success) {
@@ -419,10 +415,10 @@ const SeatCoverForm = ({ initialData, warrantyId, onSuccess, isEditing, isPublic
       }
     };
 
-    if (formData.storeName) {
+    if (formData.storeEmail) {
       fetchManpower();
     }
-  }, [formData.storeName, stores, isPublic]);
+  }, [formData.storeEmail, stores, isPublic]);
 
   // Auto-select warranty type based on product name
   // Auto-select warranty type based on product name
