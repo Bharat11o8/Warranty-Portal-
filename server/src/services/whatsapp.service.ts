@@ -626,13 +626,11 @@ export class WhatsAppService {
                 .replace(/\b[a-z]/g, ch => ch.toUpperCase());
 
         /*
-         * af_asm_lead_alert (September 2026) — the same shape as the store and
-         * support alerts, overridable with ASM_LEAD_TEMPLATE:
+         * The seven-field alert, the same shape as the store and support ones:
          *   {{1}} ASM name   {{2}} Customer phone   {{3}} Location
          *   {{4}} Product    {{5}} Vehicle          {{6}} Date of enquiry
          *   {{7}} Lead number — this ASM's nth lead this month
-         * No customer name: the workflow rarely has one. Until Meta approves
-         * it the send fails and the older template below goes instead.
+         * No customer name: the workflow rarely has one.
          */
         if (leadNumber) {
             const newShape = [
@@ -645,14 +643,15 @@ export class WhatsAppService {
                 String(leadNumber),
             ];
             /*
-             * The seven-field version may have been approved under the new
-             * name or as an edit of af_asm_enquiry_v2 — the latter happened in
-             * September 2026, and every old six-field send then failed with
-             * "expected number of values are 7". Both names are tried with the
-             * new shape before falling back to the old one.
+             * It was approved as an edit of af_asm_enquiry_v2 in September
+             * 2026 (every old six-field send then failed with "expected number
+             * of values are 7"). A separate af_asm_lead_alert was planned but
+             * never created, and trying it first logged a failed alert next to
+             * every real one — the lead screen then showed the ASM alert as
+             * failed. It is tried only if ASM_LEAD_TEMPLATE names one.
              */
             const names = [...new Set([
-                process.env.ASM_LEAD_TEMPLATE || 'af_asm_lead_alert',
+                ...(process.env.ASM_LEAD_TEMPLATE ? [process.env.ASM_LEAD_TEMPLATE] : []),
                 process.env.ASM_ENQUIRY_TEMPLATE || 'af_asm_enquiry',
             ])];
             for (const name of names) {
