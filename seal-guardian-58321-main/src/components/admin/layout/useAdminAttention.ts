@@ -5,7 +5,7 @@ import { useNotifications } from "@/contexts/NotificationContext";
 
 /**
  * Work waiting on admins, for the sidebar badges: grievances still
- * `submitted`, POSM requests `open`/`pending`, franchises awaiting approval,
+ * `submitted`, POSM requests still `open`, franchises awaiting approval,
  * and manpower awaiting approval or removal review. A module the admin can't read is
  * simply absent from the response.
  *
