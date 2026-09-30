@@ -5,9 +5,10 @@ import { phoneKey, normaliseProduct } from './asmRouting.service.js';
 import { getLocatorSettings, repliesTo } from './storeLocatorQuery.js';
 import { LOCATOR_FLOW_ID, startStoreEnquiry } from './storeLocatorChat.js';
 import { readCarAnswer } from './carModels.js';
+import { localPhone } from './storeLocator.js';
 import { hasAutoReplyContent } from './autoReply.js';
 import {
-    nextStep, menuStep, isRestart, isCancel, isIdle, OPEN_STAGES,
+    nextStep, menuStep, isRestart, isCancel, isIdle, OPEN_STAGES, type StartWord,
     type ChatStage, type MenuStep,
 } from './locatorConversation.js';
 import {
@@ -77,8 +78,11 @@ async function saveSession(leadId: string, session: Record<string, unknown>, ext
 export async function startConversation(input: {
     phone: string; name?: string | null; product?: string | null; car?: string | null; rawPayload?: unknown;
     announce?: boolean;
+    /** An Instagram lead-form message starts the chat too, and keeps its source. */
+    source?: 'whatsapp' | 'instagram';
 }): Promise<{ result: 'asked' | 'held'; leadId: string }> {
-    const phone = String(input.phone).trim();
+    // Ten digits, as the team reads it — the alerts quote this number.
+    const phone = localPhone(input.phone) || String(input.phone).trim();
     const settings = await getLocatorSettings();
     const canReply = repliesTo(settings, phone);
     const productText = given(input.product);
@@ -95,9 +99,10 @@ export async function startConversation(input: {
     await db.execute(
         `INSERT INTO leads
            (id, source, product, car_model, customer_name, customer_phone, phone_key, flow_id, raw_payload, status, failure_reason)
-         VALUES (?, 'whatsapp', ?, ?, ?, ?, ?, ?, ?, 'unmatched', ?)`,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'unmatched', ?)`,
         [
             leadId,
+            input.source ?? 'whatsapp',
             normaliseProduct(productText),
             givenCar?.ok ? givenCar.car : (carText ? carText.slice(0, 80) : null),
             given(input.name)?.slice(0, 255) ?? null,
@@ -185,14 +190,42 @@ async function chatStartedWithin(phone: string, seconds: number, openOnly: boole
  * Skipped only when the hand-off got there first a moment ago, so the menu is
  * never sent twice; a customer sending "Heyy" again later starts over.
  */
-export function startFromMessage(phone: string, name: string | null): Promise<void> {
+export function startFromMessage(phone: string, name: string | null, start: StartWord = { kind: 'heyy' }): Promise<boolean> {
     return inOrder(phoneKey(phone), async () => {
         if (await chatStartedWithin(phone, 20, true)) {
             console.log(`[Chat] ${phoneKey(phone)} "Heyy" — chat already started by the hand-off`);
-            return;
+            return true;
         }
-        await startConversation({ phone, name, rawPayload: { source: 'heyy' } });
+        // Only "Heyy" starts the chat for our own people; their "hi" is to someone.
+        if (start.kind === 'word' && await isTeamNumber(phone)) {
+            console.log(`[Chat] ${phoneKey(phone)} start word from a team number — no chat`);
+            return false;
+        }
+        const product = start.kind === 'word' ? start.product : null;
+        await startConversation({ phone, name, product, rawPayload: { source: start.kind === 'heyy' ? 'heyy' : 'start-word' } });
+        return true;
     });
+}
+
+/*
+ * A franchise, admin, distributor, ASM or manpower number. Numbers are stored
+ * in every format, so the last ten digits are compared. Asked only when a
+ * start word other than "Heyy" arrives, so the scan is rare.
+ */
+async function isTeamNumber(phone: string): Promise<boolean> {
+    const key = phoneKey(phone);
+    if (key.length !== 10) return false;
+    const last10 = (col: string) => `RIGHT(REGEXP_REPLACE(${col}, '[^0-9]', ''), 10) = ?`;
+    const [rows]: any = await db.execute(
+        `SELECT 1 FROM profiles p JOIN user_roles r ON r.user_id = p.id
+          WHERE r.role <> 'customer' AND ${last10('p.phone_number')}
+         UNION ALL SELECT 1 FROM distributors WHERE ${last10('phone_number')}
+         UNION ALL SELECT 1 FROM asms WHERE ${last10('phone_number')}
+         UNION ALL SELECT 1 FROM manpower WHERE ${last10('phone_number')}
+         LIMIT 1`,
+        [key, key, key, key]
+    );
+    return rows.length > 0;
 }
 
 /*
@@ -219,6 +252,7 @@ interface OpenChat {
     id: string;
     customer_phone: string;
     customer_name: string | null;
+    source: string | null;
     product: string | null;
     car_model: string | null;
     raw: any;
@@ -227,7 +261,7 @@ interface OpenChat {
 
 async function openChat(senderPhone: string): Promise<OpenChat | null> {
     const [rows]: any = await db.execute(
-        `SELECT id, customer_phone, customer_name, product, car_model, raw_payload
+        `SELECT id, customer_phone, customer_name, source, product, car_model, raw_payload
            FROM leads
           WHERE flow_id = ? AND phone_key = ?
             AND JSON_UNQUOTE(JSON_EXTRACT(raw_payload, '$.locator.session.stage')) IN (${OPEN_STAGES.map(() => '?').join(', ')})
@@ -282,6 +316,12 @@ export async function handleConversationMessage(senderPhone: string, message: an
             }
             const text = String(message.message ?? message.text ?? '');
 
+            // The "Heyy" that the workflow's hand-off beat to us by a moment is
+            // the same "Heyy", not a restart — restarting sent the menu twice.
+            if (isRestart(text) && current.session.stage === 'product'
+                && Date.now() - Date.parse(current.session.at ?? '') < 20_000) {
+                return true;
+            }
             if (isRestart(text)) {
                 // The workflow answers "Heyy" and hands over again; ours steps aside.
                 await endOpenChats(senderPhone, 'restarted');
@@ -330,7 +370,7 @@ export async function handleConversationMessage(senderPhone: string, message: an
                     name: current.customer_name,
                     product: current.product,
                     car: current.car_model,
-                    source: 'whatsapp',
+                    source: current.source === 'instagram' ? 'instagram' : 'whatsapp',
                     rawPayload: payload,
                     leadId: current.id,
                     chat: {

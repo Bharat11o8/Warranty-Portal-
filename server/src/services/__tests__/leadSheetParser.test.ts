@@ -94,7 +94,7 @@ describe('parseSheetRow — each layout reads the same lead', () => {
     test('the model year is not mistaken for the car', () => {
         const lead = parseSheetRow(ROW_SHORT, HEADER_SHORT, 900);
         assert.equal(lead.car, 'Tata tiago');
-        assert.equal(lead.unmapped['can_you_share_the_car_model_year?'], '2024 oct');
+        assert.equal(lead.carYear, '2024 oct');
     });
 
     test('campaign metadata is not reported as an unmapped question', () => {
@@ -225,5 +225,41 @@ describe('row classifiers', () => {
     test('a test submission is recognised from any column', () => {
         assert.equal(isTestRow(['ok', '<test lead: dummy data for x>']), true);
         assert.equal(isTestRow(ROW_LONG), false);
+    });
+});
+
+describe('the live sheet Meta writes into (tab AD1, from 23 Sept 2026)', () => {
+    const HEADER = ['id', 'created_time', 'ad_id', 'ad_name', 'adset_id', 'adset_name', 'campaign_id', 'campaign_name',
+        'form_id', 'form_name', 'is_organic', 'platform', 'for_which_car_do_you_need_the_seat_cover?',
+        'can_you_share_the_car_model_year?', 'full_name', 'phone', 'city', 'state', 'lead_status'];
+    const ROW = ['1098765432109876', '2026-09-30T04:20:52-05:00', '1200', 'Ad Set 1', '1201', 'New Leads ad set', '1202',
+        'Consumer Leads campaign', '1203', 'consumer Lead form', 'false', 'fb', 'SUV', '2022', 'Test Person',
+        'p:+919876543210', 'unnao', 'uttar pradesh', 'CREATED'];
+
+    test('a bare-number id row is read with the id-first header', () => {
+        const { leads, skipped } = readLeadSheet([HEADER, ROW]);
+        assert.equal(skipped.unrecognised, 0);
+        assert.equal(leads.length, 1);
+        const l = leads[0];
+        assert.equal(l.leadId, '1098765432109876');
+        assert.equal(l.createdAt, '2026-09-30T04:20:52-05:00');
+        assert.equal(l.phone, '+919876543210');
+        assert.equal(l.car, 'SUV');
+        assert.equal(l.carYear, '2022');
+        assert.equal(l.city, 'unnao');
+        assert.equal(l.state, 'uttar pradesh');
+        assert.equal(l.product, 'Seat Covers');
+        assert.deepEqual(l.unmapped, {});
+    });
+});
+
+describe('the new pincode form', () => {
+    test('a pincode question is read whatever Meta calls it', () => {
+        for (const label of ['pincode', 'your_pincode', 'please_share_your_area_pincode?', 'pin_code', 'post_code', 'zip_code']) {
+            const header = ['id', 'created_time', 'full_name', 'phone', label];
+            const row = ['1098765432109876', '2026-09-30T04:20:52-05:00', 'Test Person', 'p:+919876543210', '141 001'];
+            const { leads } = readLeadSheet([header, row]);
+            assert.equal(leads[0]?.pincode, '141 001', label);
+        }
     });
 });

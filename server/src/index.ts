@@ -34,6 +34,7 @@ import asmRoutes from './routes/asm.routes.js';
 import { AssignmentSchedulerService } from './services/assignment-scheduler.service.js';
 import { WarrantyReminderScheduler } from './services/warrantyReminder.service.js';
 import { startAnalyticsRepairSchedule } from './services/analyticsEvents.service.js';
+import { startLeadSheetSchedule } from './services/leadSheetImport.service.js';
 import { initSocket } from './socket.js';
 import { getISTTimestamp } from './utils/dateUtils.js';
 import pool, { getDbRetryStats, pingDatabase } from './config/database.js';
@@ -253,6 +254,9 @@ if (process.env.DISABLE_SCHEDULERS === '1') {
   // registered; this closes any gap left by a failed write or a crash mid-request,
   // so the trend chart cannot silently drift again.
   startAnalyticsRepairSchedule();
+
+  // The Instagram lead-ad sheet into Lead Management (off without LEAD_SHEET_URL).
+  startLeadSheetSchedule();
 }
 
 // Get current directory for ES modules

@@ -153,18 +153,70 @@ function readMenuText(stage: 'product' | 'product-other', text: string): MenuKey
 }
 
 /**
- * The word that starts the chat — the Interakt workflow's own trigger, "Heyy"
- * (any number of y's). Our server starts on it directly, the moment the
- * message reaches us, rather than waiting ~8 s for the workflow to hand over.
- * Deliberately not "hi" or "hello": franchises message this number too, and a
- * "hi" to someone else's message must not get a product menu.
+ * "Heyy" (any number of y's) — the Interakt workflow's own trigger. It starts
+ * the chat for anyone, the team's own phones included, and mid-chat it is the
+ * one word that starts over.
  */
-export function isStartWord(text: string): boolean {
+function isHeyy(text: string): boolean {
     return /^\s*hey+\s*[!.]*\s*$/i.test(String(text ?? ''));
 }
 
-/** Mid-chat, the start word starts over. A "hi" is just an answer. */
-export const isRestart = isStartWord;
+/** Mid-chat, only "Heyy" starts over. A "hi" or "car" is just an answer. */
+export const isRestart = isHeyy;
+
+/*
+ * The other words that start the chat, compared with repeated letters
+ * squashed, so "hiii", "helloo" and "heyyy" count. The whole message must be
+ * the word, give or take punctuation, emoji and a "sir"/"ji" after it:
+ * customers' own auto-replies ("Hello! Welcome to KP Trading…") must not
+ * start a menu, or their bot and ours answer each other.
+ */
+const GREETINGS = [
+    'hi', 'hey', 'hello', 'helo', 'hlo', 'hlw', 'hy', 'hai',
+    'namaste', 'namaskar', 'नमस्ते', 'नमस्कार',
+    'price', 'enquiry', 'inquiry', 'info', 'details', 'car',
+    'store', 'store near me', 'dealer',
+];
+
+/* Naming a product skips the menu: the chat goes straight to the car. */
+const PRODUCT_WORDS: [Product, string[]][] = [
+    ['Seat Covers', ['seat', 'seats', 'seat cover', 'seat covers', 'car seat cover', 'car seat covers']],
+    ['Mats', ['mat', 'mats', 'car mat', 'car mats', 'floor mat', 'floor mats']],
+    ['Accessories', ['accessories', 'car accessories']],
+];
+
+/* Said after the word, and dropped before comparing. */
+const COURTESY = /(\s+(sir|ji|जी|bhai|team|autoform|please|pls|plz))+$/u;
+
+const squash = (s: string) => s.replace(/(.)\1+/gu, '$1');
+const tidy = (text: string) => squash(
+    String(text ?? '').toLowerCase()
+        .replace(/[^\p{L}\p{M}\s]/gu, ' ')
+        .replace(/\s+/g, ' ').trim(),
+).replace(COURTESY, '');
+const GREETING_SET = new Set(GREETINGS.map(squash));
+const PRODUCT_MAP = new Map(PRODUCT_WORDS.flatMap(([p, words]) => words.map(w => [squash(w), p] as const)));
+
+export type StartWord =
+    /* "Heyy": starts the chat for any number. */
+    | { kind: 'heyy' }
+    /* Any other start word: for customers only — see startWord. */
+    | { kind: 'word'; product: Product | null };
+
+/**
+ * Whether a message starts the chat, and with which product if it names one.
+ * Only "Heyy" starts it for the team's own numbers: franchises message this
+ * number too, and their "hi" must not get a product menu. The caller checks
+ * the number for the other words.
+ */
+export function startWord(text: string): StartWord | null {
+    if (isHeyy(text)) return { kind: 'heyy' };
+    const t = tidy(text);
+    if (!t) return null;
+    if (GREETING_SET.has(t)) return { kind: 'word', product: null };
+    const product = PRODUCT_MAP.get(t);
+    return product ? { kind: 'word', product } : null;
+}
 
 /** "stop", "cancel": the customer wants out. */
 export function isCancel(text: string): boolean {

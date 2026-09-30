@@ -7,7 +7,7 @@ import { ingestFlowAuditResponse, recordAuditSent, recordAuditDelivery } from '.
 import { handleInstagramLead } from '../services/instagramLead.service.js';
 import { handleLocatorReply, handlePincodeMessage } from '../services/storeLocatorChat.js';
 import { handleConversationMessage, startFromMessage } from '../services/locatorConversation.service.js';
-import { isStartWord } from '../services/locatorConversation.js';
+import { startWord } from '../services/locatorConversation.js';
 import { replyFromWebhook } from '../services/storeLocatorMessages.js';
 
 export class WebhookController {
@@ -177,6 +177,26 @@ export class WebhookController {
                  * and each only claims a message that is unmistakably its own.
                  */
                 /*
+                 * An Instagram lead form before anything else: an open chat
+                 * would take it for an answer, and the locator for a pincode
+                 * (the form's phone number holds six digits in a row).
+                 */
+                if (customer?.phone_number && message?.message_content_type === 'Text') {
+                    try {
+                        const routed = await handleInstagramLead(body, senderPhone, payload);
+                        if (routed) {
+                            console.log(`[Webhook] Instagram lead from ${senderPhone} routed`);
+                            return;
+                        }
+                    } catch (err: any) {
+                        // Never let this break the webhook — Interakt disables
+                        // one after five failures in ten minutes.
+                        console.error('[Webhook] Instagram lead handling failed:', err?.message);
+                        return;
+                    }
+                }
+
+                /*
                  * Our own chat first: when it is waiting for this customer's
                  * car or pincode, the message is its answer. It claims nothing
                  * else — taps, a fresh "Heyy", or no open chat fall through.
@@ -184,12 +204,12 @@ export class WebhookController {
                 if (customer?.phone_number) {
                     try {
                         if (await handleConversationMessage(senderPhone, message)) return;
-                        // "Heyy" starts the chat here, the moment it arrives —
-                        // not ~8 s later when the workflow hands over.
-                        if (message?.message_content_type === 'Text' && isStartWord(body)) {
-                            await startFromMessage(senderPhone, customer?.traits?.name ?? null);
-                            return;
-                        }
+                        // "Heyy", "hi", "seat cover"… start the chat here, the
+                        // moment they arrive — not ~8 s later when the workflow
+                        // hands over.
+                        const start = message?.message_content_type === 'Text' ? startWord(body) : null;
+                        // A team number's "hi" is left for the handlers below.
+                        if (start && await startFromMessage(senderPhone, customer?.traits?.name ?? null, start)) return;
                     } catch (err: any) {
                         console.error('[Webhook] Chat handling failed:', err?.message);
                         return;
@@ -212,19 +232,6 @@ export class WebhookController {
                     }
                 }
 
-                if (customer?.phone_number) {
-                    try {
-                        const routed = await handleInstagramLead(body, senderPhone, payload);
-                        if (routed) {
-                            console.log(`[Webhook] Instagram lead from ${senderPhone} routed`);
-                            return;
-                        }
-                    } catch (err: any) {
-                        // Never let this break the webhook — Interakt disables
-                        // one after five failures in ten minutes.
-                        console.error('[Webhook] Instagram lead handling failed:', err?.message);
-                    }
-                }
                 return;
             }
 

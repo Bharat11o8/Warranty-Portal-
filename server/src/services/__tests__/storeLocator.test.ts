@@ -11,6 +11,7 @@ import {
     isPincode,
     clampMinWarranties,
     clampRadiusKm,
+    localPhone,
     RADIUS_KM,
     MAX_MIN_WARRANTIES,
     type LocatableStore,
@@ -342,5 +343,18 @@ describe('clampRadiusKm — the radius an admin can set', () => {
         assert.equal(clampRadiusKm(null), 15);
         assert.equal(clampRadiusKm(''), 15);
         assert.equal(clampRadiusKm('abc'), 15);
+    });
+});
+
+describe('localPhone — the customer number the team reads', () => {
+    test('the WhatsApp country code is dropped', () => {
+        assert.equal(localPhone('918517813281'), '8517813281');
+        assert.equal(localPhone('+91 85178 13281'), '8517813281');
+        assert.equal(localPhone('08517813281'), '8517813281');
+        assert.equal(localPhone('8517813281'), '8517813281');
+    });
+    test('a number from elsewhere is left whole', () => {
+        assert.equal(localPhone('14155552671'), '14155552671');
+        assert.equal(localPhone(''), '');
     });
 });

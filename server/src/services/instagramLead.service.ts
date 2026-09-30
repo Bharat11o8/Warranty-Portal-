@@ -1,5 +1,5 @@
-import { routeEnquiry } from './asmRouting.service.js';
 import { parseLeadForm } from './instagramLeadParser.js';
+import { startConversation } from './locatorConversation.service.js';
 import { startStoreEnquiry } from './storeLocatorChat.js';
 import { extractPincode } from './storeLocator.js';
 
@@ -26,8 +26,10 @@ export type { ParsedLead } from './instagramLeadParser.js';
  *
  *   a pincode (or a city answer that is one)  -> the store locator
  *   a pincode question, but no pincode in it  -> the locator asks for one
- *   an older form asking only for the city    -> the ASM by city, as before
+ *   a form asking only for the city           -> our chat asks car / pincode
  */
+const handled: string[] = [];
+
 export async function handleInstagramLead(
     text: string,
     senderPhone: string,
@@ -35,6 +37,14 @@ export async function handleInstagramLead(
 ): Promise<boolean> {
     const lead = parseLeadForm(text);
     if (!lead) return false;
+
+    // Interakt can deliver one message twice; the second must not ask again.
+    const messageId = rawPayload?.data?.message?.id;
+    if (messageId) {
+        if (handled.includes(messageId)) return true;
+        handled.push(messageId);
+        if (handled.length > 200) handled.shift();
+    }
 
     if (Object.keys(lead.unmapped).length) {
         // Not an error — a new ad asking something we have no column for. Worth
@@ -60,15 +70,21 @@ export async function handleInstagramLead(
         return true;
     }
 
-    // An older form that asks only for the city: the ASM for that place.
-    await routeEnquiry({
-        area: lead.city,
+    /*
+     * A form that asks only for the city — every live campaign as of 30 Sept
+     * 2026. The customer is in the chat right now, so our chat takes over at
+     * the first thing missing: the car if the form's answer is not a model
+     * ("SUV", "yes"), then the pincode, then the store list, as for "Heyy".
+     * It used to go to the city's ASM, whose alert template Interakt has not
+     * approved, and the customer heard nothing back.
+     */
+    await startConversation({
         phone: senderPhone,
         name: lead.name,
         product: lead.product,
         car: lead.car,
         source: 'instagram',
-        rawPayload: payload,
+        rawPayload: { ...(typeof payload === 'object' ? payload : { text }), instagram: { city: lead.city } },
     });
     return true;
 }

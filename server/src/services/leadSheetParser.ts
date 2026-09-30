@@ -41,6 +41,8 @@ export interface SheetLead {
     /** The state, if a form ever asks for it. Superseded by the pincode. */
     state: string | null;
     car: string | null;
+    /** "Can you share the car model year?" — often the model too ("Etios cross 2015"). */
+    carYear: string | null;
     product: string | null;
     platform: string | null;
     /** Which row of the file this came from, for reporting a bad import. */
@@ -62,10 +64,11 @@ const COLUMN_PATTERNS: Array<[keyof Omit<SheetLead, 'unmapped' | 'rowNumber' | '
     ['name', /full_?name|^name$/i],
     ['phone', /phone|mobile|contact_?number/i],
     // "pincode", "pin_code", "your_pincode", "postal_code", "zip_code".
-    ['pincode', /pin_?code|^pin$|postal_?code|zip_?code/i],
+    ['pincode', /pin_?code|^pin$|postal_?code|post_?code|zip_?code/i],
     // Checked before city: "state" must never be claimed by the city pattern.
     ['state', /^state$|which_?state|your_?state/i],
     ['city', /^city$|town|which_?city/i],
+    ['carYear', /year/i],
     // "car model year" is a year, not a car — excluded so it cannot win here.
     ['car', /(?!.*year)(which_?car|car_?model|vehicle|car)/i],
     ['platform', /^platform$/i],
@@ -100,7 +103,9 @@ export function isTestRow(cells: string[]): boolean {
  * Returns null for a row that is neither — a header, a blank, or a stray line.
  * Layouts are told apart by their first cell and by which columns hold data:
  *
- *   "l:<digits>" first        -> the id-first layout
+ *   "l:<digits>" first        -> the id-first layout (the old exports)
+ *   a bare long number first  -> the id-first layout (the live sheet Meta
+ *                                writes into, from 23 Sept 2026)
  *   a date first, blank at 5  -> the long layout, city at 6
  *   a date first, value at 5  -> the short layout, city at 5
  */
@@ -110,7 +115,7 @@ export function pickHeader(cells: string[], headers: string[][]): string[] | nul
     const idFirst = headers.find(h => /^id$/i.test(String(h[0] ?? '').trim()));
     const dateFirst = headers.filter(h => /created_?time/i.test(String(h[0] ?? '').trim()));
 
-    if (/^l:/i.test(first)) return idFirst ?? null;
+    if (/^l:/i.test(first) || /^\d{10,}$/.test(first)) return idFirst ?? null;
     if (!/^\d{4}-\d{2}-\d{2}T/.test(first)) return null;
     if (dateFirst.length === 0) return null;
     if (dateFirst.length === 1) return dateFirst[0];
@@ -144,7 +149,7 @@ export function parseSheetRow(
 ): SheetLead {
     const lead: SheetLead = {
         leadId: null, createdAt: null, name: null, phone: null, pincode: null, city: null,
-        state: null, car: null, product: null, platform: null,
+        state: null, car: null, carYear: null, product: null, platform: null,
         rowNumber, unmapped: {},
     };
 

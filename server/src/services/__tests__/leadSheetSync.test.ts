@@ -1,6 +1,6 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { planSync, summarise, hasUsablePhone, leadDate, sheetArea, type ExistingLead } from '../leadSheetSync.js';
+import { planSync, summarise, hasUsablePhone, leadDate, sheetArea, planSheetImport, sheetCar, type ExistingLead } from '../leadSheetSync.js';
 import type { SheetLead } from '../leadSheetParser.js';
 
 /**
@@ -20,6 +20,7 @@ const lead = (over: Partial<SheetLead> = {}): SheetLead => ({
     city: 'Jaipur',
     state: null,
     car: 'Thar',
+    carYear: null,
     product: 'Seat Covers',
     platform: 'ig',
     rowNumber: 2,
@@ -233,5 +234,46 @@ describe('summarise', () => {
         assert.deepEqual(summarise(planSync([], [], CUTOFF)), {
             total: 0, routed: 0, importedSilently: 0, duplicates: 0, unusable: 0,
         });
+    });
+});
+
+describe('planSheetImport — the live sheet into Lead Management', () => {
+    const none = () => ({ metaIds: new Set<string>(), instagramAt: new Map<string, Date[]>() });
+    const at = (iso: string) => new Date(iso);
+
+    test('a new row is filed; the same Meta lead id next pass is not', () => {
+        const row = lead({ leadId: '1234567890123456', createdAt: '2026-09-29T10:00:00-05:00' });
+        assert.equal(planSheetImport([row], none(), null)[0].action, 'insert');
+        const known = { ...none(), metaIds: new Set(['1234567890123456']) };
+        assert.equal(planSheetImport([row], known, null)[0].action, 'already-imported');
+    });
+
+    test('a customer who also messaged us on WhatsApp is not filed twice', () => {
+        const row = lead({ leadId: '111', createdAt: '2026-09-29T10:00:00-05:00' });
+        const known = { ...none(), instagramAt: new Map([['9876543210', [at('2026-09-29T16:00:00Z')]]]) };
+        assert.equal(planSheetImport([row], known, null)[0].action, 'same-enquiry');
+        // A month later it is a new enquiry.
+        const later = lead({ leadId: '222', createdAt: '2026-10-29T10:00:00-05:00' });
+        assert.equal(planSheetImport([later], known, null)[0].action, 'insert');
+    });
+
+    test('two rows for one person days apart: the first is kept', () => {
+        const a = lead({ leadId: 'a', createdAt: '2026-09-28T10:00:00-05:00' });
+        const b = lead({ leadId: 'b', createdAt: '2026-09-29T10:00:00-05:00' });
+        const plan = planSheetImport([b, a], none(), null);
+        assert.deepEqual(plan.map(d => [d.lead.leadId, d.action]), [['a', 'insert'], ['b', 'same-enquiry']]);
+    });
+
+    test('no callable number, or before the start date, is not filed', () => {
+        assert.equal(planSheetImport([lead({ phone: '12345' })], none(), null)[0].action, 'unusable');
+        const old = lead({ createdAt: '2026-09-01T10:00:00-05:00' });
+        assert.equal(planSheetImport([old], none(), at('2026-09-23T00:00:00Z'))[0].action, 'too-old');
+    });
+
+    test('the car reads as the team would say it', () => {
+        assert.equal(sheetCar(lead({ car: 'SUV', carYear: '2022' })), 'SUV (2022)');
+        assert.equal(sheetCar(lead({ car: 'Toyota', carYear: 'Etios cross 2015' })), 'Toyota Etios cross 2015');
+        assert.equal(sheetCar(lead({ car: 'yes', carYear: 'kiger AMT' })), 'kiger AMT');
+        assert.equal(sheetCar(lead({ car: null, carYear: null })), null);
     });
 });

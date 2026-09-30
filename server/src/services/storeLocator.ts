@@ -46,6 +46,19 @@ export interface LocatorRules {
 }
 
 /**
+ * A customer's number as the team reads it: "918517813281" → "8517813281".
+ * WhatsApp gives it with the country code, and that went straight into the
+ * store, ASM and support alerts; sending still works, because WhatsAppService
+ * adds +91 to a ten-digit number. A number from elsewhere is left whole.
+ */
+export function localPhone(raw: unknown): string {
+    const digits = String(raw ?? '').replace(/\D/g, '');
+    if (digits.length === 12 && digits.startsWith('91')) return digits.slice(2);
+    if (digits.length === 11 && digits.startsWith('0')) return digits.slice(1);
+    return digits;
+}
+
+/**
  * How far is near, by default. An admin can change it from the Store Locator
  * settings, within MIN–MAX_RADIUS_KM: a customer offered a store 40 km away
  * has not been helped, and the ASM fallback exists for exactly that.

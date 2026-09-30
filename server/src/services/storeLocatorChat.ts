@@ -3,7 +3,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { WhatsAppService } from './whatsapp.service.js';
 import { findState } from './indianStates.js';
 import { phoneKey, normaliseProduct, asmLeadNumber } from './asmRouting.service.js';
-import { isPincode, extractPincode } from './storeLocator.js';
+import { isPincode, extractPincode, localPhone } from './storeLocator.js';
 import { findStoresForPincode, getLocatorSettings, repliesTo, type LocatorResult } from './storeLocatorQuery.js';
 import {
     storeList,
@@ -110,7 +110,8 @@ const text = (body: string) => ({ message: body });
  * error here would only be lost in the log.
  */
 export async function startStoreEnquiry(input: StoreEnquiry): Promise<EnquiryOutcome> {
-    const phone = String(input.phone || '').trim();
+    // Ten digits, as the team reads it — the alerts quote this number.
+    const phone = localPhone(input.phone) || String(input.phone || '').trim();
     const typed = String(input.pincode || '').trim();
     const pincode = extractPincode(typed) ?? '';
     const source = input.source ?? 'whatsapp';

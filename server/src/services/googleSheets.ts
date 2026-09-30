@@ -135,7 +135,9 @@ export async function fetchSheetRows(
     const id = spreadsheetId(urlOrId);
     if (!id) throw new Error('That does not look like a Google Sheet link or id');
 
-    const range = encodeURIComponent(tabName);
+    // Quoted: a tab named like a cell ("AD1", Meta's own default) is otherwise
+    // read as that cell, and Google answers with one empty value or a 400.
+    const range = encodeURIComponent(`'${String(tabName).replace(/'/g, "''")}'`);
     const res = await axios.get(
         `${SHEETS_API}/${id}/values/${range}`,
         {

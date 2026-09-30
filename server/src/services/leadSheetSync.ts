@@ -189,3 +189,83 @@ export function summarise(decisions: SyncDecision[]): SyncSummary {
         unusable: decisions.filter(d => d.action === 'unusable').length,
     };
 }
+
+/* ─── The live import ────────────────────────────────────────────────────── */
+
+/*
+ * From 23 Sept 2026 Meta writes every lead-ad submission straight into the
+ * "Autoform New Lead Sheet" (tab AD1), about ninety a day. The import files
+ * each one into Lead Management once, and sends nobody anything: these
+ * customers filled a form, they never messaged us, so there is no chat to
+ * answer in, and the team calls them from the lead screen.
+ *
+ * A customer who filled the form AND messaged us on WhatsApp is already a lead
+ * — the WhatsApp copy came first and is the one the chat worked on — so the
+ * sheet row for them is skipped rather than filed twice.
+ */
+
+/** How close in time a WhatsApp Instagram lead and a sheet row must be to be one enquiry. */
+export const SAME_ENQUIRY_DAYS = 3;
+
+export type ImportAction =
+    | 'insert'
+    /* This Meta lead id is already in the table. */
+    | 'already-imported'
+    /* Same number reached us as an Instagram lead within SAME_ENQUIRY_DAYS. */
+    | 'same-enquiry'
+    /* No number anyone could call back. */
+    | 'unusable'
+    /* Before the import's start date. */
+    | 'too-old';
+
+export interface ImportDecision {
+    lead: SheetLead;
+    action: ImportAction;
+    at: Date | null;
+}
+
+export interface KnownLeads {
+    /** Meta lead ids already imported. */
+    metaIds: Set<string>;
+    /** When each number last reached us as an Instagram lead, any way in. */
+    instagramAt: Map<string, Date[]>;
+}
+
+export function planSheetImport(leads: SheetLead[], known: KnownLeads, since: Date | null): ImportDecision[] {
+    const ids = new Set(known.metaIds);
+    const seen = new Map<string, Date[]>();
+    for (const [k, dates] of known.instagramAt) seen.set(k, [...dates]);
+    const windowMs = SAME_ENQUIRY_DAYS * 86_400_000;
+
+    // Oldest first, so of two rows for one enquiry the first is the one kept.
+    const ordered = [...leads].sort((a, b) => (leadDate(a)?.getTime() ?? 0) - (leadDate(b)?.getTime() ?? 0));
+
+    return ordered.map(lead => {
+        const at = leadDate(lead);
+        const id = String(lead.leadId ?? '').replace(/^l:/i, '').trim();
+        if (id && ids.has(id)) return { lead, action: 'already-imported', at };
+        if (!hasUsablePhone(lead)) return { lead, action: 'unusable', at };
+        if (since && (!at || at < since)) return { lead, action: 'too-old', at };
+
+        const key = phoneKey(lead.phone);
+        const when = at ?? new Date();
+        const earlier = seen.get(key) ?? [];
+        if (earlier.some(d => Math.abs(d.getTime() - when.getTime()) <= windowMs)) {
+            return { lead, action: 'same-enquiry', at };
+        }
+        if (id) ids.add(id);
+        seen.set(key, [...earlier, when]);
+        return { lead, action: 'insert', at };
+    });
+}
+
+/** The car as the lead screen shows it: "SUV", "Etios cross 2015", "Swift (2019)". */
+export function sheetCar(lead: SheetLead): string | null {
+    const car = String(lead.car ?? '').trim();
+    const year = String(lead.carYear ?? '').trim();
+    const yes = /^(yes|no|ok|haan|na)$/i;
+    const parts = [yes.test(car) ? '' : car, year].filter(Boolean);
+    if (!parts.length) return null;
+    const text = parts.length === 2 && /^\d{4}(\s*-\s*\d{4})?$/.test(year) ? `${parts[0]} (${year})` : parts.join(' ');
+    return text.replace(/\s+/g, ' ').slice(0, 80);
+}

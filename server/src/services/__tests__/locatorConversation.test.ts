@@ -1,8 +1,8 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { readCarAnswer } from '../carModels.js';
-import { nextStep, menuStep, isRestart, isCancel, isIdle, MAX_TRIES } from '../locatorConversation.js';
-import { menuTapFromWebhook } from '../storeLocatorMessages.js';
+import { nextStep, menuStep, isRestart, isCancel, isIdle, startWord, MAX_TRIES } from '../locatorConversation.js';
+import { menuTapFromWebhook, productMenu } from '../storeLocatorMessages.js';
 import { CAR_RETRY, PINCODE_QUESTION, INVALID_PINCODE_TEXT, NO_PINCODE_END } from '../storeLocatorMessages.js';
 
 describe('readCarAnswer — lenient, tidies known models', () => {
@@ -77,6 +77,28 @@ describe('restart, cancel, idle', () => {
         for (const t of ['Heyy', 'hey', 'HEYYYY!']) assert.equal(isRestart(t), true, t);
         for (const t of ['hi', 'Hello', 'Hyundai', 'hey creta']) assert.equal(isRestart(t), false, t);
     });
+    test('greetings start the chat, with repeats, punctuation, emoji and a "sir"', () => {
+        for (const t of ['Heyy', 'HEYYY!']) assert.deepEqual(startWord(t), { kind: 'heyy' }, t);
+        for (const t of ['hi', 'Hiii!!', 'hello 🙏', 'Helloo', 'hlo', 'Hello sir', 'hi ji', 'Namaste', 'नमस्ते', 'नमस्कार जी', 'namaste ji',
+            'price?', 'Enquiry', 'store near me', 'car', 'Dealer', 'hey sir']) {
+            assert.deepEqual(startWord(t), { kind: 'word', product: null }, t);
+        }
+    });
+    test('naming a product starts the chat at the car question', () => {
+        const cases: [string, string][] = [
+            ['seat', 'Seat Covers'], ['Seat covers', 'Seat Covers'], ['car seat cover', 'Seat Covers'],
+            ['mats', 'Mats'], ['Car Mats!', 'Mats'], ['floor mat', 'Mats'],
+            ['accessories', 'Accessories'], ['Car accessories', 'Accessories'],
+        ];
+        for (const [t, product] of cases) assert.deepEqual(startWord(t), { kind: 'word', product }, t);
+    });
+    test('longer messages and auto-replies do not start the chat', () => {
+        for (const t of ['Hello! 👋 Welcome to KP Trading Company. Thank you for connecting',
+            '*Auto reply* Hey there! I am using WhatAuto app.', 'hi i want to know about warranty',
+            'Hyundai', 'Creta', 'approve installation', 'ok', 'thanks', '', '👍']) {
+            assert.equal(startWord(t), null, t);
+        }
+    });
     test('stop and cancel end the chat', () => {
         assert.equal(isCancel('Stop'), true);
         assert.equal(isCancel('cancel.'), true);
@@ -125,5 +147,13 @@ describe('menuTapFromWebhook — reading a menu tap', () => {
         assert.equal(menuTapFromWebhook(tap('sl:abc-123:s:9')), null);
         assert.equal(menuTapFromWebhook(tap('pm:abc-123:nope')), null);
         assert.equal(menuTapFromWebhook({ message: 'Creta' }), null);
+    });
+});
+
+describe('list bodies keep their line breaks', () => {
+    test('the menu greeting reads as paragraphs, not one run-on line', () => {
+        const body = productMenu('L').message.body.text;
+        assert.match(body, /Autoform India\.\n\n🚘/);
+        assert.ok(!/ {2}/.test(body));
     });
 });

@@ -136,11 +136,24 @@ export function pageCount(total: number): number {
     return pages;
 }
 
+/*
+ * A message body cut to length with its line breaks kept. fit() flattens all
+ * whitespace — right for a row title, but it ran a list's greeting and
+ * instructions together into one paragraph.
+ */
+function fitBody(text: string, max: number): string {
+    const clean = String(text ?? '')
+        .split('\n').map(line => line.replace(/[ \t]+/g, ' ').trim()).join('\n')
+        .replace(/\n{3,}/g, '\n\n')
+        .trim();
+    return clean.length <= max ? clean : `${clean.slice(0, max - 1).trimEnd()}…`;
+}
+
 function list(body: string, button: string, section: string, rows: Row[]): InteractiveList {
     return {
         message: {
             type: 'list',
-            body: { text: fit(body, LIMITS.body) },
+            body: { text: fitBody(body, LIMITS.body) },
             action: {
                 button: fit(button, LIMITS.button),
                 sections: [{
