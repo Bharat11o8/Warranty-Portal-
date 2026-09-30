@@ -204,6 +204,13 @@ async function runMigrations() {
       }
     }
 
+    // The auditor's notes on a lead, shown only in the Edit lead dialog.
+    const [notesCol]: any = await pool.query("SHOW COLUMNS FROM leads LIKE 'internal_notes'");
+    if (notesCol.length === 0) {
+      await pool.query('ALTER TABLE leads ADD COLUMN internal_notes TEXT NULL AFTER review_reason');
+      console.log('✅ Migration: Added internal_notes to leads.');
+    }
+
     await ensureCustomerMobileLimitTable();
     console.log('Migration: customer_mobile_limits is ready.');
   } catch (error: any) {

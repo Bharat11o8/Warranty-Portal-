@@ -10,6 +10,7 @@ import { extractPincode } from '../services/storeLocator.js';
 import { routeEnquiry, areaKey } from '../services/asmRouting.service.js';
 import { findState } from '../services/indianStates.js';
 import { isSamePlace, buildAddress } from '../services/placeMatch.js';
+import { buildLeadCharts } from '../services/leadCharts.js';
 import { ActivityLogService } from '../services/activity-log.service.js';
 import { WhatsAppService } from '../services/whatsapp.service.js';
 import { summariseIvr } from '../services/ivrLead.js';
@@ -516,7 +517,7 @@ export class AsmController {
             const { id } = req.params;
             const admin = (req as any).user;
             const {
-                lead_status, review_status, review_reason,
+                lead_status, review_status, review_reason, internal_notes,
                 customer_name, raw_area, state, product, car_model, pincode,
             } = req.body || {};
 
@@ -555,6 +556,8 @@ export class AsmController {
             assign('lead_status', lead_status);
             assign('review_status', review_status);
             assign('review_reason', review_reason, v => String(v).slice(0, 500));
+            // The auditor's own notes: kept on the lead, shown only in its Edit dialog.
+            assign('internal_notes', internal_notes, v => String(v).trim().slice(0, 2000) || null);
             assign('customer_name', customer_name, v => String(v).trim());
             assign('raw_area', raw_area, v => String(v).trim());
             assign('product', product);
@@ -620,6 +623,7 @@ export class AsmController {
                         lead_status: lead_status ?? null,
                         review_status: review_status ?? null,
                         review_reason: review_reason ?? null,
+                        ...(internal_notes !== undefined ? { internal_notes_changed: true } : {}),
                     },
                     ipAddress: req.ip || req.socket?.remoteAddress,
                 });
@@ -1151,6 +1155,8 @@ export class AsmController {
 
             const [rows]: any = await db.execute(
                 `SELECT l.*, a.name AS asm_name, a.phone_number AS asm_phone,
+                        /* The IST day, as the date filter reads it, for the charts. */
+                        DATE_FORMAT(CONVERT_TZ(l.created_at, '+00:00', '+05:30'), '%Y-%m-%d') AS ist_day,
                         /*
                          * Whether the ASM's WhatsApp actually arrived, and
                          * whether they opened it. Interakt's delivery webhook
@@ -1332,10 +1338,26 @@ export class AsmController {
             Object.assign(counts.product, tally(productBase, r => r.product || 'none'));
             Object.assign(counts.channel, tally(sourceBase, r => r.source));
 
+            // The Analytics page wants the numbers, not the leads.
+            const chartsOnly = String(req.query.charts_only ?? '') === '1';
+            // Its charts: the same leads the list would show, every filter applied.
+            const charts = chartsOnly ? buildLeadCharts(matching.map((r: any) => ({
+                ist_day: r.ist_day ?? null,
+                source: r.source,
+                product: r.product,
+                state: r.state,
+                asm_id: r.asm_id,
+                asm_name: r.asm_name,
+                review_status: r.review_status,
+                forward_kinds: forwardKinds(r),
+                stores: leadStores(r),
+            }))) : undefined;
+
             const cap = Math.min(Number(limit) || 200, 1000);
             res.json({
                 success: true,
-                leads: matching.slice(0, cap),
+                leads: chartsOnly ? [] : matching.slice(0, cap),
+                charts,
                 // How many matched, when that is more than the page shows.
                 matched: matching.length,
                 counts,

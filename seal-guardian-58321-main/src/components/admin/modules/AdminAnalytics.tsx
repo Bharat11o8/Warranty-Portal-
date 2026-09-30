@@ -16,6 +16,7 @@ import { GeographicSection } from '../analytics/GeographicSection';
 import { FranchiseLeaderboard } from '../analytics/FranchiseLeaderboard';
 import { FraudAnalysisSection } from '../analytics/FraudAnalysisSection';
 import { FraudAnalysisModal } from '../analytics/FraudAnalysisModal';
+import { LeadCharts, type LeadChartsData } from '../analytics/LeadCharts';
 
 const MONTHS = [
     "January", "February", "March", "April", "May", "June",
@@ -34,6 +35,14 @@ const LINE_CONFIG = [
 
 export const AdminAnalytics = ({ onNavigate }: { onNavigate: (module: AdminModule) => void }) => {
     const [summary, setSummary] = useState<any>(null);
+    /* The Lead Management charts. Null until loaded; stays null for an admin
+       without access to leads, and the section is simply not shown. */
+    const [leadCharts, setLeadCharts] = useState<LeadChartsData | null>(null);
+    useEffect(() => {
+        api.get('/asm/leads/list', { params: { charts_only: '1' } })
+            .then(res => { if (res.data?.success && res.data.charts) setLeadCharts(res.data.charts); })
+            .catch(() => { /* no leads permission, or offline: the rest of the page stands */ });
+    }, []);
     const [timeSeries, setTimeSeries] = useState<any>(null);
     const [products, setProducts] = useState<any[]>([]);
     const [franchises, setFranchises] = useState<any[]>([]);
@@ -361,6 +370,23 @@ export const AdminAnalytics = ({ onNavigate }: { onNavigate: (module: AdminModul
                         </CardContent>
                     </Card>
                 </div>
+            )}
+
+            {leadCharts && (
+                <Card className="rounded-[32px] border-slate-100 shadow-sm">
+                    <CardContent className="p-6 space-y-3">
+                        <div className="flex items-center justify-between gap-3">
+                            <div>
+                                <h2 className="text-lg font-black text-slate-800">Leads</h2>
+                                <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Every enquiry, all channels, all time</p>
+                            </div>
+                            <Button variant="outline" size="sm" onClick={() => onNavigate('leads' as AdminModule)}>
+                                Open Lead Management
+                            </Button>
+                        </div>
+                        <LeadCharts data={leadCharts} collapsible={false} />
+                    </CardContent>
+                </Card>
             )}
 
             <div className="grid grid-cols-1 gap-8">

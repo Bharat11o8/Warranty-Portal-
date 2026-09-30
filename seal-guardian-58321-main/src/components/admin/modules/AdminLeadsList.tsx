@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import api, { getErrorMessage } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import { Card } from "@/components/ui/card";
@@ -59,6 +59,9 @@ interface Lead {
     lead_status: Outcome | null;
     review_status: Outcome | null;
     review_reason: string | null;
+    /* The auditor's own notes. Shown only in the Edit lead dialog: not in the
+       table, the search or the export. */
+    internal_notes: string | null;
     reviewed_at: string | null;
     /* The store an admin pointed this customer at, and whether the customer
        opened the message. Null until somebody sends one. */
@@ -442,6 +445,14 @@ export const AdminLeadsList = () => {
     const [counts, setCounts] = useState<Counts | null>(null);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
+    /* A filter or search is fetching: the table stays, faded, until it lands. */
+    const [updating, setUpdating] = useState(false);
+    /* Only the first load blanks the screen. Swapping the whole page — tiles,
+       filters, table — for a spinner on every filter click made each one feel
+       like a reload, though the answer takes a fraction of a second. */
+    const loadedOnce = useRef(false);
+    /* Two quick clicks: only the answer to the last one is shown. */
+    const latestRequest = useRef(0);
     const [search, setSearch] = useState("");
     /* What the server searches for: the box, a moment after typing stops. */
     const [searchQuery, setSearchQuery] = useState("");
@@ -469,7 +480,7 @@ export const AdminLeadsList = () => {
     // Editing one lead: the audit, and corrections to what was captured.
     const [editing, setEditing] = useState<Lead | null>(null);
     const EMPTY_EDIT = {
-        review_status: "", review_reason: "",
+        review_status: "", review_reason: "", internal_notes: "",
         customer_name: "", raw_area: "", car_model: "", pincode: "", product: "",
     };
     const [editForm, setEditForm] = useState(EMPTY_EDIT);
@@ -518,7 +529,10 @@ export const AdminLeadsList = () => {
 
 
     const fetchLeads = useCallback(async (silent = false) => {
-        silent ? setRefreshing(true) : setLoading(true);
+        const request = ++latestRequest.current;
+        if (silent) setRefreshing(true);
+        else if (loadedOnce.current) setUpdating(true);
+        else setLoading(true);
         try {
             const params: Record<string, string> = {};
             if (stage !== "all") params.stage = stage;
@@ -536,6 +550,7 @@ export const AdminLeadsList = () => {
             if (dateTo) params.dateTo = dateTo;
 
             const res = await api.get("/asm/leads/list", { params });
+            if (request !== latestRequest.current) return;
             if (res.data.success) {
                 setLeads(res.data.leads || []);
                 setCounts(res.data.counts || null);
@@ -552,14 +567,19 @@ export const AdminLeadsList = () => {
                 setAsmOptions(res.data.asms || []);
             }
         } catch (error: any) {
+            if (request !== latestRequest.current) return;
             toast({
                 title: "Could not load enquiries",
                 description: getErrorMessage(error, "Please try again"),
                 variant: "destructive",
             });
         } finally {
-            setLoading(false);
-            setRefreshing(false);
+            if (request === latestRequest.current) {
+                loadedOnce.current = true;
+                setLoading(false);
+                setRefreshing(false);
+                setUpdating(false);
+            }
         }
     }, [stage, searchQuery, forwardedTo, storeId, ivrCall, stateFilter, product, delivery, asmId, channel, review, dateFrom, dateTo, toast]);
 
@@ -717,6 +737,7 @@ export const AdminLeadsList = () => {
         const form = {
             review_status: lead.review_status || "",
             review_reason: lead.review_reason || "",
+            internal_notes: lead.internal_notes || "",
             customer_name: lead.customer_name || "",
             /* The area as typed; a WhatsApp lead's bare pincode shows under
                Pincode instead, not twice. */
@@ -1084,72 +1105,20 @@ export const AdminLeadsList = () => {
                 </div>
             </div>
 
-            {/* Each tile filters the list to what it counts — the number and
-                the way to look at it should not be two separate controls.
+            {/* Total and where the enquiries came from, one row. Each tile
+                filters the list to its channel, and clicking it again (or
+                Total) clears that. Stage and product are filters at the top of
+                the list, with their counts.
 
-                Two groups, divided: the first four ask what happened to the
-                forward, the last three which product was asked about. They set
-                different filters, so a tile carries its own kind and selecting
-                one does not clear the other — product and status narrow
-                together, which is usually what somebody wants.
-
-                Zero counts go grey rather than coloured, so a quiet day reads
-                as quiet instead of as a row of alerts. */}
+                Total adds up the channels, so it stays the same while one is
+                picked. A channel with nothing in it is still shown: a campaign
+                that has stopped producing leads is worth noticing. */}
             {counts && (
-                <div className="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-7 gap-2.5">
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5">
                     {([
-                        { label: "Total", value: counts.total, tone: "text-slate-800", kind: "stage", key: "all", divide: false },
-                        { label: "Forwarded", value: counts.stage.forwarded, tone: "text-emerald-600", kind: "stage", key: "forwarded", divide: false },
-                        { label: "Not forwarded yet", value: counts.stage["not-forwarded"], tone: "text-amber-600", kind: "stage", key: "not-forwarded", divide: false },
-                        { label: "Forwarding failed", value: counts.stage.failed, tone: "text-rose-600", kind: "stage", key: "failed", divide: false },
-                        { label: "Seat Covers", value: counts.product["Seat Covers"], tone: "text-orange-600", kind: "product", key: "Seat Covers", divide: true },
-                        { label: "Mats", value: counts.product.Mats, tone: "text-violet-600", kind: "product", key: "Mats", divide: false },
-                        { label: "Accessories", value: counts.product.Accessories, tone: "text-sky-600", kind: "product", key: "Accessories", divide: false },
-                    ]).map(s => {
-                        const active = s.kind === "stage" ? stage === s.key : product === s.key;
-                        const empty = !s.value;
-                        return (
-                            <button
-                                key={s.label}
-                                type="button"
-                                onClick={() => {
-                                    if (s.kind === "stage") setStage(s.key);
-                                    // Clicking the active product tile clears it,
-                                    // so the same tile both applies and undoes.
-                                    else setProduct(active ? "all" : s.key);
-                                }}
-                                className={`rounded-2xl border bg-white p-3.5 text-left transition-colors ${
-                                    active
-                                        ? "border-orange-300 ring-1 ring-orange-100"
-                                        : "border-slate-100 hover:border-slate-200"
-                                } ${s.divide ? "xl:ml-3 xl:border-l-slate-200" : ""}`}
-                            >
-                                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 truncate">
-                                    {s.label}
-                                </p>
-                                <p className={`text-2xl font-black tabular-nums mt-0.5 ${empty ? "text-slate-300" : s.tone}`}>
-                                    {s.value ?? 0}
-                                </p>
-                            </button>
-                        );
-                    })}
-                </div>
-            )}
-
-            {/* Where the enquiries came from.
-                A second row rather than four more tiles beside the others:
-                eleven numbers across one line stops being a summary and becomes
-                a wall. These answer a different question anyway — which channel
-                is actually producing business — so they read better grouped.
-
-                A channel with nothing in it is still shown: a campaign that has
-                stopped producing leads is exactly the thing worth noticing, and
-                it cannot be noticed if its tile disappears. */}
-            {counts && (
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-                    {([
-                        { label: "WhatsApp", value: counts.channel.whatsapp, tone: "text-emerald-600", key: "whatsapp" },
-                        { label: "Instagram", value: counts.channel.instagram, tone: "text-pink-600", key: "instagram" },
+                        { label: "Total", value: Object.values(counts.channel).reduce((a, b) => a + (b || 0), 0), tone: "text-slate-800", key: "all" },
+                        { label: "WhatsApp", value: counts.channel.whatsapp, tone: "text-emerald-700", key: "whatsapp" },
+                        { label: "Instagram", value: counts.channel.instagram, tone: "text-pink-500", key: "instagram" },
                         { label: "IVR", value: counts.channel.ivr, tone: "text-indigo-600", key: "ivr" },
                         { label: "Website", value: counts.channel.website, tone: "text-cyan-600", key: "website" },
                     ] as const).map(s => {
@@ -1159,7 +1128,7 @@ export const AdminLeadsList = () => {
                             <button
                                 key={s.label}
                                 type="button"
-                                onClick={() => pickChannel(active ? "all" : s.key)}
+                                onClick={() => pickChannel(active || s.key === "all" ? "all" : s.key)}
                                 className={`rounded-2xl border bg-white p-3.5 text-left transition-colors ${
                                     active
                                         ? "border-orange-300 ring-1 ring-orange-100"
@@ -1392,10 +1361,14 @@ export const AdminLeadsList = () => {
                    them — which areas keep coming up, which ASM is taking the
                    volume, how many went unmatched — and a column of values
                    under one heading is what makes that scannable. */
-                <Card className="rounded-2xl border-slate-100 overflow-hidden">
-                    <div className="relative w-full overflow-auto">
+                <Card className={`rounded-2xl border-slate-100 overflow-hidden transition-opacity ${updating ? "opacity-60" : ""}`}
+                      aria-busy={updating}>
+                    {/* The table scrolls in its own box, both ways, so the
+                        horizontal scrollbar is always on screen instead of
+                        under the last row, and the headings stay in view. */}
+                    <div className="relative w-full overflow-auto max-h-[calc(100vh-240px)]">
                         <table className="w-full text-sm text-left table-fixed min-w-[1690px]">
-                            <thead className="bg-slate-50 text-slate-500 border-b border-slate-100">
+                            <thead className="sticky top-0 z-10 bg-slate-50 text-slate-500 shadow-[0_1px_0_0_rgb(241,245,249)]">
                                 <tr>
                                     <th className="px-3 py-3 w-[110px] font-semibold">Date</th>
                                     <th className="px-3 py-3 w-[160px] font-semibold">Customer</th>
@@ -1414,7 +1387,18 @@ export const AdminLeadsList = () => {
                             </thead>
                             <tbody className="divide-y divide-slate-100 bg-white">
                                 {visible.map(lead => (
-                                    <tr key={lead.id} className="hover:bg-slate-50/50 transition-colors">
+                                    <tr
+                                        key={lead.id}
+                                        className="hover:bg-orange-50/40 transition-colors cursor-pointer"
+                                        /* Anywhere on the row opens the lead — except its own
+                                           buttons and links (copy number, the pencil), and a
+                                           drag to select text, which is someone copying. */
+                                        onClick={e => {
+                                            if ((e.target as HTMLElement).closest("button, a, input, select, textarea, [role='button']")) return;
+                                            if (window.getSelection()?.toString()) return;
+                                            openEdit(lead);
+                                        }}
+                                    >
                                         <td className="px-3 py-3 align-top whitespace-nowrap text-xs text-slate-500 tabular-nums">
                                             {formatWhen(lead.created_at)}
                                         </td>
@@ -1678,7 +1662,7 @@ export const AdminLeadsList = () => {
                             taking a third of the dialog. */}
                         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 min-w-0">
                             <div className="space-y-1 min-w-0">
-                                <Label htmlFor="e-name" className="text-[11px] text-slate-500">Customer</Label>
+                                <Label htmlFor="e-name" className="text-xs font-semibold text-slate-700">Customer</Label>
                                 <Input
                                     id="e-name" className="h-9 text-sm" placeholder="Not shared"
                                     value={editForm.customer_name}
@@ -1686,7 +1670,7 @@ export const AdminLeadsList = () => {
                                 />
                             </div>
                             <div className="space-y-1 min-w-0">
-                                <Label className="text-[11px] text-slate-500">Product</Label>
+                                <Label className="text-xs font-semibold text-slate-700">Product</Label>
                                 <Select
                                     value={editForm.product || "none"}
                                     onValueChange={v => setEditForm({ ...editForm, product: v === "none" ? "" : v })}
@@ -1703,7 +1687,7 @@ export const AdminLeadsList = () => {
                                 </Select>
                             </div>
                             <div className="space-y-1 min-w-0">
-                                <Label htmlFor="e-car" className="text-[11px] text-slate-500">Vehicle</Label>
+                                <Label htmlFor="e-car" className="text-xs font-semibold text-slate-700">Vehicle</Label>
                                 <Input
                                     id="e-car" className="h-9 text-sm" placeholder="e.g. Creta"
                                     value={editForm.car_model}
@@ -1717,7 +1701,7 @@ export const AdminLeadsList = () => {
                             what the caller said, for an IVR lead most of all. */}
                         <div className="grid grid-cols-1 sm:grid-cols-[150px_1fr] gap-3 min-w-0">
                             <div className="space-y-1 min-w-0">
-                                <Label htmlFor="e-pin" className="text-[11px] text-slate-500">Pincode</Label>
+                                <Label htmlFor="e-pin" className="text-xs font-semibold text-slate-700">Pincode</Label>
                                 <Input
                                     id="e-pin" className="h-9 text-sm font-mono tabular-nums" placeholder="e.g. 201301"
                                     inputMode="numeric" maxLength={6}
@@ -1731,7 +1715,7 @@ export const AdminLeadsList = () => {
                                 />
                             </div>
                             <div className="space-y-1 min-w-0">
-                                <Label htmlFor="e-area" className="text-[11px] text-slate-500">Area / State</Label>
+                                <Label htmlFor="e-area" className="text-xs font-semibold text-slate-700">Area / State</Label>
                                 <Input
                                     id="e-area" className="h-9 text-sm"
                                     placeholder={editing?.district ? `${editing.district}${editing.state ? `, ${editing.state}` : ""}` : "e.g. Rohini Delhi"}
@@ -1758,13 +1742,62 @@ export const AdminLeadsList = () => {
                             Saving a new pincode or area can change who the lead belongs to.
                         </p>
 
+                        {/* The audit. */}
+                        <div className="rounded-xl border border-slate-200 p-3.5 space-y-3 min-w-0">
+                            <p className="text-[11px] font-black uppercase tracking-widest text-slate-800">
+                                Review
+                            </p>
+                            <div className="grid grid-cols-1 sm:grid-cols-[190px_1fr] gap-3 min-w-0">
+                                <div className="space-y-1 min-w-0">
+                                    <Label className="text-xs font-semibold text-slate-700">Review status</Label>
+                                    <Select
+                                        value={editForm.review_status || "none"}
+                                        onValueChange={v => setEditForm({ ...editForm, review_status: v === "none" ? "" : v })}
+                                    >
+                                        <SelectTrigger className="h-9 text-sm">
+                                            <SelectValue placeholder="Not reviewed" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="none">Not reviewed</SelectItem>
+                                            {OUTCOMES.map(o => (
+                                                <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                                <div className="space-y-1 min-w-0">
+                                    <Label htmlFor="e-reason" className="text-xs font-semibold text-slate-700">Review reason</Label>
+                                    <Input
+                                        id="e-reason"
+                                        className="h-9 text-sm"
+                                        value={editForm.review_reason}
+                                        onChange={e => setEditForm({ ...editForm, review_reason: e.target.value })}
+                                        placeholder="Why — what the customer said"
+                                    />
+                                </div>
+                            </div>
+                            <div className="space-y-1 min-w-0">
+                                <Label htmlFor="e-notes" className="text-xs font-semibold text-slate-700">
+                                    Internal notes <span className="font-normal text-slate-400">· only the team sees these, here</span>
+                                </Label>
+                                <Textarea
+                                    id="e-notes"
+                                    className="text-sm min-h-[72px]"
+                                    maxLength={2000}
+                                    value={editForm.internal_notes}
+                                    onChange={e => setEditForm({ ...editForm, internal_notes: e.target.value })}
+                                    placeholder="Anything for the next person on this lead — call back after 6, spoke to the brother…"
+                                />
+                            </div>
+                        </div>
+
                         {/* Every call this person made to the IVR, and each time an
                             agent's phone rang — who to ring back, and who already
                             spoke to them. */}
                         {editing?.ivr && (
                             <div className="rounded-xl border border-slate-200 p-3.5 space-y-2.5 min-w-0">
                                 <div className="flex items-center justify-between gap-2">
-                                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                                    <p className="text-[11px] font-black uppercase tracking-widest text-slate-800">
                                         IVR calls
                                     </p>
                                     <Badge
@@ -1818,7 +1851,7 @@ export const AdminLeadsList = () => {
                             customer was told, who else was alerted, and whether it
                             arrived — so nobody has to guess what already went out. */}
                         <div className="rounded-xl border border-slate-200 p-3.5 space-y-2.5 min-w-0">
-                            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                            <p className="text-[11px] font-black uppercase tracking-widest text-slate-800">
                                 WhatsApp messages
                             </p>
                             {messages === null ? (
@@ -1854,49 +1887,13 @@ export const AdminLeadsList = () => {
                             )}
                         </div>
 
-                        {/* The audit. */}
-                        <div className="rounded-xl border border-slate-200 p-3.5 space-y-3 min-w-0">
-                            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                                Review
-                            </p>
-                            <div className="grid grid-cols-1 sm:grid-cols-[190px_1fr] gap-3 min-w-0">
-                                <div className="space-y-1 min-w-0">
-                                    <Label className="text-[11px] text-slate-500">Review status</Label>
-                                    <Select
-                                        value={editForm.review_status || "none"}
-                                        onValueChange={v => setEditForm({ ...editForm, review_status: v === "none" ? "" : v })}
-                                    >
-                                        <SelectTrigger className="h-9 text-sm">
-                                            <SelectValue placeholder="Not reviewed" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="none">Not reviewed</SelectItem>
-                                            {OUTCOMES.map(o => (
-                                                <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-                                <div className="space-y-1 min-w-0">
-                                    <Label htmlFor="e-reason" className="text-[11px] text-slate-500">Review reason</Label>
-                                    <Input
-                                        id="e-reason"
-                                        className="h-9 text-sm"
-                                        value={editForm.review_reason}
-                                        onChange={e => setEditForm({ ...editForm, review_reason: e.target.value })}
-                                        placeholder="Why — what the customer said"
-                                    />
-                                </div>
-                            </div>
-                        </div>
-
                         {/* Give the customer a store.
                             Sent straight to them on WhatsApp, so the list carries
                             the address and phone that would actually go out — a
                             store picked from a name alone is picked blind. */}
                         <div className="rounded-xl border border-slate-200 p-3.5 space-y-3 min-w-0">
                             <div className="flex items-center justify-between gap-2">
-                                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 flex items-center gap-1.5">
+                                <p className="text-[11px] font-black uppercase tracking-widest text-slate-800 flex items-center gap-1.5">
                                     <StoreIcon className="h-3 w-3" />
                                     Send store details
                                 </p>
@@ -1990,7 +1987,7 @@ export const AdminLeadsList = () => {
                                             if (!s) return null;
                                             return (
                                                 <div className="rounded-lg bg-slate-50 border border-slate-200 p-3 space-y-2 min-w-0">
-                                                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                                                    <p className="text-[11px] font-black uppercase tracking-widest text-slate-800">
                                                         The customer receives
                                                     </p>
                                                     <p className="text-[11px] text-slate-600 whitespace-pre-line leading-relaxed break-words">
