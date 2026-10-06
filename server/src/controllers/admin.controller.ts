@@ -2123,10 +2123,11 @@ export class AdminController {
                             // counted without ever being messaged.
                             //
                             // Compared on the IST calendar date to match the gate
-                            // exactly — created_at is stored UTC, so it is shifted
-                            // before truncating, or a warranty registered between
-                            // 00:00 and 05:30 IST lands on the previous day and the
-                            // two rules disagree at the window's edges.
+                            // exactly. The pool's sessions run at +05:30, so
+                            // created_at already reads in IST; shifting it again
+                            // with CONVERT_TZ put every warranty after 18:30 on
+                            // the next day, and the two rules disagreed at the
+                            // window's edges.
                             let totalApproved = 0;
                             let tallyFailed = false;
                             try {
@@ -2135,7 +2136,7 @@ export class AdminController {
 
                                 const params: any[] = [warrantyData.manpower_id];
                                 let dateClause = '';
-                                const istRegDate = "DATE(CONVERT_TZ(created_at, '+00:00', '+05:30'))";
+                                const istRegDate = "DATE(created_at)";
                                 if (win?.startDate) { dateClause += ` AND ${istRegDate} >= ?`; params.push(win.startDate); }
                                 if (win?.endDate) { dateClause += ` AND ${istRegDate} <= ?`; params.push(win.endDate); }
 

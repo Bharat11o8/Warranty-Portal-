@@ -18,6 +18,8 @@ import CatalogHeader from "@/components/eshop/CatalogHeader";
 import { NewsAlerts } from "@/components/fms/NewsAlerts";
 import { ComingSoon } from "@/components/fms/ComingSoon";
 import { FranchiseAudits } from "@/components/fms/FranchiseAudits";
+import { FranchiseLeads } from "@/components/fms/FranchiseLeads";
+import { FranchiseSchemes } from "@/components/fms/FranchiseSchemes";
 import VendorGrievances from "@/components/fms/VendorGrievances";
 import POSMModule from "@/components/fms/POSMModule";
 import ECatalogue from "@/components/fms/ECatalogue";
@@ -67,7 +69,7 @@ const FranchiseDashboard = () => {
     const filteredMenuGroups = menuGroups.map(group => {
         if (isDistributor && !isFranchise) {
             const filteredItems = group.items.filter(item => {
-                const franchiseOnly = ['warranty', 'register', 'manpower', 'posm', 'offers', 'audit', 'targets'];
+                const franchiseOnly = ['warranty', 'leads', 'register', 'manpower', 'posm', 'offers', 'audit', 'targets'];
                 return !franchiseOnly.includes(item.id);
             });
             return { ...group, items: filteredItems };
@@ -799,11 +801,21 @@ const FranchiseDashboard = () => {
             case 'orders':
                 return <B2BOrderManagement />;
             case 'offers':
-                return <ComingSoon title="Offers & Schemes" />;
+                return (
+                    <div className="-mt-8 md:-mt-14">
+                        <FranchiseSchemes />
+                    </div>
+                );
             case 'audit':
                 return (
                     <div className="-mt-8 md:-mt-14">
                         <FranchiseAudits />
+                    </div>
+                );
+            case 'leads':
+                return (
+                    <div className="-mt-8 md:-mt-14">
+                        <FranchiseLeads />
                     </div>
                 );
             case 'targets':

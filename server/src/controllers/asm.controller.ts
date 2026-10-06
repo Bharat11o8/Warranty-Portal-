@@ -1107,20 +1107,20 @@ export class AsmController {
             }
 
             /*
-             * The date range, compared in IST rather than UTC.
+             * The date range, on the IST calendar date.
              *
-             * created_at is stored UTC, so an enquiry at 1am IST falls on the
-             * previous day once compared raw — and a day filter that silently
-             * drops the first five and a half hours of every day is worse than
-             * no filter. Both bounds are inclusive, which is what a person
-             * picking two dates means.
+             * The pool sets every connection's time_zone to +05:30, so
+             * created_at already reads in IST and DATE() of it is the IST day.
+             * It was once shifted again with CONVERT_TZ, which moved every
+             * lead after 18:30 onto the next day. Both bounds are inclusive,
+             * which is what a person picking two dates means.
              */
             if (dateFrom) {
-                where.push("DATE(CONVERT_TZ(l.created_at, '+00:00', '+05:30')) >= ?");
+                where.push("DATE(l.created_at) >= ?");
                 params.push(dateFrom);
             }
             if (dateTo) {
-                where.push("DATE(CONVERT_TZ(l.created_at, '+00:00', '+05:30')) <= ?");
+                where.push("DATE(l.created_at) <= ?");
                 params.push(dateTo);
             }
 
@@ -1156,7 +1156,7 @@ export class AsmController {
             const [rows]: any = await db.execute(
                 `SELECT l.*, a.name AS asm_name, a.phone_number AS asm_phone,
                         /* The IST day, as the date filter reads it, for the charts. */
-                        DATE_FORMAT(CONVERT_TZ(l.created_at, '+00:00', '+05:30'), '%Y-%m-%d') AS ist_day,
+                        DATE_FORMAT(l.created_at, '%Y-%m-%d') AS ist_day,
                         /*
                          * Whether the ASM's WhatsApp actually arrived, and
                          * whether they opened it. Interakt's delivery webhook

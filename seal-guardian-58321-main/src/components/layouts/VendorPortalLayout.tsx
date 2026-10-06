@@ -55,6 +55,7 @@ const VendorPortalLayout = () => {
         const titles: Record<string, string> = {
             home: "Channel Partner Home",
             warranty: "Warranty Management",
+            leads: "My Leads",
             manpower: "Manpower Control",
             catalogue: "Product Catalogue",
             news: "News & Alerts",

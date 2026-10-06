@@ -288,6 +288,19 @@ export const posmUpload = multer({
     },
 });
 
+/** Offers & Schemes: banners and the stores' entry files → uploads/schemes/YYYY-MM/.
+ *  Which formats a field accepts is the scheme's own rule, checked after upload. */
+export const schemeUpload = multer({
+    storage: multer.diskStorage({
+        destination: createDestination('schemes'),
+        filename: genericFileName,
+    }),
+    limits: {
+        fileSize: 50 * 1024 * 1024, // the field's own limit is checked too; this is the ceiling for videos
+        files: 20,
+    },
+});
+
 /** Grievance uploads → uploads/grievances/YYYY-MM/ */
 export const grievanceUpload = multer({
     storage: multer.diskStorage({
