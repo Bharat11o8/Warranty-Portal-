@@ -254,11 +254,15 @@ function helplineLines(helpline: string | null | undefined): string[] {
 }
 
 /** The store the customer picked. */
-export function storeDetailsText(s: StoreDetails, helpline?: string | null): string {
+/**
+ * The store's details: the one the customer picked, or — `only` — the one store
+ * near them, sent straight away instead of a list of one to tap.
+ */
+export function storeDetailsText(s: StoreDetails, helpline?: string | null, only = false): string {
     return [
-        'Thank you for choosing Autoform! 🙏',
+        only ? 'Thank you for reaching out to Autoform! 🙏' : 'Thank you for choosing Autoform! 🙏',
         '',
-        "Here are your store's details:",
+        only ? 'Here is the Autoform store nearest to you:' : "Here are your store's details:",
         '',
         card(s.store_name, addressLine(s.address, s.city, s.pincode), s.phone),
         '',
@@ -270,8 +274,8 @@ export function storeDetailsText(s: StoreDetails, helpline?: string | null): str
 }
 
 /** The distributor the customer picked — told as a store, like the list they picked from. */
-export function distributorDetailsText(d: ListContact, helpline?: string | null): string {
-    return storeDetailsText({ store_name: d.name, address: null, city: d.city ?? null, pincode: null, phone: d.phone }, helpline);
+export function distributorDetailsText(d: ListContact, helpline?: string | null, only = false): string {
+    return storeDetailsText({ store_name: d.name, address: null, city: d.city ?? null, pincode: null, phone: d.phone }, helpline, only);
 }
 
 /** The ASM, when no store is near: one contact, sent straight away. */

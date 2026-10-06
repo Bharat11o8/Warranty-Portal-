@@ -228,6 +228,23 @@ export async function startStoreEnquiry(input: StoreEnquiry): Promise<EnquiryOut
         `${kind === 'stores' ? ` (${result.stores.length})` : ''}, reply ${raw.locator.reply} — lead ${leadId}`);
 
     /*
+     * The only store (or distributor) was sent straight to the customer: record
+     * it and alert it, as a tap would. After the write, because the alert is
+     * recorded on the lead row.
+     */
+    const only = sent ? onlyStore(result) : null;
+    const onlyDist = sent ? onlyDistributor(result) : null;
+    if (only || onlyDist) {
+        try {
+            const lead = await leadForAlert(leadId);
+            if (lead && only) await recordStorePick(lead, String(only.id), only.phone, only.store_name, settings.whatsapp_live, true);
+            if (lead && onlyDist) await recordDistributorPick(lead, String(onlyDist.id), onlyDist.phone, onlyDist.name, settings.whatsapp_live, true);
+        } catch (err: any) {
+            console.error('[Locator] recording the only store failed:', err?.message);
+        }
+    }
+
+    /*
      * Nobody near — no store, ASM or distributor — so customer support is the
      * one place this lead can go. The customer is shown the support number;
      * support is told about the customer, in the same alert a store gets, so
@@ -245,8 +262,30 @@ export async function startStoreEnquiry(input: StoreEnquiry): Promise<EnquiryOut
     return kind;
 }
 
+/*
+ * One store (or one distributor) near the customer: a list of one to tap is
+ * only a step in the way, so its details are sent straight away and the pick
+ * is recorded as if they had tapped it.
+ */
+const onlyStore = (r: LocatorResult) => (r.stores.length === 1 ? r.stores[0] : null);
+const onlyDistributor = (r: LocatorResult) =>
+    (!r.stores.length && r.fallback?.kind === 'distributor' && r.fallback.contacts.length === 1 ? r.fallback.contacts[0] : null);
+
 /** Send the customer what the locator found, at a given page of the list. */
 async function sendResult(phone: string, leadId: string, result: LocatorResult, page: number): Promise<boolean> {
+    const store = page === 1 ? onlyStore(result) : null;
+    if (store) {
+        const { support_phone } = await getLocatorSettings();
+        return reply(phone, 'Text', text(storeDetailsText({
+            store_name: store.store_name, address: store.address, city: store.city, pincode: store.pincode, phone: store.phone,
+        }, support_phone, true)), leadId);
+    }
+    const dist = page === 1 ? onlyDistributor(result) : null;
+    if (dist) {
+        const { support_phone } = await getLocatorSettings();
+        return reply(phone, 'Text', text(distributorDetailsText(dist, support_phone, true)), leadId);
+    }
+
     if (result.stores.length) {
         const msg = storeList(leadId, result.stores, page);
         return msg ? reply(phone, 'InteractiveList', msg as any, leadId) : false;
@@ -318,13 +357,7 @@ export async function handleLocatorReply(senderPhone: string, tap: LocatorReply)
             phone: store.phone_number,
         }, settings.support_phone)), lead.id);
 
-        // Recorded as the customer's own choice, not an admin's.
-        await db.execute(
-            `UPDATE leads SET store_id = ?, store_sent_at = NOW(), store_sent_by = 'customer' WHERE id = ?`,
-            [store.id, lead.id]
-        );
-        console.log(`[Locator] lead ${lead.id} picked ${store.store_name}`);
-        await notifyOnce(lead, `store:${store.id}`, store.phone_number, store.store_name, settings.whatsapp_live);
+        await recordStorePick(lead, store.id, store.phone_number, store.store_name, settings.whatsapp_live, false);
         return true;
     }
 
@@ -338,14 +371,45 @@ export async function handleLocatorReply(senderPhone: string, tap: LocatorReply)
     await reply(senderPhone, 'Text', text(distributorDetailsText({
         id: String(d.id), name: d.name, phone: d.phone_number, city: d.city,
     }, settings.support_phone)), lead.id);
+    await recordDistributorPick(lead, String(d.id), d.phone_number, d.name, settings.whatsapp_live, false);
+    return true;
+}
+
+/** The lead as the alerts need it, with what it has been alerted about so far. */
+async function leadForAlert(leadId: string) {
+    const [rows]: any = await db.execute(
+        `SELECT id, customer_phone, product, car_model,
+                JSON_EXTRACT(raw_payload, '$.locator.notified') AS notified
+           FROM leads WHERE id = ? LIMIT 1`,
+        [leadId]
+    );
+    return rows[0] ?? null;
+}
+
+/**
+ * The store the customer got — tapped, or `auto` when it was the only one —
+ * recorded as the customer's own choice, not an admin's, and the store alerted.
+ */
+async function recordStorePick(lead: any, storeId: string, storePhone: string | null, storeName: string, live: boolean, auto: boolean) {
+    await db.execute(
+        `UPDATE leads SET store_id = ?, store_sent_at = NOW(), store_sent_by = 'customer'
+                ${auto ? `, raw_payload = JSON_SET(COALESCE(raw_payload, JSON_OBJECT()), '$.locator.auto_picked', true)` : ''}
+          WHERE id = ?`,
+        [storeId, lead.id]
+    );
+    console.log(`[Locator] lead ${lead.id} ${auto ? 'sent the only store,' : 'picked'} ${storeName}`);
+    await notifyOnce(lead, `store:${storeId}`, storePhone, storeName, live);
+}
+
+async function recordDistributorPick(lead: any, id: string, phone: string | null, name: string, live: boolean, auto: boolean) {
     await db.execute(
         `UPDATE leads SET raw_payload = JSON_SET(COALESCE(raw_payload, JSON_OBJECT()),
-            '$.locator.picked_distributor', JSON_OBJECT('id', ?, 'name', ?)) WHERE id = ?`,
-        [String(d.id), d.name, lead.id]
+            '$.locator.picked_distributor', JSON_OBJECT('id', ?, 'name', ?)
+            ${auto ? `, '$.locator.auto_picked', true` : ''}) WHERE id = ?`,
+        [id, name, lead.id]
     );
-    console.log(`[Locator] lead ${lead.id} picked distributor ${d.name}`);
-    await notifyOnce(lead, `distributor:${d.id}`, d.phone_number, d.name, settings.whatsapp_live);
-    return true;
+    console.log(`[Locator] lead ${lead.id} ${auto ? 'sent the only distributor,' : 'picked distributor'} ${name}`);
+    await notifyOnce(lead, `distributor:${id}`, phone, name, live);
 }
 
 /**
