@@ -76,7 +76,23 @@ export function repliesTo(settings: LocatorSettings, phone: string): boolean {
     return settings.whatsapp_live || settings.test_numbers.includes(tenDigits(phone));
 }
 
+/*
+ * The settings are read on every chat message, so they are kept for a short
+ * while instead of being queried each time. Saving them here replaces the
+ * copy at once; another server process sees a change within CACHE_MS.
+ */
+const CACHE_MS = 30_000;
+let cached: { at: number; value: LocatorSettings } | null = null;
+const copy = (v: LocatorSettings): LocatorSettings => ({ ...v, test_numbers: [...v.test_numbers] });
+
 export async function getLocatorSettings(): Promise<LocatorSettings> {
+    if (cached && Date.now() - cached.at < CACHE_MS) return copy(cached.value);
+    const value = await readLocatorSettings();
+    cached = { at: Date.now(), value };
+    return copy(value);
+}
+
+async function readLocatorSettings(): Promise<LocatorSettings> {
     try {
         const [rows]: any = await db.execute(
             'SELECT setting_value FROM system_settings WHERE setting_key = ? LIMIT 1',
@@ -114,8 +130,8 @@ export async function saveLocatorSettings(
     changes: Partial<LocatorSettings>,
     updatedBy: string | null,
 ): Promise<LocatorSettings> {
-    const current = await getLocatorSettings();
-    const next: LocatorSettings = { ...current };
+    const current = await readLocatorSettings();
+    const next: LocatorSettings = copy(current);
 
     if (changes.min_warranties !== undefined) {
         next.min_warranties = clampMinWarranties(changes.min_warranties);
@@ -149,6 +165,7 @@ export async function saveLocatorSettings(
          ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value), updated_by = VALUES(updated_by)`,
         [SETTING_KEY, JSON.stringify(next), updatedBy]
     );
+    cached = { at: Date.now(), value: copy(next) };
     return next;
 }
 

@@ -362,12 +362,12 @@ export function otherProductsMenu(leadId: string): InteractiveList {
 export const MENU_RETRY = 'Please tap *Choose a product* above and pick one of the options. 🙏';
 
 export const CAR_QUESTION =
-    'Which car do you have? 🚗\n\nPlease type the model, for example Creta, Swift or Thar.';
+    'Which car do you have? 🚗\n\nPlease type the model, for example Creta, Nexon or Thar.';
 
 export const CAR_RETRY: Record<'empty' | 'junk' | 'place', string> = {
-    empty: 'Please type your car model, for example Creta, Swift or Thar.',
-    junk: "Sorry, we couldn't read that as a car. Please type your car model, for example Creta, Swift or Thar.",
-    place: 'That looks like a place 🙂 Please type your car model, for example Creta, Swift or Thar.',
+    empty: 'Please type your car model, for example Creta, Nexon or Thar.',
+    junk: "Sorry, we couldn't read that as a car. Please type your car model, for example Creta, Nexon or Thar.",
+    place: 'That looks like a place 🙂 Please type your car model, for example Creta, Nexon or Thar.',
 };
 
 export function whichModelText(make: string, examples: string): string {

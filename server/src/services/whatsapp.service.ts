@@ -1,10 +1,21 @@
 import axios from 'axios';
+import https from 'https';
 import db from '../config/database.js';
 import { v4 as uuidv4 } from 'uuid';
 import dotenv from 'dotenv';
 import { isContextEnabled, getNotificationSettings, NOTIFICATION_TYPES } from './notificationSettings.service.js';
 
 dotenv.config();
+
+/*
+ * One HTTP client for Interakt that keeps its connections open. Without it
+ * every message opened a fresh TLS connection first — a few hundred ms on
+ * each bot reply, before Interakt even saw the message.
+ */
+const interakt = axios.create({
+    httpsAgent: new https.Agent({ keepAlive: true, keepAliveMsecs: 30_000, maxSockets: 25 }),
+    timeout: 20_000,
+});
 
 export interface CampaignProgress {
     campaignId: string;
@@ -164,7 +175,7 @@ export class WhatsAppService {
                 payload.template.headerValues = headerValues;
             }
 
-            const response = await axios.post(
+            const response = await interakt.post(
                 this.API_URL,
                 payload,
                 {
@@ -362,8 +373,9 @@ export class WhatsAppService {
             return false;
         }
 
+        const started = Date.now();
         try {
-            const response = await axios.post(
+            const response = await interakt.post(
                 this.API_URL,
                 {
                     countryCode,
@@ -374,8 +386,8 @@ export class WhatsAppService {
                 },
                 { headers: { 'Authorization': `Basic ${this.API_KEY}`, 'Content-Type': 'application/json' } }
             );
-            console.log(`[WhatsApp] Sent ${type} (${context}) to ${countryCode}${phoneNumber} — ID: ${response.data?.id}`);
-            await this.logMessage({
+            console.log(`[WhatsApp] Sent ${type} (${context}) to ${countryCode}${phoneNumber} in ${Date.now() - started} ms — ID: ${response.data?.id}`);
+            void this.logMessage({
                 id: logId, recipient_phone: `${countryCode}${phoneNumber}`, channel: 'whatsapp',
                 template_name: label, status: 'sent', context, reference_id: referenceId,
                 interakt_message_id: response.data?.id || null,

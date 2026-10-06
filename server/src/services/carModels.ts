@@ -98,7 +98,8 @@ const MAKES: Record<string, string[]> = {
 
 /* The best-known models, to suggest when only the make was given. */
 const EXAMPLES: Record<string, string[]> = {
-    'Maruti Suzuki': ['Swift', 'Baleno', 'Brezza'],
+    /* No Maruti Suzuki model names in our messages (compliance); customers can still type them. */
+    'Maruti Suzuki': [],
     Hyundai: ['Creta', 'Venue', 'i20'],
     Tata: ['Nexon', 'Punch', 'Tiago'],
     Mahindra: ['Thar', 'Scorpio', 'XUV700'],

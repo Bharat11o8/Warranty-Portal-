@@ -88,45 +88,51 @@ export async function startConversation(input: {
     const productText = given(input.product);
     const carText = given(input.car);
 
-    // A new start replaces any chat still open for this number.
-    await endOpenChats(phone, 'replaced');
-
+    const started = Date.now();
     const givenCar = carText ? readCarAnswer(carText) : null;
     const stage: ChatStage = !productText ? 'product' : givenCar?.ok ? 'pincode' : 'car';
     const leadId = uuidv4();
     const session = { stage: canReply ? stage : 'held', tries: 0, at: nowIso(), choice: productText };
 
-    await db.execute(
-        `INSERT INTO leads
-           (id, source, product, car_model, customer_name, customer_phone, phone_key, flow_id, raw_payload, status, failure_reason)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'unmatched', ?)`,
-        [
-            leadId,
-            input.source ?? 'whatsapp',
-            normaliseProduct(productText),
-            givenCar?.ok ? givenCar.car : (carText ? carText.slice(0, 80) : null),
-            given(input.name)?.slice(0, 255) ?? null,
-            phone,
-            phoneKey(phone),
-            LOCATOR_FLOW_ID,
-            JSON.stringify({
-                ...(input.rawPayload && typeof input.rawPayload === 'object' ? input.rawPayload as object : {}),
-                locator: { session },
-            }),
-            // Not live for this number: the chat cannot ask, so the team calls.
-            canReply ? null : 'Store locator not live for this number: details not asked',
-        ]
-    );
+    // A new start replaces any chat still open for this number — before the
+    // insert, or it would close the new chat too.
+    const write = (async () => {
+        await endOpenChats(phone, 'replaced');
+        await db.execute(
+            `INSERT INTO leads
+               (id, source, product, car_model, customer_name, customer_phone, phone_key, flow_id, raw_payload, status, failure_reason)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'unmatched', ?)`,
+            [
+                leadId,
+                input.source ?? 'whatsapp',
+                normaliseProduct(productText),
+                givenCar?.ok ? givenCar.car : (carText ? carText.slice(0, 80) : null),
+                given(input.name)?.slice(0, 255) ?? null,
+                phone,
+                phoneKey(phone),
+                LOCATOR_FLOW_ID,
+                JSON.stringify({
+                    ...(input.rawPayload && typeof input.rawPayload === 'object' ? input.rawPayload as object : {}),
+                    locator: { session },
+                }),
+                // Not live for this number: the chat cannot ask, so the team calls.
+                canReply ? null : 'Store locator not live for this number: details not asked',
+            ]
+        );
+    })();
 
     if (!canReply) {
+        await write;
         console.log(`[Chat] ${phoneKey(phone)} not live — lead ${leadId} kept for the team`);
         return { result: 'held', leadId };
     }
-    if (input.announce !== false) {
-        if (stage === 'product') await sendList(phone, productMenu(leadId), leadId, 'product-menu');
-        else await send(phone, stage === 'car' ? CAR_QUESTION : PINCODE_QUESTION, leadId, stage === 'car' ? 'car-question' : 'pincode-question');
-    }
-    console.log(`[Chat] ${phoneKey(phone)} started at ${stage} — lead ${leadId}`);
+    // The first question goes out while the lead is written: the customer
+    // cannot answer it before the row exists, and does not wait for it.
+    const ask = input.announce === false ? Promise.resolve()
+        : stage === 'product' ? sendList(phone, productMenu(leadId), leadId, 'product-menu')
+            : send(phone, stage === 'car' ? CAR_QUESTION : PINCODE_QUESTION, leadId, stage === 'car' ? 'car-question' : 'pincode-question');
+    await Promise.all([write, ask]);
+    console.log(`[Chat] ${phoneKey(phone)} started at ${stage} in ${Date.now() - started} ms — lead ${leadId}`);
     return { result: 'asked', leadId };
 }
 
@@ -192,12 +198,17 @@ async function chatStartedWithin(phone: string, seconds: number, openOnly: boole
  */
 export function startFromMessage(phone: string, name: string | null, start: StartWord = { kind: 'heyy' }): Promise<boolean> {
     return inOrder(phoneKey(phone), async () => {
-        if (await chatStartedWithin(phone, 20, true)) {
+        // Both checks at once; the team check is only needed for a word other than "Heyy".
+        const [justStarted, team] = await Promise.all([
+            chatStartedWithin(phone, 20, true),
+            start.kind === 'word' ? isTeamNumber(phone) : Promise.resolve(false),
+        ]);
+        if (justStarted) {
             console.log(`[Chat] ${phoneKey(phone)} "Heyy" — chat already started by the hand-off`);
             return true;
         }
         // Only "Heyy" starts the chat for our own people; their "hi" is to someone.
-        if (start.kind === 'word' && await isTeamNumber(phone)) {
+        if (team) {
             console.log(`[Chat] ${phoneKey(phone)} start word from a team number — no chat`);
             return false;
         }
@@ -286,15 +297,17 @@ export async function handleConversationMessage(senderPhone: string, message: an
     const key = phoneKey(senderPhone);
     const type = String(message.message_content_type ?? '');
     const tap = menuTapFromWebhook(message);
-
-    let chat = await openChat(senderPhone);
-
     if (/Reply$/.test(type) && !tap) return false;      // a store-list tap, not ours
-    if (!chat && !tap) return false;
-    if (!firstTime(message.id)) return true;
 
     return inOrder(key, async () => {
+        const started = Date.now();
+        // Read inside the queue: a quick second message must see what the first one saved.
+        let chat = await openChat(senderPhone);
+        if (!chat && !tap) return false;
+        if (!firstTime(message.id)) return true;
+
         const phone = chat?.customer_phone || senderPhone;
+        const done = (what: string) => console.log(`[Chat] ${key} ${what} in ${Date.now() - started} ms`);
         try {
             if (tap) {
                 // A tap on a menu from an earlier chat, or after this one moved
@@ -306,6 +319,7 @@ export async function handleConversationMessage(senderPhone: string, message: an
                     if (!chat) return true;
                 }
                 await applyMenu(chat, phone, menuStep(chat.session.stage, 0, { tap: tap.key }));
+                done(`menu tap ${tap.key}`);
                 return true;
             }
             const current = chat!;
@@ -328,8 +342,10 @@ export async function handleConversationMessage(senderPhone: string, message: an
                 return false;
             }
             if (isCancel(text)) {
-                await saveSession(current.id, { ...current.session, stage: 'cancelled', at: nowIso() });
-                await send(phone, CANCELLED_TEXT, current.id, 'cancelled');
+                await Promise.all([
+                    saveSession(current.id, { ...current.session, stage: 'cancelled', at: nowIso() }),
+                    send(phone, CANCELLED_TEXT, current.id, 'cancelled'),
+                ]);
                 return true;
             }
             // A business's auto-reply answering our question is not the customer.
@@ -339,27 +355,39 @@ export async function handleConversationMessage(senderPhone: string, message: an
             const tries = Number(current.session.tries) || 0;
             if (stage === 'product' || stage === 'product-other') {
                 await applyMenu(current, phone, menuStep(stage, tries, { text }));
+                done(`menu answer at ${stage}`);
                 return true;
             }
 
+            /*
+             * Saving the chat and sending the reply run together: the queue
+             * holds this customer's next message until both are done, so it
+             * still sees the saved step.
+             */
             const step = await nextStep({ stage, tries }, text, isKnownPincode);
             if (step.kind === 'retry') {
-                await saveSession(current.id, { ...current.session, tries: step.tries, at: nowIso() });
-                await send(phone, step.reply, current.id, stage === 'car' ? 'car-retry' : 'pincode-retry');
+                await Promise.all([
+                    saveSession(current.id, { ...current.session, tries: step.tries, at: nowIso() }),
+                    send(phone, step.reply, current.id, stage === 'car' ? 'car-retry' : 'pincode-retry'),
+                ]);
             } else if (step.kind === 'car') {
-                await saveSession(
-                    current.id,
-                    { ...current.session, stage: 'pincode', tries: 0, at: nowIso(), car_checked: step.checked },
-                    { car_model: step.car.slice(0, 80) }
-                );
-                await send(phone, step.reply, current.id, 'pincode-question');
+                await Promise.all([
+                    saveSession(
+                        current.id,
+                        { ...current.session, stage: 'pincode', tries: 0, at: nowIso(), car_checked: step.checked },
+                        { car_model: step.car.slice(0, 80) }
+                    ),
+                    send(phone, step.reply, current.id, 'pincode-question'),
+                ]);
             } else if (step.kind === 'give-up') {
-                await saveSession(
-                    current.id,
-                    { ...current.session, stage: 'ended', tries: tries + 1, at: nowIso() },
-                    { failure_reason: 'No valid pincode given', raw_area: text.slice(0, 255) }
-                );
-                await send(phone, step.reply, current.id, 'gave-up');
+                await Promise.all([
+                    saveSession(
+                        current.id,
+                        { ...current.session, stage: 'ended', tries: tries + 1, at: nowIso() },
+                        { failure_reason: 'No valid pincode given', raw_area: text.slice(0, 255) }
+                    ),
+                    send(phone, step.reply, current.id, 'gave-up'),
+                ]);
             } else {
                 // The pincode: the locator takes over and finishes this lead.
                 await saveSession(current.id, { ...current.session, stage: 'done', at: nowIso() });
@@ -380,6 +408,7 @@ export async function handleConversationMessage(senderPhone: string, message: an
                     },
                 });
             }
+            done(`${stage} → ${step.kind}`);
             return true;
         } catch (err: any) {
             console.error(`[Chat] ${key} failed${chat ? ` on lead ${chat.id}` : ''}:`, err?.message);
@@ -399,20 +428,25 @@ export async function handleConversationMessage(senderPhone: string, message: an
 
 /** Act on a menu step: show a menu (or a retry), or take the product and ask for the car. */
 async function applyMenu(chat: OpenChat, phone: string, step: MenuStep) {
+    // Save and send together, as in handleConversationMessage.
     if (step.kind === 'menu') {
-        await saveSession(chat.id, {
-            ...chat.session, stage: step.menu === 'other' ? 'product-other' : 'product', tries: step.tries, at: nowIso(),
-        });
-        if (step.retry) await send(phone, MENU_RETRY, chat.id, 'product-retry');
-        else if (step.menu === 'other') await sendList(phone, otherProductsMenu(chat.id), chat.id, 'other-menu');
-        else await sendList(phone, productMenu(chat.id), chat.id, 'product-menu');
+        await Promise.all([
+            saveSession(chat.id, {
+                ...chat.session, stage: step.menu === 'other' ? 'product-other' : 'product', tries: step.tries, at: nowIso(),
+            }),
+            step.retry ? send(phone, MENU_RETRY, chat.id, 'product-retry')
+                : step.menu === 'other' ? sendList(phone, otherProductsMenu(chat.id), chat.id, 'other-menu')
+                    : sendList(phone, productMenu(chat.id), chat.id, 'product-menu'),
+        ]);
         return;
     }
-    await saveSession(
-        chat.id,
-        { ...chat.session, stage: 'car', tries: 0, at: nowIso(), choice: step.choice },
-        { product: step.product }
-    );
-    await send(phone, CAR_QUESTION, chat.id, 'car-question');
+    await Promise.all([
+        saveSession(
+            chat.id,
+            { ...chat.session, stage: 'car', tries: 0, at: nowIso(), choice: step.choice },
+            { product: step.product }
+        ),
+        send(phone, CAR_QUESTION, chat.id, 'car-question'),
+    ]);
 }
 
