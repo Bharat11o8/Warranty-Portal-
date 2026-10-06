@@ -2,7 +2,29 @@ import { parseLeadForm } from './instagramLeadParser.js';
 import { startConversation } from './locatorConversation.service.js';
 import { startStoreEnquiry } from './storeLocatorChat.js';
 import { extractPincode } from './storeLocator.js';
-import { sheetCar } from './leadSheetSync.js';
+import { sheetCar, SAME_ENQUIRY_DAYS } from './leadSheetSync.js';
+import { phoneKey } from './leadIdentity.js';
+import { SHEET_FLOW_ID } from './leadSheetImport.service.js';
+import db from '../config/database.js';
+
+/*
+ * The same form can reach us twice: as this WhatsApp message, and as a row in
+ * Meta's lead sheet that the import files every few minutes. Usually the
+ * message comes first and the import skips the row. When the row was filed
+ * first, this message finishes that lead instead of starting a second one —
+ * the auditor may already be working on it.
+ */
+async function sheetLeadFor(phone: string): Promise<string | null> {
+    const key = phoneKey(phone);
+    if (!key) return null;
+    const [rows]: any = await db.execute(
+        `SELECT id FROM leads
+          WHERE flow_id = ? AND phone_key = ? AND created_at >= NOW() - INTERVAL ? DAY
+          ORDER BY created_at DESC LIMIT 1`,
+        [SHEET_FLOW_ID, key, SAME_ENQUIRY_DAYS]
+    );
+    return rows[0]?.id ?? null;
+}
 
 /* Re-exported so callers and tests can reach the parser through either
    module; the reading itself has no database import. */
@@ -59,7 +81,10 @@ export async function handleInstagramLead(
     // A pincode form, whether or not the answer holds one: the locator either
     // runs, or asks the customer for the pincode and keeps the lead meanwhile.
     if (pincode || lead.pincode !== null || !lead.city) {
+        const existing = await sheetLeadFor(senderPhone);
+        if (existing) console.log(`[Instagram] ${phoneKey(senderPhone)} already filed from the sheet — finishing lead ${existing}`);
         await startStoreEnquiry({
+            ...(existing ? { leadId: existing } : {}),
             pincode: pincode ?? lead.pincode ?? '',
             phone: senderPhone,
             name: lead.name,

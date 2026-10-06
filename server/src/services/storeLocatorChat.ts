@@ -76,8 +76,14 @@ export interface StoreEnquiry {
 async function writeLead(existingId: string | undefined, newId: string, cols: Record<string, unknown>) {
     const names = Object.keys(cols);
     if (existingId) {
+        // Finishing a lead that already exists (a chat's, or an Instagram sheet
+        // lead the customer has now written to): its raw_payload is merged into,
+        // never replaced — a sheet lead keeps its Meta id, so it is not imported again.
+        const set = (n: string) => n === 'raw_payload'
+            ? 'raw_payload = JSON_MERGE_PATCH(COALESCE(raw_payload, JSON_OBJECT()), CAST(? AS JSON))'
+            : `${n} = ?`;
         await db.execute(
-            `UPDATE leads SET ${names.map(n => `${n} = ?`).join(', ')}, updated_at = NOW() WHERE id = ?`,
+            `UPDATE leads SET ${names.map(set).join(', ')}, updated_at = NOW() WHERE id = ?`,
             [...Object.values(cols), existingId]
         );
     } else {
