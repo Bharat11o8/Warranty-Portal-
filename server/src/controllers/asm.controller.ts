@@ -985,6 +985,22 @@ export class AsmController {
              */
             const address = buildAddress(store);
 
+            /*
+             * Whether the store is told too. A WhatsApp customer who picked a
+             * store already alerted it; an Instagram lead filed from Meta's
+             * sheet, an IVR call or a hand-added lead has alerted nobody yet.
+             * Decided by what the lead has actually done, not by its source —
+             * sheet leads share the "instagram" source with WhatsApp ones, and
+             * were skipped. notifyOnce still never alerts one store twice.
+             */
+            const notifiedBefore = (() => {
+                try {
+                    const v = typeof lead.notified === 'string' ? JSON.parse(lead.notified) : lead.notified;
+                    return Array.isArray(v) && v.length > 0;
+                } catch { return false; }
+            })();
+            const alertsStore = !['whatsapp', 'instagram'].includes(lead.source) || !notifiedBefore;
+
             if (preview === true) {
                 return res.json({
                     success: true,
@@ -995,7 +1011,7 @@ export class AsmController {
                     customer_phone: lead.customer_phone,
                     already_sent_at: lead.store_sent_at,
                     // IVR and hand-added leads also alert the store; see below.
-                    alerts_store: !['whatsapp', 'instagram'].includes(lead.source),
+                    alerts_store: alertsStore,
                 });
             }
 
@@ -1033,7 +1049,7 @@ export class AsmController {
              * customer's message, whose failure stops everything above.
              */
             let storeAlert: AlertResult | 'not-applicable' = 'not-applicable';
-            if (!['whatsapp', 'instagram'].includes(lead.source)) {
+            if (alertsStore) {
                 const settings = await getLocatorSettings();
                 storeAlert = await notifyOnce(
                     lead, `store:${store.id}`, store.phone_number, store.store_name, settings.whatsapp_live,
