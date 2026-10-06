@@ -2,6 +2,7 @@ import { parseLeadForm } from './instagramLeadParser.js';
 import { startConversation } from './locatorConversation.service.js';
 import { startStoreEnquiry } from './storeLocatorChat.js';
 import { extractPincode } from './storeLocator.js';
+import { sheetCar } from './leadSheetSync.js';
 
 /* Re-exported so callers and tests can reach the parser through either
    module; the reading itself has no database import. */
@@ -63,7 +64,8 @@ export async function handleInstagramLead(
             phone: senderPhone,
             name: lead.name,
             product: lead.product,
-            car: lead.car,
+            // "Hyundai exter (2025)": the year the form asked for, kept with the car.
+            car: sheetCar(lead),
             source: 'instagram',
             rawPayload: payload,
         });

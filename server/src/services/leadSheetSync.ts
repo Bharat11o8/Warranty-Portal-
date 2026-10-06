@@ -260,7 +260,7 @@ export function planSheetImport(leads: SheetLead[], known: KnownLeads, since: Da
 }
 
 /** The car as the lead screen shows it: "SUV", "Etios cross 2015", "Swift (2019)". */
-export function sheetCar(lead: SheetLead): string | null {
+export function sheetCar(lead: Pick<SheetLead, 'car' | 'carYear'>): string | null {
     const car = String(lead.car ?? '').trim();
     const year = String(lead.carYear ?? '').trim();
     const yes = /^(yes|no|ok|haan|na)$/i;
