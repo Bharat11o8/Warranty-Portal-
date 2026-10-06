@@ -5,7 +5,7 @@ import { WhatsAppService } from '../services/whatsapp.service.js';
 import { NotificationService } from '../services/notification.service.js';
 import { ingestFlowAuditResponse, recordAuditSent, recordAuditDelivery } from '../services/auditResponse.service.js';
 import { handleInstagramLead } from '../services/instagramLead.service.js';
-import { handleLocatorReply, handlePincodeMessage } from '../services/storeLocatorChat.js';
+import { handleLocatorReply, handlePincodeMessage, handleChooseStoreTap } from '../services/storeLocatorChat.js';
 import { handleConversationMessage, startFromMessage } from '../services/locatorConversation.service.js';
 import { startWord } from '../services/locatorConversation.js';
 import { replyFromWebhook } from '../services/storeLocatorMessages.js';
@@ -201,6 +201,16 @@ export class WebhookController {
                  * car or pincode, the message is its answer. It claims nothing
                  * else — taps, a fresh "Heyy", or no open chat fall through.
                  */
+                // A "View stores" that arrives as a message rather than a button click.
+                if (customer?.phone_number && /^\s*view\s*stores?\s*$/i.test(String(message?.button_text ?? body))) {
+                    try {
+                        if (await handleChooseStoreTap(senderPhone, null)) return;
+                    } catch (err: any) {
+                        console.error('[Webhook] "View stores" handling failed:', err?.message);
+                        return;
+                    }
+                }
+
                 if (customer?.phone_number) {
                     try {
                         if (await handleConversationMessage(senderPhone, message)) return;
@@ -250,6 +260,16 @@ export class WebhookController {
             const fullVendorPhone = `${countryCode}${vendorPhone}`;
 
             console.log(`[Webhook] Button: "${buttonText}" | callbackData: "${callbackData}" | vendor: ${fullVendorPhone}`);
+
+            // "View stores" on af_choose_store_sheet: the customer's store list.
+            if (callbackData.startsWith('choose_store_')) {
+                try {
+                    await handleChooseStoreTap(fullVendorPhone, callbackData.slice('choose_store_'.length) || null);
+                } catch (err: any) {
+                    console.error('[Webhook] "View stores" handling failed:', err?.message);
+                }
+                return;
+            }
 
             // ── Determine action ──────────────────────────────────────────────
             const isApprove = buttonText.toLowerCase().includes('approve');

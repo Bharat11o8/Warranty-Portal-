@@ -7,7 +7,8 @@ import { phoneKey } from './leadIdentity.js';
 import { normaliseProduct } from './productMatch.js';
 import { findState } from './indianStates.js';
 import { extractPincode } from './storeLocator.js';
-import { findStoresForPincode } from './storeLocatorQuery.js';
+import { findStoresForPincode, getLocatorSettings } from './storeLocatorQuery.js';
+import { deliverLead } from './storeLocatorChat.js';
 import { titleCase } from './storeLocatorMessages.js';
 
 /**
@@ -33,6 +34,8 @@ export interface ImportReport {
     sameEnquiry: number;
     unusable: number;
     tooOld: number;
+    /* Too new: left for the next pass, so a WhatsApp copy can arrive first. */
+    waiting: number;
     skippedRows: { headers: number; tests: number; unrecognised: number };
 }
 
@@ -51,17 +54,14 @@ async function knownLeads(): Promise<KnownLeads> {
         `SELECT JSON_UNQUOTE(JSON_EXTRACT(raw_payload, '$.sheet.lead_id')) AS id
            FROM leads WHERE source = 'instagram' AND JSON_EXTRACT(raw_payload, '$.sheet.lead_id') IS NOT NULL`
     );
+    // Same number only: a different number is a different lead.
     const [ig]: any = await db.execute(
         `SELECT phone_key, created_at FROM leads
           WHERE source = 'instagram' AND phone_key IS NOT NULL
             AND created_at >= NOW() - INTERVAL 120 DAY`
     );
     const instagramAt = new Map<string, Date[]>();
-    for (const r of ig) {
-        const list = instagramAt.get(r.phone_key) ?? [];
-        list.push(new Date(r.created_at));
-        instagramAt.set(r.phone_key, list);
-    }
+    for (const r of ig) instagramAt.set(r.phone_key, [...(instagramAt.get(r.phone_key) ?? []), new Date(r.created_at)]);
     return { metaIds: new Set(ids.map((r: any) => r.id).filter(Boolean)), instagramAt };
 }
 
@@ -82,6 +82,7 @@ async function insertLead(d: ImportDecision): Promise<'inserted' | 'same-enquiry
     // Checked again at the last moment: the customer's WhatsApp message may have
     // filed this enquiry while this pass was running.
     const at = d.at ?? new Date();
+    const pincode = extractPincode(lead.pincode);
     const [dup]: any = await db.execute(
         `SELECT 1 FROM leads WHERE source = 'instagram' AND phone_key = ?
             AND created_at BETWEEN ? - INTERVAL ? DAY AND ? + INTERVAL ? DAY LIMIT 1`,
@@ -89,7 +90,6 @@ async function insertLead(d: ImportDecision): Promise<'inserted' | 'same-enquiry
     );
     if (dup.length) return 'same-enquiry';
 
-    const pincode = extractPincode(lead.pincode);
     const result = pincode ? await findStoresForPincode(pincode) : null;
 
     const district = result?.customer?.district ?? null;
@@ -106,13 +106,14 @@ async function insertLead(d: ImportDecision): Promise<'inserted' | 'same-enquiry
         ? (lead.pincode ? `No valid pincode in "${String(lead.pincode).slice(0, 40)}"` : 'No pincode on the form')
         : kind === 'support' ? 'No store, ASM or distributor near this pincode' : null;
 
+    const leadId = uuidv4();
     await db.execute(
         `INSERT INTO leads
            (id, source, product, car_model, state, customer_name, customer_phone, phone_key,
             raw_area, matched_area, asm_id, flow_id, raw_payload, status, failure_reason, created_at)
          VALUES (?, 'instagram', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
-            uuidv4(),
+            leadId,
             normaliseProduct(lead.product) ?? lead.product ?? null,
             sheetCar(lead),
             findState(String(result?.customer?.state ?? ''))?.state ?? null,
@@ -153,6 +154,28 @@ async function insertLead(d: ImportDecision): Promise<'inserted' | 'same-enquiry
             d.at ?? new Date(),
         ]
     );
+
+    /*
+     * This customer filled the form but never wrote to us, so nothing reaches
+     * them unless we send it: the nearest store's details (that store gets the
+     * lead), or the ASM / distributor / support when no store is near. A
+     * failure here leaves the lead filed for the auditor.
+     */
+    if (result && pincode) {
+        try {
+            const settings = await getLocatorSettings();
+            const sentTo = await deliverLead(
+                {
+                    id: leadId, phone, name: String(lead.name ?? '').trim() || null,
+                    product: normaliseProduct(lead.product) ?? null, car: sheetCar(lead), place: place ?? pincode,
+                },
+                result, { stores: 'choose' }, settings.whatsapp_live,
+            );
+            console.log(`[LeadSheet] lead ${leadId} (${pincode}) -> ${kind}${sentTo ? `, sent to ${sentTo}` : ', nobody messaged'}`);
+        } catch (err: any) {
+            console.error(`[LeadSheet] lead ${leadId} filed but not delivered:`, err?.message);
+        }
+    }
     return "inserted";
 }
 
@@ -176,6 +199,7 @@ export async function importLeadSheet(opts: { dryRun?: boolean } = {}): Promise<
         sameEnquiry: count('same-enquiry'),
         unusable: count('unusable'),
         tooOld: count('too-old'),
+        waiting: count('wait'),
         skippedRows: skipped,
     };
 

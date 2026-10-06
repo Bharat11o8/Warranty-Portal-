@@ -800,6 +800,29 @@ export class WhatsAppService {
      * Returns false if the send fails — including while the template is still
      * awaiting Meta's approval — so the caller can fall back to the store alert.
      */
+    /**
+     * To an Instagram customer who filled the form but never wrote to us, when
+     * several stores are near: thanks, and a "View stores" quick-reply button.
+     * Their tap comes back as a button click carrying "choose_store_<lead id>",
+     * and opens the 24-hour window in which the store list can be sent.
+     */
+    static async sendChooseStore(
+        customerPhone: string,
+        name: string | null,
+        product: string | null,
+        area: string,
+        leadId: string
+    ): Promise<boolean> {
+        const template = process.env.CHOOSE_STORE_TEMPLATE || 'af_choose_store_sheet';
+        return this.sendTemplateMessage(
+            customerPhone,
+            template,
+            [String(name || '').trim() || 'there', product || 'car accessories', area],
+            'choose_store',
+            leadId
+        );
+    }
+
     static async sendSupportLead(
         supportPhone: string,
         customerPhone: string,

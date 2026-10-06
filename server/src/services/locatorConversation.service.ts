@@ -3,7 +3,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { WhatsAppService } from './whatsapp.service.js';
 import { phoneKey, normaliseProduct } from './asmRouting.service.js';
 import { getLocatorSettings, repliesTo } from './storeLocatorQuery.js';
-import { LOCATOR_FLOW_ID, startStoreEnquiry } from './storeLocatorChat.js';
+import { LOCATOR_FLOW_ID, startStoreEnquiry, resendAnswer } from './storeLocatorChat.js';
 import { readCarAnswer } from './carModels.js';
 import { localPhone } from './storeLocator.js';
 import { hasAutoReplyContent } from './autoReply.js';
@@ -213,6 +213,12 @@ export function startFromMessage(phone: string, name: string | null, start: Star
             return false;
         }
         const product = start.kind === 'word' ? start.product : null;
+        /*
+         * "Price please" from someone answered within the day: their answer
+         * again, on their lead — not a fresh menu and a second lead. "Heyy",
+         * or another product, still starts a new enquiry.
+         */
+        if (start.kind === 'word' && await resendAnswer(phone, product)) return true;
         await startConversation({ phone, name, product, rawPayload: { source: start.kind === 'heyy' ? 'heyy' : 'start-word' } });
         return true;
     });
