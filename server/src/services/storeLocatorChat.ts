@@ -252,7 +252,8 @@ async function sendResult(phone: string, leadId: string, result: LocatorResult, 
         return msg ? reply(phone, 'InteractiveList', msg as any, leadId) : false;
     }
     if (fallback?.kind === 'asm') {
-        return reply(phone, 'Text', text(asmText(fallback.contacts[0])), leadId);
+        const { support_phone } = await getLocatorSettings();
+        return reply(phone, 'Text', text(asmText(fallback.contacts[0], support_phone)), leadId);
     }
     const support = fallback?.contacts[0] ?? { id: null, name: 'Autoform Customer Support', phone: null };
     return reply(phone, 'Text', text(supportText(support)), leadId);
@@ -309,7 +310,7 @@ export async function handleLocatorReply(senderPhone: string, tap: LocatorReply)
             city: store.city,
             pincode: store.pincode,
             phone: store.phone_number,
-        })), lead.id);
+        }, settings.support_phone)), lead.id);
 
         // Recorded as the customer's own choice, not an admin's.
         await db.execute(
@@ -330,7 +331,7 @@ export async function handleLocatorReply(senderPhone: string, tap: LocatorReply)
     if (!d) return true;
     await reply(senderPhone, 'Text', text(distributorDetailsText({
         id: String(d.id), name: d.name, phone: d.phone_number, city: d.city,
-    })), lead.id);
+    }, settings.support_phone)), lead.id);
     await db.execute(
         `UPDATE leads SET raw_payload = JSON_SET(COALESCE(raw_payload, JSON_OBJECT()),
             '$.locator.picked_distributor', JSON_OBJECT('id', ?, 'name', ?)) WHERE id = ?`,

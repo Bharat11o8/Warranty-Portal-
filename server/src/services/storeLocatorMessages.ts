@@ -248,8 +248,13 @@ const HELP_LINE =
     'Feel free to call or visit — the team will be happy to help you choose the right products for your car. 🚗';
 const ANOTHER_LINE = 'Looking for a store somewhere else? Just send us that pincode.';
 
+/** Our customer executive, under every final answer (the support number in the locator settings). */
+function helplineLines(helpline: string | null | undefined): string[] {
+    return helpline ? ['', `For any other help, call our Customer Executive: 📞 ${formatPhone(helpline)}`] : [];
+}
+
 /** The store the customer picked. */
-export function storeDetailsText(s: StoreDetails): string {
+export function storeDetailsText(s: StoreDetails, helpline?: string | null): string {
     return [
         'Thank you for choosing Autoform! 🙏',
         '',
@@ -258,18 +263,19 @@ export function storeDetailsText(s: StoreDetails): string {
         card(s.store_name, addressLine(s.address, s.city, s.pincode), s.phone),
         '',
         HELP_LINE,
+        ...helplineLines(helpline),
         '',
         ANOTHER_LINE,
     ].join('\n');
 }
 
 /** The distributor the customer picked — told as a store, like the list they picked from. */
-export function distributorDetailsText(d: ListContact): string {
-    return storeDetailsText({ store_name: d.name, address: null, city: d.city ?? null, pincode: null, phone: d.phone });
+export function distributorDetailsText(d: ListContact, helpline?: string | null): string {
+    return storeDetailsText({ store_name: d.name, address: null, city: d.city ?? null, pincode: null, phone: d.phone }, helpline);
 }
 
 /** The ASM, when no store is near: one contact, sent straight away. */
-export function asmText(asm: ListContact): string {
+export function asmText(asm: ListContact, helpline?: string | null): string {
     return [
         'Thank you for reaching out to Autoform! 🙏',
         '',
@@ -278,6 +284,7 @@ export function asmText(asm: ListContact): string {
         card(asm.name, titleCase(asm.city), asm.phone),
         '',
         'Give them a call — they will be happy to help you choose the right products for your car. 🚗',
+        ...helplineLines(helpline),
     ].join('\n');
 }
 
