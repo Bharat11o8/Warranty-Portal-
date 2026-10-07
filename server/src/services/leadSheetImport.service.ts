@@ -54,10 +54,10 @@ async function knownLeads(): Promise<KnownLeads> {
         `SELECT JSON_UNQUOTE(JSON_EXTRACT(raw_payload, '$.sheet.lead_id')) AS id
            FROM leads WHERE source = 'instagram' AND JSON_EXTRACT(raw_payload, '$.sheet.lead_id') IS NOT NULL`
     );
-    // Same number only: a different number is a different lead.
+    // Same number only (a different number is a different lead) — an Instagram lead, or a WhatsApp chat they started.
     const [ig]: any = await db.execute(
         `SELECT phone_key, created_at FROM leads
-          WHERE source = 'instagram' AND phone_key IS NOT NULL
+          WHERE source IN ('instagram', 'whatsapp') AND phone_key IS NOT NULL
             AND created_at >= NOW() - INTERVAL 120 DAY`
     );
     const instagramAt = new Map<string, Date[]>();
@@ -84,7 +84,7 @@ async function insertLead(d: ImportDecision): Promise<'inserted' | 'same-enquiry
     const at = d.at ?? new Date();
     const pincode = extractPincode(lead.pincode);
     const [dup]: any = await db.execute(
-        `SELECT 1 FROM leads WHERE source = 'instagram' AND phone_key = ?
+        `SELECT 1 FROM leads WHERE source IN ('instagram', 'whatsapp') AND phone_key = ?
             AND created_at BETWEEN ? - INTERVAL ? DAY AND ? + INTERVAL ? DAY LIMIT 1`,
         [phone, at, SAME_ENQUIRY_DAYS, at, SAME_ENQUIRY_DAYS]
     );

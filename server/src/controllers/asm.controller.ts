@@ -834,7 +834,19 @@ export class AsmController {
 
     static async getLocatorSettings(_req: Request, res: Response) {
         try {
-            res.json({ success: true, settings: await getLocatorSettings() });
+            // Every verified franchise, for picking the ones to hide from customers.
+            const [stores]: any = await db.execute(
+                `SELECT vd.id, vd.store_name, vd.city, vd.state
+                   FROM vendor_details vd
+                   JOIN vendor_verification vv ON vv.user_id = vd.user_id AND vv.is_verified = 1
+                  WHERE vd.is_franchise = 1
+                  ORDER BY vd.store_name`
+            );
+            res.json({
+                success: true,
+                settings: await getLocatorSettings(),
+                stores: stores.map((s: any) => ({ id: String(s.id), store_name: s.store_name, city: s.city ?? null, state: s.state ?? null })),
+            });
         } catch (error: any) {
             console.error('Locator settings read error:', error);
             res.status(500).json({ error: 'Failed to read the store locator settings' });
@@ -852,12 +864,12 @@ export class AsmController {
         try {
             const admin = (req as any).user;
             const before = await getLocatorSettings();
-            const { min_warranties, radius_km, support_phone, support_name, whatsapp_live, test_numbers } = req.body || {};
+            const { min_warranties, radius_km, support_phone, support_name, whatsapp_live, test_numbers, hidden_stores } = req.body || {};
 
             let saved;
             try {
                 saved = await saveLocatorSettings(
-                    { min_warranties, radius_km, support_phone, support_name, whatsapp_live, test_numbers },
+                    { min_warranties, radius_km, support_phone, support_name, whatsapp_live, test_numbers, hidden_stores },
                     admin?.id || null
                 );
             } catch (err: any) {

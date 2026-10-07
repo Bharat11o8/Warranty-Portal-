@@ -745,6 +745,8 @@ export async function deliverLead(
  * latest lead that was sent the template is used. The lead must belong to the
  * number that tapped. Returns whether it was ours.
  */
+const tapAnswered = new Map<string, number>();
+
 export async function handleChooseStoreTap(senderPhone: string, leadId: string | null): Promise<boolean> {
     const key = phoneKey(senderPhone);
     const [rows]: any = leadId
@@ -762,6 +764,13 @@ export async function handleChooseStoreTap(senderPhone: string, leadId: string |
         console.warn(`[Locator] "View stores" for lead ${lead.id} from ${key} does not match — ignored`);
         return true;
     }
+    /* One tap reaches us twice — as a message and as a button click — and
+       each sent the list. The second, within two minutes, is the same tap. */
+    const last = tapAnswered.get(lead.id);
+    if (last && Date.now() - last < 120_000) return true;
+    tapAnswered.set(lead.id, Date.now());
+    if (tapAnswered.size > 500) tapAnswered.delete(tapAnswered.keys().next().value as string);
+
     const settings = await getLocatorSettings();
     if (!repliesTo(settings, senderPhone)) return true;
 
