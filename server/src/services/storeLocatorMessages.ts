@@ -248,28 +248,38 @@ const HELP_LINE =
     'Feel free to call or visit — the team will be happy to help you choose the right products for your car. 🚗';
 const ANOTHER_LINE = 'Looking for a store somewhere else? Just send us that pincode.';
 
+/** Our customer executive, under every final answer (the support number in the locator settings). */
+function helplineLines(helpline: string | null | undefined): string[] {
+    return helpline ? ['', `For any other help, call our Customer Executive: 📞 ${formatPhone(helpline)}`] : [];
+}
+
 /** The store the customer picked. */
-export function storeDetailsText(s: StoreDetails): string {
+/**
+ * The store's details: the one the customer picked, or — `only` — the one store
+ * near them, sent straight away instead of a list of one to tap.
+ */
+export function storeDetailsText(s: StoreDetails, helpline?: string | null, only = false): string {
     return [
-        'Thank you for choosing Autoform! 🙏',
+        only ? 'Thank you for reaching out to Autoform! 🙏' : 'Thank you for choosing Autoform! 🙏',
         '',
-        "Here are your store's details:",
+        only ? 'Here is the Autoform store nearest to you:' : "Here are your store's details:",
         '',
         card(s.store_name, addressLine(s.address, s.city, s.pincode), s.phone),
         '',
         HELP_LINE,
+        ...helplineLines(helpline),
         '',
         ANOTHER_LINE,
     ].join('\n');
 }
 
 /** The distributor the customer picked — told as a store, like the list they picked from. */
-export function distributorDetailsText(d: ListContact): string {
-    return storeDetailsText({ store_name: d.name, address: null, city: d.city ?? null, pincode: null, phone: d.phone });
+export function distributorDetailsText(d: ListContact, helpline?: string | null, only = false): string {
+    return storeDetailsText({ store_name: d.name, address: null, city: d.city ?? null, pincode: null, phone: d.phone }, helpline, only);
 }
 
 /** The ASM, when no store is near: one contact, sent straight away. */
-export function asmText(asm: ListContact): string {
+export function asmText(asm: ListContact, helpline?: string | null): string {
     return [
         'Thank you for reaching out to Autoform! 🙏',
         '',
@@ -278,6 +288,7 @@ export function asmText(asm: ListContact): string {
         card(asm.name, titleCase(asm.city), asm.phone),
         '',
         'Give them a call — they will be happy to help you choose the right products for your car. 🚗',
+        ...helplineLines(helpline),
     ].join('\n');
 }
 
@@ -362,12 +373,12 @@ export function otherProductsMenu(leadId: string): InteractiveList {
 export const MENU_RETRY = 'Please tap *Choose a product* above and pick one of the options. 🙏';
 
 export const CAR_QUESTION =
-    'Which car do you have? 🚗\n\nPlease type the model, for example Creta, Swift or Thar.';
+    'Which car do you have? 🚗\n\nPlease type the model, for example Creta, Nexon or Thar.';
 
 export const CAR_RETRY: Record<'empty' | 'junk' | 'place', string> = {
-    empty: 'Please type your car model, for example Creta, Swift or Thar.',
-    junk: "Sorry, we couldn't read that as a car. Please type your car model, for example Creta, Swift or Thar.",
-    place: 'That looks like a place 🙂 Please type your car model, for example Creta, Swift or Thar.',
+    empty: 'Please type your car model, for example Creta, Nexon or Thar.',
+    junk: "Sorry, we couldn't read that as a car. Please type your car model, for example Creta, Nexon or Thar.",
+    place: 'That looks like a place 🙂 Please type your car model, for example Creta, Nexon or Thar.',
 };
 
 export function whichModelText(make: string, examples: string): string {

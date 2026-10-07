@@ -3,7 +3,7 @@ import db from '../config/database.js';
 import { v4 as uuidv4 } from 'uuid';
 import { hasAutoReplyContent } from '../services/autoReply.js';
 import { findStoresForPincode, getLocatorSettings, saveLocatorSettings } from '../services/storeLocatorQuery.js';
-import { startStoreEnquiry, notifyOnce, type AlertResult } from '../services/storeLocatorChat.js';
+import { startStoreEnquiry, notifyOnce, manualLeadPlan, createManualPincodeLead, type AlertResult } from '../services/storeLocatorChat.js';
 import { startFromHandoff } from '../services/locatorConversation.service.js';
 import { searchAreas, resolveNewArea, coverageOf, placeOf } from '../services/asmTerritoryQuery.js';
 import { extractPincode } from '../services/storeLocator.js';
@@ -121,6 +121,38 @@ async function attachRouting(rows: any[]) {
     for (const r of locator) {
         r.routing = leadRouting(r, { stores, distributors, support, alerts: alertsFor.get(r.id) ?? [] });
     }
+}
+
+/**
+ * The stores for a customer: the ones the WhatsApp locator offers for this
+ * pincode — within its radius, nearest first — then the rest of the state
+ * below, because an auditor on the phone may know better. Without a pincode,
+ * the state comes from the typed area (or `knownState`, the lead's own).
+ */
+async function storesNear(pin: string | null, area: string, knownState: string | null) {
+    const place = pin ? await placeOf(pin) : null;
+    const state = (place ? findState(String(place.state ?? ''))?.state : null)
+        ?? (area ? findState(area)?.state : null)
+        ?? knownState
+        ?? null;
+
+    const nearby = pin
+        ? [...(await findStoresForPincode(pin)).stores].sort((a, b) => a.distance_km - b.distance_km)
+        : [];
+    const nearIds = new Set(nearby.map(s => String(s.id)));
+    const rest = state
+        ? (await storesForArea(state, area)).filter((s: any) => !nearIds.has(String(s.id)))
+        : [];
+    const stores = [
+        ...nearby.map(s => ({
+            id: s.id, store_name: s.store_name, store_code: s.store_code,
+            address: s.address, city: s.city, state, pincode: s.pincode,
+            phone_number: s.phone, near: true, distance_label: s.distance_label,
+        })),
+        // By pincode, "near" means within the locator's radius; the city match is only a guess.
+        ...rest.map((s: any) => ({ ...s, near: pin ? false : s.near, distance_label: null })),
+    ];
+    return { state, place, stores };
 }
 
 export class AsmController {
@@ -406,11 +438,31 @@ export class AsmController {
      */
     static async createLead(req: Request, res: Response) {
         try {
-            const { name, phone, area, product, car, source, preview } = req.body || {};
+            const { name, phone, product, car, source, preview } = req.body || {};
             const admin = (req as any).user;
 
+            /*
+             * The pincode is what lets the store message go out — the lead screen
+             * finds the stores near it, as WhatsApp does. A lead saved with only
+             * an area could never be sent a store. The area is still accepted
+             * when the customer does not know their pincode.
+             */
+            const pin = extractPincode(String(req.body?.pincode ?? ''));
+            if (req.body?.pincode && String(req.body.pincode).trim() && !pin) {
+                return res.status(400).json({ error: 'That is not a valid 6-digit pincode' });
+            }
+            const place = pin ? await placeOf(pin) : null;
+            if (pin && !place) {
+                return res.status(400).json({ error: `We could not find the pincode ${pin}. Check it, or leave it blank and type the area.` });
+            }
+            const typedArea = String(req.body?.area ?? '').trim();
+            // Routing reads the state from the area text: from the pincode's own place when there is one.
+            const area = typedArea || (place
+                ? [place.district && place.district !== 'NA' ? titleCase(place.district) : null, place.state].filter(Boolean).join(', ')
+                : '');
+
             if (!phone || !area) {
-                return res.status(400).json({ error: 'Phone number and area are required' });
+                return res.status(400).json({ error: 'Phone number and a pincode (or the area) are required' });
             }
             /*
              * An Indian mobile, not merely ten or more digits.
@@ -433,6 +485,51 @@ export class AsmController {
             const channel = source === 'website' ? 'website' : 'ivr';
 
             /*
+             * With a pincode, the WhatsApp chain: the stores near it (the auditor
+             * picks one, and the customer and that store are messaged), else the
+             * ASM, the distributor, then support. The state's ASM is not messaged
+             * just because the lead was added.
+             */
+            if (pin) {
+                if (preview === true) {
+                    const plan = await manualLeadPlan(pin);
+                    return res.json({
+                        success: true, preview: true, pincode: pin,
+                        state: plan.state, district: plan.district,
+                        outcome: plan.kind,
+                        store_count: plan.result.stores.length,
+                        contact_name: plan.contact?.name ?? null,
+                        // Kept for older screens: who is messaged on save.
+                        matched: plan.kind !== 'support',
+                        asm_name: plan.contact?.name ?? null,
+                    });
+                }
+                const made = await createManualPincodeLead({
+                    pincode: pin, phone: digits,
+                    name: name ? String(name) : null, product: product ? String(product) : null, car: car ? String(car) : null,
+                    source: channel, enteredBy: admin?.email || admin?.id || null,
+                    storePicked: req.body?.store_picked === true,
+                });
+                try {
+                    await ActivityLogService.log({
+                        adminId: admin?.id, adminName: admin?.name, adminEmail: admin?.email,
+                        actionType: 'LEAD_CREATED', targetType: 'LEAD', targetId: made.leadId,
+                        targetName: name ? String(name) : digits,
+                        details: { channel, pincode: pin, outcome: made.kind, sent_to: made.sentTo },
+                        ipAddress: req.ip || req.socket?.remoteAddress,
+                    });
+                } catch (e) {
+                    console.error('Failed to log lead creation', e);
+                }
+                return res.status(201).json({
+                    success: true, id: made.leadId, outcome: made.kind,
+                    message: made.kind === 'stores'
+                        ? 'Lead added'
+                        : made.sentTo ? `Lead added — no store near ${pin}, sent to ${made.sentTo}` : `Lead added — no store near ${pin}`,
+                });
+            }
+
+            /*
              * A preview resolves and reports without sending. Mistyping an area
              * here costs a real message to a real ASM, and that cannot be
              * recalled, so the form is expected to show the match first.
@@ -451,6 +548,8 @@ export class AsmController {
                     success: true,
                     preview: true,
                     state: findState(String(area))?.state || null,
+                    pincode: pin,
+                    district: place?.district && place.district !== 'NA' ? titleCase(place.district) : null,
                     matched: Boolean(result.asm),
                     asm_name: result.asm?.name || null,
                     asm_phone: result.asm?.phone_number || null,
@@ -465,7 +564,8 @@ export class AsmController {
                 product: product ? String(product) : null,
                 car: car ? String(car) : null,
                 source: channel,
-                rawPayload: { entered_by: admin?.email || admin?.id, channel },
+                // The pincode where leadPincode reads it, so the lead screen finds its stores.
+                rawPayload: { entered_by: admin?.email || admin?.id, channel, ...(pin ? { pincode: pin } : {}) },
             });
 
             try {
@@ -734,7 +834,19 @@ export class AsmController {
 
     static async getLocatorSettings(_req: Request, res: Response) {
         try {
-            res.json({ success: true, settings: await getLocatorSettings() });
+            // Every verified franchise, for picking the ones to hide from customers.
+            const [stores]: any = await db.execute(
+                `SELECT vd.id, vd.store_name, vd.city, vd.state
+                   FROM vendor_details vd
+                   JOIN vendor_verification vv ON vv.user_id = vd.user_id AND vv.is_verified = 1
+                  WHERE vd.is_franchise = 1
+                  ORDER BY vd.store_name`
+            );
+            res.json({
+                success: true,
+                settings: await getLocatorSettings(),
+                stores: stores.map((s: any) => ({ id: String(s.id), store_name: s.store_name, city: s.city ?? null, state: s.state ?? null })),
+            });
         } catch (error: any) {
             console.error('Locator settings read error:', error);
             res.status(500).json({ error: 'Failed to read the store locator settings' });
@@ -752,12 +864,12 @@ export class AsmController {
         try {
             const admin = (req as any).user;
             const before = await getLocatorSettings();
-            const { min_warranties, radius_km, support_phone, support_name, whatsapp_live, test_numbers } = req.body || {};
+            const { min_warranties, radius_km, support_phone, support_name, whatsapp_live, test_numbers, hidden_stores } = req.body || {};
 
             let saved;
             try {
                 saved = await saveLocatorSettings(
-                    { min_warranties, radius_km, support_phone, support_name, whatsapp_live, test_numbers },
+                    { min_warranties, radius_km, support_phone, support_name, whatsapp_live, test_numbers, hidden_stores },
                     admin?.id || null
                 );
             } catch (err: any) {
@@ -786,17 +898,22 @@ export class AsmController {
         }
     }
 
+    /**
+     * The stores for a lead being added — by its pincode when there is one
+     * (nearest first, as WhatsApp offers them), else by the typed area's state.
+     */
     static async storesForEnquiry(req: Request, res: Response) {
         try {
             const area = String(req.query.area || '').trim();
-            if (!area) return res.json({ success: true, state: null, stores: [], near_count: 0 });
+            const pin = extractPincode(String(req.query.pincode || ''));
+            if (!area && !pin) return res.json({ success: true, state: null, stores: [], near_count: 0 });
 
-            const state = findState(area)?.state || null;
-            const stores = await storesForArea(state, area);
-
+            const { state, place, stores } = await storesNear(pin, area, null);
             res.json({
                 success: true,
                 state,
+                pincode: pin,
+                district: place?.district && place.district !== 'NA' ? titleCase(place.district) : null,
                 area,
                 stores,
                 near_count: stores.filter((s: any) => s.near).length,
@@ -827,33 +944,9 @@ export class AsmController {
                 ? extractPincode(typedPin)
                 : leadPincode(lead.raw_payload, lead.raw_area);
 
-            const place = pin ? await placeOf(pin) : null;
-            const state = (place ? findState(String(place.state ?? ''))?.state : null)
-                ?? (typedArea !== undefined ? findState(area)?.state : lead.state)
-                ?? null;
-
-            /*
-             * The same stores the WhatsApp locator offers for this pincode —
-             * within the locator's radius, nearest first — then the rest of the state below,
-             * because an auditor on the phone may know better.
-             */
-            // Nearest first: the auditor is on the phone with the customer.
-            const nearby = pin
-                ? [...(await findStoresForPincode(pin)).stores].sort((a, b) => a.distance_km - b.distance_km)
-                : [];
-            const nearIds = new Set(nearby.map(s => String(s.id)));
-            const rest = state
-                ? (await storesForArea(state, area)).filter((s: any) => !nearIds.has(String(s.id)))
-                : [];
-            const stores = [
-                ...nearby.map(s => ({
-                    id: s.id, store_name: s.store_name, store_code: s.store_code,
-                    address: s.address, city: s.city, state, pincode: s.pincode,
-                    phone_number: s.phone, near: true, distance_label: s.distance_label,
-                })),
-                // By pincode, "near" means within the locator's radius; the city match is only a guess.
-                ...rest.map((s: any) => ({ ...s, near: pin ? false : s.near, distance_label: null })),
-            ];
+            const { state, place, stores } = await storesNear(
+                pin, area, typedArea !== undefined ? null : (lead.state ?? null),
+            );
 
             res.json({
                 success: true,
@@ -985,6 +1078,22 @@ export class AsmController {
              */
             const address = buildAddress(store);
 
+            /*
+             * Whether the store is told too. A WhatsApp customer who picked a
+             * store already alerted it; an Instagram lead filed from Meta's
+             * sheet, an IVR call or a hand-added lead has alerted nobody yet.
+             * Decided by what the lead has actually done, not by its source —
+             * sheet leads share the "instagram" source with WhatsApp ones, and
+             * were skipped. notifyOnce still never alerts one store twice.
+             */
+            const notifiedBefore = (() => {
+                try {
+                    const v = typeof lead.notified === 'string' ? JSON.parse(lead.notified) : lead.notified;
+                    return Array.isArray(v) && v.length > 0;
+                } catch { return false; }
+            })();
+            const alertsStore = !['whatsapp', 'instagram'].includes(lead.source) || !notifiedBefore;
+
             if (preview === true) {
                 return res.json({
                     success: true,
@@ -995,7 +1104,7 @@ export class AsmController {
                     customer_phone: lead.customer_phone,
                     already_sent_at: lead.store_sent_at,
                     // IVR and hand-added leads also alert the store; see below.
-                    alerts_store: !['whatsapp', 'instagram'].includes(lead.source),
+                    alerts_store: alertsStore,
                 });
             }
 
@@ -1033,7 +1142,7 @@ export class AsmController {
              * customer's message, whose failure stops everything above.
              */
             let storeAlert: AlertResult | 'not-applicable' = 'not-applicable';
-            if (!['whatsapp', 'instagram'].includes(lead.source)) {
+            if (alertsStore) {
                 const settings = await getLocatorSettings();
                 storeAlert = await notifyOnce(
                     lead, `store:${store.id}`, store.phone_number, store.store_name, settings.whatsapp_live,

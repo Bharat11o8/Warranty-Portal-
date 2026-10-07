@@ -1,10 +1,21 @@
 import axios from 'axios';
+import https from 'https';
 import db from '../config/database.js';
 import { v4 as uuidv4 } from 'uuid';
 import dotenv from 'dotenv';
 import { isContextEnabled, getNotificationSettings, NOTIFICATION_TYPES } from './notificationSettings.service.js';
 
 dotenv.config();
+
+/*
+ * One HTTP client for Interakt that keeps its connections open. Without it
+ * every message opened a fresh TLS connection first — a few hundred ms on
+ * each bot reply, before Interakt even saw the message.
+ */
+const interakt = axios.create({
+    httpsAgent: new https.Agent({ keepAlive: true, keepAliveMsecs: 30_000, maxSockets: 25 }),
+    timeout: 20_000,
+});
 
 export interface CampaignProgress {
     campaignId: string;
@@ -164,7 +175,7 @@ export class WhatsAppService {
                 payload.template.headerValues = headerValues;
             }
 
-            const response = await axios.post(
+            const response = await interakt.post(
                 this.API_URL,
                 payload,
                 {
@@ -362,8 +373,9 @@ export class WhatsAppService {
             return false;
         }
 
+        const started = Date.now();
         try {
-            const response = await axios.post(
+            const response = await interakt.post(
                 this.API_URL,
                 {
                     countryCode,
@@ -374,8 +386,8 @@ export class WhatsAppService {
                 },
                 { headers: { 'Authorization': `Basic ${this.API_KEY}`, 'Content-Type': 'application/json' } }
             );
-            console.log(`[WhatsApp] Sent ${type} (${context}) to ${countryCode}${phoneNumber} — ID: ${response.data?.id}`);
-            await this.logMessage({
+            console.log(`[WhatsApp] Sent ${type} (${context}) to ${countryCode}${phoneNumber} in ${Date.now() - started} ms — ID: ${response.data?.id}`);
+            void this.logMessage({
                 id: logId, recipient_phone: `${countryCode}${phoneNumber}`, channel: 'whatsapp',
                 template_name: label, status: 'sent', context, reference_id: referenceId,
                 interakt_message_id: response.data?.id || null,
@@ -788,6 +800,29 @@ export class WhatsAppService {
      * Returns false if the send fails — including while the template is still
      * awaiting Meta's approval — so the caller can fall back to the store alert.
      */
+    /**
+     * To an Instagram customer who filled the form but never wrote to us, when
+     * several stores are near: thanks, and a "View stores" quick-reply button.
+     * Their tap comes back as a button click carrying "choose_store_<lead id>",
+     * and opens the 24-hour window in which the store list can be sent.
+     */
+    static async sendChooseStore(
+        customerPhone: string,
+        name: string | null,
+        product: string | null,
+        area: string,
+        leadId: string
+    ): Promise<boolean> {
+        const template = process.env.CHOOSE_STORE_TEMPLATE || 'af_choose_store_sheet';
+        return this.sendTemplateMessage(
+            customerPhone,
+            template,
+            [String(name || '').trim() || 'there', product || 'car accessories', area],
+            'choose_store',
+            leadId
+        );
+    }
+
     static async sendSupportLead(
         supportPhone: string,
         customerPhone: string,

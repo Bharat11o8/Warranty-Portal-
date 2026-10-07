@@ -512,10 +512,12 @@ export const AdminLeadsList = () => {
     const [loadingAddStores, setLoadingAddStores] = useState(false);
 
     const [addForm, setAddForm] = useState({
-        name: "", phone: "", area: "", product: "", car: "", source: "ivr",
+        name: "", phone: "", pincode: "", area: "", product: "", car: "", source: "ivr",
     });
     const [addPreview, setAddPreview] = useState<{
-        state: string | null; matched: boolean; asm_name: string | null;
+        state: string | null; matched: boolean; asm_name: string | null; district?: string | null;
+        /* With a pincode: where the chain lands — stores to pick from, or who gets it instead. */
+        outcome?: "stores" | "asm" | "distributor" | "support"; store_count?: number; contact_name?: string | null;
     } | null>(null);
     const [previewing, setPreviewing] = useState(false);
     const [adding, setAdding] = useState(false);
@@ -523,9 +525,13 @@ export const AdminLeadsList = () => {
        number is one nobody can ever call back, which is the whole point of
        capturing it. */
     const addPhoneError = getPhoneError(addForm.phone);
-    const addAreaError = getCityError(addForm.area);
-    const addValid = Boolean(addForm.phone.trim()) && !addPhoneError
-        && Boolean(addForm.area.trim()) && !addAreaError;
+    /* The pincode is what lets a store be sent to the customer; the area is
+       only for a customer who does not know theirs. One of the two is needed. */
+    const addPinOk = /^[1-9]\d{5}$/.test(addForm.pincode);
+    const addPinError = addForm.pincode && !addPinOk ? "A pincode is 6 digits, not starting with 0." : null;
+    const addAreaError = addForm.area.trim() ? getCityError(addForm.area) : null;
+    const addValid = Boolean(addForm.phone.trim()) && !addPhoneError && !addPinError && !addAreaError
+        && (addPinOk || Boolean(addForm.area.trim()));
 
 
     const fetchLeads = useCallback(async (silent = false) => {
@@ -800,16 +806,22 @@ export const AdminLeadsList = () => {
      * area cannot be recalled — so the form says who it is about to reach, and
      * the admin confirms it.
      */
-    const previewLead = async () => {
-        if (!addValid) return;
+    const previewLead = async (form = addForm) => {
+        const pinOk = /^[1-9]\d{5}$/.test(form.pincode);
+        if (!pinOk && !form.area.trim()) return;
         setPreviewing(true);
         try {
-            const res = await api.post("/asm/leads", { ...addForm, preview: true });
+            // The phone is not needed to see where the lead goes; a placeholder keeps the check happy.
+            const res = await api.post("/asm/leads", { ...form, phone: form.phone || "9999999999", preview: true });
             if (res.data.success) {
                 setAddPreview({
                     state: res.data.state,
                     matched: res.data.matched,
                     asm_name: res.data.asm_name,
+                    district: res.data.district ?? null,
+                    outcome: res.data.outcome,
+                    store_count: res.data.store_count,
+                    contact_name: res.data.contact_name ?? null,
                 });
             }
         } catch {
@@ -817,7 +829,7 @@ export const AdminLeadsList = () => {
         } finally {
             setPreviewing(false);
         }
-        loadAddStores(addForm.area);
+        loadAddStores(form.area, pinOk ? form.pincode : "");
     };
 
     /*
@@ -828,15 +840,16 @@ export const AdminLeadsList = () => {
      * belonged to the old state, and silently sending it would be worse than
      * making the admin pick again.
      */
-    const loadAddStores = async (area: string) => {
+    const loadAddStores = async (area: string, pincode = "") => {
         const q = String(area || "").trim();
         setAddStore(null);
         setAddStoreSearch("");
-        if (!q) { setAddStores([]); return; }
+        if (!q && !pincode) { setAddStores([]); return; }
 
         setLoadingAddStores(true);
         try {
-            const res = await api.get("/asm/stores-for-area", { params: { area: q } });
+            // By pincode: the stores near the customer, nearest first, as WhatsApp offers them.
+            const res = await api.get("/asm/stores-for-area", { params: { area: q, ...(pincode ? { pincode } : {}) } });
             setAddStores(res.data?.success ? (res.data.stores || []) : []);
         } catch {
             /* The form still works without them; the empty state says so. */
@@ -857,7 +870,8 @@ export const AdminLeadsList = () => {
     const submitLead = async () => {
         setAdding(true);
         try {
-            const res = await api.post("/asm/leads", addForm);
+            // A picked store ends the chain: only the customer and that store are messaged.
+            const res = await api.post("/asm/leads", { ...addForm, store_picked: Boolean(addStore) });
             if (!res.data.success) return;
 
             const created = res.data.id;
@@ -883,7 +897,7 @@ export const AdminLeadsList = () => {
 
             toast({ title: "Lead added", description: res.data.message + storeNote });
             setAddOpen(false);
-            setAddForm({ name: "", phone: "", area: "", product: "", car: "", source: "ivr" });
+            setAddForm({ name: "", phone: "", pincode: "", area: "", product: "", car: "", source: "ivr" });
             setAddPreview(null);
             setAddStores([]);
             setAddStore(null);
@@ -2080,7 +2094,30 @@ export const AdminLeadsList = () => {
                             </div>
 
                             <div className="space-y-1.5 min-w-0">
-                                <Label htmlFor="a-area" className="text-xs">Area *</Label>
+                                <Label htmlFor="a-pin" className="text-xs">Pincode *</Label>
+                                <Input
+                                    id="a-pin"
+                                    inputMode="numeric"
+                                    value={addForm.pincode}
+                                    /* Six digits: the store list and the routing come from it,
+                                       so the moment it is complete, they are looked up. */
+                                    onChange={e => {
+                                        const pincode = e.target.value.replace(/\D/g, "").slice(0, 6);
+                                        const next = { ...addForm, pincode };
+                                        setAddForm(next);
+                                        setAddPreview(null);
+                                        if (/^[1-9]\d{5}$/.test(pincode)) previewLead(next);
+                                    }}
+                                    placeholder="e.g. 122018"
+                                    className={`h-9 ${addPinError ? "border-red-300 focus-visible:ring-red-200" : ""}`}
+                                />
+                                {addPinError && <p className="text-[11px] text-red-600 leading-snug">{addPinError}</p>}
+                            </div>
+
+                            <div className="space-y-1.5 min-w-0">
+                                <Label htmlFor="a-area" className="text-xs">
+                                    Area {addPinOk ? <span className="text-slate-400 font-normal">(optional)</span> : <span className="text-slate-400 font-normal">— only if the customer doesn't know the pincode</span>}
+                                </Label>
                                 <Input
                                     id="a-area"
                                     value={addForm.area}
@@ -2089,18 +2126,47 @@ export const AdminLeadsList = () => {
                                        collapsing spaces mid-word fights the typist. */
                                     onBlur={e => {
                                         const tidy = cleanPlaceName(e.target.value);
-                                        if (tidy !== addForm.area) setAddForm({ ...addForm, area: tidy });
-                                        previewLead();
+                                        const next = { ...addForm, area: tidy };
+                                        if (tidy !== addForm.area) setAddForm(next);
+                                        previewLead(next);
                                     }}
                                     placeholder="e.g. Rohini Delhi"
                                     className={`h-9 ${addAreaError ? "border-red-300 focus-visible:ring-red-200" : ""}`}
                                 />
+                                {!addPinOk && addForm.area.trim() && !addAreaError && (
+                                    <p className="text-[11px] text-amber-700 leading-snug">
+                                        Without a pincode, stores are listed for the whole state, not by distance.
+                                    </p>
+                                )}
+                            </div>
+
+                            <div className="min-w-0 -mt-1.5">
                                 {addAreaError ? (
                                     <p className="text-[11px] text-red-600 leading-snug">{addAreaError}</p>
                                 ) : previewing ? (
                                     <p className="text-[11px] text-slate-400 flex items-center gap-1.5">
                                         <Loader2 className="h-3 w-3 animate-spin" /> Checking…
                                     </p>
+                                ) : addPreview?.outcome ? (
+                                    /* By pincode: the WhatsApp chain. Stores near → the
+                                       auditor picks one; none → who gets it instead. */
+                                    addPreview.outcome === "stores" ? (
+                                        <p className="text-[11px] text-emerald-700 flex items-start gap-1">
+                                            <Check className="h-3 w-3 mt-0.5 shrink-0" />
+                                            <span>
+                                                {[addPreview.district, addPreview.state].filter(Boolean).join(", ")} —{" "}
+                                                <b>{addPreview.store_count} store{addPreview.store_count === 1 ? "" : "s"} nearby</b>.
+                                                Pick one: the customer and the store get the message.
+                                            </span>
+                                        </p>
+                                    ) : (
+                                        <p className="text-[11px] text-amber-700 leading-snug">
+                                            {[addPreview.district, addPreview.state].filter(Boolean).join(", ")} — no store nearby.
+                                            {" "}On save it goes to <b>{addPreview.contact_name || "customer support"}</b>
+                                            {addPreview.outcome === "asm" ? " (ASM)" : addPreview.outcome === "distributor" ? " (distributor)" : ""},
+                                            and the customer gets their number — unless you pick a store.
+                                        </p>
+                                    )
                                 ) : addPreview ? (
                                     /* Who this is about to reach. A mistyped area costs a
                                        real message to a real ASM, so it is shown before
@@ -2108,7 +2174,7 @@ export const AdminLeadsList = () => {
                                     addPreview.matched ? (
                                         <p className="text-[11px] text-emerald-700 flex items-start gap-1">
                                             <Check className="h-3 w-3 mt-0.5 shrink-0" />
-                                            <span>{addPreview.state} — goes to <b>{addPreview.asm_name}</b></span>
+                                            <span>{[addPreview.district, addPreview.state].filter(Boolean).join(", ")} — goes to <b>{addPreview.asm_name}</b></span>
                                         </p>
                                     ) : (
                                         <p className="text-[11px] text-amber-700 leading-snug">
@@ -2195,9 +2261,9 @@ export const AdminLeadsList = () => {
                                    the dialog does not jump when the area is typed. */
                                 <div className="rounded-xl border border-dashed border-slate-200 grid place-items-center px-4 py-10">
                                     <p className="text-[11px] text-slate-400 text-center leading-relaxed">
-                                        {addForm.area.trim()
-                                            ? `No verified franchise in ${addPreview?.state || "that state"} yet.`
-                                            : "Enter an area to see the stores that could serve this customer."}
+                                        {addPinOk || addForm.area.trim()
+                                            ? `No verified franchise near ${addPinOk ? addForm.pincode : addPreview?.state || "that area"} yet.`
+                                            : "Enter the pincode to see the stores nearest this customer."}
                                     </p>
                                 </div>
                             ) : (() => {
@@ -2313,9 +2379,15 @@ export const AdminLeadsList = () => {
                         <p className="mr-auto text-[11px] text-slate-400 leading-snug hidden sm:block">
                             {(() => {
                                 const store = addStores.find(s => s.id === addStore);
+                                const who = addForm.phone || "the customer";
+                                if (addPreview?.outcome) {
+                                    if (store) return `${who} and ${store.store_name} get the message`;
+                                    if (addPreview.outcome === "stores") return "Saved — pick a store to message the customer and the store.";
+                                    return `${addPreview.contact_name || "Customer support"} gets the lead · ${who} gets their number`;
+                                }
                                 const parts = [];
                                 if (addPreview?.matched) parts.push(`${addPreview.asm_name} is notified`);
-                                if (store) parts.push(`${addForm.phone || "the customer"} gets ${store.store_name}`);
+                                if (store) parts.push(`${who} gets ${store.store_name}`);
                                 return parts.length ? parts.join(" · ") : "Saved without notifying anyone.";
                             })()}
                         </p>
