@@ -700,9 +700,18 @@ export class PublicController {
                     );
                 }
 
-                // If email was provided but DB email is null/empty, update it
+                // If email was provided but DB email is null/empty, add it — only when no
+                // other profile has it. profiles.email is UNIQUE and stores reuse one
+                // address across customers; claiming a taken one failed the whole
+                // submission for returning customers. It stays on the warranty either way.
                 if (customerEmail && (!existingUsers[0].email)) {
-                    await db.execute('UPDATE profiles SET email = ? WHERE id = ?', [customerEmail, userId]);
+                    const [emailTaken]: any = await db.execute(
+                        'SELECT id FROM profiles WHERE email = ? AND id <> ? LIMIT 1',
+                        [customerEmail, userId]
+                    );
+                    if (emailTaken.length === 0) {
+                        await db.execute('UPDATE profiles SET email = ? WHERE id = ?', [customerEmail, userId]);
+                    }
                 }
             } else {
                 // Create new customer user
