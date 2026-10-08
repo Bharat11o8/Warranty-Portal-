@@ -1445,7 +1445,7 @@ export class AsmController {
                 .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
 
             // Who has it, which store, and — for the IVR — whether anybody answered.
-            const found = searched.filter((r: any) => {
+            const passes = (r: any, withVehicle: boolean) => {
                 if (forwarded_to) {
                     const kinds = forwardKinds(r);
                     if (forwarded_to === 'none' ? kinds.length > 0 : !kinds.includes(forwarded_to)) return false;
@@ -1453,9 +1453,10 @@ export class AsmController {
                 if (store && !leadStores(r).some(s => s.id === store)) return false;
                 if (ivr_call && r.ivr?.status !== ivr_call) return false;
                 if (state && (state === 'none' ? Boolean(r.state) : r.state !== state)) return false;
-                if (vehicle && (vehicle === '2w') !== isTwoWheeler(r)) return false;
+                if (withVehicle && vehicle && (vehicle === '2w') !== isTwoWheeler(r)) return false;
                 return true;
-            });
+            };
+            const found = searched.filter((r: any) => passes(r, true));
 
             /* Each tile group counts with every filter but its own — so picking
                Mats does not turn the other product tiles to zero. */
@@ -1479,8 +1480,12 @@ export class AsmController {
                 product: { 'Seat Covers': 0, Mats: 0, Accessories: 0, none: 0 } as Record<string, number>,
                 channel: { whatsapp: 0, instagram: 0, ivr: 0, website: 0, whatsapp_manual: 0 } as Record<string, number>,
                 review_pending: matching.filter((r: any) => !r.review_status).length,
-                // For the Vehicle filter: in the date range and search, before it applies.
-                vehicle: { '4w': searched.filter((r: any) => !isTwoWheeler(r)).length, '2w': searched.filter(isTwoWheeler).length },
+                // The Vehicle pills: every other filter, not its own.
+                vehicle: (() => {
+                    const base = searched.filter((r: any) => passes(r, false) && byStage(r) && byProduct(r) && bySource(r));
+                    const two = base.filter(isTwoWheeler).length;
+                    return { '4w': base.length - two, '2w': two };
+                })(),
             };
             Object.assign(counts.stage, tally(stageBase, r => r.stage));
             Object.assign(counts.product, tally(productBase, r => r.product || 'none'));

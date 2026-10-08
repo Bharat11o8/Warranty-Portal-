@@ -1053,6 +1053,14 @@ export const AdminLeadsList = () => {
                 ["none", "Not given", counts?.product.none],
             ],
         },
+        {
+            label: "Vehicle", value: vehicleFilter, set: setVehicleFilter,
+            options: [
+                ["all", "Any"],
+                ["4w", "4-Wheeler", counts?.vehicle?.["4w"]],
+                ["2w", "2-Wheeler", counts?.vehicle?.["2w"]],
+            ],
+        },
     ];
 
     /* The rest, behind "Filters" — only those that mean something for the channel. */
@@ -1081,20 +1089,12 @@ export const AdminLeadsList = () => {
             label: "ASM", value: asmId, set: setAsmId,
             options: [["all", "All ASMs"], ...asmOptions.map(a => [a.id, `${a.name}${a.is_active ? "" : " (inactive)"}`])] as [string, string][],
         }] : []),
-        {
-            label: "Vehicle", value: vehicleFilter, set: setVehicleFilter,
-            options: [
-                ["all", "4 and 2-wheelers"],
-                ["4w", `4-Wheeler${counts?.vehicle ? ` · ${counts.vehicle["4w"] ?? 0}` : ""}`],
-                ["2w", `2-Wheeler${counts?.vehicle ? ` · ${counts.vehicle["2w"] ?? 0}` : ""}`],
-            ] as [string, string][],
-        },
         ...(stateOptions.length ? [{
             label: "State", value: stateFilter, set: setStateFilter,
             options: [["all", "All states"], ...stateOptions.map(s => [s.name, `${s.name} · ${s.count}`]), ["none", "State not known"]] as [string, string][],
         }] : []),
     ];
-    const panelCount = [forwardedTo, storeId, delivery, review, asmId, stateFilter, ivrCall, vehicleFilter].filter(v => v !== "all").length;
+    const panelCount = [forwardedTo, storeId, delivery, review, asmId, stateFilter, ivrCall].filter(v => v !== "all").length;
 
     /* "Last 7 days", or "12 Sept – 20 Sept" for a custom range. */
     const shortDay = (d: string) => new Date(`${d}T00:00:00`).toLocaleDateString("en-IN", { day: "numeric", month: "short" });
@@ -1305,7 +1305,7 @@ export const AdminLeadsList = () => {
                                     type="button"
                                     onClick={() => {
                                         setForwardedTo("all"); setStoreId("all"); setDelivery("all"); setReview("all");
-                                        setAsmId("all"); setStateFilter("all"); setIvrCall("all"); setVehicleFilter("all");
+                                        setAsmId("all"); setStateFilter("all"); setIvrCall("all");
                                     }}
                                     className="mt-3 text-xs font-semibold text-slate-500 hover:text-rose-600"
                                 >
@@ -1412,7 +1412,7 @@ export const AdminLeadsList = () => {
                         horizontal scrollbar is always on screen instead of
                         under the last row, and the headings stay in view. */}
                     <div className="relative w-full overflow-auto max-h-[calc(100vh-240px)]">
-                        <table className="w-full text-sm text-left table-fixed min-w-[1690px]">
+                        <table className="w-full text-sm text-left table-fixed min-w-[1800px]">
                             <thead className="sticky top-0 z-10 bg-slate-50 text-slate-500 shadow-[0_1px_0_0_rgb(241,245,249)]">
                                 <tr>
                                     <th className="px-3 py-3 w-[110px] font-semibold">Date</th>
@@ -1421,6 +1421,7 @@ export const AdminLeadsList = () => {
                                     <th className="px-3 py-3 w-[140px] font-semibold">Call</th>
                                     <th className="px-3 py-3 w-[90px] font-semibold">Pincode</th>
                                     <th className="px-3 py-3 w-[180px] font-semibold">Area / State</th>
+                                    <th className="px-3 py-3 w-[120px] font-semibold">Type</th>
                                     <th className="px-3 py-3 w-[130px] font-semibold">Vehicle</th>
                                     <th className="px-3 py-3 w-[120px] font-semibold">Product</th>
                                     <th className="px-3 py-3 w-[160px] font-semibold">Forwarded to</th>
@@ -1529,7 +1530,6 @@ export const AdminLeadsList = () => {
                                         </td>
 
                                         <td className="px-3 py-3 align-top">
-                                            {/* The type on every lead, the model under it. */}
                                             <span className={`inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[10px] font-black uppercase tracking-wide whitespace-nowrap ${
                                                 isTwoWheeler(lead.car_model)
                                                     ? "bg-violet-50 border-violet-200 text-violet-700"
@@ -1537,7 +1537,10 @@ export const AdminLeadsList = () => {
                                             }`}>
                                                 {isTwoWheeler(lead.car_model) ? "🏍️ 2-Wheeler" : "🚗 4-Wheeler"}
                                             </span>
-                                            <span className="text-slate-600 truncate block mt-1" title={modelOnly(lead.car_model)}>
+                                        </td>
+
+                                        <td className="px-3 py-3 align-top">
+                                            <span className="text-slate-600 truncate block" title={modelOnly(lead.car_model)}>
                                                 {modelOnly(lead.car_model) || <span className="text-slate-300">—</span>}
                                             </span>
                                         </td>
