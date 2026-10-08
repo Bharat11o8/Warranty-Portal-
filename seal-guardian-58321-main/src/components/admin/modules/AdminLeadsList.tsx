@@ -367,6 +367,13 @@ const CHANNEL_LABEL: Record<string, string> = {
    WhatsApp enquiries added by hand) wait for the auditor to forward them. */
 const AUTO_ROUTED = ["whatsapp", "instagram"];
 
+/* 2-wheelers are filed with "2-Wheeler" in the vehicle (the chat's first
+   question, or Add Lead); everything else is a car. The model on its own,
+   without that tag, for showing under the type. */
+const isTwoWheeler = (car: string | null | undefined) => /2-Wheeler/i.test(car || "");
+const modelOnly = (car: string | null | undefined) =>
+    String(car || "").replace(/\s*\(2-Wheeler\)\s*$/i, "").replace(/^2-Wheeler$/i, "").trim();
+
 /* What happened to the store's own alert after an admin sent a store. */
 const STORE_ALERT_NOTE: Record<string, string> = {
     sent: " The store was alerted too.",
@@ -955,7 +962,8 @@ export const AdminLeadsList = () => {
             Pincode: lead.pincode || "",
             Area: placeOf(lead) || "",
             State: lead.state || "",
-            Vehicle: lead.car_model || "",
+            "Vehicle type": isTwoWheeler(lead.car_model) ? "2-Wheeler" : "4-Wheeler",
+            Vehicle: modelOnly(lead.car_model),
             Product: lead.product || "",
             "Forwarded to": forwardedNames(lead),
             "ASM phone": lead.asm_phone || "",
@@ -1413,7 +1421,7 @@ export const AdminLeadsList = () => {
                                     <th className="px-3 py-3 w-[140px] font-semibold">Call</th>
                                     <th className="px-3 py-3 w-[90px] font-semibold">Pincode</th>
                                     <th className="px-3 py-3 w-[180px] font-semibold">Area / State</th>
-                                    <th className="px-3 py-3 w-[110px] font-semibold">Vehicle</th>
+                                    <th className="px-3 py-3 w-[130px] font-semibold">Vehicle</th>
                                     <th className="px-3 py-3 w-[120px] font-semibold">Product</th>
                                     <th className="px-3 py-3 w-[160px] font-semibold">Forwarded to</th>
                                     <th className="px-3 py-3 w-[150px] font-semibold">Store sent</th>
@@ -1521,15 +1529,17 @@ export const AdminLeadsList = () => {
                                         </td>
 
                                         <td className="px-3 py-3 align-top">
-                                            {/2-Wheeler/i.test(lead.car_model || "") ? (
-                                                <span className="inline-flex items-center gap-1 rounded-md bg-violet-50 border border-violet-200 px-1.5 py-0.5 text-[11px] font-bold text-violet-700 max-w-full" title={lead.car_model || ""}>
-                                                    🏍️ <span className="truncate">{lead.car_model}</span>
-                                                </span>
-                                            ) : (
-                                                <span className="text-slate-600 truncate block" title={lead.car_model || ""}>
-                                                    {lead.car_model || <span className="text-slate-300">—</span>}
-                                                </span>
-                                            )}
+                                            {/* The type on every lead, the model under it. */}
+                                            <span className={`inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[10px] font-black uppercase tracking-wide whitespace-nowrap ${
+                                                isTwoWheeler(lead.car_model)
+                                                    ? "bg-violet-50 border-violet-200 text-violet-700"
+                                                    : "bg-slate-50 border-slate-200 text-slate-600"
+                                            }`}>
+                                                {isTwoWheeler(lead.car_model) ? "🏍️ 2-Wheeler" : "🚗 4-Wheeler"}
+                                            </span>
+                                            <span className="text-slate-600 truncate block mt-1" title={modelOnly(lead.car_model)}>
+                                                {modelOnly(lead.car_model) || <span className="text-slate-300">—</span>}
+                                            </span>
                                         </td>
 
                                         <td className="px-3 py-3 align-top">
