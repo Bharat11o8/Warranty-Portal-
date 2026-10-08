@@ -262,6 +262,8 @@ interface Counts {
     product: Record<string, number>;
     channel: Record<string, number>;
     review_pending: number;
+    /* Leads in the date range and search, by vehicle — for the Vehicle filter. */
+    vehicle?: Record<string, number>;
 }
 
 /*
@@ -468,6 +470,8 @@ export const AdminLeadsList = () => {
     const [ivrCall, setIvrCall] = useState("all");
     const [storeOptions, setStoreOptions] = useState<{ id: string; name: string; count: number }[]>([]);
     const [stateFilter, setStateFilter] = useState("all");
+    /* 4-wheeler or 2-wheeler: 2-wheelers go to the Customer Executive. */
+    const [vehicleFilter, setVehicleFilter] = useState("all");
     const [stateOptions, setStateOptions] = useState<{ name: string; count: number }[]>([]);
     const [product, setProduct] = useState("all");
     const [delivery, setDelivery] = useState("all");
@@ -516,6 +520,8 @@ export const AdminLeadsList = () => {
 
     const [addForm, setAddForm] = useState({
         name: "", phone: "", pincode: "", area: "", product: "", car: "", source: "ivr",
+        /* 2w: goes to the Customer Executive, not a store — no pincode needed. */
+        wheels: "4w" as "4w" | "2w",
     });
     const [addPreview, setAddPreview] = useState<{
         state: string | null; matched: boolean; asm_name: string | null; district?: string | null;
@@ -533,8 +539,9 @@ export const AdminLeadsList = () => {
     const addPinOk = /^[1-9]\d{5}$/.test(addForm.pincode);
     const addPinError = addForm.pincode && !addPinOk ? "A pincode is 6 digits, not starting with 0." : null;
     const addAreaError = addForm.area.trim() ? getCityError(addForm.area) : null;
+    const addTwoWheeler = addForm.wheels === "2w";
     const addValid = Boolean(addForm.phone.trim()) && !addPhoneError && !addPinError && !addAreaError
-        && (addPinOk || Boolean(addForm.area.trim()));
+        && (addTwoWheeler || addPinOk || Boolean(addForm.area.trim()));
 
 
     const fetchLeads = useCallback(async (silent = false) => {
@@ -550,6 +557,7 @@ export const AdminLeadsList = () => {
             if (storeId !== "all") params.store = storeId;
             if (ivrCall !== "all") params.ivr_call = ivrCall;
             if (stateFilter !== "all") params.state = stateFilter;
+            if (vehicleFilter !== "all") params.vehicle = vehicleFilter;
             if (product !== "all") params.product = product;
             if (delivery !== "all") params.delivery = delivery;
             if (asmId !== "all") params.asm_id = asmId;
@@ -590,12 +598,12 @@ export const AdminLeadsList = () => {
                 setUpdating(false);
             }
         }
-    }, [stage, searchQuery, forwardedTo, storeId, ivrCall, stateFilter, product, delivery, asmId, channel, review, dateFrom, dateTo, toast]);
+    }, [stage, searchQuery, forwardedTo, storeId, ivrCall, stateFilter, vehicleFilter, product, delivery, asmId, channel, review, dateFrom, dateTo, toast]);
 
     const clearFilters = () => {
         setSearch(""); setStage("all"); setProduct("all"); setChannel("all");
         setDelivery("all"); setAsmId("all"); setReview("all");
-        setForwardedTo("all"); setStoreId("all"); setIvrCall("all"); setStateFilter("all");
+        setForwardedTo("all"); setStoreId("all"); setIvrCall("all"); setStateFilter("all"); setVehicleFilter("all");
         setDateFrom(""); setDateTo("");
     };
 
@@ -810,6 +818,8 @@ export const AdminLeadsList = () => {
      * the admin confirms it.
      */
     const previewLead = async (form = addForm) => {
+        // A 2-wheeler goes to the executive whatever the area: nothing to look up.
+        if (form.wheels === "2w") return;
         const pinOk = /^[1-9]\d{5}$/.test(form.pincode);
         if (!pinOk && !form.area.trim()) return;
         setPreviewing(true);
@@ -874,13 +884,13 @@ export const AdminLeadsList = () => {
         setAdding(true);
         try {
             // A picked store ends the chain: only the customer and that store are messaged.
-            const res = await api.post("/asm/leads", { ...addForm, store_picked: Boolean(addStore) });
+            const res = await api.post("/asm/leads", { ...addForm, store_picked: !addTwoWheeler && Boolean(addStore) });
             if (!res.data.success) return;
 
             const created = res.data.id;
             let storeNote = "";
 
-            if (addStore && created) {
+            if (!addTwoWheeler && addStore && created) {
                 const store = addStores.find(s => s.id === addStore);
                 try {
                     const sent = await api.post(`/asm/leads/${created}/send-store`, { store_id: addStore });
@@ -900,7 +910,7 @@ export const AdminLeadsList = () => {
 
             toast({ title: "Lead added", description: res.data.message + storeNote });
             setAddOpen(false);
-            setAddForm({ name: "", phone: "", pincode: "", area: "", product: "", car: "", source: "ivr" });
+            setAddForm({ name: "", phone: "", pincode: "", area: "", product: "", car: "", source: "ivr", wheels: "4w" });
             setAddPreview(null);
             setAddStores([]);
             setAddStore(null);
@@ -985,7 +995,7 @@ export const AdminLeadsList = () => {
     /** Whether anything is narrowing the list — so an empty result can say why. */
     const anyFilter = Boolean(
         search.trim() || stage !== "all" || product !== "all" ||
-        forwardedTo !== "all" || storeId !== "all" || ivrCall !== "all" || stateFilter !== "all" ||
+        forwardedTo !== "all" || storeId !== "all" || ivrCall !== "all" || stateFilter !== "all" || vehicleFilter !== "all" ||
         delivery !== "all" || asmId !== "all" || channel !== "all" ||
         review !== "all" || dateFrom || dateTo
     );
@@ -1005,6 +1015,7 @@ export const AdminLeadsList = () => {
         stage !== "all" && chip("st", STAGE_LABEL[stage as Stage] ?? stage, () => setStage("all")),
         product !== "all" && chip("pr", product === "none" ? "Product not given" : product, () => setProduct("all")),
         ivrCall !== "all" && chip("ivr", IVR_CALL_LABEL[ivrCall] ?? ivrCall, () => setIvrCall("all")),
+        vehicleFilter !== "all" && chip("veh", vehicleFilter === "2w" ? "2-Wheeler" : "4-Wheeler", () => setVehicleFilter("all")),
         forwardedTo !== "all" && chip("fw", `Forwarded to: ${FORWARDED_TO_LABEL[forwardedTo] ?? forwardedTo}`, () => setForwardedTo("all")),
         storeId !== "all" && chip("store", `Store: ${storeOptions.find(s => s.id === storeId)?.name ?? "…"}`, () => setStoreId("all")),
         delivery !== "all" && chip("dl", `Alert: ${DELIVERY_FILTER_LABEL[delivery] ?? delivery}`, () => setDelivery("all")),
@@ -1062,12 +1073,20 @@ export const AdminLeadsList = () => {
             label: "ASM", value: asmId, set: setAsmId,
             options: [["all", "All ASMs"], ...asmOptions.map(a => [a.id, `${a.name}${a.is_active ? "" : " (inactive)"}`])] as [string, string][],
         }] : []),
+        {
+            label: "Vehicle", value: vehicleFilter, set: setVehicleFilter,
+            options: [
+                ["all", "4 and 2-wheelers"],
+                ["4w", `4-Wheeler${counts?.vehicle ? ` · ${counts.vehicle["4w"] ?? 0}` : ""}`],
+                ["2w", `2-Wheeler${counts?.vehicle ? ` · ${counts.vehicle["2w"] ?? 0}` : ""}`],
+            ] as [string, string][],
+        },
         ...(stateOptions.length ? [{
             label: "State", value: stateFilter, set: setStateFilter,
             options: [["all", "All states"], ...stateOptions.map(s => [s.name, `${s.name} · ${s.count}`]), ["none", "State not known"]] as [string, string][],
         }] : []),
     ];
-    const panelCount = [forwardedTo, storeId, delivery, review, asmId, stateFilter, ivrCall].filter(v => v !== "all").length;
+    const panelCount = [forwardedTo, storeId, delivery, review, asmId, stateFilter, ivrCall, vehicleFilter].filter(v => v !== "all").length;
 
     /* "Last 7 days", or "12 Sept – 20 Sept" for a custom range. */
     const shortDay = (d: string) => new Date(`${d}T00:00:00`).toLocaleDateString("en-IN", { day: "numeric", month: "short" });
@@ -1278,7 +1297,7 @@ export const AdminLeadsList = () => {
                                     type="button"
                                     onClick={() => {
                                         setForwardedTo("all"); setStoreId("all"); setDelivery("all"); setReview("all");
-                                        setAsmId("all"); setStateFilter("all"); setIvrCall("all");
+                                        setAsmId("all"); setStateFilter("all"); setIvrCall("all"); setVehicleFilter("all");
                                     }}
                                     className="mt-3 text-xs font-semibold text-slate-500 hover:text-rose-600"
                                 >
@@ -1502,9 +1521,15 @@ export const AdminLeadsList = () => {
                                         </td>
 
                                         <td className="px-3 py-3 align-top">
-                                            <span className="text-slate-600 truncate block" title={lead.car_model || ""}>
-                                                {lead.car_model || <span className="text-slate-300">—</span>}
-                                            </span>
+                                            {/2-Wheeler/i.test(lead.car_model || "") ? (
+                                                <span className="inline-flex items-center gap-1 rounded-md bg-violet-50 border border-violet-200 px-1.5 py-0.5 text-[11px] font-bold text-violet-700 max-w-full" title={lead.car_model || ""}>
+                                                    🏍️ <span className="truncate">{lead.car_model}</span>
+                                                </span>
+                                            ) : (
+                                                <span className="text-slate-600 truncate block" title={lead.car_model || ""}>
+                                                    {lead.car_model || <span className="text-slate-300">—</span>}
+                                                </span>
+                                            )}
                                         </td>
 
                                         <td className="px-3 py-3 align-top">
@@ -2060,8 +2085,9 @@ export const AdminLeadsList = () => {
                     <DialogHeader className="space-y-1">
                         <DialogTitle className="text-lg">Add a lead</DialogTitle>
                         <DialogDescription className="text-xs">
-                            Forwarded to the ASM covering the area, exactly as an automatic
-                            enquiry would be.
+                            {addTwoWheeler
+                                ? "A 2-wheeler enquiry goes to the Customer Executive, as on WhatsApp."
+                                : "Forwarded to the ASM covering the area, exactly as an automatic enquiry would be."}
                         </DialogDescription>
                     </DialogHeader>
 
@@ -2076,6 +2102,31 @@ export const AdminLeadsList = () => {
                             <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
                                 Enquiry
                             </p>
+
+                            {/* 4-wheeler or 2-wheeler — the WhatsApp chat's first question too. */}
+                            <div className="space-y-1.5 min-w-0">
+                                <Label className="text-xs">Vehicle type</Label>
+                                <div className="grid grid-cols-2 gap-1 rounded-xl bg-slate-100 p-1">
+                                    {([["4w", "🚗 4-Wheeler"], ["2w", "🏍️ 2-Wheeler"]] as const).map(([v, label]) => (
+                                        <button
+                                            key={v}
+                                            type="button"
+                                            onClick={() => {
+                                                const next = { ...addForm, wheels: v };
+                                                setAddForm(next);
+                                                setAddPreview(null);
+                                                if (v === "2w") { setAddStores([]); setAddStore(null); setAddStoreSearch(""); }
+                                                else previewLead(next);
+                                            }}
+                                            className={`h-9 rounded-lg text-xs font-bold transition-colors ${
+                                                addForm.wheels === v ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-800"
+                                            }`}
+                                        >
+                                            {label}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
 
                             <div className="space-y-1.5 min-w-0">
                                 <Label htmlFor="a-phone" className="text-xs">Phone *</Label>
@@ -2098,7 +2149,9 @@ export const AdminLeadsList = () => {
                             </div>
 
                             <div className="space-y-1.5 min-w-0">
-                                <Label htmlFor="a-pin" className="text-xs">Pincode *</Label>
+                                <Label htmlFor="a-pin" className="text-xs">
+                                    Pincode {addTwoWheeler ? <span className="text-slate-400 font-normal">(optional)</span> : "*"}
+                                </Label>
                                 <Input
                                     id="a-pin"
                                     inputMode="numeric"
@@ -2237,13 +2290,29 @@ export const AdminLeadsList = () => {
                                     id="a-car"
                                     value={addForm.car}
                                     onChange={e => setAddForm({ ...addForm, car: e.target.value })}
-                                    placeholder="e.g. Creta"
+                                    placeholder={addTwoWheeler ? "e.g. Activa" : "e.g. Creta"}
                                     className="h-9"
                                 />
                             </div>
                         </div>
 
                         {/* ── The store, and what the customer would receive ── */}
+                        {addTwoWheeler ? (
+                            <div className="space-y-2 min-w-0 lg:border-l lg:border-slate-100 lg:pl-4">
+                                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Who gets it</p>
+                                <div className="rounded-xl border border-violet-200 bg-violet-50/60 p-4 space-y-2">
+                                    <p className="text-sm font-bold text-slate-800">🏍️ Customer Executive</p>
+                                    <p className="text-[12px] text-slate-600 leading-relaxed">
+                                        2-wheeler enquiries don't go to a store. On save, the Customer Executive
+                                        (the support number in Store Locator settings) gets the <b>New Support Lead</b> WhatsApp alert
+                                        with this customer's number and "2-Wheeler" as the vehicle.
+                                    </p>
+                                    <p className="text-[12px] text-slate-600 leading-relaxed">
+                                        The customer isn't messaged — give them the executive's number on the call.
+                                    </p>
+                                </div>
+                            </div>
+                        ) : (
                         <div className="space-y-2 min-w-0 lg:border-l lg:border-slate-100 lg:pl-4">
                             <div className="flex items-baseline gap-2">
                                 <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
@@ -2375,6 +2444,7 @@ export const AdminLeadsList = () => {
                                 );
                             })()}
                         </div>
+                        )}
                     </div>
 
                     <DialogFooter className="border-t border-slate-100 pt-3">
@@ -2385,6 +2455,7 @@ export const AdminLeadsList = () => {
                             {(() => {
                                 const store = addStores.find(s => s.id === addStore);
                                 const who = addForm.phone || "the customer";
+                                if (addTwoWheeler) return "The Customer Executive gets the lead alert · the customer is not messaged";
                                 if (addPreview?.outcome) {
                                     if (store) return `${who} and ${store.store_name} get the message`;
                                     if (addPreview.outcome === "stores") return "Saved — pick a store to message the customer and the store.";

@@ -55,6 +55,9 @@ const LOCATOR_TEXT: Record<string, string> = {
 
 /* What each of our chat's messages asked or said (locatorConversation.service). */
 const CHAT_TEXT: Record<string, string> = {
+    'vehicle-question': 'Asked: 4-wheeler or 2-wheeler',
+    'vehicle-retry': 'Asked again: 4-wheeler or 2-wheeler',
+    'two-wheeler': "2-wheeler: sent the Customer Executive's number",
     'product-menu': 'Sent the product menu',
     'other-menu': 'Sent the Other Products menu',
     'product-retry': 'Asked them to pick from the menu',

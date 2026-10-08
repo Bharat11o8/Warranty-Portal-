@@ -352,8 +352,16 @@ const MAIN_MENU_BODY = [
     '💬 Tap *Choose a product* and let us know what you are looking for! 😊',
 ].join('\n');
 
-export function productMenu(leadId: string): InteractiveList {
-    return list(MAIN_MENU_BODY, 'Choose a product', 'Our products', [
+/* After the 4-wheeler / 2-wheeler question the customer has been greeted already. */
+const MAIN_MENU_BODY_AFTER_VEHICLE = [
+    '🚘 We offer a wide range of car seat covers, car mats, and other car accessories.',
+    '',
+    '💬 Tap *Choose a product* and let us know what you are looking for! 😊',
+].join('\n');
+
+/** `greet: false` once the vehicle question has said hello. */
+export function productMenu(leadId: string, greet = true): InteractiveList {
+    return list(greet ? MAIN_MENU_BODY : MAIN_MENU_BODY_AFTER_VEHICLE, 'Choose a product', 'Our products', [
         { id: menuRowId(leadId, 'seat'), title: 'Seat Covers', description: 'Custom-fit seat covers for your car' },
         { id: menuRowId(leadId, 'mats'), title: 'Car Mats', description: 'Floor and boot mats' },
         { id: menuRowId(leadId, 'acc'), title: 'Accessories', description: 'Car accessories' },
@@ -371,6 +379,88 @@ export function otherProductsMenu(leadId: string): InteractiveList {
 }
 
 export const MENU_RETRY = 'Please tap *Choose a product* above and pick one of the options. 🙏';
+
+/*
+ * The first question: a 4-wheeler goes on to the product menu as before; a
+ * 2-wheeler is given the Customer Executive's number, and the executive is
+ * alerted. Two reply buttons (WhatsApp allows three, titles up to 20
+ * characters); a tap comes back as `vt:<lead id>:4w|2w`.
+ */
+export type Vehicle = '4w' | '2w';
+
+const VEHICLE_PREFIX = 'vt';
+export const vehicleButtonId = (leadId: string, v: Vehicle) => `${VEHICLE_PREFIX}:${leadId}:${v}`;
+
+/** An Interakt InteractiveButton message's `data` block. */
+export interface InteractiveButtons {
+    message: {
+        type: 'button';
+        body: { text: string };
+        action: { buttons: { type: 'reply'; reply: { id: string; title: string } }[] };
+    };
+}
+
+export const BUTTON_TITLE_MAX = 20;
+
+const VEHICLE_BODY = [
+    '🎉 Hello! Thanks for reaching out to us at Autoform India.',
+    '',
+    'Is your enquiry for a *4-Wheeler* 🚗 or a *2-Wheeler* 🏍️?',
+].join('\n');
+
+export function vehicleQuestion(leadId: string): InteractiveButtons {
+    const button = (v: Vehicle, title: string) =>
+        ({ type: 'reply' as const, reply: { id: vehicleButtonId(leadId, v).slice(0, LIMITS.rowId), title: fit(title, BUTTON_TITLE_MAX) } });
+    return {
+        message: {
+            type: 'button',
+            body: { text: fitBody(VEHICLE_BODY, LIMITS.body) },
+            action: { buttons: [button('4w', '🚗 4-Wheeler'), button('2w', '🏍️ 2-Wheeler')] },
+        },
+    };
+}
+
+/** The same question as plain text, if the buttons could not be sent. */
+export const VEHICLE_TEXT = [
+    '🎉 Hello! Thanks for reaching out to us at Autoform India.',
+    '',
+    'Is your enquiry for a 4-Wheeler 🚗 or a 2-Wheeler 🏍️?',
+    '',
+    'Reply *4* for 4-Wheeler or *2* for 2-Wheeler.',
+].join('\n');
+
+export const VEHICLE_RETRY = 'Please tap *4-Wheeler* or *2-Wheeler* above, or reply *4* or *2*. 🙏';
+
+/** A tap on the vehicle buttons, out of a message_received webhook; null for anything else. */
+export function vehicleTapFromWebhook(message: any): { leadId: string; vehicle: Vehicle } | null {
+    let body: any = message?.message;
+    if (typeof body === 'string') {
+        try { body = JSON.parse(body); } catch { return null; }
+    }
+    const parts = String(body?.button_reply?.id ?? body?.list_reply?.id ?? '').split(':');
+    if (parts.length !== 3 || parts[0] !== VEHICLE_PREFIX || !parts[1] || !['4w', '2w'].includes(parts[2])) return null;
+    return { leadId: parts[1], vehicle: parts[2] as Vehicle };
+}
+
+/** A 2-wheeler enquiry: the Customer Executive's number; the executive is alerted too. */
+export function twoWheelerText(helpline: string | null | undefined): string {
+    if (!helpline) {
+        return [
+            'Thank you for reaching out to Autoform! 🙏',
+            '',
+            'Our Customer Executive will call you shortly to help you with products for your 2-wheeler. 🏍️',
+        ].join('\n');
+    }
+    return [
+        'Thank you for reaching out to Autoform! 🙏',
+        '',
+        'For 2-wheeler products, our Customer Executive will help you:',
+        '',
+        `📞 ${formatPhone(helpline)}`,
+        '',
+        "Give them a call — they'll be happy to help. They may also call you shortly. 🏍️",
+    ].join('\n');
+}
 
 export const CAR_QUESTION =
     'Which car do you have? 🚗\n\nPlease type the model, for example Creta, Nexon or Thar.';

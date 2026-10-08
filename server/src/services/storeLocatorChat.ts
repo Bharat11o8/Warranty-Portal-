@@ -657,6 +657,53 @@ export async function createManualPincodeLead(input: ManualLeadInput): Promise<{
 }
 
 /**
+ * A 2-wheeler enquiry added by hand. It never goes to a store: the Customer
+ * Executive (the support number in the locator settings) gets the support
+ * lead alert, with "2-Wheeler" as the vehicle. The customer is not messaged —
+ * outside WhatsApp's 24-hour window only a template could reach them, and the
+ * auditor taking the enquiry gives them the number.
+ */
+export async function createTwoWheelerLead(input: {
+    phone: string; name: string | null; product: string | null; car: string | null;
+    source: string; enteredBy: string | null; pincode: string | null; area: string | null;
+}): Promise<{ leadId: string; alert: AlertResult; sentTo: string | null }> {
+    const settings = await getLocatorSettings();
+    const leadId = uuidv4();
+    const phone = localPhone(input.phone) || String(input.phone).trim();
+    const product = normaliseProduct(input.product);
+    const typed = String(input.car || '').trim();
+    const car = (typed ? `${typed} (2-Wheeler)` : '2-Wheeler').slice(0, 80);
+    const where = String(input.area || '').trim() || input.pincode || '';
+
+    await db.execute(
+        `INSERT INTO leads
+           (id, source, product, car_model, customer_name, customer_phone, phone_key,
+            raw_area, flow_id, raw_payload, status, failure_reason)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, 'matched', NULL)`,
+        [
+            leadId, input.source, product, car,
+            input.name ? String(input.name).trim().slice(0, 255) : null,
+            phone, phoneKey(phone), where ? where.slice(0, 255) : null,
+            JSON.stringify({
+                entered_by: input.enteredBy, channel: input.source, vehicle: '2w',
+                ...(input.pincode ? { pincode: input.pincode } : {}),
+                locator: { offered: 'support', via: 'manual', vehicle: '2w' },
+            }),
+        ]
+    );
+    const alert = await notifyOnce(
+        { id: leadId, customer_phone: phone, product, car_model: car, notified: null, location: where },
+        'support', settings.support_phone || null, settings.support_name, settings.whatsapp_live,
+    ).catch(() => 'failed' as const);
+    if (alert !== 'sent') {
+        await db.execute('UPDATE leads SET failure_reason = ? WHERE id = ?',
+            [`2-Wheeler enquiry: executive not alerted (${alert})`, leadId]);
+    }
+    console.log(`[Locator] manual 2-wheeler lead ${leadId} -> executive ${alert}`);
+    return { leadId, alert, sentTo: alert === 'sent' ? settings.support_name : null };
+}
+
+/**
  * Hand a lead that has not written to us — added by hand, or filed from
  * Meta's sheet — to whoever the chain gives it, and tell the customer who to
  * call (the approved store-details template: outside WhatsApp's 24-hour reply

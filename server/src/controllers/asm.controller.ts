@@ -3,7 +3,7 @@ import db from '../config/database.js';
 import { v4 as uuidv4 } from 'uuid';
 import { hasAutoReplyContent } from '../services/autoReply.js';
 import { findStoresForPincode, getLocatorSettings, saveLocatorSettings } from '../services/storeLocatorQuery.js';
-import { startStoreEnquiry, notifyOnce, manualLeadPlan, createManualPincodeLead, type AlertResult } from '../services/storeLocatorChat.js';
+import { startStoreEnquiry, notifyOnce, manualLeadPlan, createManualPincodeLead, createTwoWheelerLead, type AlertResult } from '../services/storeLocatorChat.js';
 import { startFromHandoff } from '../services/locatorConversation.service.js';
 import { searchAreas, resolveNewArea, coverageOf, placeOf } from '../services/asmTerritoryQuery.js';
 import { extractPincode } from '../services/storeLocator.js';
@@ -461,7 +461,9 @@ export class AsmController {
                 ? [place.district && place.district !== 'NA' ? titleCase(place.district) : null, place.state].filter(Boolean).join(', ')
                 : '');
 
-            if (!phone || !area) {
+            // A 2-wheeler goes to the Customer Executive, not a store: no location needed.
+            const twoWheeler = req.body?.wheels === '2w';
+            if (!phone || (!area && !twoWheeler)) {
                 return res.status(400).json({ error: 'Phone number and a pincode (or the area) are required' });
             }
             /*
@@ -485,6 +487,36 @@ export class AsmController {
             // enquiry the team took on WhatsApp by hand is its own channel,
             // 'whatsapp_manual', so the bot's leads and logic never mix with it.
             const channel = source === 'website' || source === 'whatsapp_manual' ? source : 'ivr';
+
+            if (twoWheeler) {
+                const settings = await getLocatorSettings();
+                if (preview === true) {
+                    return res.json({
+                        success: true, preview: true, two_wheeler: true,
+                        contact_name: settings.support_name, contact_phone: settings.support_phone || null,
+                    });
+                }
+                const made = await createTwoWheelerLead({
+                    phone: digits, name: name ? String(name) : null, product: product ? String(product) : null,
+                    car: car ? String(car) : null, source: channel, enteredBy: admin?.email || admin?.id || null,
+                    pincode: pin, area: typedArea || area || null,
+                });
+                try {
+                    await ActivityLogService.log({
+                        adminId: admin?.id, adminName: admin?.name, adminEmail: admin?.email,
+                        actionType: 'LEAD_CREATED', targetType: 'LEAD', targetId: made.leadId,
+                        targetName: name ? String(name) : digits,
+                        details: { channel, vehicle: '2w', alert: made.alert },
+                        ipAddress: req.ip || req.socket?.remoteAddress,
+                    });
+                } catch (e) {
+                    console.error('Failed to log lead creation', e);
+                }
+                return res.status(201).json({
+                    success: true, id: made.leadId, outcome: 'support',
+                    message: made.sentTo ? `2-wheeler lead added — ${made.sentTo} alerted` : '2-wheeler lead added — executive not alerted',
+                });
+            }
 
             /*
              * With a pincode, the WhatsApp chain: the stores near it (the auditor
@@ -1189,10 +1221,12 @@ export class AsmController {
     }
 
     static async listLeads(req: Request, res: Response) {
+        /* A 2-wheeler enquiry: from the chat's first question, or added by hand. */
+        const isTwoWheeler = (r: any) => /2-Wheeler/i.test(String(r.car_model ?? ''));
         try {
             const {
                 status, stage, source, asm_id, product, delivery, review, dateFrom, dateTo, q, limit,
-                forwarded_to, store, ivr_call, state,
+                forwarded_to, store, ivr_call, state, vehicle,
             } = req.query as Record<string, string>;
             /*
              * The date range and the plain column filters narrow in SQL.
@@ -1419,6 +1453,7 @@ export class AsmController {
                 if (store && !leadStores(r).some(s => s.id === store)) return false;
                 if (ivr_call && r.ivr?.status !== ivr_call) return false;
                 if (state && (state === 'none' ? Boolean(r.state) : r.state !== state)) return false;
+                if (vehicle && (vehicle === '2w') !== isTwoWheeler(r)) return false;
                 return true;
             });
 
@@ -1444,6 +1479,8 @@ export class AsmController {
                 product: { 'Seat Covers': 0, Mats: 0, Accessories: 0, none: 0 } as Record<string, number>,
                 channel: { whatsapp: 0, instagram: 0, ivr: 0, website: 0, whatsapp_manual: 0 } as Record<string, number>,
                 review_pending: matching.filter((r: any) => !r.review_status).length,
+                // For the Vehicle filter: in the date range and search, before it applies.
+                vehicle: { '4w': searched.filter((r: any) => !isTwoWheeler(r)).length, '2w': searched.filter(isTwoWheeler).length },
             };
             Object.assign(counts.stage, tally(stageBase, r => r.stage));
             Object.assign(counts.product, tally(productBase, r => r.product || 'none'));
