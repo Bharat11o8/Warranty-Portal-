@@ -19,6 +19,10 @@ router.get('/profile', authenticateToken, requireRole(['vendor']), VendorControl
 // currently being asked for. Vendor role only; scoped by session.
 router.get('/audits', authenticateToken, requireRole(['vendor']), VendorController.getOwnAudits);
 
+// The store's own leads and the auditor's status on each. Vendor role only;
+// scoped by session, read-only.
+router.get('/leads', authenticateToken, requireRole(['vendor']), VendorController.getOwnLeads);
+
 // Manpower management routes
 router.get('/manpower', authenticateToken, requireRole(['vendor', 'admin']), VendorController.getManpower);
 router.get('/manpower/:manpowerId/warranties', authenticateToken, requireRole(['vendor', 'admin']), VendorController.getManpowerWarranties);

@@ -481,8 +481,10 @@ export class AsmController {
             }
 
             // Only the manual channels: an entry claiming to be from WhatsApp
-            // or Instagram would be indistinguishable from a real one.
-            const channel = source === 'website' ? 'website' : 'ivr';
+            // or Instagram would be indistinguishable from a real one. An
+            // enquiry the team took on WhatsApp by hand is its own channel,
+            // 'whatsapp_manual', so the bot's leads and logic never mix with it.
+            const channel = source === 'website' || source === 'whatsapp_manual' ? source : 'ivr';
 
             /*
              * With a pincode, the WhatsApp chain: the stores near it (the auditor
@@ -1216,20 +1218,20 @@ export class AsmController {
             }
 
             /*
-             * The date range, compared in IST rather than UTC.
+             * The date range, on the IST calendar date.
              *
-             * created_at is stored UTC, so an enquiry at 1am IST falls on the
-             * previous day once compared raw — and a day filter that silently
-             * drops the first five and a half hours of every day is worse than
-             * no filter. Both bounds are inclusive, which is what a person
-             * picking two dates means.
+             * The pool sets every connection's time_zone to +05:30, so
+             * created_at already reads in IST and DATE() of it is the IST day.
+             * It was once shifted again with CONVERT_TZ, which moved every
+             * lead after 18:30 onto the next day. Both bounds are inclusive,
+             * which is what a person picking two dates means.
              */
             if (dateFrom) {
-                where.push("DATE(CONVERT_TZ(l.created_at, '+00:00', '+05:30')) >= ?");
+                where.push("DATE(l.created_at) >= ?");
                 params.push(dateFrom);
             }
             if (dateTo) {
-                where.push("DATE(CONVERT_TZ(l.created_at, '+00:00', '+05:30')) <= ?");
+                where.push("DATE(l.created_at) <= ?");
                 params.push(dateTo);
             }
 
@@ -1265,7 +1267,7 @@ export class AsmController {
             const [rows]: any = await db.execute(
                 `SELECT l.*, a.name AS asm_name, a.phone_number AS asm_phone,
                         /* The IST day, as the date filter reads it, for the charts. */
-                        DATE_FORMAT(CONVERT_TZ(l.created_at, '+00:00', '+05:30'), '%Y-%m-%d') AS ist_day,
+                        DATE_FORMAT(l.created_at, '%Y-%m-%d') AS ist_day,
                         /*
                          * Whether the ASM's WhatsApp actually arrived, and
                          * whether they opened it. Interakt's delivery webhook
@@ -1440,7 +1442,7 @@ export class AsmController {
                 total: stageBase.length,
                 stage: Object.fromEntries(LEAD_STAGES.map(s => [s, 0])),
                 product: { 'Seat Covers': 0, Mats: 0, Accessories: 0, none: 0 } as Record<string, number>,
-                channel: { whatsapp: 0, instagram: 0, ivr: 0, website: 0 } as Record<string, number>,
+                channel: { whatsapp: 0, instagram: 0, ivr: 0, website: 0, whatsapp_manual: 0 } as Record<string, number>,
                 review_pending: matching.filter((r: any) => !r.review_status).length,
             };
             Object.assign(counts.stage, tally(stageBase, r => r.stage));
