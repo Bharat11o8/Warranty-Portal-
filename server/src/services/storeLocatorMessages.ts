@@ -442,23 +442,25 @@ export function vehicleTapFromWebhook(message: any): { leadId: string; vehicle: 
     return { leadId: parts[1], vehicle: parts[2] as Vehicle };
 }
 
-/** A 2-wheeler enquiry: the Customer Executive's number; the executive is alerted too. */
+/** A 2-wheeler enquiry: the Customer Executive's number to call or WhatsApp; the executive is alerted too. */
 export function twoWheelerText(helpline: string | null | undefined): string {
     if (!helpline) {
         return [
-            'Thank you for reaching out to Autoform! 🙏',
+            'Thank you for reaching out to Autoform India! 🙏',
             '',
             'Our Customer Executive will call you shortly to help you with products for your 2-wheeler. 🏍️',
         ].join('\n');
     }
+    const ten = String(helpline).replace(/\D/g, '').slice(-10);
     return [
-        'Thank you for reaching out to Autoform! 🙏',
+        'Thank you for reaching out to Autoform India! 🙏',
         '',
-        'For 2-wheeler products, our Customer Executive will help you:',
+        'For 2-wheeler products, our Customer Executive will help you. Call or WhatsApp them:',
         '',
-        `📞 ${formatPhone(helpline)}`,
+        `📞 Call: ${formatPhone(helpline)}`,
+        `💬 WhatsApp: https://wa.me/91${ten}`,
         '',
-        "Give them a call — they'll be happy to help. They may also call you shortly. 🏍️",
+        "They'll be happy to help, and may also call you shortly. 🏍️",
     ].join('\n');
 }
 

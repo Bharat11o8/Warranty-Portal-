@@ -107,13 +107,39 @@ export async function startConversation(input: {
     /* A car given (an Instagram form) is a 4-wheeler already: straight to the
        pincode. Otherwise the first question is 4-wheeler or 2-wheeler. */
     const stage: ChatStage = givenCar?.ok ? 'pincode' : 'vehicle';
-    const leadId = uuidv4();
+    /* Same number, a chat that never got anywhere a moment ago: start again on
+       that lead rather than leave an empty "replaced" lead behind for each
+       "hi" or old-menu tap (one customer had five in two minutes). */
+    const reuse = await reusableChatLead(phone);
+    const leadId = reuse ?? uuidv4();
     const session = { stage: canReply ? stage : 'held', tries: 0, at: nowIso(), choice: productText };
 
     // A new start replaces any chat still open for this number — before the
     // insert, or it would close the new chat too.
     const write = (async () => {
         await endOpenChats(phone, 'replaced');
+        if (reuse) {
+            const { locator: _old, ...extra } = (input.rawPayload && typeof input.rawPayload === 'object' ? input.rawPayload : {}) as any;
+            await db.execute(
+                `UPDATE leads
+                    SET source = ?, product = ?, car_model = ?, customer_name = COALESCE(?, customer_name),
+                        raw_payload = JSON_SET(JSON_MERGE_PATCH(COALESCE(raw_payload, JSON_OBJECT()), CAST(? AS JSON)),
+                                               '$.locator.session', CAST(? AS JSON)),
+                        failure_reason = ?, updated_at = NOW()
+                  WHERE id = ?`,
+                [
+                    input.source ?? 'whatsapp',
+                    normaliseProduct(productText),
+                    givenCar?.ok ? givenCar.car : (carText ? carText.slice(0, 80) : null),
+                    given(input.name)?.slice(0, 255) ?? null,
+                    JSON.stringify({ ...extra, locator: {} }),
+                    JSON.stringify(session),
+                    canReply ? null : 'Store locator not live for this number: details not asked',
+                    reuse,
+                ]
+            );
+            return;
+        }
         await db.execute(
             `INSERT INTO leads
                (id, source, product, car_model, customer_name, customer_phone, phone_key, flow_id, raw_payload, status, failure_reason)
@@ -150,6 +176,25 @@ export async function startConversation(input: {
     await Promise.all([write, ask]);
     console.log(`[Chat] ${phoneKey(phone)} started at ${stage} in ${Date.now() - started} ms — lead ${leadId}`);
     return { result: 'asked', leadId };
+}
+
+/*
+ * The lead of a chat from this number in the last two hours that never got a
+ * pincode, a store or a review — open, or already replaced by a restart. A new
+ * start goes on it instead of filing another empty lead.
+ */
+async function reusableChatLead(phone: string): Promise<string | null> {
+    const stages = [...OPEN_STAGES, 'replaced', 'restarted'];
+    const [rows]: any = await db.execute(
+        `SELECT id FROM leads
+          WHERE flow_id = ? AND phone_key = ?
+            AND created_at >= NOW() - INTERVAL 2 HOUR
+            AND status = 'unmatched' AND raw_area IS NULL AND store_id IS NULL AND review_status IS NULL
+            AND JSON_UNQUOTE(JSON_EXTRACT(raw_payload, '$.locator.session.stage')) IN (${stages.map(() => '?').join(', ')})
+          ORDER BY created_at DESC LIMIT 1`,
+        [LOCATOR_FLOW_ID, phoneKey(phone), ...stages]
+    );
+    return rows[0]?.id ?? null;
 }
 
 async function endOpenChats(phone: string, how: 'replaced' | 'restarted') {
