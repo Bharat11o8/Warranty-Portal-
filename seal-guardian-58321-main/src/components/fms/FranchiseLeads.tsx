@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import api, { getErrorMessage } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { Loader2, PhoneIncoming, Phone, Copy, TrendingUp, TrendingDown } from "lucide-react";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip } from "recharts";
 
@@ -34,17 +35,6 @@ interface StoreLead {
     status: Status;
     status_at: string | null;
 }
-
-const STATUS: Record<Status, { label: string; tone: string }> = {
-    pending: { label: "Not called yet", tone: "bg-slate-100 text-slate-600 border-slate-200" },
-    follow_up: { label: "Follow up", tone: "bg-amber-50 text-amber-700 border-amber-200" },
-    closed_won: { label: "Closed won", tone: "bg-emerald-50 text-emerald-700 border-emerald-200" },
-    closed_lost: { label: "Closed lost", tone: "bg-rose-50 text-rose-700 border-rose-200" },
-    no_response: { label: "No response", tone: "bg-slate-50 text-slate-600 border-slate-200" },
-    call_disconnected: { label: "Call disconnected", tone: "bg-slate-50 text-slate-600 border-slate-200" },
-    switched_off: { label: "Switched off", tone: "bg-slate-50 text-slate-600 border-slate-200" },
-    number_not_working: { label: "Number not working", tone: "bg-slate-50 text-slate-600 border-slate-200" },
-};
 
 /*
  * How a lead ended, in five groups for the bar and the filter. The four call
@@ -113,14 +103,18 @@ const formatPhone = (p: string | null) => {
     return ten.length === 10 ? `${ten.slice(0, 5)} ${ten.slice(5)}` : (p || "—");
 };
 
-export const FranchiseLeads = () => {
+/** Where the page opens: the home's tiles open it on their own period or status. */
+export interface LeadsView { period?: Period; from?: string; to?: string; status?: "all" | Group }
+
+export const FranchiseLeads = ({ initial }: { initial?: LeadsView } = {}) => {
     const { toast } = useToast();
+    const { t, tr } = useLanguage();
     const [leads, setLeads] = useState<StoreLead[]>([]);
     const [loading, setLoading] = useState(true);
-    const [period, setPeriod] = useState<Period>("30");
-    const [from, setFrom] = useState("");
-    const [to, setTo] = useState("");
-    const [status, setStatus] = useState<"all" | Group>("all");
+    const [period, setPeriod] = useState<Period>(initial?.period ?? "30");
+    const [from, setFrom] = useState(initial?.from ?? "");
+    const [to, setTo] = useState(initial?.to ?? "");
+    const [status, setStatus] = useState<"all" | Group>(initial?.status ?? "all");
 
     const load = useCallback((quiet = false) => {
         return api.get("/vendor/leads")
@@ -185,7 +179,7 @@ export const FranchiseLeads = () => {
             const k = keyOf(d);
             if (!index.has(k)) {
                 index.set(k, out.length);
-                out.push({ key: k, label: weekly ? `Week of ${shortDay(k)}` : shortDay(k), won: 0, other: 0 });
+                out.push({ key: k, label: weekly ? tr(`Week of ${shortDay(k)}`, `${shortDay(k)} का हफ़्ता`) : shortDay(k), won: 0, other: 0 });
             }
         }
         for (const l of inRange) {
@@ -194,15 +188,15 @@ export const FranchiseLeads = () => {
             if (groupOf(l.status) === "won") out[i].won++; else out[i].other++;
         }
         return out;
-    }, [inRange, bounds, weekly]);
+    }, [inRange, bounds, weekly, tr]);
     const spark = buckets.slice(-14);
     const sparkMax = Math.max(1, ...spark.map(b => b.won + b.other));
-    const periodName = PERIODS.find(p => p.key === period)?.label.toLowerCase() ?? "";
+    const periodName = t(PERIODS.find(p => p.key === period)?.label ?? "").toLowerCase();
 
     const copy = (phone: string | null) => {
         if (!phone) return;
         navigator.clipboard?.writeText(phone)
-            .then(() => toast({ title: "Number copied", description: formatPhone(phone) }))
+            .then(() => toast({ title: t("Number copied"), description: formatPhone(phone) }))
             .catch(() => { /* clipboard blocked: the number is on screen to read */ });
     };
 
@@ -210,7 +204,7 @@ export const FranchiseLeads = () => {
         return (
             <div className="flex items-center justify-center min-h-[400px] gap-3 text-slate-400">
                 <Loader2 className="h-5 w-5 animate-spin text-orange-500" />
-                <span className="text-sm font-medium">Loading your leads…</span>
+                <span className="text-sm font-medium">{t("Loading your leads…")}</span>
             </div>
         );
     }
@@ -219,10 +213,9 @@ export const FranchiseLeads = () => {
         <div className="space-y-5">
             <div className="flex flex-wrap items-end justify-between gap-3">
                 <div>
-                    <h2 className="text-2xl font-black tracking-tight text-slate-800 uppercase">My Leads</h2>
+                    <h2 className="text-2xl font-black tracking-tight text-slate-800 uppercase">{t("My Leads")}</h2>
                     <p className="text-sm text-slate-500 mt-1 max-w-2xl">
-                        Customers Autoform sent to your store. Our team calls every customer back,
-                        and the status shows how each one went.
+                        {t("Customers Autoform sent to your store. Our team calls every customer back, and the status shows how each one went.")}
                     </p>
                 </div>
                 <div className="flex flex-wrap items-center justify-end gap-2">
@@ -234,7 +227,7 @@ export const FranchiseLeads = () => {
                             onClick={() => setPeriod(p.key)}
                             className={`px-3 py-1.5 rounded-lg transition-colors ${period === p.key ? "bg-slate-800 text-white" : "text-slate-500 hover:text-slate-800"}`}
                         >
-                            {p.label}
+                            {t(p.label)}
                         </button>
                     ))}
                 </div>
@@ -242,13 +235,13 @@ export const FranchiseLeads = () => {
                     <div className="flex items-center gap-1.5 text-xs text-slate-500">
                         <input
                             type="date" value={from} max={to || undefined}
-                            onChange={e => setFrom(e.target.value)} aria-label="From"
+                            onChange={e => setFrom(e.target.value)} aria-label={t("From")}
                             className="h-9 rounded-lg border border-slate-200 bg-white px-2 text-xs text-slate-700"
                         />
-                        <span>to</span>
+                        <span>{t("to")}</span>
                         <input
                             type="date" value={to} min={from || undefined}
-                            onChange={e => setTo(e.target.value)} aria-label="To"
+                            onChange={e => setTo(e.target.value)} aria-label={t("To")}
                             className="h-9 rounded-lg border border-slate-200 bg-white px-2 text-xs text-slate-700"
                         />
                     </div>
@@ -260,7 +253,7 @@ export const FranchiseLeads = () => {
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5">
                 <button type="button" onClick={() => setStatus("all")}
                     className={`rounded-2xl border bg-white p-4 text-left transition-colors ${status === "all" ? "border-orange-300 ring-1 ring-orange-100" : "border-slate-100 hover:border-slate-200"}`}>
-                    <p className="text-[11px] font-black uppercase tracking-widest text-slate-500">Leads</p>
+                    <p className="text-[11px] font-black uppercase tracking-widest text-slate-500">{t("Leads")}</p>
                     <div className="flex items-end justify-between gap-2 mt-1">
                         <p className={`text-3xl font-black tabular-nums ${inRange.length ? "text-slate-800" : "text-slate-300"}`}>{inRange.length}</p>
                         {/* A tiny trend: the last 14 bars of the chart below. */}
@@ -272,35 +265,35 @@ export const FranchiseLeads = () => {
                         </div>
                     </div>
                     <p className="text-[11px] mt-1 flex flex-wrap items-center gap-1 text-slate-500">
-                        {change === null ? "since your first lead"
-                            : change > 0 ? <><TrendingUp className="h-3 w-3 text-emerald-600" /><span className="font-semibold text-emerald-700">{change} more</span> than the {span === 1 ? "day" : `${span} days`} before</>
-                            : change < 0 ? <><TrendingDown className="h-3 w-3 text-rose-600" /><span className="font-semibold text-rose-600">{-change} fewer</span> than the {span === 1 ? "day" : `${span} days`} before</>
-                            : <>same as the {span === 1 ? "day" : `${span} days`} before</>}
+                        {change === null ? t("since your first lead")
+                            : change > 0 ? <><TrendingUp className="h-3 w-3 text-emerald-600" /><span className="font-semibold text-emerald-700">{tr(`${change} more`, `${change} ज़्यादा`)}</span> {tr(`than the ${span === 1 ? "day" : `${span} days`} before`, `(पिछले ${span === 1 ? "दिन" : `${span} दिनों`} से)`)}</>
+                            : change < 0 ? <><TrendingDown className="h-3 w-3 text-rose-600" /><span className="font-semibold text-rose-600">{tr(`${-change} fewer`, `${-change} कम`)}</span> {tr(`than the ${span === 1 ? "day" : `${span} days`} before`, `(पिछले ${span === 1 ? "दिन" : `${span} दिनों`} से)`)}</>
+                            : <>{tr(`same as the ${span === 1 ? "day" : `${span} days`} before`, `पिछले ${span === 1 ? "दिन" : `${span} दिनों`} जितनी`)}</>}
                     </p>
                 </button>
 
                 <button type="button" onClick={() => setStatus(status === "won" ? "all" : "won")}
                     className={`rounded-2xl border bg-white p-4 text-left transition-colors ${status === "won" ? "border-orange-300 ring-1 ring-orange-100" : "border-slate-100 hover:border-slate-200"}`}>
-                    <p className="text-[11px] font-black uppercase tracking-widest text-slate-500">Won</p>
+                    <p className="text-[11px] font-black uppercase tracking-widest text-slate-500">{t("Won")}</p>
                     <p className={`text-3xl font-black tabular-nums mt-1 ${counts.won ? "text-emerald-700" : "text-slate-300"}`}>{counts.won ?? 0}</p>
-                    <p className="text-[11px] mt-1 text-slate-500">of {called} customer{called === 1 ? "" : "s"} called</p>
+                    <p className="text-[11px] mt-1 text-slate-500">{tr(`of ${called} customer${called === 1 ? "" : "s"} called`, `कॉल किए गए ${called} ग्राहकों में से`)}</p>
                 </button>
 
                 <div className="rounded-2xl border border-slate-100 bg-white p-4">
-                    <p className="text-[11px] font-black uppercase tracking-widest text-slate-500">Conversion</p>
+                    <p className="text-[11px] font-black uppercase tracking-widest text-slate-500">{t("Conversion")}</p>
                     <p className={`text-3xl font-black tabular-nums mt-1 ${conversion ? "text-slate-800" : "text-slate-300"}`}>
                         {conversion === null ? "—" : `${conversion}%`}
                     </p>
                     <p className="text-[11px] mt-1 text-slate-500">
-                        {conversion === null ? "once our team has called your leads" : "won out of customers called"}
+                        {conversion === null ? t("once our team has called your leads") : t("won out of customers called")}
                     </p>
                 </div>
 
                 <button type="button" onClick={() => setStatus(status === "follow" ? "all" : "follow")}
                     className={`rounded-2xl border p-4 text-left transition-colors ${status === "follow" ? "border-orange-300 ring-1 ring-orange-100 bg-white" : counts.follow ? "border-amber-200 bg-amber-50/50 hover:border-amber-300" : "border-slate-100 bg-white hover:border-slate-200"}`}>
-                    <p className="text-[11px] font-black uppercase tracking-widest text-slate-500">To follow up</p>
+                    <p className="text-[11px] font-black uppercase tracking-widest text-slate-500">{t("To follow up")}</p>
                     <p className={`text-3xl font-black tabular-nums mt-1 ${counts.follow ? "text-amber-600" : "text-slate-300"}`}>{counts.follow ?? 0}</p>
-                    <p className="text-[11px] mt-1 text-slate-500">{counts.follow ? "customers still deciding — call them" : "nobody waiting"}</p>
+                    <p className="text-[11px] mt-1 text-slate-500">{counts.follow ? t("customers still deciding — call them") : t("nobody waiting")}</p>
                 </button>
             </div>
 
@@ -308,15 +301,15 @@ export const FranchiseLeads = () => {
                 label below, filters the list; clicking it again clears. */}
             <div className="rounded-2xl border border-slate-100 bg-white p-4">
                 <div className="flex items-baseline justify-between gap-2 mb-3">
-                    <p className="text-[11px] font-black uppercase tracking-widest text-slate-800">How your leads ended</p>
-                    <p className="text-[11px] text-slate-400">{inRange.length} lead{inRange.length === 1 ? "" : "s"} · {periodName}</p>
+                    <p className="text-[11px] font-black uppercase tracking-widest text-slate-800">{t("How your leads ended")}</p>
+                    <p className="text-[11px] text-slate-400">{tr(`${inRange.length} lead${inRange.length === 1 ? "" : "s"}`, `${inRange.length} लीड`)} · {periodName}</p>
                 </div>
                 {inRange.length === 0 ? (
                     <div className="h-3 rounded-full bg-slate-100" />
                 ) : (
                     <div className="flex h-3 rounded-full overflow-hidden gap-[2px] bg-white">
                         {GROUPS.filter(g => counts[g.key]).map(g => (
-                            <button key={g.key} type="button" title={`${g.label}: ${counts[g.key]}`}
+                            <button key={g.key} type="button" title={`${t(g.label)}: ${counts[g.key]}`}
                                 onClick={() => setStatus(status === g.key ? "all" : g.key)}
                                 className="h-full transition-opacity"
                                 style={{ width: `${(counts[g.key] / inRange.length) * 100}%`, background: g.color, opacity: status === "all" || status === g.key ? 1 : 0.3 }} />
@@ -332,7 +325,7 @@ export const FranchiseLeads = () => {
                                 onClick={() => setStatus(selected ? "all" : g.key)}
                                 className={`flex items-center gap-1.5 text-xs rounded-md px-1.5 py-0.5 ${selected ? "bg-orange-50 font-bold" : ""} ${n ? "hover:bg-slate-50" : "opacity-40 cursor-default"}`}>
                                 <span className="h-2.5 w-2.5 rounded-sm" style={{ background: g.color }} />
-                                <span className="text-slate-700">{g.label}</span>
+                                <span className="text-slate-700">{t(g.label)}</span>
                                 <span className="tabular-nums font-semibold text-slate-800">{n}</span>
                                 {inRange.length > 0 && n > 0 && <span className="text-slate-400">{Math.round((n / inRange.length) * 100)}%</span>}
                             </button>
@@ -345,12 +338,12 @@ export const FranchiseLeads = () => {
                 leads gets a note instead of a near-empty chart. */}
             <div className="rounded-2xl border border-slate-100 bg-white p-4">
                 <div className="flex items-baseline justify-between gap-2 mb-2">
-                    <p className="text-[11px] font-black uppercase tracking-widest text-slate-800">Leads over time</p>
-                    <p className="text-[11px] text-slate-400">{weekly ? "by week" : "by day"} · {shortDay(bounds.start)} – {shortDay(bounds.end)}</p>
+                    <p className="text-[11px] font-black uppercase tracking-widest text-slate-800">{t("Leads over time")}</p>
+                    <p className="text-[11px] text-slate-400">{weekly ? t("by week") : t("by day")} · {shortDay(bounds.start)} – {shortDay(bounds.end)}</p>
                 </div>
                 {inRange.length < 3 ? (
                     <p className="text-xs text-slate-400 py-8 text-center">
-                        {inRange.length === 0 ? "No leads in this period." : "The chart appears once you have a few more leads in this period."}
+                        {inRange.length === 0 ? t("No leads in this period.") : t("The chart appears once you have a few more leads in this period.")}
                     </p>
                 ) : (
                     <>
@@ -360,7 +353,7 @@ export const FranchiseLeads = () => {
                                     <CartesianGrid vertical={false} stroke="#f1f5f9" />
                                     <XAxis dataKey="label" tick={{ fontSize: 10, fill: "#94a3b8" }} axisLine={false} tickLine={false}
                                         interval="preserveStartEnd" minTickGap={18}
-                                        tickFormatter={(v: string) => v.replace("Week of ", "")} />
+                                        tickFormatter={(v: string) => v.replace("Week of ", "").replace(" का हफ़्ता", "")} />
                                     <YAxis allowDecimals={false} tick={{ fontSize: 10, fill: "#94a3b8" }} axisLine={false} tickLine={false} width={40} />
                                     <Tooltip
                                         cursor={{ fill: "#f8fafc" }}
@@ -370,8 +363,8 @@ export const FranchiseLeads = () => {
                                             const total = b.won + b.other;
                                             return (
                                                 <div className="rounded-lg border border-slate-200 bg-white px-3 py-2 shadow-sm text-xs">
-                                                    <p className="font-bold text-slate-800">{b.label} · {total} lead{total === 1 ? "" : "s"}</p>
-                                                    <p className="text-emerald-700">Won {b.won}</p>
+                                                    <p className="font-bold text-slate-800">{b.label} · {tr(`${total} lead${total === 1 ? "" : "s"}`, `${total} लीड`)}</p>
+                                                    <p className="text-emerald-700">{t("Won")} {b.won}</p>
                                                 </div>
                                             );
                                         }}
@@ -382,8 +375,8 @@ export const FranchiseLeads = () => {
                             </ResponsiveContainer>
                         </div>
                         <div className="flex gap-4 mt-2 text-xs text-slate-600">
-                            <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm" style={{ background: "#047857" }} />Won</span>
-                            <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm" style={{ background: "#cbd5e1" }} />Other leads</span>
+                            <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm" style={{ background: "#047857" }} />{t("Won")}</span>
+                            <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm" style={{ background: "#cbd5e1" }} />{t("Other leads")}</span>
                         </div>
                     </>
                 )}
@@ -395,12 +388,12 @@ export const FranchiseLeads = () => {
                         <PhoneIncoming className="h-9 w-9 text-orange-500 opacity-80" />
                     </div>
                     <h3 className="text-xl font-black tracking-tight text-slate-800 uppercase mb-2">
-                        {leads.length === 0 ? "No leads yet" : "No leads here"}
+                        {leads.length === 0 ? t("No leads yet") : t("No leads here")}
                     </h3>
                     <p className="text-sm text-slate-500 max-w-md mx-auto leading-relaxed">
                         {leads.length === 0
-                            ? "When a customer picks your store on WhatsApp, or our team sends a customer to you, they will appear here — with how the call went."
-                            : "Nothing matches this period and outcome. Try another period, or tap Leads to see them all."}
+                            ? t("When a customer picks your store on WhatsApp, or our team sends a customer to you, they will appear here — with how the call went.")
+                            : t("Nothing matches this period and outcome. Try another period, or tap Leads to see them all.")}
                     </p>
                 </div>
             ) : (
@@ -409,16 +402,14 @@ export const FranchiseLeads = () => {
                    the sideways scrollbar is always on screen. */
                 <div className="rounded-2xl border border-slate-100 bg-white overflow-hidden">
                     <div className="relative w-full overflow-auto max-h-[calc(100vh-320px)]">
-                        <table className="w-full text-sm text-left min-w-[980px]">
+                        <table className="w-full text-sm text-left min-w-[680px]">
                             <thead className="sticky top-0 z-10 bg-slate-50 text-slate-700 shadow-[0_1px_0_0_rgb(241,245,249)]">
                                 <tr>
-                                    <th className="px-4 py-3 w-[130px] text-xs font-bold uppercase tracking-wide">Date</th>
-                                    <th className="px-4 py-3 w-[190px] text-xs font-bold uppercase tracking-wide">Customer</th>
-                                    <th className="px-4 py-3 w-[120px] text-xs font-bold uppercase tracking-wide">Product</th>
-                                    <th className="px-4 py-3 w-[150px] text-xs font-bold uppercase tracking-wide">Car</th>
-                                    <th className="px-4 py-3 w-[160px] text-xs font-bold uppercase tracking-wide">Area</th>
-                                    <th className="px-4 py-3 w-[170px] text-xs font-bold uppercase tracking-wide">How it came</th>
-                                    <th className="px-4 py-3 w-[150px] text-xs font-bold uppercase tracking-wide">Status</th>
+                                    <th className="px-4 py-3 w-[130px] text-xs font-bold uppercase tracking-wide">{t("Date")}</th>
+                                    <th className="px-4 py-3 w-[190px] text-xs font-bold uppercase tracking-wide">{t("Customer")}</th>
+                                    <th className="px-4 py-3 w-[120px] text-xs font-bold uppercase tracking-wide">{t("Product")}</th>
+                                    <th className="px-4 py-3 w-[150px] text-xs font-bold uppercase tracking-wide">{t("Car")}</th>
+                                    <th className="px-4 py-3 w-[160px] text-xs font-bold uppercase tracking-wide">{t("Area")}</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100">
@@ -429,15 +420,15 @@ export const FranchiseLeads = () => {
                                         </td>
                                         <td className="px-4 py-3 align-top">
                                             <div className="font-semibold text-slate-800 truncate max-w-[180px]" title={l.customer_name || ""}>
-                                                {l.customer_name || "Customer"}
+                                                {l.customer_name || t("Customer")}
                                             </div>
                                             <div className="flex items-center gap-1 mt-0.5">
-                                                <a href={`tel:${String(l.customer_phone ?? "").replace(/D/g, "").slice(-10)}`}
+                                                <a href={`tel:${String(l.customer_phone ?? "").replace(/\D/g, "").slice(-10)}`}
                                                     className="flex items-center gap-1 text-xs text-slate-600 hover:text-orange-600 tabular-nums">
                                                     <Phone className="h-3 w-3" /> {formatPhone(l.customer_phone)}
                                                 </a>
                                                 <button type="button" onClick={() => copy(l.customer_phone)}
-                                                    className="p-1 rounded text-slate-400 hover:text-orange-600 hover:bg-orange-50" aria-label="Copy number" title="Copy number">
+                                                    className="p-1 rounded text-slate-400 hover:text-orange-600 hover:bg-orange-50" aria-label={t("Copy number")} title={t("Copy number")}>
                                                     <Copy className="h-3 w-3" />
                                                 </button>
                                             </div>
@@ -454,21 +445,13 @@ export const FranchiseLeads = () => {
                                                 </>
                                             ) : <span className="text-slate-300">—</span>}
                                         </td>
-                                        <td className="px-4 py-3 align-top text-xs text-slate-600">
-                                            {l.via === "customer" ? "Picked your store on WhatsApp" : "Sent by Autoform"}
-                                        </td>
-                                        <td className="px-4 py-3 align-top">
-                                            <span className={`inline-block text-[11px] font-bold uppercase tracking-wide rounded-full border px-2.5 py-1 whitespace-nowrap ${STATUS[l.status].tone}`}>
-                                                {STATUS[l.status].label}
-                                            </span>
-                                        </td>
                                     </tr>
                                 ))}
                             </tbody>
                         </table>
                     </div>
                     <div className="px-4 py-2 border-t border-slate-100 text-[11px] text-slate-400">
-                        {shown.length} lead{shown.length === 1 ? "" : "s"}
+                        {tr(`${shown.length} lead${shown.length === 1 ? "" : "s"}`, `${shown.length} लीड`)}
                     </div>
                 </div>
             )}

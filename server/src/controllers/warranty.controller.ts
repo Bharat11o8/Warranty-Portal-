@@ -1078,9 +1078,33 @@ export class WarrantyController {
         }
       });
 
+      /* For the franchise home: registered this calendar month and last, and
+         each day since the start of last month (the home's today / this week /
+         this month switch compares against the same days before). created_at
+         already reads in IST (the pool's session zone), so no conversion. */
+      const [[months]]: any = await db.execute(
+        `SELECT
+           COALESCE(SUM(created_at >= DATE_FORMAT(CURDATE(), '%Y-%m-01')), 0) AS this_month,
+           COALESCE(SUM(created_at >= DATE_FORMAT(CURDATE() - INTERVAL 1 MONTH, '%Y-%m-01')
+                    AND created_at < DATE_FORMAT(CURDATE(), '%Y-%m-01')), 0) AS last_month
+         FROM warranty_registrations ${whereClause}`,
+        params
+      );
+      const [days]: any = await db.execute(
+        `SELECT DATE_FORMAT(created_at, '%Y-%m-%d') AS day, COUNT(*) AS n
+           FROM warranty_registrations ${whereClause ? `${whereClause} AND` : 'WHERE'} created_at >= DATE_FORMAT(CURDATE() - INTERVAL 1 MONTH, '%Y-%m-01')
+          GROUP BY day ORDER BY day`,
+        params
+      );
+
       res.json({
         success: true,
-        stats
+        stats: {
+          ...stats,
+          this_month: Number(months?.this_month ?? 0),
+          last_month: Number(months?.last_month ?? 0),
+          daily: days.map((d: any) => ({ day: d.day, n: Number(d.n) })),
+        }
       });
 
     } catch (error: any) {

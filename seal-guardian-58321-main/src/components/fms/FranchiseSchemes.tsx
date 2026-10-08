@@ -11,6 +11,7 @@ import {
     ScanText, AlertTriangle, CheckCircle2, Clock, ChevronRight, Star, FileText, Medal, X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { ClubBadge, ClubIcon, CLUB_COLORS } from "@/components/schemes/ClubBadge";
 import { matchInvoice } from "@/lib/invoiceReader";
 import { readInvoiceFiles } from "@/lib/invoiceOcr";
@@ -65,15 +66,17 @@ function entriesByDay(entries: MyEntry[]) {
 
 /** Whether entries are open right now, and until when — or when they open next. */
 function OpenNote({ open, next, closed }: { open: SchemeWindow | null; next: SchemeWindow | null; closed?: boolean }) {
-    if (open) return <span className="font-medium text-emerald-700">Open now · until {formatStamp(open.end)}</span>;
-    if (next) return <span className="font-medium text-sky-700">Opens {formatStamp(next.start)}</span>;
-    return <span className="text-slate-400">{closed ? "Closed" : "No more windows"}</span>;
+    const { t, tr } = useLanguage();
+    if (open) return <span className="font-medium text-emerald-700">{tr(`Open now · until ${formatStamp(open.end)}`, `अभी खुला · ${formatStamp(open.end)} तक`)}</span>;
+    if (next) return <span className="font-medium text-sky-700">{tr(`Opens ${formatStamp(next.start)}`, `${formatStamp(next.start)} से खुलेगा`)}</span>;
+    return <span className="text-slate-400">{closed ? t("Closed") : t("No more windows")}</span>;
 }
 
 /** The scheme's state as a pill; a running scheme says how many days are left. */
 function StatePill({ state, end }: { state: SchemeState; end: string }) {
+    const { t, tr } = useLanguage();
     const left = daysLeft(end.slice(0, 10));
-    const label = state === "live" && left >= 0 ? (left === 0 ? "Ends today" : `${left} day${left === 1 ? "" : "s"} left`) : STATE_META[state].label;
+    const label = state === "live" && left >= 0 ? (left === 0 ? t("Ends today") : tr(`${left} day${left === 1 ? "" : "s"} left`, `${left} दिन बाकी`)) : t(STATE_META[state].label);
     return (
         <span className={cn("inline-flex items-center gap-1.5 shrink-0 rounded-full border px-2.5 py-0.5 text-xs font-semibold", STATE_META[state].tone)}>
             {state === "live" && <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />}
@@ -91,9 +94,10 @@ function Poster({ url, className }: { url: string | null; className?: string }) 
 
 /** One number with its label. */
 function Stat({ label, children, hint, className }: { label: string; children: ReactNode; hint?: ReactNode; className?: string }) {
+    const { t } = useLanguage();
     return (
         <div className={cn("rounded-xl border border-slate-200 bg-white px-4 py-3 min-w-0", className)}>
-            <p className="text-xs font-medium text-slate-500">{label}</p>
+            <p className="text-xs font-medium text-slate-500">{t(label)}</p>
             <div className="mt-1 text-2xl font-bold text-slate-900 tabular-nums leading-tight">{children}</div>
             {hint && <p className="mt-0.5 text-xs text-slate-500 truncate">{hint}</p>}
         </div>
@@ -102,6 +106,7 @@ function Stat({ label, children, hint, className }: { label: string; children: R
 
 export const FranchiseSchemes = () => {
     const { toast } = useToast();
+    const { t, tr } = useLanguage();
     const [list, setList] = useState<Listed[] | null>(null);
     const [tab, setTab] = useState<"now" | "upcoming" | "past">("now");
     const [openId, setOpenId] = useState<string | null>(null);
@@ -112,8 +117,8 @@ export const FranchiseSchemes = () => {
     const load = useCallback(() => {
         return api.get("/schemes")
             .then(r => setList(r.data.schemes || []))
-            .catch(e => { setList([]); toast({ title: "Could not load schemes", description: getErrorMessage(e, "Try again"), variant: "destructive" }); });
-    }, [toast]);
+            .catch(e => { setList([]); toast({ title: t("Could not load schemes"), description: getErrorMessage(e, t("Try again")), variant: "destructive" }); });
+    }, [toast, t]);
     useEffect(() => { load(); }, [load]);
 
     const groups = useMemo(() => ({
@@ -125,7 +130,7 @@ export const FranchiseSchemes = () => {
     if (openId) return <SchemeView id={openId} startSubmit={startSubmit} onBack={() => { setOpenId(null); setStartSubmit(false); load(); }} />;
 
     if (list === null) {
-        return <div className="flex items-center justify-center min-h-[400px] gap-3 text-slate-400"><Loader2 className="h-5 w-5 animate-spin text-orange-500" /><span className="text-sm font-medium">Loading schemes…</span></div>;
+        return <div className="flex items-center justify-center min-h-[400px] gap-3 text-slate-400"><Loader2 className="h-5 w-5 animate-spin text-orange-500" /><span className="text-sm font-medium">{t("Loading schemes…")}</span></div>;
     }
 
     const shown = groups[tab];
@@ -134,19 +139,19 @@ export const FranchiseSchemes = () => {
         <div className="space-y-6">
             <div className="flex flex-wrap items-end justify-between gap-4">
                 <div>
-                    <h2 className="text-2xl font-bold tracking-tight text-slate-900">Offers &amp; Schemes</h2>
-                    <p className="text-sm text-slate-500 mt-1">Join a scheme, submit your invoices and see what you've earned.</p>
+                    <h2 className="text-2xl font-bold tracking-tight text-slate-900">{t("Offers & Schemes")}</h2>
+                    <p className="text-sm text-slate-500 mt-1">{t("Join a scheme, submit your invoices and see what you've earned.")}</p>
                 </div>
                 <div className="flex items-center gap-2">
                     <div className="flex rounded-lg border border-slate-200 bg-slate-50 p-1 text-sm font-medium">
                         {([["now", "Running"], ["upcoming", "Coming up"], ["past", "Past"]] as const).map(([k, l]) => (
                             <button key={k} type="button" onClick={() => setTab(k)}
                                 className={cn("px-3 py-1.5 rounded-md transition-colors", tab === k ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-800")}>
-                                {l} <span className="tabular-nums text-slate-400">{groups[k].length}</span>
+                                {t(l)} <span className="tabular-nums text-slate-400">{groups[k].length}</span>
                             </button>
                         ))}
                     </div>
-                    <Button variant="outline" size="icon" disabled={refreshing} aria-label="Refresh" title="Refresh"
+                    <Button variant="outline" size="icon" disabled={refreshing} aria-label={t("Refresh")} title={t("Refresh")}
                         onClick={() => { setRefreshing(true); load().finally(() => setRefreshing(false)); }}>
                         <RefreshCw className={cn("h-4 w-4", refreshing && "animate-spin")} />
                     </Button>
@@ -159,9 +164,9 @@ export const FranchiseSchemes = () => {
                         <Gift className="h-7 w-7 text-orange-500" />
                     </div>
                     <h3 className="text-lg font-semibold text-slate-800 mb-1">
-                        {tab === "now" ? "No schemes running" : tab === "upcoming" ? "Nothing coming up" : "No past schemes"}
+                        {tab === "now" ? t("No schemes running") : tab === "upcoming" ? t("Nothing coming up") : t("No past schemes")}
                     </h3>
-                    <p className="text-sm text-slate-500 max-w-md mx-auto">New schemes appear here, and you'll get a notification when one starts.</p>
+                    <p className="text-sm text-slate-500 max-w-md mx-auto">{t("New schemes appear here, and you'll get a notification when one starts.")}</p>
                 </div>
             ) : (
                 <div className="space-y-4">
@@ -169,13 +174,13 @@ export const FranchiseSchemes = () => {
                         const a = s.achieved;
                         return (
                             <div key={s.id} className="group rounded-xl border border-slate-200 bg-white overflow-hidden hover:border-orange-300 hover:shadow-md transition-all flex flex-col sm:flex-row">
-                                <button type="button" onClick={() => open(s.id)} className="sm:w-48 h-40 sm:h-auto shrink-0 bg-slate-100 overflow-hidden" aria-label={`Open ${s.title}`}>
+                                <button type="button" onClick={() => open(s.id)} className="sm:w-48 h-40 sm:h-auto shrink-0 bg-slate-100 overflow-hidden" aria-label={s.title}>
                                     <Poster url={s.banner_url} className="group-hover:scale-[1.02] transition-transform duration-500" />
                                 </button>
                                 <div className="flex-1 min-w-0 p-5 flex flex-col gap-3">
                                     <div className="flex items-start justify-between gap-3">
                                         <div className="min-w-0">
-                                            <p className="text-xs font-semibold uppercase tracking-wide text-orange-600">{CATEGORY_LABEL[s.category]}</p>
+                                            <p className="text-xs font-semibold uppercase tracking-wide text-orange-600">{t(CATEGORY_LABEL[s.category])}</p>
                                             <button type="button" onClick={() => open(s.id)} className="text-left text-lg font-bold text-slate-900 hover:text-orange-700 leading-snug">{s.title}</button>
                                             {s.summary && <p className="text-sm text-slate-600 mt-1 line-clamp-2">{s.summary}</p>}
                                         </div>
@@ -184,31 +189,31 @@ export const FranchiseSchemes = () => {
                                     <p className="text-sm flex flex-wrap items-center gap-x-2 gap-y-0.5 text-slate-500">
                                         <CalendarDays className="h-4 w-4 text-slate-400" />
                                         <OpenNote open={s.open_window} next={s.next_window} closed={s.state === "closed"} />
-                                        {s.windows.length > 1 && <span className="text-slate-400">· {s.windows.length} windows</span>}
+                                        {s.windows.length > 1 && <span className="text-slate-400">· {tr(`${s.windows.length} windows`, `${s.windows.length} बार`)}</span>}
                                     </p>
 
                                     {s.joined && a && (
                                         <div className="grid grid-cols-2 sm:grid-cols-4 rounded-lg border border-slate-100 bg-slate-50 divide-x divide-slate-200 text-sm">
-                                            {s.has_score && <div className="px-3 py-2"><p className="text-xs text-slate-500">Points</p><p className="font-bold text-slate-900 tabular-nums">{a.score}</p></div>}
-                                            {a.club !== undefined && <div className="px-3 py-2 min-w-0"><p className="text-xs text-slate-500">Club</p>{a.club ? <ClubBadge club={a.club} className="mt-0.5" /> : <p className="text-slate-400">—</p>}</div>}
-                                            {s.has_score && <div className="px-3 py-2"><p className="text-xs text-slate-500">Rank</p><p className="font-bold text-slate-900 tabular-nums">#{a.rank} <span className="font-normal text-slate-400">of {a.of}</span></p></div>}
-                                            <div className="px-3 py-2"><p className="text-xs text-slate-500">Approved</p><p className="font-bold text-slate-900 tabular-nums">{a.approved}</p></div>
+                                            {s.has_score && <div className="px-3 py-2"><p className="text-xs text-slate-500">{t("Points")}</p><p className="font-bold text-slate-900 tabular-nums">{a.score}</p></div>}
+                                            {a.club !== undefined && <div className="px-3 py-2 min-w-0"><p className="text-xs text-slate-500">{t("Club")}</p>{a.club ? <ClubBadge club={a.club} className="mt-0.5" /> : <p className="text-slate-400">—</p>}</div>}
+                                            {s.has_score && <div className="px-3 py-2"><p className="text-xs text-slate-500">{t("Rank")}</p><p className="font-bold text-slate-900 tabular-nums">#{a.rank} <span className="font-normal text-slate-400">{tr(`of ${a.of}`, `/ ${a.of}`)}</span></p></div>}
+                                            <div className="px-3 py-2"><p className="text-xs text-slate-500">{t("Approved")}</p><p className="font-bold text-slate-900 tabular-nums">{a.approved}</p></div>
                                         </div>
                                     )}
-                                    {s.joined && !a && <p className="text-sm text-slate-500">You've joined. Your points show here once an entry is approved.</p>}
+                                    {s.joined && !a && <p className="text-sm text-slate-500">{t("You've joined. Your points show here once an entry is approved.")}</p>}
 
                                     <div className="mt-auto flex flex-wrap items-center justify-end gap-2 pt-1">
                                         <Button variant="ghost" size="sm" className="text-slate-600" onClick={() => open(s.id)}>
-                                            View details <ChevronRight className="h-4 w-4 ml-0.5" />
+                                            {t("View details")} <ChevronRight className="h-4 w-4 ml-0.5" />
                                         </Button>
                                         {s.joined ? (
                                             s.open_window && (
                                                 <Button size="sm" className="bg-orange-500 hover:bg-orange-600" onClick={() => open(s.id, true)}>
-                                                    <Plus className="h-4 w-4 mr-1" /> Submit invoice
+                                                    <Plus className="h-4 w-4 mr-1" /> {t("Submit invoice")}
                                                 </Button>
                                             )
                                         ) : s.state !== "closed" && (
-                                            <Button size="sm" className="bg-orange-500 hover:bg-orange-600" onClick={() => open(s.id)}>Join scheme</Button>
+                                            <Button size="sm" className="bg-orange-500 hover:bg-orange-600" onClick={() => open(s.id)}>{t("Join scheme")}</Button>
                                         )}
                                     </div>
                                 </div>
@@ -225,6 +230,7 @@ type ViewTab = "entries" | "rewards" | "how" | "leaderboard" | "terms";
 
 function SchemeView({ id, startSubmit, onBack }: { id: string; startSubmit: boolean; onBack: () => void }) {
     const { toast } = useToast();
+    const { t, tr } = useLanguage();
     const [d, setD] = useState<Detail | null>(null);
     const [tab, setTab] = useState<ViewTab | null>(null);
     const [accept, setAccept] = useState(false);
@@ -238,8 +244,8 @@ function SchemeView({ id, startSubmit, onBack }: { id: string; startSubmit: bool
 
     const load = useCallback(() => {
         return api.get(`/schemes/${id}`).then(r => setD(r.data))
-            .catch(e => toast({ title: "Could not open the scheme", description: getErrorMessage(e, "Try again"), variant: "destructive" }));
-    }, [id, toast]);
+            .catch(e => toast({ title: t("Could not open the scheme"), description: getErrorMessage(e, t("Try again")), variant: "destructive" }));
+    }, [id, toast, t]);
     useEffect(() => { load(); }, [load]);
     /* Came from a card's "Submit invoice": open the form once the scheme is in. */
     useEffect(() => {
@@ -261,47 +267,47 @@ function SchemeView({ id, startSubmit, onBack }: { id: string; startSubmit: bool
     /* Joined stores land on their entries; others on how it works. */
     const current: ViewTab = tab ?? (d.joined ? "entries" : "how");
     const tabs: [ViewTab, string][] = [
-        ...(d.joined ? [["entries", `My entries${d.entries.length ? ` (${d.entries.length})` : ""}`] as [ViewTab, string]] : []),
-        ["rewards", s.clubs?.length ? "Rewards & clubs" : "Rewards"],
-        ["how", "How it works"],
-        ...(d.leaderboard ? [["leaderboard", "Leaderboard"] as [ViewTab, string]] : []),
-        ["terms", "Terms"],
+        ...(d.joined ? [["entries", `${t("My entries")}${d.entries.length ? ` (${d.entries.length})` : ""}`] as [ViewTab, string]] : []),
+        ["rewards", s.clubs?.length ? t("Rewards & clubs") : t("Rewards")],
+        ["how", t("How it works")],
+        ...(d.leaderboard ? [["leaderboard", t("Leaderboard")] as [ViewTab, string]] : []),
+        ["terms", t("Terms")],
     ];
     const canSubmit = d.can_submit && s.fields.length > 0;
     const maxMonth = Math.max(1, ...d.months.map(m => m.points));
 
     const join = async () => {
         setJoining(true);
-        try { await api.post(`/schemes/${s.id}/join`, { accept_terms: accept }); toast({ title: "You've joined", description: s.fields.length ? "Submit your invoices from here." : undefined }); setTab("entries"); load(); }
-        catch (e) { toast({ title: "Could not join", description: getErrorMessage(e, "Try again"), variant: "destructive" }); }
+        try { await api.post(`/schemes/${s.id}/join`, { accept_terms: accept }); toast({ title: t("You've joined"), description: s.fields.length ? t("Submit your invoices from here.") : undefined }); setTab("entries"); load(); }
+        catch (e) { toast({ title: t("Could not join"), description: getErrorMessage(e, t("Try again")), variant: "destructive" }); }
         finally { setJoining(false); }
     };
 
     return (
         <div className="space-y-6">
             <div className="flex items-center justify-between gap-2">
-                <button type="button" onClick={onBack} className="text-sm font-medium text-slate-500 hover:text-orange-600 flex items-center gap-1.5"><ArrowLeft className="h-4 w-4" /> All schemes</button>
-                <Button variant="outline" size="sm" disabled={refreshing} title="See the latest approvals and your rank"
+                <button type="button" onClick={onBack} className="text-sm font-medium text-slate-500 hover:text-orange-600 flex items-center gap-1.5"><ArrowLeft className="h-4 w-4" /> {t("All schemes")}</button>
+                <Button variant="outline" size="sm" disabled={refreshing} title={t("See the latest approvals and your rank")}
                     onClick={() => { setRefreshing(true); load().finally(() => setRefreshing(false)); }}>
-                    <RefreshCw className={cn("h-4 w-4 mr-1.5", refreshing && "animate-spin")} /> Refresh
+                    <RefreshCw className={cn("h-4 w-4 mr-1.5", refreshing && "animate-spin")} /> {t("Refresh")}
                 </Button>
             </div>
 
             {/* The scheme: poster, dates, and what to do next. */}
             <div className="rounded-xl border border-slate-200 bg-white overflow-hidden flex flex-col md:flex-row">
                 <button type="button" onClick={() => s.banner_url && setPosterOpen(true)} disabled={!s.banner_url}
-                    className="relative md:w-64 h-56 md:h-auto shrink-0 bg-slate-100 group overflow-hidden" aria-label="See the full poster">
+                    className="relative md:w-64 h-56 md:h-auto shrink-0 bg-slate-100 group overflow-hidden" aria-label={t("See full poster")}>
                     <Poster url={s.banner_url} />
                     {s.banner_url && (
                         <span className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-1.5 rounded-full bg-black/65 px-3 py-1 text-xs font-medium text-white whitespace-nowrap group-hover:bg-black/80">
-                            <Maximize2 className="h-3.5 w-3.5" /> See full poster
+                            <Maximize2 className="h-3.5 w-3.5" /> {t("See full poster")}
                         </span>
                     )}
                 </button>
                 <div className="flex-1 min-w-0 p-5 md:p-6 flex flex-col gap-4">
                     <div className="flex flex-wrap items-start justify-between gap-3">
                         <div className="min-w-0">
-                            <p className="text-xs font-semibold uppercase tracking-wide text-orange-600">{CATEGORY_LABEL[s.category]}</p>
+                            <p className="text-xs font-semibold uppercase tracking-wide text-orange-600">{t(CATEGORY_LABEL[s.category])}</p>
                             <h2 className="text-2xl font-bold text-slate-900 leading-tight mt-0.5">{s.title}</h2>
                             {s.summary && <p className="text-sm text-slate-600 mt-1.5 max-w-2xl">{s.summary}</p>}
                         </div>
@@ -315,11 +321,11 @@ function SchemeView({ id, startSubmit, onBack }: { id: string; startSubmit: bool
                         <p className="flex items-center gap-2"><Clock className="h-4 w-4 text-slate-400" /><OpenNote open={s.open_window} next={s.next_window} closed={s.state === "closed"} /></p>
                         {s.windows.length > 1 && (
                             <details className="pl-6 text-slate-500">
-                                <summary className="cursor-pointer text-xs font-medium hover:text-slate-700">All {s.windows.length} entry windows</summary>
+                                <summary className="cursor-pointer text-xs font-medium hover:text-slate-700">{tr(`All ${s.windows.length} entry windows`, `सभी ${s.windows.length} एंट्री समय`)}</summary>
                                 <ul className="mt-1 space-y-0.5 text-xs">
                                     {s.windows.map((w, i) => {
                                         const isOpen = s.open_window && s.open_window.start === w.start;
-                                        return <li key={i} className={isOpen ? "text-emerald-700 font-semibold" : ""}>{formatWindow(w)}{isOpen ? " · open now" : ""}</li>;
+                                        return <li key={i} className={isOpen ? "text-emerald-700 font-semibold" : ""}>{formatWindow(w)}{isOpen ? ` · ${t("open now")}` : ""}</li>;
                                     })}
                                 </ul>
                             </details>
@@ -329,31 +335,31 @@ function SchemeView({ id, startSubmit, onBack }: { id: string; startSubmit: bool
                     {d.joined ? (
                         <div className="flex flex-wrap items-center gap-3">
                             {canSubmit && (
-                                <Button className="bg-orange-500 hover:bg-orange-600" onClick={() => setSubmitOpen(true)}><Plus className="h-4 w-4 mr-1.5" /> Submit invoice</Button>
+                                <Button className="bg-orange-500 hover:bg-orange-600" onClick={() => setSubmitOpen(true)}><Plus className="h-4 w-4 mr-1.5" /> {t("Submit invoice")}</Button>
                             )}
-                            <span className="inline-flex items-center gap-1.5 text-sm text-emerald-700 font-medium"><CheckCircle2 className="h-4 w-4" /> You've joined</span>
+                            <span className="inline-flex items-center gap-1.5 text-sm text-emerald-700 font-medium"><CheckCircle2 className="h-4 w-4" /> {t("You've joined")}</span>
                             {!d.can_submit && s.state !== "closed" && s.state !== "upcoming" && s.entries_per_store === "one" && d.entries.some(e => e.status !== "rejected") && (
-                                <span className="text-sm text-slate-500">This scheme takes one entry per store, and yours is in.</span>
+                                <span className="text-sm text-slate-500">{t("This scheme takes one entry per store, and yours is in.")}</span>
                             )}
-                            {!d.can_submit && !s.open_window && s.next_window && <span className="text-sm text-slate-500">You can submit when the next window opens: {formatStamp(s.next_window.start)}.</span>}
+                            {!d.can_submit && !s.open_window && s.next_window && <span className="text-sm text-slate-500">{t("You can submit when the next window opens:")} {formatStamp(s.next_window.start)}.</span>}
                         </div>
                     ) : s.state !== "closed" ? (
                         <div className="rounded-lg bg-orange-50 border border-orange-100 p-4 flex flex-wrap items-center justify-between gap-3">
                             {s.terms ? (
                                 <label className="flex items-start gap-2 text-sm text-slate-700">
                                     <Checkbox checked={accept} onCheckedChange={c => setAccept(Boolean(c))} className="mt-0.5" />
-                                    <span>I've read and accept the <button type="button" className="underline text-orange-700" onClick={() => setTab("terms")}>terms &amp; conditions</button>.</span>
+                                    <span>{tr("I've read and accept the ", "मैंने ")}<button type="button" className="underline text-orange-700" onClick={() => setTab("terms")}>{t("terms & conditions")}</button>{tr(".", " पढ़ लिए हैं और मुझे मंज़ूर हैं।")}</span>
                                 </label>
-                            ) : <span className="text-sm text-slate-700">Join to start submitting your invoices.</span>}
+                            ) : <span className="text-sm text-slate-700">{t("Join to start submitting your invoices.")}</span>}
                             <Button className="bg-orange-500 hover:bg-orange-600" disabled={joining || (Boolean(s.terms) && !accept)} onClick={join}>
-                                {joining && <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />} Join this scheme
+                                {joining && <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />} {t("Join this scheme")}
                             </Button>
                         </div>
-                    ) : <p className="text-sm text-slate-500">This scheme has closed.</p>}
+                    ) : <p className="text-sm text-slate-500">{t("This scheme has closed.")}</p>}
 
                     {s.contact && (
                         <div className="mt-auto pt-4 border-t border-slate-100 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
-                            <span className="text-slate-500">Questions? <span className="font-semibold text-slate-800">{s.contact.name}</span>{s.contact.role && <span className="text-slate-500"> · {s.contact.role}</span>}</span>
+                            <span className="text-slate-500">{t("Questions?")} <span className="font-semibold text-slate-800">{s.contact.name}</span>{s.contact.role && <span className="text-slate-500"> · {s.contact.role}</span>}</span>
                             {s.contact.phone && (
                                 <a href={`tel:${s.contact.phone.replace(/[^+\d]/g, "")}`} className="inline-flex items-center gap-1.5 text-slate-700 hover:text-orange-700">
                                     <Phone className="h-4 w-4 text-slate-400" /> {s.contact.phone}
@@ -375,18 +381,18 @@ function SchemeView({ id, startSubmit, onBack }: { id: string; startSubmit: bool
                     <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
                         {hasScore && <Stat label="Your points">{a?.score ?? 0}</Stat>}
                         {s.clubs?.length > 0 && (
-                            <Stat label="Club" hint={a?.club?.reward ? `Reward: ${a.club.reward}` : undefined}>
-                                {a?.club ? <ClubBadge club={a.club} size="lg" /> : <span className="text-base font-medium text-slate-400">Not in a club yet</span>}
+                            <Stat label="Club" hint={a?.club?.reward ? `${t("Reward")}: ${a.club.reward}` : undefined}>
+                                {a?.club ? <ClubBadge club={a.club} size="lg" /> : <span className="text-base font-medium text-slate-400">{t("Not in a club yet")}</span>}
                             </Stat>
                         )}
-                        {hasScore && <Stat label="Rank">{a ? <>#{a.rank} <span className="text-base font-normal text-slate-400">of {a.of}</span></> : <span className="text-slate-400">—</span>}</Stat>}
+                        {hasScore && <Stat label="Rank">{a ? <>#{a.rank} <span className="text-base font-normal text-slate-400">{tr(`of ${a.of}`, `/ ${a.of}`)}</span></> : <span className="text-slate-400">—</span>}</Stat>}
                         <Stat label="Approved entries">{a?.approved ?? 0}</Stat>
-                        <Stat label="Under review" hint={inReview ? "Counts once approved" : undefined}>{inReview}</Stat>
+                        <Stat label="Under review" hint={inReview ? t("Counts once approved") : undefined}>{inReview}</Stat>
                         {a?.reward && !a.club && <Stat label="Reward earned" className="col-span-2 lg:col-span-1"><span className="text-lg text-emerald-700">{a.reward}</span></Stat>}
                     </div>
                     {hasScore && d.months.length > 0 && (
                         <div className="rounded-xl border border-slate-200 bg-white p-4">
-                            <p className="text-sm font-semibold text-slate-800 mb-3">Points by month</p>
+                            <p className="text-sm font-semibold text-slate-800 mb-3">{t("Points by month")}</p>
                             <div className="flex items-end gap-3 h-28 overflow-x-auto">
                                 {d.months.map(m => (
                                     <div key={m.month} className="flex flex-col items-center justify-end gap-1 h-full min-w-[44px]">
@@ -412,27 +418,27 @@ function SchemeView({ id, startSubmit, onBack }: { id: string; startSubmit: bool
                 </div>
 
                 <div className="p-5 text-sm text-slate-700">
-                    {current === "how" && (s.instructions ? <p className="whitespace-pre-wrap leading-relaxed max-w-3xl">{s.instructions}</p> : <p className="text-slate-400">No instructions.</p>)}
-                    {current === "terms" && (s.terms ? <p className="whitespace-pre-wrap leading-relaxed max-w-3xl">{s.terms}</p> : <p className="text-slate-400">No terms for this scheme.</p>)}
+                    {current === "how" && (s.instructions ? <p className="whitespace-pre-wrap leading-relaxed max-w-3xl">{s.instructions}</p> : <p className="text-slate-400">{t("No instructions.")}</p>)}
+                    {current === "terms" && (s.terms ? <p className="whitespace-pre-wrap leading-relaxed max-w-3xl">{s.terms}</p> : <p className="text-slate-400">{t("No terms for this scheme.")}</p>)}
 
                     {current === "rewards" && (
-                        s.rewards.mode === "none" && !s.clubs?.length && !products.length ? <p className="text-slate-400">This is an offer for information — there's no reward to earn.</p> : (
+                        s.rewards.mode === "none" && !s.clubs?.length && !products.length ? <p className="text-slate-400">{t("This is an offer for information — there's no reward to earn.")}</p> : (
                             <div className="space-y-6">
                                 {s.clubs?.length > 0 && (
                                     <section>
-                                        <h3 className="text-sm font-semibold text-slate-900 mb-3">Clubs</h3>
+                                        <h3 className="text-sm font-semibold text-slate-900 mb-3">{t("Clubs")}</h3>
                                         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
                                             {[...s.clubs].sort((x, y) => x.min - y.min).map(c => {
                                                 const mine = a?.club?.id === c.id;
                                                 const color = (CLUB_COLORS[c.color] ?? CLUB_COLORS.slate).swatch;
                                                 return (
                                                     <div key={c.id} className={cn("relative rounded-xl border p-4 text-center", mine ? "border-orange-400 bg-orange-50 ring-2 ring-orange-200" : "border-slate-200 bg-white")}>
-                                                        {mine && <span className="absolute -top-2.5 left-1/2 -translate-x-1/2 rounded-full bg-orange-500 px-2 py-0.5 text-[10px] font-bold text-white whitespace-nowrap">YOU'RE HERE</span>}
+                                                        {mine && <span className="absolute -top-2.5 left-1/2 -translate-x-1/2 rounded-full bg-orange-500 px-2 py-0.5 text-[10px] font-bold text-white whitespace-nowrap">{t("YOU'RE HERE")}</span>}
                                                         <div className="mx-auto h-11 w-11 rounded-full flex items-center justify-center" style={{ backgroundColor: `${color}1a`, color }}>
                                                             <ClubIcon icon={c.icon} className="h-6 w-6" />
                                                         </div>
                                                         <p className="mt-2 font-bold text-slate-900">{c.name}</p>
-                                                        <p className="text-xs text-slate-500 tabular-nums">{c.min}+ points</p>
+                                                        <p className="text-xs text-slate-500 tabular-nums">{c.min}+ {t("points")}</p>
                                                         {c.reward && <p className="mt-2 text-xs font-medium text-slate-800 leading-snug">{c.reward}</p>}
                                                     </div>
                                                 );
@@ -442,13 +448,13 @@ function SchemeView({ id, startSubmit, onBack }: { id: string; startSubmit: bool
                                 )}
                                 {(s.rewards.mode === "slabs" || s.rewards.mode === "rank") && (
                                     <section>
-                                        <h3 className="text-sm font-semibold text-slate-900 mb-3">{s.rewards.mode === "slabs" ? "Rewards by score" : "Prizes by rank"}</h3>
+                                        <h3 className="text-sm font-semibold text-slate-900 mb-3">{s.rewards.mode === "slabs" ? t("Rewards by score") : t("Prizes by rank")}</h3>
                                         <div className="rounded-lg border border-slate-200 divide-y divide-slate-100 max-w-xl">
                                             {s.rewards.mode === "slabs" && s.rewards.slabs.map((sl, i) => (
-                                                <div key={i} className="flex justify-between gap-4 px-4 py-2.5"><span className="text-slate-500">Score {sl.min}{sl.max === null ? " and above" : ` – ${sl.max}`}</span><span className="font-semibold text-slate-900">{sl.reward}</span></div>
+                                                <div key={i} className="flex justify-between gap-4 px-4 py-2.5"><span className="text-slate-500">{t("Score")} {sl.min}{sl.max === null ? ` ${t("and above")}` : ` – ${sl.max}`}</span><span className="font-semibold text-slate-900">{sl.reward}</span></div>
                                             ))}
                                             {s.rewards.mode === "rank" && s.rewards.prizes.map((p, i) => (
-                                                <div key={i} className="flex justify-between gap-4 px-4 py-2.5"><span className="text-slate-500">{p.from === p.to ? `Rank ${p.from}` : `Ranks ${p.from} – ${p.to}`}</span><span className="font-semibold text-slate-900">{p.reward}</span></div>
+                                                <div key={i} className="flex justify-between gap-4 px-4 py-2.5"><span className="text-slate-500">{p.from === p.to ? `${t("Rank")} ${p.from}` : `${t("Ranks")} ${p.from} – ${p.to}`}</span><span className="font-semibold text-slate-900">{p.reward}</span></div>
                                             ))}
                                         </div>
                                     </section>
@@ -456,48 +462,48 @@ function SchemeView({ id, startSubmit, onBack }: { id: string; startSubmit: bool
                                 {(s.rewards.mode === "per_unit" || s.rewards.mode === "per_entry") && <p className="font-semibold text-slate-900">{rewardSummary(s.rewards)}</p>}
                                 {products.length > 0 && (
                                     <section>
-                                        <h3 className="text-sm font-semibold text-slate-900 mb-3">Points per set</h3>
+                                        <h3 className="text-sm font-semibold text-slate-900 mb-3">{t("Points per set")}</h3>
                                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
                                             {products.map(p => (
                                                 <div key={p.id} className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 px-3 py-2.5">
                                                     <span className="text-slate-700 truncate">{p.name}</span>
-                                                    <span className="shrink-0 rounded-md bg-orange-50 px-2 py-0.5 text-sm font-bold text-orange-700 tabular-nums">{p.points} pts</span>
+                                                    <span className="shrink-0 rounded-md bg-orange-50 px-2 py-0.5 text-sm font-bold text-orange-700 tabular-nums">{p.points} {t("pts")}</span>
                                                 </div>
                                             ))}
                                         </div>
                                     </section>
                                 )}
-                                <p className="text-xs text-slate-400">Only approved entries count.</p>
+                                <p className="text-xs text-slate-400">{t("Only approved entries count.")}</p>
                             </div>
                         )
                     )}
 
                     {current === "leaderboard" && d.leaderboard && (
-                        !d.leaderboard.length ? <p className="text-slate-400">No approved entries yet.</p> : <Leaderboard rows={d.leaderboard} />
+                        !d.leaderboard.length ? <p className="text-slate-400">{t("No approved entries yet.")}</p> : <Leaderboard rows={d.leaderboard} />
                     )}
 
                     {current === "entries" && d.joined && (
                         <div className="space-y-4">
                             <div className="flex flex-wrap items-center justify-between gap-2">
-                                <p className="text-slate-500">{d.entries.length ? `${d.entries.length} entr${d.entries.length === 1 ? "y" : "ies"} sent` : ""}</p>
+                                <p className="text-slate-500">{d.entries.length ? tr(`${d.entries.length} entr${d.entries.length === 1 ? "y" : "ies"} sent`, `${d.entries.length} एंट्री भेजी गईं`) : ""}</p>
                                 {d.entries.length > 0 && (
                                     <div className="flex flex-wrap items-center gap-2">
                                         <Select value={dayPick} onValueChange={setDayPick}>
-                                            <SelectTrigger className="h-9 w-[220px]" aria-label="Show entries from"><SelectValue /></SelectTrigger>
+                                            <SelectTrigger className="h-9 w-[220px]" aria-label={t("Show entries from")}><SelectValue /></SelectTrigger>
                                             <SelectContent>
-                                                <SelectItem value="all">All dates ({d.entries.length})</SelectItem>
+                                                <SelectItem value="all">{t("All dates")} ({d.entries.length})</SelectItem>
                                                 {days.map(g => (
                                                     <SelectItem key={g.day} value={g.day}>{formatDay(g.day)} ({g.items.length})</SelectItem>
                                                 ))}
-                                                <SelectItem value="range">Custom range…</SelectItem>
+                                                <SelectItem value="range">{t("Custom range…")}</SelectItem>
                                             </SelectContent>
                                         </Select>
                                         {dayPick === "range" && (
                                             <span className="flex items-center gap-1.5 text-xs text-slate-500">
-                                                <Input type="date" value={range.from} max={range.to || undefined} aria-label="From"
+                                                <Input type="date" value={range.from} max={range.to || undefined} aria-label={t("From")}
                                                     onChange={e => setRange(r => ({ ...r, from: e.target.value }))} className="h-9 w-[150px]" />
-                                                to
-                                                <Input type="date" value={range.to} min={range.from || undefined} aria-label="To"
+                                                {t("to")}
+                                                <Input type="date" value={range.to} min={range.from || undefined} aria-label={t("To")}
                                                     onChange={e => setRange(r => ({ ...r, to: e.target.value }))} className="h-9 w-[150px]" />
                                             </span>
                                         )}
@@ -507,12 +513,12 @@ function SchemeView({ id, startSubmit, onBack }: { id: string; startSubmit: bool
                             {!d.entries.length ? (
                                 <div className="rounded-lg border border-dashed border-slate-300 py-10 text-center">
                                     <FileText className="h-8 w-8 text-slate-300 mx-auto mb-2" />
-                                    <p className="font-medium text-slate-700">No entries yet</p>
-                                    <p className="text-slate-500 mt-0.5">Submit an invoice to start earning points.</p>
-                                    {canSubmit && <Button className="mt-4 bg-orange-500 hover:bg-orange-600" onClick={() => setSubmitOpen(true)}><Plus className="h-4 w-4 mr-1.5" /> Submit invoice</Button>}
+                                    <p className="font-medium text-slate-700">{t("No entries yet")}</p>
+                                    <p className="text-slate-500 mt-0.5">{t("Submit an invoice to start earning points.")}</p>
+                                    {canSubmit && <Button className="mt-4 bg-orange-500 hover:bg-orange-600" onClick={() => setSubmitOpen(true)}><Plus className="h-4 w-4 mr-1.5" /> {t("Submit invoice")}</Button>}
                                 </div>
                             ) : !shownDays.length ? (
-                                <p className="text-slate-400">No entries on {dayPick === "range" ? "these dates" : "this date"}.</p>
+                                <p className="text-slate-400">{dayPick === "range" ? t("No entries on these dates.") : t("No entries on this date.")}</p>
                             ) : (
                                 <div className="space-y-5">
                                     {shownDays.map(group => (
@@ -520,9 +526,9 @@ function SchemeView({ id, startSubmit, onBack }: { id: string; startSubmit: bool
                                             <p className="text-sm font-semibold text-slate-800 mb-2">
                                                 {formatDay(group.day)}
                                                 <span className="ml-2 font-normal text-slate-500">
-                                                    {group.items.length} entr{group.items.length === 1 ? "y" : "ies"}
-                                                    {group.approved ? ` · ${group.approved} approved` : ""}
-                                                    {group.pending ? ` · ${group.pending} under review` : ""}
+                                                    {tr(`${group.items.length} entr${group.items.length === 1 ? "y" : "ies"}`, `${group.items.length} एंट्री`)}
+                                                    {group.approved ? ` · ${tr(`${group.approved} approved`, `${group.approved} मंज़ूर`)}` : ""}
+                                                    {group.pending ? ` · ${tr(`${group.pending} under review`, `${group.pending} जाँच में`)}` : ""}
                                                 </span>
                                             </p>
                                             <div className="rounded-lg border border-slate-200 divide-y divide-slate-100">
@@ -545,7 +551,7 @@ function SchemeView({ id, startSubmit, onBack }: { id: string; startSubmit: bool
                             <DialogTitle>{s.title}</DialogTitle>
                             <DialogDescription>
                                 <a href={s.banner_url} target="_blank" rel="noreferrer" download className="inline-flex items-center gap-1 text-orange-700 hover:underline">
-                                    <Download className="h-3.5 w-3.5" /> Download the poster
+                                    <Download className="h-3.5 w-3.5" /> {t("Download the poster")}
                                 </a>
                             </DialogDescription>
                         </DialogHeader>
@@ -559,6 +565,7 @@ function SchemeView({ id, startSubmit, onBack }: { id: string; startSubmit: bool
 
 /** One entry: what was on it, its points, its state and its files. */
 function EntryRow({ e, scheme, hasScore }: { e: MyEntry; scheme: Omit<Scheme, "eligibility">; hasScore: boolean }) {
+    const { t } = useLanguage();
     /* Approved: what the team counted. Otherwise: what the store said. */
     const lines = e.status === "approved" && (e.lines ?? []).length ? e.lines ?? [] : e.claimed_lines ?? [];
     const points = e.status === "approved" ? e.score : lines.reduce((n, l) => n + (Number(l.subtotal) || 0), 0);
@@ -570,7 +577,7 @@ function EntryRow({ e, scheme, hasScore }: { e: MyEntry; scheme: Omit<Scheme, "e
                 <div className="flex-1 min-w-[200px] space-y-1">
                     {lines.length > 0 ? (
                         <p className="font-medium text-slate-900">{lines.map(l => `${l.name} × ${l.qty}`).join(", ")}</p>
-                    ) : !answers.length && <p className="text-slate-500">Entry</p>}
+                    ) : !answers.length && <p className="text-slate-500">{t("Entry")}</p>}
                     {answers.length > 0 && (
                         <p className="text-xs text-slate-500">{answers.map(f => <span key={f.id} className="mr-3"><span className="text-slate-400">{f.label}:</span> {e.answers[f.id]}</span>)}</p>
                     )}
@@ -582,22 +589,23 @@ function EntryRow({ e, scheme, hasScore }: { e: MyEntry; scheme: Omit<Scheme, "e
                 </div>
                 {hasScore && (
                     <div className="text-right w-24 shrink-0">
-                        <p className={cn("font-bold tabular-nums", e.status === "approved" ? "text-slate-900" : e.status === "rejected" ? "text-slate-300 line-through" : "text-slate-500")}>{points} pts</p>
-                        {e.status === "pending" && points > 0 && <p className="text-[11px] text-slate-400">if approved</p>}
+                        <p className={cn("font-bold tabular-nums", e.status === "approved" ? "text-slate-900" : e.status === "rejected" ? "text-slate-300 line-through" : "text-slate-500")}>{points} {t("pts")}</p>
+                        {e.status === "pending" && points > 0 && <p className="text-[11px] text-slate-400">{t("if approved")}</p>}
                     </div>
                 )}
                 <div className="w-28 shrink-0 text-right">
-                    <span className={cn("inline-block rounded-full border px-2.5 py-0.5 text-xs font-medium", ENTRY_META[e.status].tone)}>{ENTRY_META[e.status].label}</span>
+                    <span className={cn("inline-block rounded-full border px-2.5 py-0.5 text-xs font-medium", ENTRY_META[e.status].tone)}>{t(ENTRY_META[e.status].label)}</span>
                     <p className="text-[11px] text-slate-400 mt-1">{when(e.created_at)}</p>
                 </div>
             </div>
-            {e.status === "rejected" && e.review_note && <p className="mt-2 text-xs text-rose-700 bg-rose-50 rounded-md px-3 py-2">Reason: {e.review_note}</p>}
+            {e.status === "rejected" && e.review_note && <p className="mt-2 text-xs text-rose-700 bg-rose-50 rounded-md px-3 py-2">{t("Reason")}: {e.review_note}</p>}
         </div>
     );
 }
 
 /** The top three on a podium, then everyone else; the store's own row stands out. */
 function Leaderboard({ rows }: { rows: NonNullable<Detail["leaderboard"]> }) {
+    const { t } = useLanguage();
     const top = rows.filter(r => r.rank <= 3).slice(0, 3);
     const rest = rows.filter(r => !top.includes(r));
     const medal = ["text-amber-500", "text-slate-400", "text-orange-700"];
@@ -611,7 +619,7 @@ function Leaderboard({ rows }: { rows: NonNullable<Detail["leaderboard"]> }) {
                             {r.rank === 1 ? <Trophy className={cn("h-5 w-5", medal[0])} /> : <Medal className={cn("h-5 w-5", medal[r.rank - 1] ?? "text-slate-400")} />}
                         </div>
                         <div className="min-w-0 flex-1">
-                            <p className="text-xs text-slate-500">#{r.rank}{r.me && <span className="ml-1.5 font-bold text-orange-700">You</span>}</p>
+                            <p className="text-xs text-slate-500">#{r.rank}{r.me && <span className="ml-1.5 font-bold text-orange-700">{t("You")}</span>}</p>
                             <p className="font-semibold text-slate-900 truncate">{r.name}</p>
                         </div>
                         <div className="text-right shrink-0">
@@ -628,7 +636,7 @@ function Leaderboard({ rows }: { rows: NonNullable<Detail["leaderboard"]> }) {
                             <span className="flex items-center gap-3 min-w-0">
                                 <span className="w-10 tabular-nums text-slate-500">#{r.rank}</span>
                                 <span className={cn("truncate", r.me ? "font-bold text-slate-900" : "text-slate-800")}>{r.name}</span>
-                                {r.me && <span className="rounded bg-orange-500 px-1.5 text-[10px] font-bold text-white">YOU</span>}
+                                {r.me && <span className="rounded bg-orange-500 px-1.5 text-[10px] font-bold text-white">{t("YOU")}</span>}
                             </span>
                             <span className="flex items-center gap-2">{clubIcon(r.club)}<span className="tabular-nums font-semibold text-slate-800">{r.score}</span></span>
                         </li>
@@ -653,6 +661,7 @@ function EntryForm({ open, scheme, distributors, onClose, onDone }: {
     const invoiceField = scheme.fields.find(f => f.type === "file");
     const [other, setOther] = useState<Record<string, string>>({});
     const { toast } = useToast();
+    const { t, tr } = useLanguage();
     const [answers, setAnswers] = useState<Record<string, string>>({});
     const [files, setFiles] = useState<Record<string, File[]>>({});
     const [sending, setSending] = useState(false);
@@ -669,9 +678,9 @@ function EntryForm({ open, scheme, distributors, onClose, onDone }: {
     /** Read the invoice files and fill the series and quantities from them. */
     const readInvoice = async (list: File[]) => {
         if (!products.length || !list.length) return;
-        setReading({ stage: "Opening the invoice", pct: 0 }); setReadNote(null);
+        setReading({ stage: t("Opening the invoice"), pct: 0 }); setReadNote(null);
         try {
-            const text = await readInvoiceFiles(list, (stage, pct) => setReading({ stage, pct }));
+            const text = await readInvoiceFiles(list, (stage, pct) => setReading({ stage: t(stage), pct }));
             const found = matchInvoice(text, products);
             if (!found.length) { setReadNote("none"); return; }
             setLines(found.map(l => ({ product_id: l.product_id, qty: String(l.qty), check: l.confidence === "check", from: l.from })));
@@ -702,11 +711,11 @@ function EntryForm({ open, scheme, distributors, onClose, onDone }: {
             if (products.length) form.append("lines", JSON.stringify(lines.filter(l => Number(l.qty) > 0).map(l => ({ product_id: l.product_id, qty: Number(l.qty) }))));
             for (const [fid, list] of Object.entries(files)) for (const f of list) form.append(fid, f);
             await api.post(`/schemes/${scheme.id}/entries`, form, { headers: { "Content-Type": "multipart/form-data" } });
-            toast({ title: "Entry submitted", description: "It counts once it's approved." });
+            toast({ title: t("Entry submitted"), description: t("It counts once it's approved.") });
             onDone();
         } catch (e: any) {
             const list = e?.response?.data?.problems;
-            setProblems(Array.isArray(list) && list.length ? list : [getErrorMessage(e, "Could not submit")]);
+            setProblems(Array.isArray(list) && list.length ? list : [getErrorMessage(e, t("Could not submit"))]);
         } finally { setSending(false); }
     };
 
@@ -723,7 +732,7 @@ function EntryForm({ open, scheme, distributors, onClose, onDone }: {
         <Dialog open={open} onOpenChange={o => { if (!o && !sending) onClose(); }}>
             <DialogContent className="max-w-xl max-h-[92vh] overflow-y-auto">
                 <DialogHeader>
-                    <DialogTitle>Submit invoice</DialogTitle>
+                    <DialogTitle>{t("Submit invoice")}</DialogTitle>
                     <DialogDescription>{scheme.title}</DialogDescription>
                 </DialogHeader>
                 <div className="space-y-5">
@@ -741,9 +750,9 @@ function EntryForm({ open, scheme, distributors, onClose, onDone }: {
                                         className={cn("flex flex-col items-center justify-center gap-1.5 cursor-pointer rounded-xl border-2 border-dashed px-4 py-7 text-center transition-colors",
                                             dragOver === f.id ? "border-orange-400 bg-orange-50" : "border-slate-300 bg-slate-50 hover:border-orange-300 hover:bg-orange-50/40")}>
                                         <div className="h-10 w-10 rounded-full bg-white border border-slate-200 flex items-center justify-center"><Upload className="h-5 w-5 text-orange-500" /></div>
-                                        <p className="text-sm font-medium text-slate-800">Drop the {f.id === invoiceField?.id ? "invoice" : "file"} here, or <span className="text-orange-600">tap to choose</span></p>
+                                        <p className="text-sm font-medium text-slate-800">{f.id === invoiceField?.id ? t("Drop the invoice here, or") : t("Drop the file here, or")} <span className="text-orange-600">{t("tap to choose")}</span></p>
                                         <p className="text-xs text-slate-500">
-                                            {(f.formats ?? []).map(x => FORMAT_LABEL[x]).join(", ")} · up to {f.max_files ?? 1} file{(f.max_files ?? 1) === 1 ? "" : "s"}, {f.max_mb ?? 10} MB each
+                                            {(f.formats ?? []).map(x => FORMAT_LABEL[x]).join(", ")} · {tr(`up to ${f.max_files ?? 1} file${(f.max_files ?? 1) === 1 ? "" : "s"}, ${f.max_mb ?? 10} MB each`, `ज़्यादा से ज़्यादा ${f.max_files ?? 1} फ़ाइल, हर एक ${f.max_mb ?? 10} MB तक`)}
                                         </p>
                                         <input id={`e-${f.id}`} type="file" className="hidden" multiple={(f.max_files ?? 1) > 1}
                                             accept={(f.formats ?? []).map(x => FORMAT_ACCEPT[x]).join(",")}
@@ -753,7 +762,7 @@ function EntryForm({ open, scheme, distributors, onClose, onDone }: {
                                 {picked.map((file, i) => (
                                     <div key={i} className="flex items-center justify-between gap-2 text-sm text-slate-700 rounded-lg border border-slate-200 bg-white px-3 py-2">
                                         <span className="truncate flex items-center gap-2"><FileText className="h-4 w-4 text-slate-400 shrink-0" />{file.name}</span>
-                                        <button type="button" className="text-slate-400 hover:text-rose-600" aria-label="Remove file"
+                                        <button type="button" className="text-slate-400 hover:text-rose-600" aria-label={t("Remove file")}
                                             onClick={() => setFiles(m => ({ ...m, [f.id]: m[f.id].filter((_, j) => j !== i) }))}><X className="h-4 w-4" /></button>
                                     </div>
                                 ))}
@@ -764,10 +773,10 @@ function EntryForm({ open, scheme, distributors, onClose, onDone }: {
                     {products.length > 0 && (
                         <div className="space-y-2">
                             <div className="flex items-center justify-between gap-2">
-                                <p className="text-sm font-medium text-slate-800">What's on the invoice<span className="text-rose-500"> *</span></p>
+                                <p className="text-sm font-medium text-slate-800">{t("What's on the invoice")}<span className="text-rose-500"> *</span></p>
                                 {invoiceField && (files[invoiceField.id] ?? []).length > 0 && !reading && (
                                     <button type="button" className="text-xs font-medium text-sky-700 flex items-center gap-1 hover:underline"
-                                        onClick={() => readInvoice(files[invoiceField.id] ?? [])}><ScanText className="h-3.5 w-3.5" /> Read again</button>
+                                        onClick={() => readInvoice(files[invoiceField.id] ?? [])}><ScanText className="h-3.5 w-3.5" /> {t("Read again")}</button>
                                 )}
                             </div>
                             {reading && (
@@ -778,48 +787,48 @@ function EntryForm({ open, scheme, distributors, onClose, onDone }: {
                             )}
                             {!reading && readNote && (
                                 readNote === "none" ? (
-                                    <p className="rounded-lg bg-amber-50 border border-amber-100 px-3 py-2 text-sm text-amber-800">Couldn't find this scheme's series on the invoice — add them below.</p>
+                                    <p className="rounded-lg bg-amber-50 border border-amber-100 px-3 py-2 text-sm text-amber-800">{t("Couldn't find this scheme's series on the invoice — add them below.")}</p>
                                 ) : readNote === "error" ? (
-                                    <p className="rounded-lg bg-amber-50 border border-amber-100 px-3 py-2 text-sm text-amber-800">Couldn't read this file — add the series below.</p>
+                                    <p className="rounded-lg bg-amber-50 border border-amber-100 px-3 py-2 text-sm text-amber-800">{t("Couldn't read this file — add the series below.")}</p>
                                 ) : (
                                     <p className={cn("rounded-lg border px-3 py-2 text-sm flex items-start gap-2", readNote.check ? "bg-amber-50 border-amber-100 text-amber-800" : "bg-emerald-50 border-emerald-100 text-emerald-800")}>
                                         {readNote.check ? <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" /> : <CheckCircle2 className="h-4 w-4 mt-0.5 shrink-0" />}
-                                        <span>Read {readNote.found} series from your invoice{readNote.check ? ` — check the ${readNote.check} marked below` : ""}. Correct anything that's wrong before you submit.</span>
+                                        <span>{tr(`Read ${readNote.found} series from your invoice${readNote.check ? ` — check the ${readNote.check} marked below` : ""}. Correct anything that's wrong before you submit.`, `आपके इनवॉइस से ${readNote.found} सीरीज़ पढ़ी गईं${readNote.check ? ` — नीचे निशान लगी ${readNote.check} जाँच लें` : ""}। भेजने से पहले जो गलत हो उसे ठीक करें।`)}</span>
                                     </p>
                                 )
                             )}
                             <div className="rounded-lg border border-slate-200 overflow-hidden">
                                 <div className="grid grid-cols-[1fr_80px_64px_36px] gap-2 bg-slate-50 px-3 py-2 text-xs font-medium text-slate-500">
-                                    <span>Series</span><span>Qty</span><span className="text-right">Points</span><span />
+                                    <span>{t("Series")}</span><span>{t("Qty")}</span><span className="text-right">{t("Points")}</span><span />
                                 </div>
                                 <div className="divide-y divide-slate-100">
                                     {lines.map((l, i) => {
                                         const p = products.find(x => x.id === l.product_id);
                                         return (
-                                            <div key={i} className={cn("grid grid-cols-[1fr_80px_64px_36px] gap-2 items-center px-3 py-2", l.check && "bg-amber-50")} title={l.from ? `Read from: ${l.from}` : undefined}>
+                                            <div key={i} className={cn("grid grid-cols-[1fr_80px_64px_36px] gap-2 items-center px-3 py-2", l.check && "bg-amber-50")} title={l.from ? `${t("Read from")}: ${l.from}` : undefined}>
                                                 <div className="min-w-0">
                                                     <Select value={l.product_id} onValueChange={v => setLines(ls => ls.map((x, j) => j === i ? { ...x, product_id: v, check: false } : x))}>
-                                                        <SelectTrigger className="h-9" aria-label="Series"><SelectValue /></SelectTrigger>
-                                                        <SelectContent>{products.map(pp => <SelectItem key={pp.id} value={pp.id}>{pp.name} · {pp.points} pts</SelectItem>)}</SelectContent>
+                                                        <SelectTrigger className="h-9" aria-label={t("Series")}><SelectValue /></SelectTrigger>
+                                                        <SelectContent>{products.map(pp => <SelectItem key={pp.id} value={pp.id}>{pp.name} · {pp.points} {t("pts")}</SelectItem>)}</SelectContent>
                                                     </Select>
-                                                    {l.check && <p className="mt-1 text-[11px] font-semibold text-amber-700 flex items-center gap-1"><AlertTriangle className="h-3 w-3" /> Please check</p>}
+                                                    {l.check && <p className="mt-1 text-[11px] font-semibold text-amber-700 flex items-center gap-1"><AlertTriangle className="h-3 w-3" /> {t("Please check")}</p>}
                                                 </div>
-                                                <Input type="number" min={1} value={l.qty} placeholder="Qty" aria-label="Quantity" className="h-9"
+                                                <Input type="number" min={1} value={l.qty} placeholder={t("Qty")} aria-label={t("Quantity")} className="h-9"
                                                     onChange={e => setLines(ls => ls.map((x, j) => j === i ? { ...x, qty: e.target.value, check: false } : x))} />
                                                 <span className="text-right tabular-nums text-sm font-semibold text-slate-700">{(Number(l.qty) || 0) * (p?.points ?? 0)}</span>
                                                 <Button type="button" size="icon" variant="ghost" className="h-8 w-8 text-slate-400 hover:text-rose-600" disabled={lines.length === 1}
-                                                    onClick={() => setLines(ls => ls.filter((_, j) => j !== i))} aria-label="Remove"><Trash2 className="h-4 w-4" /></Button>
+                                                    onClick={() => setLines(ls => ls.filter((_, j) => j !== i))} aria-label={t("Remove")}><Trash2 className="h-4 w-4" /></Button>
                                             </div>
                                         );
                                     })}
                                 </div>
                                 <div className="flex items-center justify-between gap-2 border-t border-slate-200 bg-slate-50 px-3 py-2">
                                     <button type="button" className="text-sm font-medium text-sky-700 flex items-center gap-1 hover:underline"
-                                        onClick={() => setLines(ls => [...ls, { product_id: products[0].id, qty: "" }])}><Plus className="h-4 w-4" /> Add series</button>
-                                    <span className="text-sm text-slate-600">Total <b className="tabular-nums text-slate-900">{claimed} pts</b></span>
+                                        onClick={() => setLines(ls => [...ls, { product_id: products[0].id, qty: "" }])}><Plus className="h-4 w-4" /> {t("Add series")}</button>
+                                    <span className="text-sm text-slate-600">{t("Total")} <b className="tabular-nums text-slate-900">{claimed} {t("pts")}</b></span>
                                 </div>
                             </div>
-                            <p className="text-xs text-slate-500">Our team checks these against your invoice before the points count.</p>
+                            <p className="text-xs text-slate-500">{t("Our team checks these against your invoice before the points count.")}</p>
                         </div>
                     )}
 
@@ -829,19 +838,19 @@ function EntryForm({ open, scheme, distributors, onClose, onDone }: {
                             {f.type === "distributor" ? (
                                 <div className="space-y-1.5">
                                     <Select value={answers[f.id] ?? ""} onValueChange={v => setAnswers(a => ({ ...a, [f.id]: v }))}>
-                                        <SelectTrigger id={`e-${f.id}`}><SelectValue placeholder="The distributor you bought from" /></SelectTrigger>
+                                        <SelectTrigger id={`e-${f.id}`}><SelectValue placeholder={t("The distributor you bought from")} /></SelectTrigger>
                                         <SelectContent>
                                             {distributors.map(dd => <SelectItem key={dd.id} value={dd.name}>{dd.name}{dd.city ? ` · ${dd.city}` : ""}</SelectItem>)}
-                                            <SelectItem value="__other">Other…</SelectItem>
+                                            <SelectItem value="__other">{t("Other…")}</SelectItem>
                                         </SelectContent>
                                     </Select>
                                     {answers[f.id] === "__other" && (
-                                        <Input value={other[f.id] ?? ""} onChange={e => setOther(o => ({ ...o, [f.id]: e.target.value }))} placeholder="Distributor name" />
+                                        <Input value={other[f.id] ?? ""} onChange={e => setOther(o => ({ ...o, [f.id]: e.target.value }))} placeholder={t("Distributor name")} />
                                     )}
                                 </div>
                             ) : f.type === "select" ? (
                                 <Select value={answers[f.id] ?? ""} onValueChange={v => setAnswers(a => ({ ...a, [f.id]: v }))}>
-                                    <SelectTrigger id={`e-${f.id}`}><SelectValue placeholder="Choose" /></SelectTrigger>
+                                    <SelectTrigger id={`e-${f.id}`}><SelectValue placeholder={t("Choose")} /></SelectTrigger>
                                     <SelectContent>{(f.options ?? []).filter(Boolean).map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
                                 </Select>
                             ) : (
@@ -858,9 +867,9 @@ function EntryForm({ open, scheme, distributors, onClose, onDone }: {
                     )}
                 </div>
                 <DialogFooter className="gap-2">
-                    <Button variant="outline" onClick={onClose} disabled={sending}>Cancel</Button>
+                    <Button variant="outline" onClick={onClose} disabled={sending}>{t("Cancel")}</Button>
                     <Button className="bg-orange-500 hover:bg-orange-600" onClick={() => { setProblems([]); setConfirming(true); }} disabled={sending || Boolean(reading)}>
-                        Review &amp; submit <ChevronRight className="h-4 w-4 ml-1" />
+                        {t("Review & submit")} <ChevronRight className="h-4 w-4 ml-1" />
                     </Button>
                 </DialogFooter>
             </DialogContent>
@@ -869,8 +878,8 @@ function EntryForm({ open, scheme, distributors, onClose, onDone }: {
             <Dialog open={confirming} onOpenChange={o => { if (!o && !sending) setConfirming(false); }}>
                 <DialogContent className="max-w-md">
                     <DialogHeader>
-                        <DialogTitle>Submit this entry?</DialogTitle>
-                        <DialogDescription>Check it once more — you can't change an entry after sending it.</DialogDescription>
+                        <DialogTitle>{t("Submit this entry?")}</DialogTitle>
+                        <DialogDescription>{t("Check it once more — you can't change an entry after sending it.")}</DialogDescription>
                     </DialogHeader>
                     <div className="space-y-3 text-sm">
                         {products.length > 0 && (
@@ -880,12 +889,12 @@ function EntryForm({ open, scheme, distributors, onClose, onDone }: {
                                     return (
                                         <div key={i} className="flex items-center justify-between px-3 py-2">
                                             <span className="text-slate-800">{p?.name ?? "—"} × <b className="tabular-nums">{l.qty}</b></span>
-                                            <span className="tabular-nums text-slate-500">{(Number(l.qty) || 0) * (p?.points ?? 0)} pts</span>
+                                            <span className="tabular-nums text-slate-500">{(Number(l.qty) || 0) * (p?.points ?? 0)} {t("pts")}</span>
                                         </div>
                                     );
                                 })}
                                 <div className="flex items-center justify-between px-3 py-2 bg-slate-50 font-bold">
-                                    <span className="flex items-center gap-1.5"><Star className="h-4 w-4 text-orange-500" /> Points if approved</span><span className="tabular-nums">{claimed}</span>
+                                    <span className="flex items-center gap-1.5"><Star className="h-4 w-4 text-orange-500" /> {t("Points if approved")}</span><span className="tabular-nums">{claimed}</span>
                                 </div>
                             </div>
                         )}
@@ -893,19 +902,19 @@ function EntryForm({ open, scheme, distributors, onClose, onDone }: {
                             <p key={f.id} className="text-slate-600"><span className="text-slate-400">{f.label}:</span> {answers[f.id] === "__other" ? (other[f.id] || "—") : answers[f.id]}</p>
                         ))}
                         {scheme.fields.filter(f => f.type === "file").map(f => (
-                            <p key={f.id} className="text-slate-600"><span className="text-slate-400">{f.label}:</span> {(files[f.id] ?? []).length} file{(files[f.id] ?? []).length === 1 ? "" : "s"}</p>
+                            <p key={f.id} className="text-slate-600"><span className="text-slate-400">{f.label}:</span> {tr(`${(files[f.id] ?? []).length} file${(files[f.id] ?? []).length === 1 ? "" : "s"}`, `${(files[f.id] ?? []).length} फ़ाइल`)}</p>
                         ))}
                         {lines.some(l => l.check) && (
                             <p className="rounded-lg bg-amber-50 border border-amber-100 px-3 py-2 text-xs text-amber-800 flex items-start gap-1.5">
-                                <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0" /> Some lines were marked to check and haven't been changed. Make sure they match your invoice.
+                                <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0" /> {t("Some lines were marked to check and haven't been changed. Make sure they match your invoice.")}
                             </p>
                         )}
                     </div>
                     <DialogFooter className="gap-2">
-                        <Button variant="outline" onClick={() => setConfirming(false)} disabled={sending}>Go back and edit</Button>
+                        <Button variant="outline" onClick={() => setConfirming(false)} disabled={sending}>{t("Go back and edit")}</Button>
                         <Button className="bg-orange-500 hover:bg-orange-600" disabled={sending}
                             onClick={async () => { await send(); setConfirming(false); }}>
-                            {sending && <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />} Yes, submit
+                            {sending && <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />} {t("Yes, submit")}
                         </Button>
                     </DialogFooter>
                 </DialogContent>

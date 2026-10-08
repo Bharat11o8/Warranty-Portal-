@@ -18,7 +18,7 @@ import { ChevronDown, ChevronUp } from "lucide-react";
 export interface Named { key: string; label: string; count: number }
 export interface LeadChartsData {
     total: number;
-    by_day: Array<{ day: string; whatsapp: number; instagram: number; ivr: number; website: number; other: number }>;
+    by_day: Array<{ day: string; whatsapp: number; instagram: number; ivr: number; website: number; whatsapp_manual?: number; other: number }>;
     product: Named[];
     went_to: Named[];
     states: Named[];
@@ -42,6 +42,8 @@ export const CHANNELS = [
     { key: "instagram", label: "Instagram", color: "#f472b6" },
     { key: "ivr", label: "IVR", color: "#4f46e5" },
     { key: "website", label: "Website", color: "#0891b2" },
+    /* Hand-added WhatsApp enquiries: a lighter green, read as WhatsApp's family. */
+    { key: "whatsapp_manual", label: "WhatsApp (added)", color: "#5eead4" },
 ] as const;
 
 const PRODUCT_COLOR: Record<string, string> = {
@@ -158,12 +160,12 @@ export function LeadCharts({ data, onPick, active = {}, collapsible = true }: {
             : addDays(last, -(Number(range) - 1));
         const out: LeadChartsData["by_day"] = [];
         for (let d = first; d <= last && out.length < 400; d = addDays(d, 1)) {
-            out.push(byDay.get(d) ?? { day: d, whatsapp: 0, instagram: 0, ivr: 0, website: 0, other: 0 });
+            out.push(byDay.get(d) ?? { day: d, whatsapp: 0, instagram: 0, ivr: 0, website: 0, whatsapp_manual: 0, other: 0 });
         }
         return out;
     }, [data.by_day, range]);
-    const inRange = days.reduce((n, d) => n + d.whatsapp + d.instagram + d.ivr + d.website + d.other, 0);
-    const channelTotals = CHANNELS.map(c => ({ ...c, count: days.reduce((n, d) => n + d[c.key], 0) }));
+    const inRange = days.reduce((n, d) => n + d.whatsapp + d.instagram + d.ivr + d.website + (d.whatsapp_manual ?? 0) + d.other, 0);
+    const channelTotals = CHANNELS.map(c => ({ ...c, count: days.reduce((n, d) => n + (d[c.key] ?? 0), 0) }));
     const hasOther = days.some(d => d.other > 0);
 
     const products = data.product.filter(p => p.count > 0);
@@ -221,7 +223,7 @@ export function LeadCharts({ data, onPick, active = {}, collapsible = true }: {
                                         content={({ active: on, payload }) => {
                                             if (!on || !payload?.length) return null;
                                             const d = payload[0].payload as LeadChartsData["by_day"][number];
-                                            const sum = d.whatsapp + d.instagram + d.ivr + d.website + d.other;
+                                            const sum = d.whatsapp + d.instagram + d.ivr + d.website + (d.whatsapp_manual ?? 0) + d.other;
                                             return (
                                                 <div className="rounded-lg border border-slate-200 bg-white px-3 py-2 shadow-sm text-xs">
                                                     <p className="font-bold text-slate-800 mb-1">{shortDay(d.day)} · {sum}</p>
