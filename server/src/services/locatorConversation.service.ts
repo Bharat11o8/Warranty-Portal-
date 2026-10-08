@@ -267,6 +267,12 @@ async function isTeamNumber(phone: string): Promise<boolean> {
  * a backup for when the message webhook is late or missed.
  */
 export function startFromHandoff(input: Parameters<typeof startConversation>[0]): Promise<void> {
+    /* A hand-off with no usable number (an unmapped workflow variable) cannot
+       be answered: starting a chat only made sends to "+91" fail. */
+    if (!/^\d{10}$/.test(localPhone(input.phone) || '')) {
+        console.log(`[Chat] hand-off ignored — no valid phone number ("${String(input.phone ?? '')}")`);
+        return Promise.resolve();
+    }
     return inOrder(phoneKey(input.phone), async () => {
         if (await chatStartedWithin(input.phone, 120, false)) {
             console.log(`[Chat] ${phoneKey(input.phone)} hand-off — chat already running`);
